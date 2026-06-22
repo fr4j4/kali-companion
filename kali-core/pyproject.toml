@@ -1,0 +1,52 @@
+[project]
+name = "kali-core"
+version = "0.1.0"
+description = "Kali companion core — the Python sidecar that hosts the agent, tools, voice, and permissions."
+license = "MIT"
+requires-python = ">=3.12"
+readme = "../README.md"
+
+dependencies = [
+    # Web server. Same stack as the legacy ai-voice-companion prototype.
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "websockets>=13",
+    "httpx>=0.27",
+    # Config + utils.
+    "python-dotenv>=1.0",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    # STT (kali-ear).
+    "vosk>=0.3.45",
+    # TTS (kali-voice). piper-phonemize is the lightweight phonemizer; the
+    # full `piper` wheel provides PiperVoice used by the in-process engine.
+    "numpy>=1.26",
+    "scipy>=1.13",
+    # LLM provider (DirectLLMProvider, OpenAI-compatible).
+    "openai>=1.40",
+    # Sessions (kali-nest).
+    "aiosqlite>=0.20",
+    # STT correction (fuzzy matching).
+    "rapidfuzz>=3.0",
+]
+
+[project.optional-dependencies]
+piper = ["piper-tts>=1.2"]
+dev = ["ruff>=0.6", "pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+kali-core = "kali_core.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kali_core"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

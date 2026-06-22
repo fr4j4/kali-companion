@@ -1,0 +1,8 @@
+{
+  "id": "dev",
+  "name": "Development",
+  "description": "Profile for coding sessions. Whitelists common dev actions.",
+  "allowed_tools": ["fs_read", "fs_list", "run_tests", "git_worktree", "git_diff", "launch_app", "list_monitors", "screenshot"],
+  "working_dirs": ["~/projects/**"],
+  "command_whitelist": ["pytest", "npm test", "go test", "git *", "rg *", "ls *", "cat *", "cargo test", "npm run *"]
+}

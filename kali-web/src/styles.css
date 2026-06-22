@@ -1,0 +1,186 @@
+/* Kali-web styles — Tailwind + CSS variable themes. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #0b0d12;
+    --bg-elev: #14171f;
+    --fg: #e6e8ee;
+    --muted: #8a8f9c;
+    --accent: #7c5cff;
+    --accent-dim: #4a3a8f;
+    --ok: #4ade80;
+    --err: #f87171;
+    --user-bubble: #2a2440;
+    --assistant-bubble: #1a1d28;
+    --border: rgba(255, 255, 255, 0.06);
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+  }
+
+  :root[data-theme="synthwave"] {
+    --bg: #1a0b2e;
+    --bg-elev: #2d1b4e;
+    --fg: #f0e6ff;
+    --muted: #9d8ec7;
+    --accent: #ff2e97;
+    --accent-dim: #a02077;
+    --ok: #00ff9f;
+    --err: #ff5757;
+    --user-bubble: #4a2d6e;
+    --assistant-bubble: #2a1a4a;
+    --border: rgba(255, 46, 151, 0.15);
+  }
+
+  :root[data-theme="sunset"] {
+    --bg: #1c1410;
+    --bg-elev: #2a201a;
+    --fg: #fef3e8;
+    --muted: #b89878;
+    --accent: #ff7e47;
+    --accent-dim: #a04e2a;
+    --ok: #6dd47e;
+    --err: #ef5350;
+    --user-bubble: #3d2818;
+    --assistant-bubble: #2a1f18;
+    --border: rgba(255, 126, 71, 0.15);
+  }
+
+  :root[data-theme="forest"] {
+    --bg: #0d1b14;
+    --bg-elev: #16261d;
+    --fg: #e0f0e8;
+    --muted: #7a9a85;
+    --accent: #4ade80;
+    --accent-dim: #2a8a4f;
+    --ok: #4ade80;
+    --err: #f87171;
+    --user-bubble: #1d3328;
+    --assistant-bubble: #16261d;
+    --border: rgba(74, 222, 128, 0.12);
+  }
+
+  html, body, #root {
+    @apply h-full m-0;
+  }
+
+  body {
+    @apply bg-surface text-foreground;
+  }
+
+  * {
+    @apply box-border;
+  }
+}
+
+@layer components {
+  .msg-bubble {
+    @apply px-3.5 py-2.5 leading-relaxed break-words;
+    border-radius: 0.875rem;
+  }
+
+  .user-bubble {
+    @apply bg-user-bubble;
+    border-bottom-right-radius: 4px;
+  }
+
+  .assistant-bubble {
+    @apply bg-assistant-bubble border border-border;
+    border-bottom-left-radius: 4px;
+  }
+
+  .streaming-cursor {
+    @apply inline-block w-2 h-3.5 ml-0.5 align-text-bottom;
+    background: var(--accent);
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  .tool-output pre {
+    @apply bg-surface p-2 rounded text-xs overflow-x-auto my-1;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .canvas-tabs {
+    @apply flex gap-1 overflow-x-auto;
+  }
+
+  .canvas-tab {
+    @apply bg-transparent border border-border text-foreground rounded-md px-2.5 py-1 text-xs cursor-pointer whitespace-nowrap;
+  }
+
+  .canvas-tab.active {
+    @apply bg-accent-dim;
+    border-color: var(--accent);
+  }
+
+  .sidebar-item {
+    @apply flex flex-col gap-0.5 w-full text-left bg-transparent border-none text-foreground rounded-md px-2.5 py-2 cursor-pointer mb-0.5;
+  }
+
+  .sidebar-item:hover { background: var(--bg); }
+  .sidebar-item.active { background: var(--accent-dim); }
+
+  .sidebar-item-title {
+    @apply text-sm whitespace-nowrap overflow-hidden overflow-ellipsis;
+  }
+
+  .sidebar-item-date {
+    @apply text-xs text-muted;
+  }
+
+  .model-badge {
+    @apply text-xs text-muted px-2 py-0.5 rounded;
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+.reasoning-panel {
+  margin-bottom: 8px;
+  border-left: 2px solid var(--muted);
+  padding-left: 8px;
+}
+
+.reasoning-panel summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.reasoning-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.4;
+}

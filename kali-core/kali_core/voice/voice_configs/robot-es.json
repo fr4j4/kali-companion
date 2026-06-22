@@ -1,0 +1,21 @@
+{
+  "voice_id": "robot-es",
+  "name": "Robot ES (Kali default)",
+  "description": "Robotic Spanish voice, GLaDOS-inspired, no copyright.",
+  "model": "es_ES-davefx-medium",
+  "active": true,
+  "params": {
+    "length_scale": 0.95,
+    "noise_scale": 0.5,
+    "noise_w_scale": 0.6
+  },
+  "segment_silence": 0.2,
+  "default_mode": "robotic",
+  "modes": {
+    "normal":    { "effects": [] },
+    "whisper":   { "effects": ["whisper"] },
+    "robotic":   { "effects": ["robotic"] },
+    "radio":     { "effects": ["radio"] },
+    "deep":      { "effects": ["deep"] }
+  }
+}

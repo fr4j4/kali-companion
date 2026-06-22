@@ -1,0 +1,21 @@
+{
+  "voice_id": "glados-es",
+  "name": "GLaDOS ES",
+  "description": "Spanish GLaDOS voice from Portal, fine-tuned Piper model.",
+  "model": "es_ES-glados-medium",
+  "active": true,
+  "params": {
+    "length_scale": 1.0,
+    "noise_scale": 0.667,
+    "noise_w_scale": 0.8
+  },
+  "segment_silence": 0.2,
+  "default_mode": "normal",
+  "modes": {
+    "normal":    { "effects": [] },
+    "whisper":   { "effects": ["whisper"] },
+    "robotic":   { "effects": ["robotic"] },
+    "radio":     { "effects": ["radio"] },
+    "deep":      { "effects": ["deep"] }
+  }
+}

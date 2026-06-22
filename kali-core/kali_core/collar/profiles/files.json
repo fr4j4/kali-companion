@@ -1,0 +1,8 @@
+{
+  "id": "files",
+  "name": "Files",
+  "description": "Profile for organizing files. Whitelists folder reads and writes (with consent).",
+  "allowed_tools": ["fs_read", "fs_list", "list_monitors", "organize_folder"],
+  "working_dirs": ["~/**"],
+  "command_whitelist": []
+}
