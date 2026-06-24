@@ -1,15 +1,3 @@
-/**
- * stage/ArtifactCanvas.tsx — The floating-window container layer.
- *
- * Renders all open windows from the workspace, manages focus + selection,
- * and provides context-menu + lasso infrastructure.  In mobile/grid mode,
- * windows are displayed in a scrollable flex-wrap grid instead of absolute
- * positioning.
- *
- * The actual widget content is rendered via a `WindowContentRouter` that
- * dispatches by window type using the widgetRegistry.
- */
-
 import { useCallback } from "react";
 import type { WorkspaceAPI } from "../workspace/types";
 import { ArtifactWindow } from "./ArtifactWindow";
@@ -21,13 +9,18 @@ interface Props {
 }
 
 export function ArtifactCanvas({ api }: Props) {
-  const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize } = api;
+  const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize, toggleMaximize } = api;
 
   const handleMoveEnd = useCallback((id: number, prevPos: { x: number; y: number }) => {
     const w = windows.find((x) => x.id === id);
     if (!w) return;
     void prevPos;
   }, [windows]);
+
+  const handleResize = useCallback((id: number, size: { width: number; height: number | null }, pos?: { x: number; y: number }) => {
+    resizeWindow(id, size);
+    if (pos) moveWindow(id, pos);
+  }, [resizeWindow, moveWindow]);
 
   if (gridMode) {
     return (
@@ -70,9 +63,10 @@ export function ArtifactCanvas({ api }: Props) {
             onFocus={() => focusWindow(w.id)}
             onClose={() => closeWindow(w.id)}
             onMinimize={() => toggleMinimize(w.id)}
+            onMaximize={() => toggleMaximize(w.id)}
             onMove={(pos) => moveWindow(w.id, pos)}
             onMoveEnd={(prevPos) => handleMoveEnd(w.id, prevPos)}
-            onResize={(size) => resizeWindow(w.id, { width: size.width, height: w.size.height })}
+            onResize={(size, pos) => handleResize(w.id, size, pos)}
             minW={entry?.minW}
             minH={entry?.minH}
           >

@@ -30,6 +30,7 @@ import {
   clearAllInArray,
   computeOrbitPositions,
   toggleMinimizeInArray,
+  toggleMaximizeInArray,
 } from "./windowManager";
 import type { ArtifactEvent } from "../lib/protocol";
 
@@ -183,6 +184,11 @@ export function useWorkspace(): import("./types").WorkspaceAPI {
     setWindows((prev) => toggleMinimizeInArray(prev, id));
   }, []);
 
+  // Toggle maximize
+  const toggleMaximize = useCallback((id: number) => {
+    setWindows((prev) => toggleMaximizeInArray(prev, id));
+  }, []);
+
   // Save workspace
   const saveWorkspace = useCallback(() => {
     persistence.save();
@@ -235,12 +241,13 @@ export function useWorkspace(): import("./types").WorkspaceAPI {
     clearSelection: selection.clearSelection,
     syncArtifact,
     toggleMinimize,
+    toggleMaximize,
   }), [
     windows, gridMode, selection.selectedIds, audioEnabled,
     createWindow, closeWindow, restoreWindow, duplicateWindow,
     focusWindow, focusLast, clearAll, toggleGrid, arrangeOrbit,
     networkPulse, toggleAudio, undo, redo, saveWorkspace,
     moveWindow, resizeWindow, selection.toggleSelect, selection.clearSelection,
-    syncArtifact, toggleMinimize,
+    syncArtifact, toggleMinimize, toggleMaximize,
   ]);
 }

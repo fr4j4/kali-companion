@@ -1,17 +1,7 @@
-/**
- * stage/ArtifactWindow.tsx — A single draggable/resizable window on the canvas.
- *
- * Renders a window with:
- *   - Header (drag handle, icon, title, focus label, minimize, close)
- *   - Body (children — the widget content)
- *   - Resize handle (bottom-right corner)
- *
- * Mobile (<768px) disables drag/resize — windows are positioned by CSS grid.
- */
-
 import { useRef, useCallback } from "react";
 import type { ArtifactWindowData } from "../workspace/types";
 import { startDrag, startResize } from "../workspace/useDragResize";
+import type { ResizeEdge } from "../workspace/useDragResize";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 
 interface Props {
@@ -21,14 +11,26 @@ interface Props {
   onFocus: () => void;
   onClose: () => void;
   onMinimize: () => void;
+  onMaximize?: () => void;
   onMove: (pos: { x: number; y: number }) => void;
   onMoveEnd: (pos: { x: number; y: number }) => void;
-  onResize: (size: { width: number; height: number | null }) => void;
+  onResize: (size: { width: number; height: number | null }, pos?: { x: number; y: number }) => void;
   children: React.ReactNode;
   minW?: number;
   minH?: number;
   headerActions?: React.ReactNode;
 }
+
+const RESIZE_HANDLES: { edge: ResizeEdge; className: string; label: string }[] = [
+  { edge: "n", className: "aw-handle-n", label: "Redimensionar arriba" },
+  { edge: "s", className: "aw-handle-s", label: "Redimensionar abajo" },
+  { edge: "e", className: "aw-handle-e", label: "Redimensionar derecha" },
+  { edge: "w", className: "aw-handle-w", label: "Redimensionar izquierda" },
+  { edge: "ne", className: "aw-handle-ne", label: "Redimensionar noreste" },
+  { edge: "nw", className: "aw-handle-nw", label: "Redimensionar noroeste" },
+  { edge: "se", className: "aw-handle-se", label: "Redimensionar sureste" },
+  { edge: "sw", className: "aw-handle-sw", label: "Redimensionar suroeste" },
+];
 
 export function ArtifactWindow({
   window: w,
@@ -37,6 +39,7 @@ export function ArtifactWindow({
   onFocus,
   onClose,
   onMinimize,
+  onMaximize,
   onMove,
   onMoveEnd,
   onResize,
@@ -50,8 +53,8 @@ export function ArtifactWindow({
   const { isMobile } = useBreakpoint();
 
   const handleDragStart = useCallback((e: React.PointerEvent) => {
-    if (isMobile) return; // No drag on mobile
-    if ((e.target as HTMLElement).closest("button")) return; // Don't drag from buttons
+    if (isMobile) return;
+    if ((e.target as HTMLElement).closest("button")) return;
     onFocus();
     const el = elRef.current;
     if (!el) return;
@@ -62,12 +65,12 @@ export function ArtifactWindow({
       startMouse: { x: e.clientX, y: e.clientY },
       onMove: (_id, pos) => onMove(pos),
       onEnd: (_id, _finalPos, prevPos) => onMoveEnd(prevPos),
-      otherWindows: [], // TODO: pass sibling window refs for snap-to-window
+      otherWindows: [],
       shiftHeld: () => e.shiftKey,
     });
   }, [isMobile, w.id, w.position, onFocus, onMove, onMoveEnd]);
 
-  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+  const handleResizeStart = useCallback((e: React.PointerEvent, edge: ResizeEdge) => {
     if (isMobile) return;
     e.stopPropagation();
     onFocus();
@@ -76,15 +79,19 @@ export function ArtifactWindow({
     startResize({
       id: w.id,
       el,
+      edge,
       startSize: { width: w.size.width, height: w.size.height || 300 },
+      startPos: w.position,
       startMouse: { x: e.clientX, y: e.clientY },
       minW,
       minH,
-      onResize: (_id, size) => onResize({ width: size.width, height: w.size.height === null ? null : size.height }),
+      onResize: (_id, size, pos) => onResize(
+        { width: size.width, height: w.size.height === null ? null : size.height },
+        pos,
+      ),
     });
-  }, [isMobile, w.id, w.size, onFocus, onResize, minW, minH]);
+  }, [isMobile, w.id, w.size, w.position, onFocus, onResize, minW, minH]);
 
-  // Grid mode: position via CSS flex, not absolute
   if (isMobile || (typeof window !== "undefined" && document.body.classList.contains("grid-mode"))) {
     return (
       <div
@@ -96,7 +103,7 @@ export function ArtifactWindow({
         role="region"
         aria-label={w.title}
       >
-        <WindowHeader w={w} onClose={onClose} onMinimize={onMinimize} focused={focused} headerActions={headerActions} />
+        <WindowHeader w={w} onClose={onClose} onMinimize={onMinimize} onMaximize={onMaximize} focused={focused} headerActions={headerActions} />
         <div className="aw-body flex-1 overflow-hidden flex flex-col min-h-0">{children}</div>
       </div>
     );
@@ -124,18 +131,21 @@ export function ArtifactWindow({
         w={w}
         onClose={onClose}
         onMinimize={onMinimize}
+        onMaximize={onMaximize}
         focused={focused}
         onDragStart={handleDragStart}
         headerRef={headerRef}
         headerActions={headerActions}
       />
       <div className="aw-body flex-1 overflow-hidden flex flex-col min-h-0">{children}</div>
-      {/* Resize handle */}
-      <div
-        className="aw-resize"
-        onPointerDown={handleResizeStart}
-        aria-label="Redimensionar"
-      />
+      {RESIZE_HANDLES.map(({ edge, className, label }) => (
+        <div
+          key={edge}
+          className={`aw-handle ${className}`}
+          onPointerDown={(e) => handleResizeStart(e, edge)}
+          aria-label={label}
+        />
+      ))}
     </div>
   );
 }
@@ -144,6 +154,7 @@ function WindowHeader({
   w,
   onClose,
   onMinimize,
+  onMaximize,
   focused,
   onDragStart,
   headerRef,
@@ -152,6 +163,7 @@ function WindowHeader({
   w: ArtifactWindowData;
   onClose: () => void;
   onMinimize: () => void;
+  onMaximize?: () => void;
   focused: boolean;
   onDragStart?: (e: React.PointerEvent) => void;
   headerRef?: React.RefObject<HTMLDivElement>;
@@ -165,7 +177,6 @@ function WindowHeader({
       style={{ cursor: onDragStart ? "grab" : "default", userSelect: "none" }}
     >
       <div className="flex items-center gap-2 min-w-0">
-        {/* Drag dots */}
         <div className="flex flex-col gap-0.5 mr-1 opacity-20">
           <span className="w-0.75 h-0.75 rounded-full bg-muted" />
           <span className="w-0.75 h-0.75 rounded-full bg-muted" />
@@ -177,6 +188,18 @@ function WindowHeader({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {headerActions && <div className="flex items-center gap-0.5 mr-1">{headerActions}</div>}
+        {onMaximize && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMaximize(); }}
+            className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"
+            aria-label="Maximizar"
+            title="Maximizar"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); onMinimize(); }}
           className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"

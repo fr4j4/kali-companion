@@ -57,6 +57,7 @@ export function createWindowData(opts: Partial<CreateWindowOpts> & { type: Windo
     zIndex: nextZ(),
     closed: false,
     minimized: false,
+    maximized: false,
     focused: true,
     content: opts.content,
     timestamp: new Date(),
@@ -118,6 +119,14 @@ export function resizeInArray(windows: ArtifactWindowData[], id: number, size: {
 /** Toggle minimize. */
 export function toggleMinimizeInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
   return windows.map((w) => w.id === id ? { ...w, minimized: !w.minimized } : w);
+}
+
+/** Toggle maximize. */
+export function toggleMaximizeInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
+  return windows.map((w) => {
+    if (w.id !== id) return { ...w, maximized: false };
+    return { ...w, maximized: !w.maximized };
+  });
 }
 
 /** Clear all windows (mark all as closed). */

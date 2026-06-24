@@ -516,7 +516,7 @@
 .aw.selected { border-color: rgba(34,211,238,0.5); box-shadow: 0 0 0 2px rgba(34,211,238,0.2), 0 20px 60px rgba(0,0,0,0.5); }
 .aw.minimized { height: 36px !important; overflow: hidden; }
 .aw.minimized .aw-body { display: none; }
-.aw.minimized .aw-resize { display: none; }
+.aw.minimized .aw-handle { display: none; }
 .aw.entering { animation: awEnter 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
 @keyframes awEnter { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 @keyframes awLeave { to { opacity: 0; transform: scale(0.85); } }
@@ -524,9 +524,24 @@
 .aw-header { cursor: grab; user-select: none; position: relative; }
 .aw-header:active { cursor: grabbing; }
 
-.aw-resize { cursor: nwse-resize; position: absolute; bottom: 0; right: 0; width: 24px; height: 24px; z-index: 5; }
-.aw-resize::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 14px; height: 14px; border-right: 2px solid rgba(255,255,255,0.25); border-bottom: 2px solid rgba(255,255,255,0.25); border-radius: 0 0 4px 0; transition: border-color 0.2s; }
-.aw-resize:hover::after { border-color: var(--accent); }
+/* Resize handles — 8 directional handles */
+.aw-handle { position: absolute; z-index: 5; }
+.aw-handle-se { cursor: nwse-resize; bottom: 0; right: 0; width: 16px; height: 16px; }
+.aw-handle-sw { cursor: nesw-resize; bottom: 0; left: 0; width: 16px; height: 16px; }
+.aw-handle-ne { cursor: nesw-resize; top: 0; right: 0; width: 16px; height: 16px; }
+.aw-handle-nw { cursor: nwse-resize; top: 0; left: 0; width: 16px; height: 16px; }
+.aw-handle-n { cursor: n-resize; top: -3px; left: 16px; right: 16px; height: 6px; }
+.aw-handle-s { cursor: s-resize; bottom: -3px; left: 16px; right: 16px; height: 6px; }
+.aw-handle-e { cursor: e-resize; right: -3px; top: 16px; bottom: 16px; width: 6px; }
+.aw-handle-w { cursor: w-resize; left: -3px; top: 16px; bottom: 16px; width: 6px; }
+
+/* Corner visual indicator (only SE corner) */
+.aw-handle-se::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 10px; height: 10px; border-right: 2px solid rgba(255,255,255,0.25); border-bottom: 2px solid rgba(255,255,255,0.25); border-radius: 0 0 3px 0; transition: border-color 0.2s; }
+.aw-handle-se:hover::after { border-color: var(--accent); }
+
+/* Maximized state */
+.aw.maximized { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border-radius: 0; z-index: 9999 !important; }
+.aw.maximized .aw-handle { display: none; }
 
 /* Snap guides */
 .snap-guide { position: fixed; background: var(--accent); z-index: 9998; pointer-events: none; opacity: 0.6; }
@@ -734,7 +749,7 @@
 /* Mobile — disable drag/resize, show windows in a scrollable column */
 @media (max-width: 768px) {
   .aw { width: calc(100vw - 24px) !important; max-width: 400px; position: relative !important; left: auto !important; top: auto !important; }
-  .aw-resize { display: none; }
+  .aw-handle { display: none; }
   #minimize-dock { display: none; }
 }
 

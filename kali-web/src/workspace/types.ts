@@ -65,6 +65,8 @@ export interface ArtifactWindowData {
   closed: boolean;
   /** Whether the window is minimized (in the dock bar). */
   minimized: boolean;
+  /** Whether the window is maximized (fullscreen). */
+  maximized: boolean;
   /** Whether the window currently has focus. */
   focused: boolean;
   /** Raw content payload from the backend (ArtifactEvent or custom data). */
@@ -118,6 +120,7 @@ export interface WorkspaceAPI {
   clearSelection: () => void;
   syncArtifact: (event: ArtifactEvent) => void;
   toggleMinimize: (id: number) => void;
+  toggleMaximize: (id: number) => void;
 }
 
 /** Options for creating a window. */

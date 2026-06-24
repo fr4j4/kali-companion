@@ -1,19 +1,9 @@
-/**
- * workspace/useDragResize.ts — Drag + resize + snap logic for a single window.
- *
- * Returns event handlers to attach to the window header (drag) and the resize
- * handle.  Snapping is supported:
- *   - Snap to grid (Shift held, 20px)
- *   - Snap to center of canvas
- *   - Snap to edges of other windows
- *
- * Mobile (<768px) disables drag/resize entirely (grid auto mode).
- */
-
 import type { Position, Size } from "./types";
 
 const SNAP_GRID = 20;
 const SNAP_THRESHOLD = 8;
+
+export type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 interface SnapResult {
   pos: Position;
@@ -31,9 +21,7 @@ interface DragOpts {
   shiftHeld: () => boolean;
 }
 
-/** Try snapping a position to grid, center, or other window edges. */
 function trySnap(el: HTMLElement, x: number, y: number, otherWindows: Array<{ el: HTMLElement }>, shiftHeld: boolean): SnapResult {
-  // Snap to grid (Shift held)
   if (shiftHeld) {
     const gx = Math.round(x / SNAP_GRID) * SNAP_GRID;
     const gy = Math.round(y / SNAP_GRID) * SNAP_GRID;
@@ -41,13 +29,11 @@ function trySnap(el: HTMLElement, x: number, y: number, otherWindows: Array<{ el
     if (Math.abs(gy - y) < SNAP_THRESHOLD) y = gy;
   }
 
-  // Snap to center
   const cx = window.innerWidth / 2 - el.offsetWidth / 2;
   if (Math.abs(x - cx) < SNAP_THRESHOLD) x = cx;
   const cy = window.innerHeight / 2 - el.offsetHeight / 2;
   if (Math.abs(y - cy) < SNAP_THRESHOLD) y = cy;
 
-  // Snap to other windows' edges
   for (const other of otherWindows) {
     const r = other.el.getBoundingClientRect();
     const ax = r.left, ay = r.top, aw = r.width, ah = r.height;
@@ -60,7 +46,6 @@ function trySnap(el: HTMLElement, x: number, y: number, otherWindows: Array<{ el
   return { pos: { x, y }, snapped: true };
 }
 
-/** Start a drag operation.  Call from the header pointerdown handler. */
 export function startDrag(opts: DragOpts) {
   const { id, el, startPos, startMouse, onMove, onEnd, otherWindows, shiftHeld } = opts;
 
@@ -76,7 +61,7 @@ export function startDrag(opts: DragOpts) {
   const onPointerUp = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
-    onEnd(id, startPos, startPos); // Simplified — parent tracks actual final pos
+    onEnd(id, startPos, startPos);
   };
 
   document.addEventListener("pointermove", onPointerMove);
@@ -86,27 +71,56 @@ export function startDrag(opts: DragOpts) {
 interface ResizeOpts {
   id: number;
   el: HTMLElement;
+  edge: ResizeEdge;
   startSize: Size;
+  startPos: Position;
   startMouse: { x: number; y: number };
   minW: number;
   minH: number;
-  onResize: (id: number, size: Size) => void;
+  onResize: (id: number, size: Size, pos: Position) => void;
 }
 
-/** Start a resize operation.  Call from the resize handle pointerdown. */
 export function startResize(opts: ResizeOpts) {
-  const { id, startSize, startMouse, minW, minH, onResize } = opts;
+  const { id, el, edge, startSize, startPos, startMouse, minW, minH, onResize } = opts;
   const startH = startSize.height ?? 300;
+  const startW = startSize.width;
+
+  document.body.style.userSelect = "none";
+  document.body.style.pointerEvents = "none";
+  el.style.pointerEvents = "auto";
 
   const onPointerMove = (ev: PointerEvent) => {
-    const nw = Math.max(minW, startSize.width + (ev.clientX - startMouse.x));
-    const nh = Math.max(minH, startH + (ev.clientY - startMouse.y));
-    onResize(id, { width: nw, height: nh });
+    const dx = ev.clientX - startMouse.x;
+    const dy = ev.clientY - startMouse.y;
+
+    let nw = startW;
+    let nh = startH;
+    let nx = startPos.x;
+    let ny = startPos.y;
+
+    if (edge.includes("e")) {
+      nw = Math.max(minW, startW + dx);
+    }
+    if (edge.includes("w")) {
+      nw = Math.max(minW, startW - dx);
+      nx = startPos.x + (startW - nw);
+    }
+    if (edge.includes("s")) {
+      nh = Math.max(minH, startH + dy);
+    }
+    if (edge.includes("n")) {
+      nh = Math.max(minH, startH - dy);
+      ny = startPos.y + (startH - nh);
+    }
+
+    onResize(id, { width: nw, height: nh }, { x: nx, y: ny });
   };
 
   const onPointerUp = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
+    document.body.style.userSelect = "";
+    document.body.style.pointerEvents = "";
   };
 
   document.addEventListener("pointermove", onPointerMove);
