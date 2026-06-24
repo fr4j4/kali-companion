@@ -150,7 +150,7 @@ class PermissionGateway:
                 cmd_base = command.split()[0] if command else ""
                 for pattern in command_whitelist:
                     pat_base = pattern.replace("*", "").strip()
-                    if fnmatch.fnmatch(cmd_base, pat_base) or fnmatch.fnmatch(command, pattern):
+                    if pat_base and (fnmatch.fnmatch(cmd_base, pat_base) or fnmatch.fnmatch(command, pattern)):
                         return PermissionDecision(allow=True)
             return PermissionDecision(
                 allow=False,

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halo — Variante 2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { bg:'#050810', elev:'#0a0f1c', fg:'#e8ecf5', muted:'#6b7290', faint:'#363c52',
+      accent:'#22d3ee', accent2:'#a78bfa', accent3:'#f472b6', ok:'#34d399', warn:'#fbbf24' },
+    fontFamily: { sans:['Inter','sans-serif'], serif:['Fraunces','Georgia','serif'], mono:['JetBrains Mono','monospace'] },
+  }}};
+</script>
+<style>
+  body { background:#050810; color:#e8ecf5; }
+  .prose { font-family:'Fraunces',Georgia,serif; font-size:1.0625rem; line-height:1.65; font-variation-settings:"SOFT" 50; }
+  .echo { font-family:'Fraunces',Georgia,serif; font-style:italic; color:#6b7290; font-size:0.9375rem; }
+  .glass { background:linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01)); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); }
+  .glass-strong { background:rgba(10,15,28,0.85); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.07); }
+
+  .mesh { background: radial-gradient(50% 50% at 50% 50%, rgba(34,211,238,0.08), transparent 60%), radial-gradient(60% 40% at 20% 20%, rgba(167,139,250,0.07), transparent 60%), radial-gradient(50% 40% at 80% 80%, rgba(244,114,182,0.05), transparent 60%), #050810; }
+
+  @keyframes morph { 0%,100%{ border-radius:42% 58% 70% 30%/45% 45% 55% 55%;} 50%{ border-radius:58% 42% 38% 62%/52% 62% 38% 48%;} }
+  .orb { animation: morph 10s ease-in-out infinite; background:radial-gradient(circle at 35% 30%, #67e8f9, #22d3ee 45%, #0891b2 90%); filter:drop-shadow(0 0 35px rgba(34,211,238,0.4)); }
+  .orb-thinking { background:radial-gradient(circle at 35% 30%, #f9a8d4, #f472b6 45%, #a855f7 90%)!important; filter:drop-shadow(0 0 40px rgba(244,114,182,0.5))!important; }
+  .orb-speaking { background:radial-gradient(circle at 35% 30%, #6ee7b7, #34d399 45%, #059669 90%)!important; filter:drop-shadow(0 0 40px rgba(52,211,153,0.5))!important; }
+
+  @keyframes ring { 0%{transform:scale(0.8);opacity:0.5;} 100%{transform:scale(2.2);opacity:0;} }
+  .pulse-ring { animation: ring 4s cubic-bezier(.2,.7,.3,1) infinite; }
+
+  /* órbita de artefactos */
+  @keyframes orbit { from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+  .orbit-track { animation: orbit 60s linear infinite; }
+
+  .cursor { display:inline-block; width:2px; height:1em; background:#22d3ee; margin-left:1px; vertical-align:baseline; animation:blink 1.1s steps(2,start) infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+  .fade-in { animation: fadeIn .55s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes fadeIn { from{opacity:0; transform:translateY(8px) scale(0.96);} to{opacity:1; transform:none;} }
+  .codeblock { background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.04); }
+  .tk{color:#67e8f9;} .kw{color:#f0abfc;} .fn{color:#a5b4fc;} .st{color:#86efac;} .cm{color:#52565f;}
+
+  .scrollbar-hide::-webkit-scrollbar{width:0;} .scrollbar-hide{scrollbar-width:none;}
+  .label { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.14em; text-transform:uppercase; color:#6b7290; }
+  .label-accent { color:#22d3ee; }
+
+  /* nodo de artefacto flotante */
+  .node { transition: all 0.4s cubic-bezier(.2,.7,.3,1); }
+  .node:hover { transform: scale(1.08); z-index: 20; }
+  .node-glow { box-shadow: 0 0 20px rgba(34,211,238,0.2); }
+  .node-glow-pink { box-shadow: 0 0 20px rgba(244,114,182,0.25); }
+  .node-glow-purple { box-shadow: 0 0 20px rgba(167,139,250,0.25); }
+  .node-glow-green { box-shadow: 0 0 20px rgba(52,211,153,0.25); }
+
+  @keyframes wave { 0%,100%{ height:20%; } 50%{ height:100%; } }
+  .wave-bar { animation: wave 0.8s ease-in-out infinite; }
+</style>
+</head>
+<body class="h-screen overflow-hidden font-sans antialiased mesh">
+
+<div class="h-screen flex flex-col relative">
+
+  <!-- HEADER -->
+  <header class="px-5 pt-4 flex items-center gap-3 z-40">
+    <div class="flex items-center gap-2.5">
+      <div class="w-2 h-2 rounded-full bg-accent shadow-[0_0_10px_#22d3ee]"></div>
+      <span class="label">KALI · HALO</span>
+    </div>
+    <div class="flex-1"></div>
+    <span class="label flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-ok animate-pulse"></span>en línea</span>
+    <button class="label hover:text-fg transition px-2.5 py-1.5 rounded-md hover:bg-white/5">historial</button>
+    <button class="w-8 h-8 rounded-md hover:bg-white/5 text-muted hover:text-fg transition flex items-center justify-center">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <!-- ESCENA: orbe al centro + artefactos orbitando + texto proyectado abajo -->
+  <main class="flex-1 relative overflow-hidden">
+
+    <!-- Capa de órbita: artefactos flotantes alrededor del orbe -->
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[560px] h-[560px] orbit-track" style="pointer-events:none;">
+      <!-- nodo: ficha de héroe (arriba) -->
+      <div class="node absolute node-glow-pink" style="top:0; left:50%; transform:translate(-50%,-50%); pointer-events:auto;">
+        <div class="glass rounded-2xl w-44 p-3 shadow-xl shadow-black/40 cursor-pointer">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500/40 to-purple-600/40 border border-pink-400/20 flex items-center justify-center font-serif text-lg text-pink-200" style="font-family:'Fraunces';">L</div>
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-fg truncate">Lyra</div>
+              <div class="label">héroe · épic</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-1 text-[9px] font-mono">
+            <div class="bg-white/[0.04] rounded px-1.5 py-0.5 text-center"><span class="text-faint block">ATK</span><span class="text-fg">847</span></div>
+            <div class="bg-white/[0.04] rounded px-1.5 py-0.5 text-center"><span class="text-faint block">SPD</span><span class="text-fg">92</span></div>
+            <div class="bg-white/[0.04] rounded px-1.5 py-0.5 text-center"><span class="text-faint block">INT</span><span class="text-fg">68</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- nodo: snippet de código (derecha) -->
+      <div class="node absolute node-glow" style="top:50%; right:0; transform:translate(50%,-50%); pointer-events:auto;">
+        <div class="glass rounded-xl w-48 p-3 shadow-xl shadow-black/40 cursor-pointer codeblock">
+          <div class="label mb-2 flex items-center justify-between"><span>lua</span><span class="text-accent">snippet</span></div>
+<pre class="m-0 text-[0.68rem] leading-snug"><span class="kw">local</span> hero = <span class="fn">summon</span>({
+  id=<span class="st">"cv.lyra"</span>,
+  lvl=<span class="st">12</span>
+})</pre>
+        </div>
+      </div>
+
+      <!-- nodo: imagen (abajo) -->
+      <div class="node absolute node-glow-purple" style="bottom:0; left:50%; transform:translate(-50%,50%); pointer-events:auto;">
+        <div class="glass rounded-2xl w-40 overflow-hidden shadow-xl shadow-black/40 cursor-pointer">
+          <div class="aspect-video relative bg-gradient-to-br from-rose-950 via-purple-950 to-indigo-950 overflow-hidden">
+            <div class="absolute inset-0 opacity-70" style="background:radial-gradient(circle at 60% 40%, rgba(244,114,182,0.35), transparent 50%);"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="w-0.5 h-16 bg-gradient-to-b from-transparent via-pink-300/60 to-transparent rounded-full" style="box-shadow:0 0 20px rgba(244,114,182,0.5);"></div>
+            </div>
+          </div>
+          <div class="px-2.5 py-1.5 label">concept · lyra.png</div>
+        </div>
+      </div>
+
+      <!-- nodo: enlace (izquierda) -->
+      <div class="node absolute node-glow-green" style="top:50%; left:0; transform:translate(-50%,-50%); pointer-events:auto;">
+        <div class="glass rounded-xl w-44 p-3 shadow-xl shadow-black/40 cursor-pointer">
+          <div class="flex items-center gap-2 mb-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ok"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span class="text-xs text-fg truncate">Crimson Vale Wiki</span>
+          </div>
+          <div class="label truncate">crimsonvale.wiki/heroes/lyra</div>
+        </div>
+      </div>
+
+      <!-- nodo: control accionable (arriba-derecha diagonal) -->
+      <div class="node absolute node-glow" style="top:14%; right:14%; transform:translate(50%,-50%); pointer-events:auto;">
+        <div class="glass rounded-xl px-3 py-2 shadow-xl shadow-black/40 cursor-pointer">
+          <button class="text-xs font-medium text-accent flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
+            Invocar
+          </button>
+        </div>
+      </div>
+
+      <!-- nodo: texto largo / markdown (abajo-izquierda diagonal) -->
+      <div class="node absolute node-glow-purple" style="bottom:14%; left:14%; transform:translate(-50%,50%); pointer-events:auto;">
+        <div class="glass rounded-xl w-44 p-3 shadow-xl shadow-black/40 cursor-pointer">
+          <div class="label mb-1.5">build óptimo</div>
+          <p class="prose text-[0.82rem] leading-snug text-fg/80">Shadow Dagger + Silence Cloak. Prioriza cooldown reduction sobre penetración…</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ORBE al centro absoluto (no rota con la órbita) -->
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
+      <div class="relative w-44 h-44 flex items-center justify-center">
+        <div class="absolute w-32 h-32 rounded-full border border-accent/15 pulse-ring"></div>
+        <div class="absolute w-32 h-32 rounded-full border border-accent2/10 pulse-ring" style="animation-delay:2s"></div>
+        <div id="orb" class="orb w-28 h-28 flex items-center justify-center cursor-pointer transition-all duration-500 relative z-10">
+          <div class="w-3.5 h-3.5 rounded-full bg-white/80"></div>
+        </div>
+      </div>
+      <!-- etiqueta de estado -->
+      <div class="mt-4 glass-strong rounded-full px-3.5 py-1.5 label whitespace-nowrap">
+        <span id="orb-label" class="label-accent">hablando · 0:12</span>
+      </div>
+    </div>
+
+    <!-- TEXTO PROYECTADO al pie del orbe (siempre visible) -->
+    <div class="absolute left-1/2 -translate-x-1/2 bottom-28 max-w-xl w-full px-6 z-20">
+      <div class="glass-strong rounded-2xl px-5 py-4 shadow-2xl shadow-black/40 text-center">
+        <p class="prose text-fg/95 leading-relaxed">
+          Lyra es una asesina de rango medio. Su build óptimo combina penetración de armadura con cooldown reduction. Te generé su ficha, el script de invocación, un concept art y un enlace a la wiki — todo orbitando alrededor.<span class="cursor"></span>
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- DOCK -->
+  <footer class="px-5 pb-5 flex justify-center z-40">
+    <div class="w-full max-w-xl space-y-2">
+
+      <!-- voice bar -->
+      <div class="glass-strong rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-2xl shadow-black/40">
+        <div class="flex items-end gap-0.5 h-6 w-14">
+          <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:0ms"></div>
+          <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:90ms"></div>
+          <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:180ms"></div>
+          <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:270ms"></div>
+          <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:360ms"></div>
+          <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:450ms"></div>
+        </div>
+        <span class="label label-accent">kali hablando</span>
+        <div class="flex-1"></div>
+        <button class="w-7 h-7 rounded-full hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </button>
+      </div>
+
+      <!-- input -->
+      <div class="glass-strong rounded-2xl shadow-2xl shadow-black/50 p-2 flex items-end gap-2">
+        <button class="w-9 h-9 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition flex items-center justify-center shrink-0">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+        </button>
+        <textarea rows="1" placeholder="Habla o escribe…" class="flex-1 bg-transparent resize-none outline-none text-sm text-fg placeholder:text-muted px-2 py-2.5 max-h-40 font-sans leading-relaxed">¿qué build me recomiendas para ella?</textarea>
+        <button class="w-9 h-9 rounded-xl bg-accent hover:bg-accent2 text-bg shadow-lg shadow-accent/30 transition flex items-center justify-center shrink-0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        </button>
+      </div>
+      <div class="flex items-center justify-between px-2 label">
+        <span>toca un nodo para expandir · arrastra para reordenar</span>
+        <span>gpt-4o · 6 artefactos</span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  const orb = document.getElementById('orb');
+  const label = document.getElementById('orb-label');
+  const states = [
+    { cls:'', txt:'idle · esperando' },
+    { cls:'orb-thinking', txt:'pensando · 0.8s' },
+    { cls:'orb-speaking', txt:'hablando · 0:12' },
+  ];
+  let i = 0;
+  orb.addEventListener('click', () => {
+    const s = states[i % states.length]; i++;
+    orb.className = `orb w-28 h-28 flex items-center justify-center cursor-pointer transition-all duration-500 relative z-10 ${s.cls}`;
+    label.textContent = s.txt;
+  });
+</script>
+
+</body>
+</html>

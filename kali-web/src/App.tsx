@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { StageProvider } from "./stage/StageProvider";
-import { Stage } from "./stage/Stage";
+import { NeuralCanvas } from "./stage/NeuralCanvas";
 
 export default function App() {
   const [theme, setTheme] = useState(
@@ -25,7 +25,7 @@ export default function App() {
 
   return (
     <StageProvider>
-      <Stage
+      <NeuralCanvas
         theme={theme}
         onThemeChange={setTheme}
         canvasAutoExpand={canvasAutoExpand}

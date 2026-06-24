@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kali UI · Variantes del asistente-centro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { background:#0a0b0f; }
+  .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(16px); }
+</style>
+</head>
+<body class="min-h-screen text-white font-sans antialiased p-8 flex flex-col items-center gap-10" style="font-family:'Space Grotesk',sans-serif;">
+
+  <div class="text-center max-w-2xl">
+    <div class="text-[11px] uppercase tracking-[0.3em] text-white/40 mb-3">Kali · variantes asistente-centro</div>
+    <h1 class="text-3xl font-semibold tracking-tight mb-3">3 formas de interactuar con Kali</h1>
+    <p class="text-white/50 text-sm leading-relaxed">Punto de partida: <code class="text-white/70">assistant-in-center.html</code> (orbe + proyección de texto). Las 3 variantes completan con: voz + texto, streaming, artefactos ricos (código, imágenes, fichas, enlaces, controles, markdown), historial, y estados del orbe (idle/escuchando/pensando/hablando).</p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl w-full">
+
+    <!-- Astra -->
+    <a href="astra.html" class="group glass rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40">
+      <div class="h-40 relative overflow-hidden flex flex-col items-center justify-center" style="background:radial-gradient(50% 40% at 50% 30%, rgba(167,139,250,0.18), transparent 70%), #060812;">
+        <div class="w-12 h-12 rounded-full mb-2" style="background:radial-gradient(circle at 35% 30%, #c4b5fd, #a78bfa 50%, #7c3aed); box-shadow:0 0 20px rgba(167,139,250,0.5); animation: morph 6s ease-in-out infinite; border-radius:42% 58% 70% 30%/45% 45% 55% 55%;"></div>
+        <div class="text-[9px] text-white/40 font-mono">orbe al centro</div>
+        <div class="mt-2 w-32 h-1 rounded-full bg-white/8"></div>
+        <div class="mt-1.5 w-24 h-1 rounded-full bg-white/8"></div>
+        <div class="mt-1.5 w-28 h-1 rounded-full bg-white/8"></div>
+        <style>@keyframes morph{0%,100%{border-radius:42% 58% 70% 30%/45% 45% 55% 55%;}50%{border-radius:58% 42% 38% 62%/52% 62% 38% 48%;}}</style>
+      </div>
+      <div class="p-4">
+        <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#a78bfa"></div><span class="text-[10px] uppercase tracking-widest text-white/40">1 · Astra</span></div>
+        <h2 class="text-base font-semibold mb-1.5">Timeline vertical</h2>
+        <p class="text-white/55 text-xs leading-relaxed">Orbe al centro-top con texto proyectado debajo. La conversación fluye como <strong class="text-white/80">turnos numerados</strong> hacia abajo, con artefactos inline (ficha, código, imagen, controles, enlace). Input dock abajo con voz + texto. <span class="text-white/70">Híbrido: escenario + conversación.</span></p>
+      </div>
+    </a>
+
+    <!-- Halo -->
+    <a href="halo.html" class="group glass rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40">
+      <div class="h-40 relative overflow-hidden flex items-center justify-center" style="background:radial-gradient(50% 50% at 50% 50%, rgba(34,211,238,0.16), transparent 60%), #050810;">
+        <div class="w-10 h-10 rounded-full" style="background:radial-gradient(circle at 35% 30%, #67e8f9, #22d3ee 50%, #0891b2); box-shadow:0 0 18px rgba(34,211,238,0.5);"></div>
+        <div class="absolute w-32 h-32 border border-cyan-400/20 rounded-full"></div>
+        <div class="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-6 rounded-lg bg-white/5 border border-white/10"></div>
+        <div class="absolute top-1/2 right-2 -translate-y-1/2 w-10 h-7 rounded-lg bg-white/5 border border-white/10"></div>
+        <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-12 h-7 rounded-lg bg-white/5 border border-white/10"></div>
+        <div class="absolute top-1/2 left-2 -translate-y-1/2 w-10 h-6 rounded-lg bg-white/5 border border-white/10"></div>
+      </div>
+      <div class="p-4">
+        <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#22d3ee"></div><span class="text-[10px] uppercase tracking-widest text-white/40">2 · Halo</span></div>
+        <h2 class="text-base font-semibold mb-1.5">Órbita radial</h2>
+        <p class="text-white/55 text-xs leading-relaxed">Orbe al centro absoluto. Los artefactos <strong class="text-white/80">orbitan alrededor</strong> del asistente en un ring que rota lentamente. Cada nodo es una tarjeta flotante (ficha, código, imagen, control, enlace). Texto proyectado en glass pill debajo del orbe. <span class="text-white/70">Cero lista de chat: todo es espacio.</span></p>
+      </div>
+    </a>
+
+    <!-- Verse -->
+    <a href="verse.html" class="group glass rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40">
+      <div class="h-40 relative overflow-hidden flex" style="background:
+          linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+          radial-gradient(60% 40% at 50% 50%, rgba(245,158,11,0.10), transparent 70%), #0a0a0d;
+        background-size: 16px 16px, 16px 16px, 100% 100%, 100% 100%;">
+        <div class="w-1/4 border-r border-white/8 flex flex-col gap-1 p-2">
+          <div class="h-3 rounded bg-white/5"></div>
+          <div class="h-3 rounded bg-white/5"></div>
+          <div class="h-3 rounded bg-amber-400/20"></div>
+          <div class="h-3 rounded bg-white/5"></div>
+          <div class="h-3 rounded bg-amber-400/20"></div>
+        </div>
+        <div class="flex-1 flex flex-col items-center justify-center">
+          <div class="w-9 h-9 rounded-full mb-1" style="background:radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 50%, #b45309); box-shadow:0 0 16px rgba(245,158,11,0.4);"></div>
+          <div class="w-20 h-1.5 rounded-full bg-white/10 mb-1"></div>
+          <div class="w-16 h-1.5 rounded-full bg-white/10"></div>
+        </div>
+        <div class="w-1/4 border-l border-white/8 flex flex-col gap-1 p-2">
+          <div class="h-4 rounded bg-pink-400/15"></div>
+          <div class="h-4 rounded bg-blue-400/15"></div>
+          <div class="h-5 rounded bg-purple-400/15"></div>
+          <div class="h-3 rounded bg-green-400/15"></div>
+          <div class="h-3 rounded bg-orange-400/15"></div>
+        </div>
+      </div>
+      <div class="p-4">
+        <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#f59e0b"></div><span class="text-[10px] uppercase tracking-widest text-white/40">3 · Verse</span></div>
+        <h2 class="text-base font-semibold mb-1.5">Stage en 3 capas</h2>
+        <p class="text-white/55 text-xs leading-relaxed">Layout de <strong class="text-white/80">3 columnas</strong>: rail izquierdo = memoria de turnos + estado del sistema; centro = orbe + texto proyectado (la voz de Kali); rail derecho = artefactos generados colapsables. Grid blueprint de fondo, serif <code class="text-white/70">Instrument Serif</code>, input tipo terminal <code class="text-white/70">▸</code>. <span class="text-white/70">Densidad informativa máxima.</span></p>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="w-full max-w-5xl mt-2">
+    <div class="text-[10px] uppercase tracking-[0.25em] text-white/30 mb-3 ml-1">comparación rápida</div>
+    <div class="glass rounded-xl border border-white/8 overflow-hidden">
+      <table class="w-full text-xs">
+        <thead class="text-white/40 font-mono text-[10px] uppercase tracking-wider">
+          <tr class="border-b border-white/8">
+            <th class="text-left p-3 font-medium">característica</th>
+            <th class="p-3 font-medium" style="color:#a78bfa;">Astra</th>
+            <th class="p-3 font-medium" style="color:#22d3ee;">Halo</th>
+            <th class="p-3 font-medium" style="color:#f59e0b;">Verse</th>
+          </tr>
+        </thead>
+        <tbody class="text-white/60">
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">orbe al centro</td><td class="text-center p-3">✓ centro-top</td><td class="text-center p-3">✓ centro absoluto</td><td class="text-center p-3">✓ centro</td></tr>
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">texto proyectado</td><td class="text-center p-3">✓</td><td class="text-center p-3">✓ glass pill</td><td class="text-center p-3">✓ grande</td></tr>
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">conversación multi-turno</td><td class="text-center p-3">✓ timeline</td><td class="text-center p-3 text-white/40">solo actual</td><td class="text-center p-3">✓ rail izq</td></tr>
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">artefactos visibles</td><td class="text-center p-3">✓ inline</td><td class="text-center p-3">✓ órbita</td><td class="text-center p-3">✓ rail der</td></tr>
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">voz + texto</td><td class="text-center p-3">✓</td><td class="text-center p-3">✓</td><td class="text-center p-3">✓</td></tr>
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">estados del orbe</td><td class="text-center p-3">✓ 4 estados</td><td class="text-center p-3">✓ 3 estados</td><td class="text-center p-3">✓ 3 estados</td></tr>
+          <tr class="border-b border-white/5"><td class="p-3 text-white/80">input al tipear</td><td class="text-center p-3">✓</td><td class="text-center p-3">✓</td><td class="text-center p-3">✓</td></tr>
+          <tr><td class="p-3 text-white/80">historial</td><td class="text-center p-3 text-white/40">botón (modal)</td><td class="text-center p-3 text-white/40">botón (modal)</td><td class="text-center p-3">✓ rail visible</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="text-white/30 text-xs">Abre cada variante en una pestaña. Toca el orbe para ver los estados (idle → escuchando → pensando → hablando).</p>
+
+</body>
+</html>

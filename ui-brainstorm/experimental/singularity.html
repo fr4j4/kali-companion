@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Singularity — Experiment</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { bg:'#02040a', fg:'#e2e8f0', muted:'#64748b', accent:'#22d3ee', accent2:'#818cf8', accent3:'#f472b6' },
+    fontFamily: { sans:['Inter','sans-serif'], serif:['Fraunces','serif'], mono:['JetBrains Mono','monospace'] },
+  }}};
+</script>
+<style>
+  body { background:#02040a; color:#e2e8f0; font-family:'Inter', sans-serif; overflow:hidden; }
+  .prose { font-family:'Fraunces', serif; font-size:1.5rem; line-height:1.4; text-align:center; max-width: 600px; }
+  
+  /* Background Mesh Animado */
+  .mesh {
+    background: radial-gradient(circle at 50% 50%, rgba(34,211,238,0.1), transparent 50%),
+                radial-gradient(circle at 10% 10%, rgba(129,140,248,0.08), transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(244,114,182,0.08), transparent 40%),
+                #02040a;
+    animation: drift 20s ease-in-out infinite alternate;
+  }
+  @keyframes drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+
+  /* Orbe Morphing */
+  @keyframes morph { 0%,100%{ border-radius:40% 60% 70% 30%/40% 40% 60% 60%; } 50%{ border-radius:60% 40% 30% 70%/60% 60% 40% 40%; } }
+  .orb { animation: morph 8s ease-in-out infinite; background:radial-gradient(circle at 30% 30%, #67e8f9, #22d3ee 40%, #0891b2 100%); filter:drop-shadow(0 0 40px rgba(34,211,238,0.4)); }
+  
+  /* Artefactos Flotantes */
+  .artifact { animation: float 6s ease-in-out infinite; }
+  @keyframes float { 0%,100%{ transform: translateY(0px) rotate(0deg); } 50%{ transform: translateY(-20px) rotate(1deg); } }
+  
+  .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.07); }
+  .cursor { display:inline-block; width:2px; height:1em; background:#22d3ee; animation:blink 1s infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+
+  /* Draggable Panel */
+  #debug-panel { cursor: grab; user-select: none; }
+  #debug-panel:active { cursor: grabbing; }
+</style>
+</head>
+<body class="h-screen mesh relative">
+
+  <!-- HUD Minimal -->
+  <header class="fixed top-0 w-full p-6 flex justify-between items-center z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-2 h-2 rounded-full bg-accent shadow-[0_0_8px_#22d3ee]"></div>
+      <span class="text-[10px] tracking-[0.3em] text-muted uppercase font-mono">Singularity // KALI</span>
+    </div>
+    <div class="flex items-center gap-4 text-[10px] font-mono text-muted">
+      <span>C:\SESSIONS\A7F3</span>
+      <span class="text-accent">LIVE</span>
+    </div>
+  </header>
+
+  <!-- MAIN SPACE -->
+  <main class="h-full w-full flex items-center justify-center relative">
+    
+    <!-- EL ORBE CENTRAL -->
+    <div class="relative flex flex-col items-center">
+      <div id="orb" class="orb w-48 h-48 flex items-center justify-center relative z-20 cursor-pointer transition-transform hover:scale-110 active:scale-95">
+        <div class="w-4 h-4 rounded-full bg-white/90 shadow-white/40 shadow-lg"></div>
+      </div>
+      
+      <!-- PROYECCIÓN DE TEXTO (Sustituye la lista de chat) -->
+      <div class="absolute top-64 w-full flex justify-center">
+        <p id="projection" class="prose text-fg transition-all duration-500 opacity-100">
+          Toca el orbe o escribe algo para empezar.
+        </p>
+      </div>
+    </div>
+
+    <!-- CAPA DE ARTEFACTOS (Se llenan dinámicamente) -->
+    <div id="artifact-layer" class="absolute inset-0 pointer-events-none">
+      <!-- Aquí aparecerán las cards flotantes -->
+    </div>
+  </main>
+
+  <!-- INPUT SPOTLIGHT (Aparece al tipear) -->
+  <div id="spotlight" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all">
+    <div class="glass w-full max-w-xl rounded-2xl p-2 flex items-center gap-3 shadow-2xl border-accent/20">
+      <span class="text-accent font-mono ml-3">▸</span>
+      <input id="cmd-input" type="text" placeholder="Escribe un comando..." class="flex-1 bg-transparent outline-none text-lg text-fg placeholder:text-muted py-3">
+      <button onclick="sendCommand()" class="bg-accent text-bg px-4 py-2 rounded-xl font-semibold text-sm hover:bg-accent2 transition">Enviar</button>
+    </div>
+  </div>
+
+  <!-- BOTONERA FLOTANTE (Debug Tool) -->
+    <div id="debug-panel" class="fixed top-20 right-6 w-48 glass rounded-2xl p-3 z-[100] shadow-2xl border-white/10">
+        <div class="text-[10px] font-mono text-white/40 uppercase mb-3 tracking-tighter">Event Launcher</div>
+        <div class="grid grid-cols-1 gap-2">
+          <button onclick="window.trigger('text')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5">💬 Texto Prosa</button>
+          <button onclick="window.trigger('code')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5">💻 Snippet Código</button>
+          <button onclick="window.trigger('hero')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5">🛡️ Ficha Héroe</button>
+          <button onclick="window.trigger('img')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5">🖼️ Generar Imagen</button>
+          <button onclick="window.trigger('link')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5">🔗 Enlace Externo</button>
+          <button onclick="window.trigger('voice')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5">🎙️ Activar Voz</button>
+          <button onclick="window.clearArtifacts()" class="text-left px-3 py-2 rounded-lg hover:bg-red-500/20 text-red-300 text-xs transition border border-red-500/10">🗑️ Limpiar Espacio</button>
+        </div>
+      </div>
+  </div>
+
+<script>
+    // Exponer funciones al scope global para evitar ReferenceError en onclick
+    window.trigger = function(type, customText = "") {
+      const orb = document.getElementById('orb');
+      orb.style.filter = 'drop-shadow(0 0 60px #22d3ee)';
+      
+      setTimeout(() => {
+        if(type === 'text') {
+          streamText(customText || "Estoy analizando la estructura de tu request. He optimizado los vectores de respuesta para este contexto.");
+        } else if(type === 'code') {
+          streamText("Aquí tienes el fragmento de código solicitado:");
+          createArtifact('code');
+        } else if(type === 'hero') {
+          streamText("He recuperado la ficha de personaje de la base de datos:");
+          createArtifact('hero');
+        } else if(type === 'img') {
+          streamText("Generando representación visual del concepto...");
+          createArtifact('image');
+        } else if(type === 'link') {
+          streamText("Puedes encontrar más detalles en el repositorio oficial:");
+          createArtifact('link');
+        } else if(type === 'voice') {
+          streamText("Cambiando a modo de salida de voz. ¿Me escuchas bien?");
+          orb.style.background = 'radial-gradient(circle at 35% 30%, #34d399, #22d3ee 45%, #0891b2 90%)';
+        }
+        orb.style.filter = 'drop-shadow(0 0 40px rgba(34,211,238,0.4))';
+      }, 400);
+    };
+
+    window.clearArtifacts = function() {
+      document.getElementById('artifact-layer').innerHTML = "";
+    };
+
+    // Lógica de arrastre para el panel de debug
+    const panel = document.getElementById('debug-panel');
+    let isDragging = false;
+    let offset = { x: 0, y: 0 };
+
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      isDragging = true;
+      offset.x = e.clientX - panel.offsetLeft;
+      offset.y = e.clientY - panel.offsetTop;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      panel.style.left = (e.clientX - offset.x) + 'px';
+      panel.style.top = (e.clientY - offset.y) + 'px';
+      panel.style.right = 'auto';
+    });
+
+    document.addEventListener('mouseup', () => isDragging = false);
+
+    // Spotlight logic
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSpotlight();
+      if (document.activeElement.tagName !== 'INPUT') {
+        document.getElementById('spotlight').classList.remove('hidden');
+        document.getElementById('cmd-input').focus();
+      }
+    });
+
+    function closeSpotlight() {
+      document.getElementById('spotlight').classList.add('hidden');
+    }
+
+    function sendCommand() {
+      const input = document.getElementById('cmd-input');
+      if (input.value) window.trigger('text', input.value);
+      input.value = '';
+      closeSpotlight();
+    }
+
+    // Core Logic de la Singularity
+    const projection = document.getElementById('projection');
+    const layer = document.getElementById('artifact-layer');
+
+    function streamText(text) {
+      projection.innerHTML = "";
+      let i = 0;
+      const interval = setInterval(() => {
+        projection.innerHTML = text.slice(0, i) + '<span class="cursor"></span>';
+        i++;
+        if (i > text.length) clearInterval(interval);
+      }, 30);
+    }
+
+    function createArtifact(type) {
+      const div = document.createElement('div');
+      div.className = `artifact absolute p-4 rounded-2xl glass shadow-2xl cursor-pointer transition-all hover:scale-110 fade-in`;
+      
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 250 + Math.random() * 150;
+      div.style.left = `calc(50% + ${Math.cos(angle) * dist}px)`;
+      div.style.top = `calc(50% + ${Math.sin(angle) * dist}px)`;
+      div.style.transform = 'translate(-50%, -50%)';
+
+      if(type === 'code') {
+        div.innerHTML = `<div class="text-[10px] font-mono text-muted mb-2 uppercase">lua_snippet</div>
+                         <pre class="font-mono text-xs text-fg">local a = 10<br>print(a)</pre>`;
+        div.classList.add('w-48');
+      } else if(type === 'hero') {
+        div.innerHTML = `<div class="flex items-center gap-3">
+                          <div class="w-10 h-10 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center font-serif text-accent">L</div>
+                          <div class="min-w-0"><div class="text-sm font-semibold text-fg truncate">Lyra</div><div class="text-[10px] text-muted">Épico · Asesina</div></div>
+                        </div>`;
+        div.classList.add('w-44');
+      } else if(type === 'image') {
+        div.innerHTML = `<div class="w-32 h-20 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-lg mb-2 border border-white/10 flex items-center justify-center"><span class="text-white/20 text-[10px]">IMAGE_GEN</span></div><div class="text-[10px] text-center text-muted">Concept_Art_v1.png</div>`;
+        div.classList.add('w-40');
+      } else if(type === 'link') {
+        div.innerHTML = `<div class="flex items-center gap-2 text-xs text-accent"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/></svg> <span class="truncate">Wiki Crimson Vale</span></div>`;
+        div.classList.add('w-32');
+      }
+
+      layer.appendChild(div);
+    }
+  </script>
+</body>
+</html>

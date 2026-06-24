@@ -35,7 +35,6 @@ export interface ChatMessage {
   streaming?: boolean;
   reasoning?: string;
   toolEvent?: ToolEvent;
-  inlineArtifacts?: ArtifactEvent[];
 }
 
 export interface SessionListItem {
@@ -299,34 +298,6 @@ export function useChat(): ChatState {
           }
           return next;
         });
-        // Attach widget artifacts inline to the last assistant message.
-        if (ev.type === "widget" && (ev.update === "create" || ev.update === "update")) {
-          setMessages((prev) => {
-            for (let i = prev.length - 1; i >= 0; i--) {
-              const msg = prev[i];
-              if (msg.role === "assistant") {
-                const existing = msg.inlineArtifacts ?? [];
-                const found = existing.find((a) => a.id === ev.id);
-                if (ev.update === "create" && found) break;
-                const updated = [...prev];
-                if (found) {
-                  // Update existing inline artifact
-                  updated[i] = {
-                    ...msg,
-                    inlineArtifacts: existing.map((a) =>
-                      a.id === ev.id ? ev : a
-                    ),
-                  };
-                } else {
-                  // Add new inline artifact
-                  updated[i] = { ...msg, inlineArtifacts: [...existing, ev] };
-                }
-                return updated;
-              }
-            }
-            return prev;
-          });
-        }
       });
 
       // ── Job events ──────────────────────────────────────

@@ -146,6 +146,7 @@ export interface ArtifactEvent {
   event: "artifact";
   id: string;
   type: "html" | "markdown" | "diff" | "widget";
+  windowType: string;
   title: string;
   content: string;
   update: "create" | "update" | "close";

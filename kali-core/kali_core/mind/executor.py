@@ -134,6 +134,11 @@ class Executor:
             if not artifact_payload.get("id"):
                 artifact_payload["id"] = f"art_{uuid.uuid4().hex[:8]}"
 
+            # Safety-net: ensure windowType is always present.  If the tool
+            # didn't set it, derive a sensible default from type/widgetType.
+            if not artifact_payload.get("windowType"):
+                artifact_payload["windowType"] = _derive_window_type(artifact_payload)
+
             # Check if this was a streamed artifact (adapter already
             # sent it via ctx.emit, so we should NOT re-emit via WS).
             is_streamed = (
@@ -150,6 +155,7 @@ class Executor:
                         artifact_payload.get("type", ""),
                         artifact_payload.get("title", ""),
                         artifact_payload.get("content", ""),
+                        artifact_payload.get("windowType", ""),
                     )
                 except Exception:
                     logger.warning("Failed to persist artifact", exc_info=True)
@@ -173,3 +179,62 @@ class Executor:
             return any(i.get("widgetType") == "game_resource" for i in items)
         except (json.JSONDecodeError, TypeError, AttributeError):
             return False
+
+
+_WIDGET_TYPE_MAP: dict[str, str] = {
+    "game_resource": "entity",
+    "dota_hero_card": "entity",
+    "dota_item_card": "resource",
+    "hero_card": "entity",
+    "item_card": "resource",
+    "location_card": "place",
+    "music": "media",
+    "video": "media",
+    "markdown": "document",
+    "text": "document",
+    "longtext": "document",
+}
+
+
+def _derive_window_type(payload: dict) -> str:
+    """Derive a sensible windowType from artifact type + widgetType.
+
+    Used as a safety-net when the tool didn't set windowType explicitly.
+    Returns generic types (entity, resource, document, etc.) instead of
+    domain types.  This is the single source of truth for the mapping
+    from backend domain/widget types to frontend generic window types.
+    """
+    art_type = payload.get("type", "")
+    if art_type == "markdown":
+        return "document"
+    if art_type == "diff":
+        return "diff"
+    if art_type == "html":
+        return "html"
+    if art_type == "widget":
+        try:
+            content = payload.get("content", "")
+            data = json.loads(content) if isinstance(content, str) else content
+            items = data.get("items", []) if isinstance(data, dict) else []
+            if items:
+                wt = items[0].get("widgetType", "")
+                # game_resource needs section inspection to distinguish
+                # entity (has abilities) from resource (has item_grid).
+                if wt == "game_resource":
+                    game_data = items[0].get("data", {})
+                    sections = game_data.get("sections", []) if isinstance(game_data, dict) else []
+                    for sec in sections:
+                        if sec.get("type") == "abilities":
+                            return "entity"
+                        if sec.get("type") == "item_grid":
+                            return "resource"
+                    return "entity"
+                # Map known widget types to generic window types.
+                if wt in _WIDGET_TYPE_MAP:
+                    return _WIDGET_TYPE_MAP[wt]
+                # Unknown widget type: if it's already a valid generic
+                # type, pass it through; otherwise fall back to widget.
+                return wt or "widget"
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+    return "widget"

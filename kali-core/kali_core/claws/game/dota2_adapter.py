@@ -16,6 +16,13 @@ from .adapter import (
 
 logger = logging.getLogger("kali_core.claws.game.dota2_adapter")
 
+_RES_TYPE_MAP = {
+    "hero": "entity",
+    "item": "resource",
+    "location": "place",
+    "ability": "entity",
+}
+
 OPENDOTA_BASE = "https://api.opendota.com/api"
 STEAM_CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react"
 TIMEOUT = 10.0
@@ -66,6 +73,7 @@ async def _emit_widget(
         "event": "artifact",
         "id": artifact_id,
         "type": "widget",
+        "windowType": _RES_TYPE_MAP.get(res_type, "entity"),
         "title": title,
         "content": json.dumps({"items": [item]}),
         "update": update,
@@ -600,7 +608,7 @@ class Dota2Adapter:
         hero_id = await self._resolve_hero_id(hero_name)
         hero_const = (
             _HERO_CONSTANTS.get(str(hero_id))
-            if _HERO_CONSTANTS and hero_id
+            if _HERO_CONSTANTS and hero_id is not None
             else None
         )
 

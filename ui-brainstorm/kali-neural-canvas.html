@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kali — The Neural Canvas (Advanced Focus Edition)</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            void: '#020204',
+            glass: 'rgba(10, 11, 16, 0.75)',
+            glassElevated: 'rgba(18, 20, 28, 0.9)',
+            kaliCore: '#6366f1',
+            kaliAura: '#8b5cf6',
+            kaliCyan: '#06b6d4',
+            kaliEmerald: '#10b981',
+            kaliAmber: '#f59e0b',
+            kaliBlood: '#ef4444', 
+            kaliGold: '#eab308',  
+            textMain: '#f8fafc',
+            textMuted: '#475569',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Instrument Serif', 'serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #020204;
+      color: #f8fafc;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Scrollbars de los widgets individuales */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+    .bg-void-grid {
+      background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        radial-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+      background-size: 60px 60px, 30px 30px;
+      background-position: 0 0, 15px 15px;
+    }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 25px rgba(99, 102, 241, 0.25)); }
+      50% { transform: scale(1.04); filter: drop-shadow(0 0 50px rgba(139, 92, 246, 0.45)); }
+    }
+    .entity-breathe { animation: breathe 5s infinite ease-in-out; }
+
+    /* --- EXPANSIÓN HOLOGRÁFICA DE 8 NODOS ORBITALES --- */
+    .orbital-launcher {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0; transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 15;
+    }
+    /* Posiciones en círculo perfecto usando un radio de 115px */
+    .orbit-active .launcher-1 { transform: translate(calc(-50% + 115px), -50%) scale(1); opacity: 1; }
+    .orbit-active .launcher-2 { transform: translate(calc(-50% + 81px), calc(-50% + 81px)) scale(1); opacity: 1; }
+    .orbit-active .launcher-3 { transform: translate(-50%, calc(-50% + 115px)) scale(1); opacity: 1; }
+    .orbit-active .launcher-4 { transform: translate(calc(-50% - 81px), calc(-50% + 81px)) scale(1); opacity: 1; }
+    .orbit-active .launcher-5 { transform: translate(calc(-50% - 115px), -50%) scale(1); opacity: 1; }
+    .orbit-active .launcher-6 { transform: translate(calc(-50% - 81px), calc(-50% - 81px)) scale(1); opacity: 1; }
+    .orbit-active .launcher-7 { transform: translate(-50%, calc(-50% - 115px)) scale(1); opacity: 1; }
+    .orbit-active .launcher-8 { transform: translate(calc(-50% + 81px), calc(-50% - 81px)) scale(1); opacity: 1; }
+
+    .artifact-node {
+      position: absolute;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      transform-origin: center;
+      /* Eliminado transform de las transiciones generales para prevenir lag al arrastrar, solo opacidad y borde */
+      transition: border-color 0.25s ease, opacity 0.25s ease, box-shadow 0.25s ease;
+    }
+    
+    @keyframes spawnNode {
+      0% { opacity: 0; transform: scale(0.5) translateY(30px); filter: blur(10px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
+    }
+    .spawn-anim { animation: spawnNode 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    /* Enlaces de Energía SVG */
+    .tether-path {
+      fill: none; stroke: url(#tetherGrad); stroke-width: 2.5;
+      stroke-linecap: round; stroke-dasharray: 8 6;
+      animation: dashFlow 20s linear infinite; opacity: 0.45;
+      transition: opacity 0.3s, stroke-width 0.3s, filter 0.3s;
+    }
+    @keyframes dashFlow { to { stroke-dashoffset: -1000; } }
+    
+    .artifact-node:hover ~ #tether-layer .tether-path {
+      opacity: 0.85; stroke-width: 3.5;
+    }
+    .pulse-tether { filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.9)); stroke-width: 5; opacity: 1; stroke: #fff; }
+
+    /* Control de sliders personalizados */
+    input[type=range] {
+      -webkit-appearance: none; background: transparent; width: 100%;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 12px; width: 12px;
+      border-radius: 50%; background: #6366f1; cursor: pointer; margin-top: -4px;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px;
+    }
+
+    /* Reproductor de Audio */
+    @keyframes spin-record { 100% { transform: rotate(360deg); } }
+    .spin-active { animation: spin-record 5s linear infinite; }
+    .eq-bar { animation: eq-bounce 0.8s ease-in-out infinite alternate; }
+    @keyframes eq-bounce { 0% { height: 3px; } 100% { height: 18px; } }
+  </style>
+</head>
+<body class="bg-void-grid w-screen h-screen relative selection:bg-kaliCore/30">
+
+  <!-- CAPA DE ENLACES VECTORIALES -->
+  <svg id="tether-layer" class="absolute inset-0 w-full h-full pointer-events-none z-0">
+    <defs>
+      <linearGradient id="tetherGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#6366f1" />
+        <stop offset="50%" stop-color="#8b5cf6" />
+        <stop offset="100%" stop-color="#06b6d4" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <main id="canvas-universe" class="absolute inset-0 w-full h-full overflow-hidden">
+    <!-- Instrucción de Fondo -->
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+      <div class="text-center">
+        <span class="font-mono text-[10px] tracking-[0.4em] uppercase text-textMuted block mb-2">Entorno Espacial de Interacción</span>
+        <span class="text-xs text-textMuted font-sans">Teclea cualquier letra o haz clic en Kali para desplegar menú</span>
+      </div>
+    </div>
+
+    <!-- LA ENTIDAD CENTRAL (KALI CORE) -->
+    <div id="kali-entity-wrapper" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+      <div id="orbital-menu" class="relative w-full h-full">
+        
+        <!-- ==================== NUEVO ORBIT LAUNCHER DE 8 DIRECCIONES ==================== -->
+        
+        <!-- Launcher 1: Ficha de Pudge (Rojo Sangre) -->
+        <button onclick="triggerLauncher('hero_pudge')" class="orbital-launcher launcher-1 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliBlood hover:bg-kaliBlood/10 flex items-center justify-center group shadow-xl" title="🥩 Pudge de Dota 2">
+          <svg class="w-5 h-5 text-kaliBlood group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </button>
+        
+        <!-- Launcher 2: Ficha de Blink Dagger (Oro) -->
+        <button onclick="triggerLauncher('item_dota')" class="orbital-launcher launcher-2 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliGold hover:bg-kaliGold/10 flex items-center justify-center group shadow-xl" title="⚡ Blink Dagger">
+          <svg class="w-5 h-5 text-kaliGold group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+        </button>
+        
+        <!-- Launcher 3: Locación Dire Jungle (Celeste) -->
+        <button onclick="triggerLauncher('location')" class="orbital-launcher launcher-3 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliCyan hover:bg-kaliCyan/10 flex items-center justify-center group shadow-xl" title="🗺️ Dire Jungle">
+          <svg class="w-5 h-5 text-kaliCyan group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+        </button>
+        
+        <!-- Launcher 4: Prosa Editorial (Índigo) -->
+        <button onclick="triggerLauncher('prose')" class="orbital-launcher launcher-4 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliCore hover:bg-kaliCore/10 flex items-center justify-center group shadow-xl" title="✍️ Prosa Avanzada">
+          <svg class="w-5 h-5 text-kaliCore group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        </button>
+
+        <!-- Launcher 5: Código Go (Esmeralda) -->
+        <button onclick="triggerLauncher('code')" class="orbital-launcher launcher-5 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliEmerald hover:bg-kaliEmerald/10 flex items-center justify-center group shadow-xl" title="💾 Código Go">
+          <svg class="w-5 h-5 text-kaliEmerald group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+        </button>
+
+        <!-- Launcher 6: Generador QR (Esmeralda oscuro) -->
+        <button onclick="triggerLauncher('qr_gen')" class="orbital-launcher launcher-6 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-emerald-600 hover:bg-emerald-600/10 flex items-center justify-center group shadow-xl" title="🔲 Generador QR">
+          <svg class="w-5 h-5 text-emerald-400 group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/><rect x="7" y="14" width="3" height="3"/></svg>
+        </button>
+
+        <!-- Launcher 7: Imagen AI (Aura/Púrpura) -->
+        <button onclick="triggerLauncher('ai_image')" class="orbital-launcher launcher-7 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliAura hover:bg-kaliAura/10 flex items-center justify-center group shadow-xl" title="🎨 Ilustración AI">
+          <svg class="w-5 h-5 text-kaliAura group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+
+        <!-- Launcher 8: Reproductor Música (Cyan) -->
+        <button onclick="triggerLauncher('music_player')" class="orbital-launcher launcher-8 w-12 h-12 rounded-full bg-glassElevated border border-white/10 hover:border-kaliCyan hover:bg-kaliCyan/10 flex items-center justify-center group shadow-xl" title="🎵 Audio Global">
+          <svg class="w-5 h-5 text-kaliCyan group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </button>
+
+        <!-- Orbe del Reactor -->
+        <div id="kali-core" onclick="toggleOrbit()" class="relative w-28 h-28 rounded-full bg-gradient-to-br from-kaliCore via-kaliAura to-kaliCyan flex items-center justify-center cursor-pointer entity-breathe shadow-[0_0_40px_rgba(99,102,241,0.25)] z-20 group">
+          <div class="absolute inset-2 rounded-full border border-white/20 border-t-transparent animate-spin" style="animation-duration: 3.5s"></div>
+          <div class="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md border border-white/30 flex items-center justify-center">
+            <div id="core-pupil" class="w-2.5 h-2.5 bg-white rounded-full transition-transform duration-100 shadow-[0_0_10px_#fff]"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none w-48 text-center">
+        <span id="entity-state-text" class="text-[10px] font-mono font-bold uppercase tracking-widest text-kaliCore">KALI NEXUS</span>
+      </div>
+    </div>
+
+    <!-- CAPA DE ARTEFACTOS (NODOS) -->
+    <div id="artifacts-layer" class="absolute inset-0 pointer-events-none z-20"></div>
+  </main>
+
+  <!-- DOCK DE GESTIÓN -->
+  <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-40">
+    <div class="bg-glassElevated border border-white/10 p-1.5 rounded-2xl flex items-center gap-1 shadow-2xl backdrop-blur-xl">
+      <button onclick="arrangeNodes()" class="p-2.5 rounded-xl hover:bg-white/10 text-textMuted hover:text-white transition" title="Reorganizar Red Espacial">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      </button>
+      <button onclick="triggerNetworkPulse()" class="p-2.5 rounded-xl hover:bg-kaliCyan/20 text-textMuted hover:text-kaliCyan transition" title="Pulso de Red Holográfico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </button>
+      <div class="w-px h-8 bg-white/10 my-auto mx-1"></div>
+      
+      <button onclick="toggleMemory()" class="p-2.5 rounded-xl hover:bg-kaliAura/20 text-textMuted hover:text-kaliAura transition relative" title="Banco de Recuerdos">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M3 15h6"/><path d="M3 18h6"/></svg>
+        <span id="memory-badge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-kaliAura rounded-full border border-void hidden"></span>
+      </button>
+      
+      <div class="w-px h-8 bg-white/10 my-auto mx-1"></div>
+      <button onclick="clearCanvas()" class="p-2.5 rounded-xl hover:bg-red-500/20 text-textMuted hover:text-red-400 transition" title="Vaciar Escenario">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MEMORIA SECUNDARIA LATERAL -->
+  <div id="memory-drawer" class="fixed right-0 top-0 bottom-0 w-80 bg-glassElevated border-l border-white/10 backdrop-blur-2xl translate-x-full transition-transform duration-300 z-50 flex flex-col shadow-2xl">
+    <div class="p-5 border-b border-white/10 flex justify-between items-center">
+      <div>
+        <h2 class="text-xs font-mono font-bold text-kaliAura uppercase tracking-widest">Banco de Memoria</h2>
+        <p class="text-[9px] text-textMuted">Artefactos instanciados en la sesión</p>
+      </div>
+      <button onclick="toggleMemory()" class="text-textMuted hover:text-white transition">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="memory-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+      <div class="text-center text-[10px] font-mono text-textMuted mt-10 opacity-50">Sin registros de red.</div>
+    </div>
+  </div>
+
+  <!-- SPOTLIGHT INTERFAZ -->
+  <div id="spotlight-overlay" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center p-4 transition-opacity duration-300 opacity-0">
+    <div id="spotlight-container" class="w-full max-w-3xl transform scale-95 transition-all duration-300">
+      <div class="text-center mb-8 flex flex-col items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-kaliCore animate-pulse shadow-[0_0_20px_#6366f1]"></div>
+        <span class="text-[10px] font-mono text-kaliAura tracking-widest uppercase">Spotlight Generativo</span>
+      </div>
+      <div class="relative w-full">
+        <input type="text" id="intent-input" class="w-full bg-transparent border-none outline-none text-2xl md:text-4xl font-serif text-textMain placeholder:text-textMuted/40 text-center caret-kaliCore" placeholder="Sintetiza un módulo de información..." autocomplete="off">
+        <div class="absolute -bottom-4 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-kaliCore to-transparent opacity-60"></div>
+      </div>
+      <!-- Sugerencias expandidas para abarcar todos los casos -->
+      <div class="mt-10 flex flex-wrap justify-center gap-3 text-[10px] font-mono text-textMuted">
+        <button onclick="injectIntent('Muestra a Pudge')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">🥩 Pudge (Dota 2)</button>
+        <button onclick="injectIntent('Item: Blink Dagger')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">⚡ Blink Dagger</button>
+        <button onclick="injectIntent('Dire Jungle')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">🗺️ Locación dota</button>
+        <button onclick="injectIntent('Concepto de diseño espacial')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">✍️ Prosa avanzada</button>
+        <button onclick="injectIntent('Genera un código QR de dota2.com')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">🔲 Generador QR</button>
+        <button onclick="injectIntent('Optimiza pool de conexiones Go')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">💾 Código de red</button>
+        <button onclick="injectIntent('Diseña ilustración retro de nave')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">🎨 Imagen AI</button>
+        <button onclick="injectIntent('Reproductor')" class="hover:text-white transition px-2 py-1 bg-white/5 rounded border border-white/5">🎵 Audio Global</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROL LÓGICO COMPLETO -->
+  <script>
+    /* -------------------------------------------------------------
+       VARIABLES GLOBALES
+       ------------------------------------------------------------- */
+    const entityCore = document.getElementById('kali-core');
+    const entityStateText = document.getElementById('entity-state-text');
+    const entityPupil = document.getElementById('core-pupil');
+    const orbitalMenu = document.getElementById('orbital-menu');
+    const tetherLayer = document.getElementById('tether-layer');
+    const artifactsLayer = document.getElementById('artifacts-layer');
+    
+    let isThinking = false; let isOrbitOpen = false; let artifactCounter = 0;
+    const activeNodes = []; const memoryBank = [];
+
+    // Estado del reproductor musical global
+    let isPlaying = false;
+    let trackProgress = 32;
+
+    function getCenter() { return { x: window.innerWidth / 2, y: window.innerHeight / 2 }; }
+
+    /* -------------------------------------------------------------
+       CONTROL ORBITAL & ESTADOS DE ENTIDAD
+       ------------------------------------------------------------- */
+    function toggleOrbit() {
+      if(isThinking) return;
+      isOrbitOpen = !isOrbitOpen;
+      if (isOrbitOpen) {
+        orbitalMenu.classList.add('orbit-active');
+        entityCore.style.transform = 'scale(0.9)';
+      } else {
+        orbitalMenu.classList.remove('orbit-active');
+        entityCore.style.transform = 'scale(1)';
+      }
+    }
+
+    function setEntityState(state, colorClass = 'kaliCore', colorHex = '#6366f1') {
+      if (state === 'IDLE') {
+        entityCore.className = "relative w-28 h-28 rounded-full bg-gradient-to-br from-kaliCore via-kaliAura to-kaliCyan flex items-center justify-center cursor-pointer entity-breathe shadow-[0_0_40px_rgba(99,102,241,0.25)] z-20 group";
+        entityStateText.innerText = "KALI NEXUS";
+        entityStateText.className = "text-[10px] font-mono font-bold uppercase tracking-widest text-kaliCore";
+        entityPupil.style.backgroundColor = "white";
+        isThinking = false;
+      } 
+      else if (state === 'THINKING') {
+        isThinking = true; isOrbitOpen = false; orbitalMenu.classList.remove('orbit-active');
+        entityCore.className = "relative w-28 h-28 rounded-full bg-gradient-to-br from-kaliAmber to-orange-500 flex items-center justify-center cursor-wait shadow-[0_0_60px_rgba(245,158,11,0.5)] z-20 scale-110 transition-all duration-300";
+        entityStateText.innerText = "SINTETIZANDO...";
+        entityStateText.className = "text-[10px] font-mono font-bold uppercase tracking-widest text-kaliAmber animate-pulse";
+        entityPupil.style.backgroundColor = "#000";
+      }
+      else if (state === 'CREATING') {
+        entityCore.className = `relative w-28 h-28 rounded-full bg-gradient-to-br flex items-center justify-center shadow-[0_0_80px_${colorHex}aa] z-20 scale-125 transition-all duration-200`;
+        
+        // Remove pre-existing dynamic color classes
+        entityCore.classList.remove('from-kaliCore', 'to-kaliAura', 'from-kaliAmber', 'to-orange-500', 'from-kaliEmerald', 'to-teal-400');
+
+        if(colorClass === 'kaliBlood') entityCore.classList.add('from-red-600', 'to-red-400');
+        else if(colorClass === 'kaliGold') entityCore.classList.add('from-yellow-500', 'to-yellow-300');
+        else if(colorClass === 'kaliCyan') entityCore.classList.add('from-cyan-500', 'to-blue-400');
+        else if(colorClass === 'kaliEmerald') entityCore.classList.add('from-emerald-500', 'to-teal-400');
+        else if(colorClass === 'kaliAura') entityCore.classList.add('from-purple-500', 'to-indigo-500');
+        else entityCore.classList.add('from-indigo-500', 'to-purple-400');
+
+        entityStateText.innerText = "MATERIALIZANDO";
+        entityStateText.className = `text-[10px] font-mono font-bold uppercase tracking-widest text-${colorClass}`;
+      }
+    }
+
+    function triggerLauncher(type) {
+      toggleOrbit();
+      let p = "";
+      if (type === 'hero_pudge') p = "Muestra a Pudge de Dota 2";
+      if (type === 'item_dota') p = "Ficha de Blink Dagger";
+      if (type === 'music_player') p = "Abre el reproductor global";
+      if (type === 'prose') p = "Redactar concepto de diseño avanzado";
+      if (type === 'code') p = "Optimiza pool de conexiones Go";
+      if (type === 'qr_gen') p = "Generador QR dinámico";
+      if (type === 'ai_image') p = "Diseñar ilustración conceptual";
+      if (type === 'location') p = "Selva del Dire";
+      processIntent(p, type);
+    }
+
+    /* -------------------------------------------------------------
+       SPOTLIGHT (TRIGGER-ON-TYPE)
+       ------------------------------------------------------------- */
+    const overlay = document.getElementById('spotlight-overlay');
+    const container = document.getElementById('spotlight-container');
+    const input = document.getElementById('intent-input');
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { closeSpotlight(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey || isThinking) return;
+      
+      // Ignorar escritura dentro de elementos editables o inputs
+      if (e.target.closest('input, textarea, .no-drag')) return;
+
+      if (e.key.length === 1 && overlay.classList.contains('hidden')) {
+        if(isOrbitOpen) toggleOrbit();
+        openSpotlight(e.key);
+        e.preventDefault();
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const intent = input.value.trim();
+        if (intent) processIntent(intent);
+        closeSpotlight();
+      }
+    });
+
+    function injectIntent(text) { input.value = text; input.focus(); }
+    function openSpotlight(char) {
+      input.value = char; overlay.classList.remove('hidden'); void overlay.offsetWidth; 
+      overlay.classList.remove('opacity-0'); container.classList.remove('scale-95'); container.classList.add('scale-100');
+      setTimeout(() => { input.focus(); input.selectionStart = input.selectionEnd = input.value.length; }, 50);
+    }
+    function closeSpotlight() {
+      overlay.classList.add('opacity-0'); container.classList.remove('scale-100'); container.classList.add('scale-95');
+      setTimeout(() => { overlay.classList.add('hidden'); input.value = ''; }, 300);
+    }
+
+    /* -------------------------------------------------------------
+       PROCESAMIENTO Y GENERACIÓN DE ARTEFACTOS
+       ------------------------------------------------------------- */
+    function processIntent(text, forcedType = null) {
+      setEntityState('THINKING');
+      let type = forcedType || 'prose_advanced';
+      
+      if (!forcedType) {
+        const t = text.toLowerCase();
+        if (t.includes('pudge') || t.includes('héroe')) type = 'hero_pudge';
+        else if (t.includes('blink') || t.includes('item') || t.includes('objeto')) type = 'item_dota';
+        else if (t.includes('lugar') || t.includes('mapa') || t.includes('locación') || t.includes('jungle') || t.includes('dire')) type = 'location';
+        else if (t.includes('código') || t.includes('go')) type = 'code';
+        else if (t.includes('qr')) type = 'qr_gen';
+        else if (t.includes('música') || t.includes('reproductor')) type = 'music_player';
+        else if (t.includes('imagen') || t.includes('diseña') || t.includes('arte') || t.includes('ilustración')) type = 'ai_image';
+      }
+
+      // Validar un único reproductor activo
+      if (type === 'music_player') {
+        const exists = activeNodes.find(n => n.type === 'music_player');
+        if (exists) {
+          const el = exists.el;
+          bringToFront(el);
+          el.style.boxShadow = '0 0 50px rgba(6,182,212,0.8)';
+          el.style.transform = 'scale(1.05)';
+          setTimeout(() => {
+            el.style.boxShadow = '';
+            el.style.transform = '';
+            setEntityState('IDLE');
+          }, 800);
+          return;
+        }
+      }
+
+      let colorClass = 'kaliCore', colorHex = '#6366f1';
+      if(type === 'hero_pudge') { colorClass = 'kaliBlood'; colorHex = '#ef4444'; }
+      else if(type === 'item_dota') { colorClass = 'kaliGold'; colorHex = '#eab308'; }
+      else if(type === 'music_player' || type === 'location') { colorClass = 'kaliCyan'; colorHex = '#06b6d4'; }
+      else if(type === 'code' || type === 'qr_gen') { colorClass = 'kaliEmerald'; colorHex = '#10b981'; }
+      else if(type === 'ai_image') { colorClass = 'kaliAura'; colorHex = '#8b5cf6'; }
+
+      setTimeout(() => {
+        setEntityState('CREATING', colorClass, colorHex);
+        
+        artifactCounter++;
+        const id = `node-${artifactCounter}`;
+        
+        const memoryRecord = { id: id, type: type, prompt: text, isActive: true };
+        memoryBank.unshift(memoryRecord); 
+        document.getElementById('memory-badge').classList.remove('hidden');
+        renderMemoryList();
+
+        spawnArtifactDOM(id, type, text);
+        setTimeout(() => setEntityState('IDLE'), 800);
+      }, 1000);
+    }
+
+    function spawnArtifactDOM(id, type, promptStr, specificPos = null) {
+      const artifact = document.createElement('div');
+      artifact.id = id;
+      artifact.dataset.type = type;
+      artifact.className = "artifact-node spawn-anim bg-glass border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto absolute";
+      
+      artifact.innerHTML = generateNodeHTML(type, promptStr, id);
+      artifactsLayer.appendChild(artifact);
+
+      // Sizing de tarjetas
+      if(type === 'hero_pudge') artifact.style.width = '340px';
+      else if(type === 'item_dota') artifact.style.width = '300px';
+      else if(type === 'location') artifact.style.width = '420px';
+      else if(type === 'code') artifact.style.width = '450px';
+      else if(type === 'music_player') artifact.style.width = '290px';
+      else if(type === 'qr_gen') artifact.style.width = '260px';
+      else if(type === 'ai_image') artifact.style.width = '320px';
+      else artifact.style.width = '380px'; // Prose advanced
+
+      let endX, endY;
+      if (specificPos) {
+        endX = specificPos.x; endY = specificPos.y;
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 240 + Math.random() * 120;
+        const center = getCenter();
+        endX = center.x + Math.cos(angle) * distance;
+        endY = center.y + Math.sin(angle) * distance;
+      }
+
+      // Registro de clicks para gestión de foco visual independiente de Drag
+      artifact.addEventListener('pointerdown', () => {
+        bringToFront(artifact);
+      });
+
+      setTimeout(() => {
+        const w = artifact.offsetWidth;
+        const h = artifact.offsetHeight;
+        artifact.style.left = `${endX - w/2}px`;
+        artifact.style.top = `${endY - h/2}px`;
+        
+        createTether(id, artifact, type);
+        makeDraggable(artifact, id);
+        bringToFront(artifact); // Enfocar inmediatamente al nacer
+      }, 10);
+    }
+
+    /* -------------------------------------------------------------
+       FOCO VISUAL Y ORDENAMIENTO (BRING TO FRONT)
+       ------------------------------------------------------------- */
+    function bringToFront(targetEl) {
+      if (!targetEl) return;
+      artifactCounter++;
+      targetEl.style.zIndex = 20 + artifactCounter;
+
+      // Aplicar estilos de nodo enfocado / desenfocar el resto
+      const allNodes = document.querySelectorAll('.artifact-node');
+      allNodes.forEach(node => {
+        if (node === targetEl) {
+          node.classList.add('border-white/30', 'opacity-100');
+          node.classList.remove('border-white/10', 'opacity-60');
+          // Sombra brillante del color del tema del widget
+          const type = node.dataset.type;
+          let glowColor = 'rgba(99, 102, 241, 0.25)'; // base
+          if (type === 'hero_pudge') glowColor = 'rgba(239, 68, 68, 0.35)';
+          else if (type === 'item_dota') glowColor = 'rgba(234, 179, 8, 0.35)';
+          else if (type === 'music_player' || type === 'location') glowColor = 'rgba(6, 182, 212, 0.35)';
+          else if (type === 'code' || type === 'qr_gen') glowColor = 'rgba(16, 185, 129, 0.35)';
+          else if (type === 'ai_image') glowColor = 'rgba(139, 92, 246, 0.35)';
+          
+          node.style.boxShadow = `0 20px 50px -12px ${glowColor}`;
+        } else {
+          node.classList.remove('border-white/30', 'opacity-100');
+          node.classList.add('border-white/10', 'opacity-60');
+          node.style.boxShadow = '';
+        }
+      });
+    }
+
+    /* -------------------------------------------------------------
+       WIDGETS Y MAQUETACIÓN DE CADA ARTEFACTO (ALTA FIDELIDAD)
+       ------------------------------------------------------------- */
+    function generateNodeHTML(type, prompt, id) {
+      const closeBtn = `<button onclick="destroyNode('${id}')" class="no-drag absolute top-3 right-3 w-6 h-6 bg-black/40 hover:bg-red-500/80 rounded-full flex items-center justify-center text-white/50 hover:text-white transition z-50"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>`;
+
+      if (type === 'hero_pudge') {
+        return `
+          ${closeBtn}
+          <div class="bg-gradient-to-r from-red-950/70 to-black px-4 py-3 border-b border-white/10 flex items-center cursor-move handle">
+             <div class="w-10 h-10 rounded-lg bg-red-900/40 border border-red-500/60 flex items-center justify-center shrink-0 overflow-hidden relative">
+               <span class="font-bold text-red-200 text-xs font-mono select-none">PDG</span>
+             </div>
+             <div class="pr-6 ml-3">
+               <h4 class="text-sm font-bold text-red-100 uppercase tracking-wider font-sans">Pudge</h4>
+               <p class="text-[9px] font-mono text-red-400 uppercase tracking-widest">Melee • Durable • Disabler</p>
+             </div>
+          </div>
+          <div class="p-4 bg-black/60 space-y-4">
+            <!-- Atributos -->
+            <div class="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5 text-center text-xs text-textMain">
+              <div class="w-1/3 border-r border-white/5"><span class="block text-red-500 font-bold text-sm">25 + 3.5</span><span class="text-[8px] text-textMuted uppercase font-mono">Fuerza ⭐</span></div>
+              <div class="w-1/3 border-r border-white/5"><span class="block text-green-500 font-bold text-sm">14 + 1.5</span><span class="text-[8px] text-textMuted uppercase font-mono">Agilidad</span></div>
+              <div class="w-1/3"><span class="block text-blue-500 font-bold text-sm">16 + 1.5</span><span class="text-[8px] text-textMuted uppercase font-mono">Inteligencia</span></div>
+            </div>
+            <!-- Vidas y Recurso -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-[9px] font-mono text-textMuted"><span>PUNTOS DE VIDA</span><span class="text-green-400 font-bold">700 / 700 (+3.2)</span></div>
+              <div class="w-full h-2.5 bg-black/80 rounded-full border border-white/5"><div class="w-full h-full bg-gradient-to-r from-green-800 to-emerald-400 rounded-full"></div></div>
+              <div class="flex justify-between text-[9px] font-mono text-textMuted mt-1"><span>MANÁ</span><span class="text-blue-400 font-bold">267 / 267 (+0.8)</span></div>
+              <div class="w-full h-2 bg-black/80 rounded-full border border-white/5"><div class="w-full h-full bg-gradient-to-r from-blue-800 to-cyan-500 rounded-full"></div></div>
+            </div>
+            <!-- Habilidades Interactivas con panel dinámico -->
+            <div class="space-y-2">
+              <span class="text-[8px] font-mono text-textMuted uppercase tracking-wider block">Habilidades (Haz clic para ver detalles):</span>
+              <div class="flex gap-2 justify-center pt-1 no-drag font-sans">
+                <button onclick="selectPudgeSkill(this, '🪝 Meat Hook', 'Lanza un gancho sangriento que arrastra a la primera unidad que golpea, infligiendo daño puro si es enemigo.')" class="w-9 h-9 rounded border border-red-500/40 bg-red-950/60 hover:bg-red-800/80 flex items-center justify-center text-sm transition focus:ring-1 focus:ring-red-500" title="Meat Hook">🪝</button>
+                <button onclick="selectPudgeSkill(this, '☣️ Rot', 'Emite una nube tóxica que inflige daño continuo y ralentiza a los enemigos cercanos, dañando también al propio Pudge.')" class="w-9 h-9 rounded border border-green-500/40 bg-green-950/60 hover:bg-green-800/80 flex items-center justify-center text-sm transition focus:ring-1 focus:ring-green-500" title="Rot">☣️</button>
+                <button onclick="selectPudgeSkill(this, '🥩 Flesh Heap', 'Concede resistencia al daño. Otorga fuerza adicional permanente cada vez que un héroe enemigo muere cerca.')" class="w-9 h-9 rounded border border-amber-500/40 bg-amber-950/60 hover:bg-amber-800/80 flex items-center justify-center text-sm transition focus:ring-1 focus:ring-amber-500" title="Flesh Heap">🥩</button>
+                <button onclick="selectPudgeSkill(this, '🔪 Dismember', 'CANALIZADA: Pudge devora a un enemigo, inmovilizándolo e infligiendo daño masivo basado en su propia fuerza.')" class="w-9 h-9 rounded border border-red-500/40 bg-red-950/60 hover:bg-red-800/80 flex items-center justify-center text-sm transition focus:ring-1 focus:ring-red-500" title="Dismember">🔪</button>
+              </div>
+              <div class="bg-black/40 border border-white/5 rounded p-2.5 min-h-[50px]">
+                <h5 id="${id}-skill-title" class="text-[10px] font-mono text-red-400 uppercase font-bold">🪝 Meat Hook</h5>
+                <p id="${id}-skill-desc" class="text-[9px] text-textMuted leading-relaxed mt-1">Lanza un gancho sangriento que arrastra a la primera unidad que golpea, infligiendo daño puro si es enemigo.</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'item_dota') {
+        return `
+          ${closeBtn}
+          <div class="bg-gradient-to-r from-yellow-950/60 to-black px-4 py-3 border-b border-yellow-700/50 cursor-move handle flex items-center justify-between">
+             <div>
+               <h4 class="text-xs font-bold text-yellow-500 uppercase tracking-wider font-sans">Blink Dagger</h4>
+               <p class="text-[9px] font-mono text-yellow-700/80 uppercase tracking-widest font-semibold">Objeto de Movilidad</p>
+             </div>
+             <div class="flex items-center gap-1 bg-yellow-950/40 px-2.5 py-1 rounded text-yellow-400 text-[10px] font-mono border border-yellow-700/30">
+               💰 2250 Gold
+             </div>
+          </div>
+          <div class="p-4 bg-black/60 space-y-3">
+            <p class="text-[11px] font-sans text-textMain/90 leading-relaxed">
+              <strong class="text-yellow-400">Activa: Blink.</strong> Teletransporta al portador de forma instantánea a una distancia máxima de 1200 unidades en la dirección seleccionada.
+            </p>
+            <p class="text-[10px] text-red-400/80 italic border-l-2 border-red-500/30 pl-2 leading-relaxed">
+              El daño recibido por héroes enemigos o Roshan deshabilita el Blink durante 3.0 segundos.
+            </p>
+            
+            <div class="flex justify-between items-center border-t border-white/5 pt-3 text-[10px] font-mono text-textMuted">
+              <span class="flex items-center gap-1"><span class="text-yellow-500">CD:</span> 15.0s</span>
+              <span class="flex items-center gap-1"><span class="text-blue-400">Maná:</span> 0</span>
+            </div>
+
+            <!-- Botón interactivo Blink de prueba espacial -->
+            <div class="pt-1 no-drag">
+              <button onclick="blinkNodeAction('${id}')" class="w-full py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 rounded text-[10px] font-mono uppercase tracking-wider transition font-sans">
+                ⚡ ¡Ejecutar Blink! (Salto en pantalla)
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'location') {
+        return `
+          ${closeBtn}
+          <div class="h-8 bg-black/60 border-b border-white/10 absolute top-0 left-0 right-0 z-10 flex justify-between items-center px-4 cursor-move handle backdrop-blur-md">
+            <span class="text-[9px] font-mono text-cyan-400 uppercase tracking-widest font-semibold">Sensor Topográfico</span>
+            <span class="text-[9px] font-mono text-textMuted font-medium">COORD: 34.12 S / 57.89 E</span>
+          </div>
+          <!-- Canvas de Locación -->
+          <div class="h-32 w-full bg-cover bg-center mt-8 relative select-none pointer-events-none" style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'400\\' height=\\'200\\'><rect width=\\'400\\' height=\\'200\\' fill=\\'%23111827\\'/><path d=\\'M0 180 L120 70 L240 140 L360 50 L400 180 Z\\' fill=\\'%231f2937\\'/><path d=\\'M50 200 L180 110 L300 170 L400 100 L400 200 Z\\' fill=\\'%23111827\\' opacity=\\'0.5\\'/></svg>');">
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+            <div class="absolute bottom-3 left-4">
+              <h3 class="text-lg font-serif text-white tracking-wide">La Selva del Dire (Dire Jungle)</h3>
+              <p class="text-[9px] text-cyan-400 font-mono">Frontera de Lava Roja</p>
+            </div>
+          </div>
+          <div class="p-4 bg-black/80 space-y-3">
+            <div class="flex justify-between gap-4 text-[10px] font-mono text-textMuted">
+              <div class="flex flex-col"><span class="text-white font-medium">CLIMA</span>Neblina Ácida</div>
+              <div class="flex flex-col"><span class="text-white font-medium">AMENAZA</span>Crítica (Extrema)</div>
+              <div class="flex flex-col"><span class="text-white font-medium">FACCIÓN</span>Radiant Control</div>
+            </div>
+            
+            <div class="no-drag">
+              <button onclick="lockCoordinatesAction(this)" class="w-full py-1.5 bg-cyan-900/50 hover:bg-cyan-800 text-cyan-400 text-[10px] font-mono uppercase tracking-wider rounded border border-cyan-700/50 transition font-sans">
+                🔒 Fijar Coordenadas Neuroruta
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'ai_image') {
+        const seed = Math.floor(Math.random() * 899999) + 100000;
+        return `
+          ${closeBtn}
+          <div class="h-8 bg-black/60 border-b border-white/10 absolute top-0 left-0 right-0 z-10 flex justify-between items-center px-4 cursor-move handle backdrop-blur-md">
+            <span class="text-[9px] font-mono text-kaliAura uppercase tracking-widest font-semibold">Proyección Visual AI</span>
+            <span class="text-[9px] font-mono text-textMuted">SEED: ${seed}</span>
+          </div>
+          <!-- Marco de Imagen AI -->
+          <div class="h-44 w-full bg-cover bg-center mt-8 relative select-none pointer-events-none" style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'180\\'><rect width=\\'300\\' height=\\'180\\' fill=\\'%231e1b4b\\'/><circle cx=\\'150\\' cy=\\'90\\' r=\\'50\\' fill=\\'none\\' stroke=\\'%238b5cf6\\' stroke-width=\\'2\\'/><path d=\\'M0 150 L100 100 L200 130 L300 90 L300 180 L0 180 Z\\' fill=\\'%23312e81\\'/></svg>');">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+            <div class="absolute bottom-3 left-4 pr-10">
+              <span class="text-[8px] font-mono text-kaliAura uppercase tracking-wider font-semibold">PROMPT</span>
+              <p class="text-xs font-serif italic text-white/95 line-clamp-1">"${prompt}"</p>
+            </div>
+          </div>
+          <div class="p-4 bg-black/80 space-y-3">
+            <div class="flex justify-between items-center text-[10px] font-mono text-textMuted no-drag">
+              <div class="flex gap-1.5 font-sans">
+                <button onclick="changeStyleFilter(this, 'retro')" class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white hover:bg-white/10 transition">Retro</button>
+                <button onclick="changeStyleFilter(this, 'vector')" class="px-2 py-0.5 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition">Místico</button>
+              </div>
+              <span>Píxeles: 1024x1024</span>
+            </div>
+            
+            <div class="flex gap-2 justify-between items-center text-[9px] font-mono text-textMuted border-t border-white/5 pt-2">
+              <span>Modelo: Imagen 4.0 Pro</span>
+              <button onclick="actionCallback('Descargar Proyección')" class="text-kaliAura hover:underline font-semibold uppercase no-drag">[Descargar]</button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'music_player') {
+        return `
+          ${closeBtn}
+          <div class="bg-black/60 px-4 py-2 border-b border-white/10 cursor-move handle">
+            <span class="text-[9px] font-mono text-kaliCyan uppercase tracking-widest font-semibold">Consola de Audio Global</span>
+          </div>
+          <div class="p-4 bg-black/80 flex flex-col gap-4">
+            <div class="flex items-center gap-4">
+              <!-- Vinilo giratorio -->
+              <div id="vinyl-disc" class="w-16 h-16 rounded-full border-4 border-black bg-neutral-900 relative flex items-center justify-center shadow-lg no-drag select-none shrink-0 transition-transform duration-1000" style="background: repeating-radial-gradient(#151515 0, #151515 2px, #252525 3px, #252525 4px);">
+                <div class="w-4 h-4 bg-kaliCyan rounded-full"></div>
+                <div class="absolute w-1.5 h-1.5 bg-white rounded-full top-2"></div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="text-sm font-bold text-white truncate font-sans">Neural Frequency Vol. II</h4>
+                <p class="text-[10px] text-cyan-400 font-mono truncate">Productor: Kali Core</p>
+                <p id="player-time-elapsed" class="text-[9px] text-textMuted font-mono">01:14 / 03:45</p>
+              </div>
+            </div>
+
+            <!-- Controles Multimedia no-drag -->
+            <div class="space-y-2 no-drag">
+              <div class="flex items-center justify-between gap-4">
+                <button onclick="toggleAudioPlayback(this)" class="w-8 h-8 rounded-full bg-cyan-500 text-black hover:bg-cyan-400 flex items-center justify-center transition shadow-lg shrink-0">
+                  <svg id="play-pause-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                
+                <!-- Barra de Progreso Deslizable -->
+                <input type="range" min="0" max="100" value="32" oninput="updateAudioProgress(this)" class="flex-1 h-1.5 accent-kaliCyan">
+              </div>
+
+              <!-- Ecualizador Gráfico Reactivo -->
+              <div class="flex items-end gap-1 justify-center h-5 pt-1">
+                <div class="w-1 bg-cyan-500 rounded-t animate-pulse" id="eq-b1" style="height: 4px;"></div>
+                <div class="w-1 bg-cyan-400 rounded-t animate-pulse" id="eq-b2" style="height: 12px; animation-delay: 0.1s"></div>
+                <div class="w-1 bg-cyan-300 rounded-t animate-pulse" id="eq-b3" style="height: 6px; animation-delay: 0.2s"></div>
+                <div class="w-1 bg-cyan-400 rounded-t animate-pulse" id="eq-b4" style="height: 14px; animation-delay: 0.3s"></div>
+                <div class="w-1 bg-cyan-500 rounded-t animate-pulse" id="eq-b5" style="height: 8px; animation-delay: 0.15s"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'qr_gen') {
+        return `
+          ${closeBtn}
+          <div class="bg-black/60 px-4 py-2 border-b border-white/10 cursor-move handle">
+            <span class="text-[9px] font-mono text-kaliEmerald uppercase tracking-widest font-semibold">Generador QR Dinámico</span>
+          </div>
+          <div class="p-4 bg-black/80 flex flex-col items-center gap-4">
+            <div class="w-32 h-32 bg-white rounded-lg p-2.5 flex items-center justify-center shadow-lg transition-transform duration-300 hover:scale-105 select-none pointer-events-none">
+              <!-- SVG de código QR falso Reactivo -->
+              <svg id="qr-matrix-svg" width="100%" height="100%" viewBox="0 0 100 100" fill="#000">
+                <!-- Bloques estándar fijos -->
+                <rect x="5" y="5" width="25" height="25" fill="none" stroke="#000" stroke-width="5"/>
+                <rect x="70" y="5" width="25" height="25" fill="none" stroke="#000" stroke-width="5"/>
+                <rect x="5" y="70" width="25" height="25" fill="none" stroke="#000" stroke-width="5"/>
+                <rect x="10" y="10" width="15" height="15"/> 
+                <rect x="75" y="10" width="15" height="15"/> 
+                <rect x="10" y="75" width="15" height="15"/>
+                <!-- Bloques dinámicos aleatorios que mutan según el input -->
+                <g id="qr-variable-dots">
+                  <rect x="40" y="5" width="10" height="10"/>
+                  <rect x="55" y="15" width="10" height="10"/>
+                  <rect x="40" y="30" width="15" height="15"/>
+                  <rect x="5" y="45" width="10" height="15"/>
+                  <rect x="25" y="45" width="15" height="10"/>
+                  <rect x="70" y="45" width="10" height="20"/>
+                  <rect x="45" y="70" width="15" height="10"/>
+                  <rect x="45" y="85" width="20" height="10"/>
+                </g>
+              </svg>
+            </div>
+
+            <!-- Entrada de Datos Reactiva no-drag -->
+            <div class="w-full space-y-1.5 no-drag">
+              <span class="text-[8px] font-mono text-textMuted uppercase tracking-wider block">Codificar texto/URL:</span>
+              <input type="text" oninput="updateQrCodeMatrix(this)" value="https://dota2.com" class="w-full bg-black/40 text-textMain border border-white/10 rounded-lg py-1.5 px-2.5 text-xs outline-none focus:border-kaliEmerald font-mono">
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'code') {
+        const rawCode = `// Prompt: "${prompt}"\npackage main\n\nimport (\n    "fmt"\n    "net/http"\n)\n\ntype SecurePool struct {\n    MaxConnections int\n    currentSockets chan struct{}\n}\n\nfunc NewPool(limit int) *SecurePool {\n    return &SecurePool{\n        MaxConnections: limit,\n        currentSockets: make(chan struct{}, limit),\n    }\n}\n\nfunc (p *SecurePool) Acquire() {\n    p.currentSockets <- struct{}{}\n}\n\nfunc (p *SecurePool) Release() {\n    <-p.currentSockets\n}`;
+        const lines = rawCode.split('\n');
+        const lineNumsHTML = lines.map((_, i) => `<span>${i + 1}</span>`).join('');
+
+        return `
+          ${closeBtn}
+          <div class="bg-black/80 px-4 py-2 border-b border-white/10 flex justify-between items-center cursor-move handle">
+            <span class="text-[10px] font-mono text-kaliEmerald uppercase tracking-wider flex items-center gap-2 font-semibold">
+              <span class="w-1.5 h-1.5 rounded-full bg-kaliEmerald animate-ping"></span>
+              Estructura Go Sockets
+            </span>
+            <button onclick="copyContent(this, '.code-content')" class="no-drag mr-6 text-[9px] font-mono uppercase text-white/50 hover:text-kaliEmerald transition px-2 py-1 bg-white/5 hover:bg-white/10 rounded border border-white/10 flex items-center gap-1 font-bold">
+              Copiar
+            </button>
+          </div>
+          <div class="relative bg-black/50 max-h-64 overflow-y-auto flex no-drag select-text">
+            <div class="flex flex-col text-right px-3 py-3 border-r border-white/10 text-[11px] font-mono text-white/20 select-none bg-black/40">
+              ${lineNumsHTML}
+            </div>
+            <pre class="p-3 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre flex-1 code-content leading-relaxed">${rawCode}</pre>
+          </div>
+        `;
+      } 
+      
+      // PROSE ADVANCED (Default text/prosa)
+      return `
+        ${closeBtn}
+        <div class="px-4 py-2 cursor-move handle bg-black/60 border-b border-white/10 flex justify-between items-center">
+          <span class="text-[9px] font-mono text-kaliCore uppercase tracking-widest font-semibold">Documento Conceptual</span>
+          <button onclick="copyContent(this, '.prose-content')" class="no-drag mr-6 text-[9px] font-mono uppercase text-white/50 hover:text-white transition px-2 py-0.5 bg-white/5 rounded">Copiar</button>
+        </div>
+        
+        <!-- Barra de Herramientas no-drag -->
+        <div class="px-4 py-2 bg-black/40 border-b border-white/5 flex gap-4 items-center no-drag text-[9px] font-mono text-textMuted uppercase">
+          <div class="flex-1 flex items-center gap-2">
+            <span>Fuente:</span>
+            <input type="range" min="14" max="24" value="18" oninput="changeFontSize(this, '${id}-text')" class="w-full">
+          </div>
+          <div class="flex-1 flex items-center gap-2">
+            <span>Fondo:</span>
+            <input type="range" min="40" max="95" value="70" oninput="changeBackgroundOpacity(this, '${id}')" class="w-full">
+          </div>
+        </div>
+
+        <!-- Contenedor de Texto con Scroll Independiente -->
+        <div class="p-5 max-h-60 overflow-y-auto bg-black/10 no-drag">
+          <div id="${id}-text" class="text-sm font-sans leading-relaxed text-textMain/90 prose-content">
+            <span class="text-[10px] font-mono text-kaliAmber uppercase tracking-wider block mb-2">Análisis de Red Neural:</span>
+            La idea central sobre <span class="text-kaliAmber font-medium">"${prompt}"</span> ha sido expandida con éxito. 
+            Este modelo de interacción descarta el scroll infinito repetitivo de los chats comunes de burbujas, forzando a que las respuestas sean objetos tridimensionales autónomos que se pueden distribuir a lo largo del lienzo.
+          </div>
+        </div>
+      `;
+    }
+
+    /* -------------------------------------------------------------
+       ACCIONES DE INTERACCIÓN INTERNAS DE LOS ARTEFACTOS
+       ------------------------------------------------------------- */
+    
+    // 1. Pudge - Dota 2: Selección de Habilidades
+    function selectPudgeSkill(btn, title, desc) {
+      const card = btn.closest('.artifact-node');
+      const titleEl = card.querySelector('[id$="-skill-title"]');
+      const descEl = card.querySelector('[id$="-skill-desc"]');
+
+      // Animación de pulso místico en el orbe
+      setEntityState('CREATING', 'kaliBlood', '#ef4444');
+      setTimeout(() => setEntityState('IDLE'), 400);
+
+      titleEl.innerText = title;
+      descEl.innerText = desc;
+      
+      // Activar clase visual activa
+      btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('border-red-400', 'bg-red-900/60'));
+      btn.classList.add('border-red-400', 'bg-red-900/60');
+    }
+
+    // 2. Blink Dagger - Dota 2: Teletransporte de la tarjeta
+    function blinkNodeAction(nodeId) {
+      const node = document.getElementById(nodeId);
+      if (!node) return;
+
+      // Desvanecimiento suave
+      node.style.opacity = '0';
+      node.style.transform = 'scale(0.8)';
+      
+      beep(1000, 'sawtooth', 0.1);
+
+      setTimeout(() => {
+        // Nuevas coordenadas aleatorias
+        const center = getCenter();
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 200 + Math.random() * 150;
+        const w = node.offsetWidth;
+        const h = node.offsetHeight;
+
+        const newX = center.x + Math.cos(angle) * dist - w/2;
+        const newY = center.y + Math.sin(angle) * dist - h/2;
+
+        node.style.left = `${newX}px`;
+        node.style.top = `${newY}px`;
+        node.style.opacity = '1';
+        node.style.transform = 'scale(1)';
+
+        // Actualizar tether
+        const nodeData = activeNodes.find(n => n.id === nodeId);
+        if(nodeData) updateTether(nodeData);
+
+        // Pulso visual en el tether
+        triggerNetworkPulse();
+      }, 250);
+    }
+
+    // 3. Location: Bloqueo de coordenadas de Ruta
+    function lockCoordinatesAction(btn) {
+      const originalText = btn.innerText;
+      btn.innerText = "🛰️ ESCANEANDO SATÉLITES...";
+      btn.classList.add('text-kaliCyan', 'border-kaliCyan');
+      btn.disabled = true;
+
+      beep(400, 'sine', 0.5);
+
+      setTimeout(() => {
+        btn.innerText = "🔒 RUTA FIJADA EN EL MAPA";
+        btn.classList.remove('text-kaliCyan');
+        btn.classList.add('text-kaliEmerald', 'border-kaliEmerald');
+        beep(800, 'sine', 0.1);
+      }, 1500);
+    }
+
+    // 4. Imagen AI: Modificar estilo del canvas
+    function changeFontSize(slider, textId) {
+      const textEl = document.getElementById(textId);
+      if(textEl) textEl.style.fontSize = `${slider.value}px`;
+    }
+
+    // 5. QR Generator: Reactividad Real
+    function updateQrCodeMatrix(inputEl) {
+      const card = inputEl.closest('.artifact-node');
+      const matrixGroup = card.querySelector('#qr-variable-dots');
+      if (!matrixGroup) return;
+
+      // Generar pequeños bloques aleatorios para simular modulación QR real al cambiar de texto
+      let dots = '';
+      const textVal = inputEl.value;
+      const count = Math.min(25, 8 + textVal.length);
+
+      for (let i = 0; i < count; i++) {
+        const x = 35 + Math.floor(Math.random() * 55);
+        const y = 35 + Math.floor(Math.random() * 55);
+        dots += `<rect x="${x}" y="${y}" width="8" height="8"/>`;
+      }
+      matrixGroup.innerHTML = dots;
+    }
+
+    // 6. Audio Player Global: Play/Pause/Timeline
+    function toggleAudioPlayback(btn) {
+      isPlaying = !isPlaying;
+      const vinyl = document.getElementById('vinyl-disc');
+      const icon = document.getElementById('play-pause-icon');
+      
+      if (isPlaying) {
+        vinyl.classList.add('spin-active');
+        icon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`; // Icono Pause
+        startVisualEq();
+      } else {
+        vinyl.classList.remove('spin-active');
+        icon.innerHTML = `<path d="M8 5v14l11-7z"/>`; // Icono Play
+        stopVisualEq();
+      }
+    }
+
+    function updateAudioProgress(slider) {
+      const elapsed = document.getElementById('player-time-elapsed');
+      if (!elapsed) return;
+      
+      const totalSeconds = 225; // 3:45
+      const currentSeconds = Math.floor((slider.value / 100) * totalSeconds);
+      
+      const formatTime = (sec) => {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `0${m}:${s < 10 ? '0' : ''}${s}`;
+      };
+
+      elapsed.innerText = `${formatTime(currentSeconds)} / ${formatTime(totalSeconds)}`;
+    }
+
+    let eqInterval;
+    function startVisualEq() {
+      eqInterval = setInterval(() => {
+        for(let i=1; i<=5; i++) {
+          const el = document.getElementById(`eq-b${i}`);
+          if (el) el.style.height = `${Math.floor(Math.random() * 18) + 3}px`;
+        }
+      }, 100);
+    }
+
+    function stopVisualEq() {
+      clearInterval(eqInterval);
+      for(let i=1; i<=5; i++) {
+        const el = document.getElementById(`eq-b${i}`);
+        if (el) el.style.height = `4px`;
+      }
+    }
+
+    // 7. Cambiar Opacidad de Fondo en Prose
+    function changeBackgroundOpacity(slider, id) {
+      const el = document.getElementById(id);
+      if (el) {
+        const opacity = slider.value / 100;
+        el.style.backgroundColor = `rgba(12, 12, 18, ${opacity})`;
+      }
+    }
+
+    // Copiar portapapeles utilitario
+    function copyContent(btn, selector) {
+      const card = btn.closest('.artifact-node');
+      const contentEl = card.querySelector(selector);
+      if (!contentEl) return;
+
+      const text = contentEl.innerText;
+      const tmp = document.createElement("textarea");
+      tmp.value = text;
+      document.body.appendChild(tmp);
+      tmp.select();
+      
+      try {
+        document.execCommand('copy');
+        const originalText = btn.innerHTML;
+        btn.innerText = "¡Copiado!";
+        btn.classList.add('text-kaliEmerald');
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.classList.remove('text-kaliEmerald');
+        }, 1500);
+      } catch (err) {}
+      document.body.removeChild(tmp);
+    }
+
+    function changeStyleFilter(btn, styleName) {
+      const card = btn.closest('.artifact-node');
+      btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('bg-kaliAura/20', 'text-kaliAura'));
+      btn.classList.add('bg-kaliAura/20', 'text-kaliAura');
+      beep(800, 'sine', 0.05);
+    }
+
+    /* -------------------------------------------------------------
+       SISTEMA DE ENLACES NEURONALES (TETHERS SVG)
+       ------------------------------------------------------------- */
+    function createTether(nodeId, artifactElement, type) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('id', `tether-${nodeId}`);
+      path.setAttribute('class', 'tether-path');
+      
+      // Aplicar color degradado o estilo visual dinámico al Tether
+      if(type === 'hero_pudge') {
+        path.style.stroke = '#ef4444';
+        path.style.filter = 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.4))';
+      } else if (type === 'item_dota') {
+        path.style.stroke = '#eab308';
+        path.style.filter = 'drop-shadow(0 0 4px rgba(234, 179, 8, 0.4))';
+      } else if (type === 'music_player' || type === 'location') {
+        path.style.stroke = '#06b6d4';
+        path.style.filter = 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.4))';
+      } else if (type === 'code' || type === 'qr_gen') {
+        path.style.stroke = '#10b981';
+      } else {
+        path.style.stroke = '#8b5cf6';
+      }
+
+      tetherLayer.appendChild(path);
+
+      const nodeData = { id: nodeId, el: artifactElement, path: path, type: type };
+      activeNodes.push(nodeData);
+      updateTether(nodeData);
+    }
+
+    function updateTether(node) {
+      const center = getCenter();
+      const rect = node.el.getBoundingClientRect();
+      const nodeX = rect.left + rect.width / 2;
+      const nodeY = rect.top + rect.height / 2;
+
+      // Curva cúbica para simular axón/dendrita orgánica
+      const cp1x = center.x;
+      const cp1y = nodeY; 
+      const cp2x = nodeX;
+      const cp2y = center.y; 
+
+      const d = `M ${center.x} ${center.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${nodeX} ${nodeY}`;
+      node.path.setAttribute('d', d);
+    }
+
+    function destroyNode(id) {
+      const el = document.getElementById(id);
+      if(el) {
+        el.style.transform = 'scale(0)';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
+      }
+      const index = activeNodes.findIndex(n => n.id === id);
+      if(index > -1) {
+        activeNodes[index].path.remove();
+        activeNodes.splice(index, 1);
+      }
+      const memRecord = memoryBank.find(m => m.id === id);
+      if (memRecord) {
+        memRecord.isActive = false;
+        renderMemoryList();
+      }
+    }
+
+    function actionCallback(type) {
+      const originalText = entityStateText.innerText;
+      entityStateText.innerText = `${type.toUpperCase()} OK`;
+      entityStateText.className = "text-[10px] font-mono font-bold uppercase tracking-widest text-kaliCyan animate-bounce";
+      beep(600, 'triangle', 0.15);
+
+      setTimeout(() => {
+        entityStateText.innerText = "KALI NEXUS";
+        entityStateText.className = "text-[10px] font-mono font-bold uppercase tracking-widest text-kaliCore";
+        entityStateText.classList.remove('animate-bounce');
+      }, 1500);
+    }
+
+    /* -------------------------------------------------------------
+       INTERACTIVIDAD TÁCTIL Y DRAG & DROP
+       ------------------------------------------------------------- */
+    function makeDraggable(element, id) {
+      let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+      const handle = element.querySelector('.handle') || element;
+
+      handle.onmousedown = dragMouseDown;
+
+      function dragMouseDown(e) {
+        // Prevenir arrastre si se hace foco en elementos interactivos del widget (.no-drag)
+        if (e.target.closest('button, input, textarea, .no-drag')) return;
+
+        e.preventDefault();
+        
+        pos3 = e.clientX; pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+        
+        // Estética temporal de arrastre (el método bringToFront se encarga del foco real y el z-index definitivo)
+        element.style.borderColor = 'rgba(255,255,255,0.25)';
+      }
+
+      function elementDrag(e) {
+        e.preventDefault();
+        pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+        pos3 = e.clientX; pos4 = e.clientY;
+        
+        element.style.top = (element.offsetTop - pos2) + "px";
+        element.style.left = (element.offsetLeft - pos1) + "px";
+
+        const nodeData = activeNodes.find(n => n.id === id);
+        if(nodeData) updateTether(nodeData);
+      }
+
+      function closeDragElement() {
+        document.onmouseup = null; document.onmousemove = null;
+        element.style.borderColor = '';
+      }
+    }
+
+    /* -------------------------------------------------------------
+       ADMINISTRACIÓN Y CONSOLA DE MAPA (DOCK)
+       ------------------------------------------------------------- */
+    function clearCanvas() {
+      for (let i = activeNodes.length - 1; i >= 0; i--) {
+        destroyNode(activeNodes[i].id);
+      }
+    }
+
+    function arrangeNodes() {
+      if(activeNodes.length === 0) return;
+      const center = getCenter();
+      const radius = 330;
+      const step = (Math.PI * 2) / activeNodes.length;
+      
+      activeNodes.forEach((node, i) => {
+        const angle = i * step;
+        const w = node.el.offsetWidth; const h = node.el.offsetHeight;
+        
+        node.el.style.transition = 'left 0.6s cubic-bezier(0.16, 1, 0.3, 1), top 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
+        node.el.style.left = `${center.x + Math.cos(angle) * radius - w/2}px`;
+        node.el.style.top = `${center.y + Math.sin(angle) * radius - h/2}px`;
+        
+        let frames = 0;
+        function animTether() {
+          updateTether(node);
+          frames++;
+          if(frames < 40) requestAnimationFrame(animTether);
+          else node.el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+        }
+        animTether();
+      });
+      triggerNetworkPulse();
+    }
+
+    function triggerNetworkPulse() {
+      setEntityState('CREATING');
+      setTimeout(() => setEntityState('IDLE'), 300);
+      activeNodes.forEach(node => {
+        node.path.classList.add('pulse-tether');
+        setTimeout(() => node.path.classList.remove('pulse-tether'), 600);
+      });
+    }
+
+    /* -------------------------------------------------------------
+       BANCO DE MEMORIA (HISTORIAL COMPLETO DE SESIÓN)
+       ------------------------------------------------------------- */
+    let isMemoryOpen = false;
+    const memoryDrawer = document.getElementById('memory-drawer');
+
+    function toggleMemory() {
+      isMemoryOpen = !isMemoryOpen;
+      if (isMemoryOpen) {
+        memoryDrawer.classList.remove('translate-x-full');
+        document.getElementById('memory-badge').classList.add('hidden');
+        renderMemoryList();
+      } else {
+        memoryDrawer.classList.add('translate-x-full');
+      }
+    }
+
+    function renderMemoryList() {
+      const listEl = document.getElementById('memory-list');
+      if (memoryBank.length === 0) {
+        listEl.innerHTML = `<div class="text-center text-[10px] font-mono text-textMuted mt-10 opacity-50">Sin registros de red.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = memoryBank.map(mem => {
+        let iconColor = 'text-kaliCore';
+        if(mem.type === 'hero_pudge') iconColor = 'text-red-500';
+        else if(mem.type === 'item_dota') iconColor = 'text-yellow-500';
+        else if(mem.type === 'code') iconColor = 'text-emerald-500';
+        else if(mem.type === 'image' || mem.type === 'location' || mem.type === 'music_player') iconColor = 'text-cyan-500';
+
+        const statusBadge = mem.isActive 
+          ? `<span class="px-1.5 py-0.5 rounded bg-white/10 text-[8px] font-mono text-white/50 border border-white/5">Activo</span>`
+          : `<button onclick="resummonNode('${mem.id}')" class="px-2 py-0.5 rounded bg-kaliCore/20 hover:bg-kaliCore/40 border border-kaliCore/50 text-[9px] font-mono text-kaliCore transition z-50">Restaurar</button>`;
+
+        return `
+          <div class="bg-black/40 border border-white/5 rounded-xl p-3 flex flex-col gap-2 hover:bg-black/60 transition">
+            <div class="flex justify-between items-start">
+              <span class="text-[9px] font-mono ${iconColor} uppercase tracking-wider block">${mem.type.replace('_', ' ')}</span>
+              ${statusBadge}
+            </div>
+            <p class="text-xs text-textMain line-clamp-2 italic opacity-80">"${mem.prompt}"</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function resummonNode(id) {
+      const record = memoryBank.find(m => m.id === id);
+      if (!record || record.isActive) return;
+
+      if(record.type === 'music_player') {
+        const exist = activeNodes.find(n => n.type === 'music_player');
+        if(exist) return;
+      }
+
+      const pos = { x: getCenter().x + (Math.random() * 200 - 100), y: getCenter().y + (Math.random() * 200 - 100) };
+      spawnArtifactDOM(record.id, record.type, record.prompt, pos);
+      
+      record.isActive = true;
+      renderMemoryList();
+      triggerNetworkPulse();
+    }
+
+    /* -------------------------------------------------------------
+       UTILITARIOS DE AUDIO DE BAJO NIVEL (SINTETIZADOR)
+       ------------------------------------------------------------- */
+    function beep(freq, type, dur) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const vol = ctx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        
+        vol.gain.setValueAtTime(0.01, ctx.currentTime);
+        vol.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + dur);
+        
+        osc.connect(vol);
+        vol.connect(ctx.destination);
+        
+        osc.start();
+        osc.stop(ctx.currentTime + dur);
+      } catch (e) {}
+    }
+
+    /* Ojos que siguen el cursor del ratón de forma natural */
+    document.addEventListener('mousemove', (e) => {
+      const pupil = document.getElementById('core-pupil');
+      if(pupil && !isThinking) {
+        const x = (e.clientX / window.innerWidth - 0.5) * 14; 
+        const y = (e.clientY / window.innerHeight - 0.5) * 14; 
+        pupil.style.transform = `translate(${x}px, ${y}px)`;
+      }
+    });
+
+    window.addEventListener('resize', () => { activeNodes.forEach(node => updateTether(node)); });
+
+  </script>
+</body>
+</html>

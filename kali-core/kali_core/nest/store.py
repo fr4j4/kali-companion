@@ -47,10 +47,17 @@ class SessionStore:
                     type TEXT NOT NULL,
                     title TEXT NOT NULL DEFAULT '',
                     content TEXT NOT NULL,
+                    window_type TEXT NOT NULL DEFAULT '',
                     created TEXT NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES sessions(id)
                 )
             """)
+            # Migration: add window_type column if missing (older DBs).
+            try:
+                await db.execute("ALTER TABLE artifacts ADD COLUMN window_type TEXT NOT NULL DEFAULT ''")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS game_images (
                     key TEXT PRIMARY KEY,
@@ -134,6 +141,7 @@ class SessionStore:
         type: str,
         title: str,
         content: str,
+        window_type: str = "",
     ) -> dict:
         """Persist an artifact so it can be replayed on session reattach."""
         await self._ensure_db()
@@ -141,9 +149,9 @@ class SessionStore:
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 """INSERT OR REPLACE INTO artifacts
-                   (id, session_id, type, title, content, created)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (artifact_id, session_id, type, title, content, now),
+                   (id, session_id, type, title, content, window_type, created)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (artifact_id, session_id, type, title, content, window_type, now),
             )
             await db.commit()
         return {
@@ -152,6 +160,7 @@ class SessionStore:
             "type": type,
             "title": title,
             "content": content,
+            "window_type": window_type,
             "created": now,
         }
 
@@ -161,7 +170,7 @@ class SessionStore:
         async with aiosqlite.connect(self._db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                """SELECT id, session_id, type, title, content, created
+                """SELECT id, session_id, type, title, content, window_type, created
                    FROM artifacts WHERE session_id = ? ORDER BY created""",
                 (session_id,),
             )

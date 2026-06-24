@@ -22,6 +22,13 @@ from kali_core.config import settings
 
 logger = logging.getLogger("kali_core.claws.game.fetch_resource")
 
+_RES_TYPE_MAP = {
+    "hero": "entity",
+    "item": "resource",
+    "location": "place",
+    "ability": "entity",
+}
+
 _GAME_ALIASES: dict[str, str] = {
     "dota": "dota",
     "dota 2": "dota",
@@ -360,6 +367,7 @@ class FetchGameResourceTool:
             "event": "artifact",
             "id": artifact_id,
             "type": "widget",
+            "windowType": _RES_TYPE_MAP.get(res_type, "entity"),
             "title": title,
             "content": json.dumps({"items": [item]}),
             "update": "create" if not sections else "update",
@@ -770,6 +778,7 @@ class FetchGameResourceTool:
             "event": "artifact",
             "id": artifact_id,
             "type": "widget",
+            "windowType": _RES_TYPE_MAP.get(res_type, "entity"),
             "title": title,
             "content": json.dumps({"items": [item]}),
             "update": "create" if not sections else "update",

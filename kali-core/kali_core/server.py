@@ -329,6 +329,7 @@ class Connection:
                         "event": "artifact",
                         "id": art["id"],
                         "type": art["type"],
+                        "windowType": art.get("window_type", ""),
                         "title": art["title"],
                         "content": art["content"],
                         "update": "create",

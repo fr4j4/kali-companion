@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Singularity v3 — Cognitive Support UI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { bg:'#02040a', fg:'#e2e8f0', muted:'#64748b', faint:'#3a4058',
+      accent:'#22d3ee', accent2:'#818cf8', accent3:'#f472b6', ok:'#34d399', warn:'#fbbf24', err:'#f87171' },
+    fontFamily: { sans:['Inter','sans-serif'], serif:['Fraunces','serif'], mono:['JetBrains Mono','monospace'] },
+  }}};
+</script>
+<style>
+  body { background:#02040a; color:#e2e8f0; font-family:'Inter', sans-serif; overflow:hidden; }
+  .prose-center { font-family:'Fraunces', serif; font-size:1.6rem; line-height:1.5; text-align:center; font-variation-settings:"SOFT" 60; }
+  
+  .mesh {
+    background: radial-gradient(circle at 50% 50%, rgba(34,211,238,0.08), transparent 50%),
+                radial-gradient(circle at 10% 10%, rgba(129,140,248,0.05), transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(244,114,182,0.05), transparent 40%),
+                #02040a;
+    animation: drift 30s ease-in-out infinite alternate;
+  }
+  @keyframes drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+
+  @keyframes morph { 0%,100%{ border-radius:40% 60% 70% 30%/40% 40% 60% 60%; } 50%{ border-radius:60% 40% 30% 70%/60% 60% 40% 40%; } }
+  .orb { animation: morph 8s ease-in-out infinite; background:radial-gradient(circle at 30% 30%, #67e8f9, #22d3ee 40%, #0891b2 100%); filter:drop-shadow(0 0 40px rgba(34,211,238,0.4)); }
+  
+  .artifact { animation: float 6s ease-in-out infinite; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+  @keyframes float { 0%,100%{ transform: translate(-50%, -50%) rotate(0deg); } 50%{ transform: translate(-50%, -65%) rotate(1deg); } }
+  
+  .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.07); }
+  .glass-strong { background: rgba(10, 15, 30, 0.8); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08); }
+  .glass-ide { background: rgba(8, 12, 24, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.06); }
+  
+  .cursor { display:inline-block; width:2px; height:1em; background:#22d3ee; animation:blink 1.1s steps(2,start) infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .debug-panel { cursor: grab; user-select: none; }
+  .debug-panel:active { cursor: grabbing; }
+
+  .btn-glow { box-shadow: 0 0 20px rgba(34,211,238,0.3); }
+  .btn-glow:hover { box-shadow: 0 0 30px rgba(34,211,238,0.5); }
+
+  .artifact-enter { animation: artifactEnter 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+  @keyframes artifactEnter { from { opacity:0; transform: translate(-50%, -50%) scale(0.5); } to { opacity:1; transform: translate(-50%, -50%) scale(1); } }
+
+  .wave-bar { animation: wave 0.8s ease-in-out infinite; }
+  @keyframes wave { 0%,100%{ height:20%; } 50%{ height:100%; } }
+
+  .ring-pulse { animation: ringPulse 3s ease-out infinite; }
+  @keyframes ringPulse { 0%{ transform:scale(0.8); opacity:0.5; } 100%{ transform:scale(2); opacity:0; } }
+
+  .badge { font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:0.08em; text-transform:uppercase; }
+
+  .hover-lift { transition: all 0.2s ease; }
+  .hover-lift:hover { transform: translateY(-2px); }
+
+  .diff-add { background: rgba(52,211,153,0.08); border-left: 2px solid #34d399; }
+  .diff-del { background: rgba(248,113,113,0.08); border-left: 2px solid #f87171; }
+
+  .tooltip { position: relative; }
+  .tooltip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: rgba(10,15,30,0.95); color: #e2e8f0; font-size: 10px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; font-family: 'JetBrains Mono', monospace; }
+  .tooltip:hover::after { opacity: 1; }
+</style>
+</head>
+<body class="h-screen mesh relative">
+
+  <!-- TOP BAR -->
+  <header class="fixed top-0 w-full px-6 py-3 flex justify-between items-center z-50">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2.5 glass rounded-full px-3.5 py-1.5 border-white/10">
+        <div class="relative w-2 h-2">
+          <div class="absolute inset-0 rounded-full bg-accent ring-pulse"></div>
+          <div class="absolute inset-0 rounded-full bg-accent"></div>
+        </div>
+        <span class="badge text-muted">KALI · V3</span>
+      </div>
+      <div class="hidden md:flex items-center gap-3 ml-2">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md glass">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 0v10l5 5"/></svg>
+          <span class="badge text-fg">142ms</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md glass">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <span class="badge text-fg">gpt-4o</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md glass">
+          <span class="badge text-muted">tokens</span>
+          <span class="badge text-fg">4,832</span>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="tooltip p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" data-tip="Voz">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+      <button class="tooltip p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" data-tip="Tema">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+      <button class="tooltip p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" data-tip="Ajustes">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <div class="w-px h-5 bg-white/10 mx-1"></div>
+      <button class="px-3.5 py-1.5 rounded-full glass hover:bg-white/10 transition badge text-muted hover:text-fg flex items-center gap-1.5">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nueva Sesión
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN SPACE -->
+  <main class="h-full w-full flex items-center justify-center relative">
+    
+    <!-- ASISTENTE CENTRAL -->
+    <div class="relative flex flex-col items-center">
+      <div class="relative w-56 h-56 flex items-center justify-center">
+        <div class="absolute w-40 h-40 rounded-full border border-accent/10 animate-[spin_10s_linear_infinite]"></div>
+        <div class="absolute w-32 h-32 rounded-full border border-accent2/20 animate-[spin_15s_linear_infinite_reverse]"></div>
+        <div id="orb" class="orb w-32 h-32 flex items-center justify-center relative z-20 cursor-pointer transition-all duration-500 hover:scale-110 active:scale-95">
+          <div class="w-4 h-4 rounded-full bg-white/90 shadow-white/40 shadow-lg"></div>
+        </div>
+      </div>
+      
+      <!-- Proyector de Texto -->
+      <div class="absolute top-64 w-full flex justify-center pointer-events-none">
+        <div class="glass-strong px-10 py-8 rounded-3xl max-w-2xl w-full shadow-2xl border-accent/10 transition-all duration-500" id="projection-container">
+          <p id="projection" class="prose-center text-fg transition-opacity duration-300">
+            Toca el orbe o escribe algo para empezar.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPA DE ARTEFACTOS -->
+    <div id="artifact-layer" class="absolute inset-0 pointer-events-none z-30"></div>
+  </main>
+
+  <!-- SPOTLIGHT -->
+  <div id="spotlight" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all">
+    <div class="glass-strong w-full max-w-xl rounded-3xl p-3 flex items-center gap-3 shadow-2xl border-accent/20" id="spotlight-card">
+      <span class="text-accent font-mono ml-3 text-lg">▸</span>
+      <input id="cmd-input" type="text" placeholder="Escribe un comando o pregunta..." class="flex-1 bg-transparent outline-none text-lg text-fg placeholder:text-muted py-3">
+      <kbd class="badge text-muted bg-white/5 px-2 py-1 rounded">ESC</kbd>
+      <button onclick="sendCommand()" class="bg-accent text-bg px-6 py-2 rounded-xl font-semibold text-sm hover:bg-accent2 transition btn-glow">Enviar</button>
+    </div>
+  </div>
+
+  <!-- VOICE BAR (cuando Kali habla) -->
+  <div id="voice-bar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 hidden">
+    <div class="glass-strong rounded-2xl px-5 py-3 flex items-center gap-4 shadow-2xl border-accent/20">
+      <div class="flex items-end gap-0.5 h-6 w-20">
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:0ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:80ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:160ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:240ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:320ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:400ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:480ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:560ms"></div>
+      </div>
+      <span class="badge text-accent">kali hablando</span>
+      <span class="badge text-muted" id="voice-time">0:12</span>
+      <div class="w-px h-4 bg-white/10"></div>
+      <button class="tooltip w-7 h-7 rounded-full hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center" data-tip="Pausar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button onclick="hideVoiceBar()" class="tooltip w-7 h-7 rounded-full hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center" data-tip="Cerrar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- BOTONERA DEBUG -->
+  <div id="debug-panel" class="fixed top-20 right-6 w-56 glass-strong rounded-2xl p-4 z-[100] shadow-2xl border-white/10 debug-panel">
+    <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+      <span class="badge text-white/50">Event Lab v3</span>
+      <div class="flex items-center gap-1">
+        <div class="w-1.5 h-1.5 rounded-full bg-ok"></div>
+        <span class="badge text-muted">live</span>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 gap-1.5">
+      <button onclick="window.trigger('text')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">💬</span> Texto Prosa</button>
+      <button onclick="window.trigger('code')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">💻</span> Snippet Código</button>
+      <button onclick="window.trigger('hero')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🛡️</span> Ficha Héroe</button>
+      <button onclick="window.trigger('img')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🖼️</span> Imagen Gen</button>
+      <button onclick="window.trigger('link')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🔗</span> Enlace Externo</button>
+      <button onclick="window.trigger('markdown')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">📝</span> Documento MD</button>
+      <button onclick="window.trigger('diff')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🔧</span> Diff Patch</button>
+      <button onclick="window.trigger('table')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">📊</span> Tabla Datos</button>
+      <button onclick="window.trigger('controls')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🎛️</span> Panel Controles</button>
+      <button onclick="window.trigger('voice')" class="text-left px-3 py-2 rounded-lg hover:bg-white/8 text-xs transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🎙️</span> Activar Voz</button>
+      <div class="h-px bg-white/5 my-2"></div>
+      <button onclick="window.clearArtifacts()" class="text-left px-3 py-2 rounded-lg hover:bg-red-500/15 text-red-300 text-xs transition border border-red-500/10 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">🗑️</span> Limpiar Espacio</button>
+    </div>
+    <div class="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
+      <span class="badge text-muted">artefactos: <span id="artifact-count" class="text-fg">0</span></span>
+      <span class="badge text-muted">v3.0</span>
+    </div>
+  </div>
+
+  <script>
+    // Draggable Panel
+    const panel = document.getElementById('debug-panel');
+    let isDragging = false; let offset = { x: 0, y: 0 };
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      isDragging = true;
+      offset.x = e.clientX - panel.offsetLeft;
+      offset.y = e.clientY - panel.offsetTop;
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      panel.style.left = (e.clientX - offset.x) + 'px';
+      panel.style.top = (e.clientY - offset.y) + 'px';
+      panel.style.right = 'auto';
+    });
+    document.addEventListener('mouseup', () => isDragging = false);
+
+    // Spotlight
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSpotlight();
+      if (document.activeElement.tagName !== 'INPUT' && e.key.length === 1) {
+        document.getElementById('spotlight').classList.remove('hidden');
+        document.getElementById('cmd-input').focus();
+      }
+    });
+    function closeSpotlight() { document.getElementById('spotlight').classList.add('hidden'); }
+    function sendCommand() {
+      const input = document.getElementById('cmd-input');
+      if (input.value) window.trigger('text', input.value);
+      input.value = ''; closeSpotlight();
+    }
+
+    const projection = document.getElementById('projection');
+    const layer = document.getElementById('artifact-layer');
+    let artifactIdx = 0;
+
+    function updateCount() {
+      document.getElementById('artifact-count').textContent = layer.children.length;
+    }
+
+    window.trigger = function(type, customText = "") {
+      const orb = document.getElementById('orb');
+      orb.style.filter = 'drop-shadow(0 0 60px #22d3ee)';
+      
+      setTimeout(() => {
+        if(type === 'text') {
+          streamText(customText || "He analizado el contexto de tu request. La arquitectura debe priorizar baja latencia sobre consistencia inmediata. Te recomiendo un patrón event-sourced con proyecciones CQRS para desacoplar la capa de escritura.");
+        } else if(type === 'code') {
+          streamText("Aquí tienes la implementación técnica con manejo de errores incluido:");
+          createArtifact('code');
+        } else if(type === 'hero') {
+          streamText("He recuperado los datos completos del personaje desde la base de datos del juego:");
+          createArtifact('hero');
+        } else if(type === 'img') {
+          streamText("Generando la representación visual del concepto solicitado...");
+          createArtifact('image');
+        } else if(type === 'link') {
+          streamText("Para profundizar en este tema, te recomiendo la documentación oficial:");
+          createArtifact('link');
+        } else if(type === 'markdown') {
+          streamText("He compilado un documento con la guía completa de implementación:");
+          createArtifact('markdown');
+        } else if(type === 'diff') {
+          streamText("Detecté un bug en tu código. Aquí está el patch corregido:");
+          createArtifact('diff');
+        } else if(type === 'table') {
+          streamText("Aquí tienes la comparativa de los modelos evaluados:");
+          createArtifact('table');
+        } else if(type === 'controls') {
+          streamText("Te dejé un panel de configuración para ajustar los parámetros del modelo:");
+          createArtifact('controls');
+        } else if(type === 'voice') {
+          streamText("Sincronizando salida de audio. ¿Me escuchas con claridad?");
+          orb.style.background = 'radial-gradient(circle at 35% 30%, #34d399, #22d3ee 45%, #0891b2 90%)';
+          showVoiceBar();
+        }
+        orb.style.filter = 'drop-shadow(0 0 40px rgba(34,211,238,0.4))';
+      }, 400);
+    };
+
+    window.clearArtifacts = function() { layer.innerHTML = ""; updateCount(); };
+
+    function showVoiceBar() { document.getElementById('voice-bar').classList.remove('hidden'); }
+    function hideVoiceBar() { document.getElementById('voice-bar').classList.add('hidden'); }
+    window.hideVoiceBar = hideVoiceBar;
+
+    function streamText(text) {
+      projection.innerHTML = "";
+      let i = 0;
+      const interval = setInterval(() => {
+        projection.innerHTML = text.slice(0, i) + '<span class="cursor"></span>';
+        i++;
+        if (i > text.length) clearInterval(interval);
+      }, 25);
+    }
+
+    function getArtifactPosition() {
+      // Posicionamiento en anillo organizado, no random caótico
+      const positions = [
+        { angle: -0.3, dist: 320 }, // derecha
+        { angle: -1.2, dist: 300 }, // derecha-arriba
+        { angle: -1.8, dist: 310 }, // arriba
+        { angle: -2.5, dist: 300 }, // izquierda-arriba
+        { angle: -3.0, dist: 320 }, // izquierda
+        { angle: 0.6, dist: 290 },  // derecha-abajo
+        { angle: 1.4, dist: 300 },  // abajo
+        { angle: 2.2, dist: 290 },  // izquierda-abajo
+      ];
+      const p = positions[artifactIdx % positions.length];
+      artifactIdx++;
+      return {
+        left: `calc(50% + ${Math.cos(p.angle) * p.dist}px)`,
+        top: `calc(50% + ${Math.sin(p.angle) * p.dist}px)`,
+      };
+    }
+
+    function createArtifactBase(widthClass = 'w-72') {
+      const div = document.createElement('div');
+      div.className = `artifact absolute glass-ide rounded-2xl shadow-2xl pointer-events-auto artifact-enter ${widthClass}`;
+      const pos = getArtifactPosition();
+      div.style.left = pos.left;
+      div.style.top = pos.top;
+
+      // Botón cerrar
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'absolute top-2.5 right-2.5 z-10 w-6 h-6 rounded-full bg-white/5 hover:bg-red-500/20 text-muted hover:text-red-300 transition flex items-center justify-center opacity-0 group-hover:opacity-100';
+      closeBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+      closeBtn.onclick = () => { div.remove(); updateCount(); };
+
+      div.classList.add('group');
+      div.appendChild(closeBtn);
+      return div;
+    }
+
+    function createArtifact(type) {
+      let div;
+      
+      if(type === 'code') {
+        div = createArtifactBase('w-80');
+        div.innerHTML += `
+          <!-- Header tipo IDE -->
+          <div class="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/8 rounded-t-2xl">
+            <div class="flex items-center gap-2">
+              <div class="flex gap-1.5">
+                <div class="w-2.5 h-2.5 rounded-full bg-red-400/40"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-yellow-400/40"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-green-400/40"></div>
+              </div>
+              <span class="badge text-muted ml-2">server.rs</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip="Copiar" onclick="copyCode(this)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button class="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip="Expandir">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              </button>
+            </div>
+          </div>
+          <!-- Código con gutter -->
+          <div class="flex text-xs font-mono leading-relaxed max-h-64 overflow-y-auto scrollbar-thin">
+            <div class="text-right text-muted/50 select-none py-3 px-2.5 border-r border-white/5 bg-white/[0.02]" style="min-width:32px;">
+              <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div>
+            </div>
+            <pre class="m-0 py-3 px-3 text-fg/90 overflow-x-auto scrollbar-thin flex-1"><span style="color:#52565f">// Manejo robusto de errores</span>
+<span style="color:#f0abfc">use</span> tokio_tungstenite::<span style="color:#7dd3fc">accept_async</span>;
+<span style="color:#f0abfc">use</span> futures_util::<span style="color:#c4b5fd">StreamExt</span>;
+
+<span style="color:#f0abfc">async fn</span> <span style="color:#7dd3fc">handle</span>(stream: TcpStream) {
+    <span style="color:#f0abfc">match</span> <span style="color:#7dd3fc">accept_async</span>(stream).<span style="color:#7dd3fc">await</span> {
+        <span style="color:#c4b5fd">Ok</span>(ws) => {
+            <span style="color:#f0abfc">while let</span> <span style="color:#c4b5fd">Some</span>(msg) = ws.<span style="color:#7dd3fc">next</span>().<span style="color:#7dd3fc">await</span> {
+                <span style="color:#f0abfc">if let</span> <span style="color:#c4b5fd">Ok</span>(m) = msg {
+                    ws.<span style="color:#7dd3fc">send</span>(m).<span style="color:#7dd3fc">await</span>.<span style="color:#7dd3fc">ok</span>();
+                }
+            }
+        }
+        <span style="color:#c4b5fd">Err</span>(e) => <span style="color:#7dd3fc">eprintln!</span>(<span style="color:#86efac">"conn failed: {e}"</span>),
+    }
+}</pre>
+          </div>
+          <!-- Footer status bar -->
+          <div class="flex items-center justify-between px-4 py-2 bg-white/[0.02] border-t border-white/8 rounded-b-2xl">
+            <div class="flex items-center gap-3 badge text-muted">
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span> rust</span>
+              <span>13 líneas</span>
+            </div>
+            <span class="badge text-muted">UTF-8</span>
+          </div>
+        `;
+      }
+      
+      else if(type === 'hero') {
+        div = createArtifactBase('w-64');
+        div.innerHTML += `
+          <!-- Header con rareza -->
+          <div class="relative h-2 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-t-2xl"></div>
+          <div class="p-5 space-y-4">
+            <!-- Identidad -->
+            <div class="flex items-center gap-3.5">
+              <div class="relative w-14 h-14 rounded-xl bg-gradient-to-br from-pink-500/30 to-purple-600/30 border border-pink-400/25 flex items-center justify-center shrink-0">
+                <div class="absolute inset-0 opacity-40 rounded-xl" style="background:radial-gradient(circle at 50% 30%, #f472b6, transparent 70%);"></div>
+                <span class="relative font-serif text-2xl text-pink-200" style="font-family:'Fraunces';">L</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <h3 class="font-semibold text-fg truncate">Lyra</h3>
+                  <span class="badge px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-300">S-TIER</span>
+                </div>
+                <p class="text-[11px] text-muted">La Silenciadora</p>
+                <p class="text-[10px] text-faint mt-0.5">Crimson Vale · Asesina</p>
+              </div>
+            </div>
+
+            <!-- Stats grid -->
+            <div>
+              <div class="badge text-muted mb-2">atributos</div>
+              <div class="grid grid-cols-3 gap-2">
+                <div class="bg-white/[0.04] rounded-lg px-2 py-2 border border-white/5 text-center">
+                  <div class="text-[9px] text-muted uppercase tracking-wider mb-0.5">ATK</div>
+                  <div class="font-mono text-sm text-fg font-semibold">847</div>
+                </div>
+                <div class="bg-white/[0.04] rounded-lg px-2 py-2 border border-white/5 text-center">
+                  <div class="text-[9px] text-muted uppercase tracking-wider mb-0.5">SPD</div>
+                  <div class="font-mono text-sm text-fg font-semibold">92</div>
+                </div>
+                <div class="bg-white/[0.04] rounded-lg px-2 py-2 border border-white/5 text-center">
+                  <div class="text-[9px] text-muted uppercase tracking-wider mb-0.5">INT</div>
+                  <div class="font-mono text-sm text-fg font-semibold">68</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lore -->
+            <div>
+              <div class="badge text-muted mb-1.5">lore</div>
+              <p class="text-[11px] text-fg/70 italic leading-relaxed" style="font-family:'Fraunces';">"La sombra que silencia la tormenta antes del primer golpe. Nacida en Crimson Vale, juró que ningún grito cruzaría sus fronteras."</p>
+            </div>
+
+            <!-- Habilidades -->
+            <div>
+              <div class="badge text-muted mb-2">habilidades</div>
+              <div class="space-y-1.5">
+                <div class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                  <div class="w-6 h-6 rounded-md bg-pink-500/15 flex items-center justify-center text-[10px]">Q</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-[11px] font-medium text-fg truncate">Silence Blade</div>
+                    <div class="text-[9px] text-muted">Silencia 2s · CD 8s</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                  <div class="w-6 h-6 rounded-md bg-purple-500/15 flex items-center justify-center text-[10px]">W</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-[11px] font-medium text-fg truncate">Shadow Step</div>
+                    <div class="text-[9px] text-muted">Teletransporte · CD 12s</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                  <div class="w-6 h-6 rounded-md bg-indigo-500/15 flex items-center justify-center text-[10px]">R</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-[11px] font-medium text-fg truncate">Final Silence</div>
+                    <div class="text-[9px] text-muted">Ultimate · CD 90s</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Acción -->
+            <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-bold shadow-lg shadow-pink-500/20 transition hover:brightness-110 hover-lift flex items-center justify-center gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
+              INVOCAR A LYRA
+            </button>
+          </div>
+        `;
+      }
+
+      else if(type === 'image') {
+        div = createArtifactBase('w-60');
+        div.innerHTML += `
+          <div class="rounded-2xl overflow-hidden">
+            <!-- Visor -->
+            <div class="relative aspect-square bg-gradient-to-br from-rose-950 via-purple-950 to-indigo-950 overflow-hidden group/img">
+              <div class="absolute inset-0 opacity-60" style="background:radial-gradient(circle at 60% 40%, rgba(244,114,182,0.3), transparent 50%), radial-gradient(circle at 30% 70%, rgba(167,139,250,0.2), transparent 45%);"></div>
+              <!-- Silueta -->
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="w-0.5 h-32 bg-gradient-to-b from-transparent via-pink-300/50 to-transparent rounded-full" style="box-shadow:0 0 25px rgba(244,114,182,0.5);"></div>
+              </div>
+              <div class="absolute inset-0" style="background-image:radial-gradient(rgba(255,255,255,0.04) 1px,transparent 0);background-size:3px 3px;"></div>
+              <!-- Controles hover -->
+              <div class="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover/img:opacity-100 transition">
+                <button class="tooltip w-7 h-7 rounded-lg glass-strong text-white/80 hover:text-white transition flex items-center justify-center" data-tip="Zoom">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/></svg>
+                </button>
+                <button class="tooltip w-7 h-7 rounded-lg glass-strong text-white/80 hover:text-white transition flex items-center justify-center" data-tip="Descargar">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+              </div>
+              <!-- Etiqueta esquina -->
+              <div class="absolute top-2 left-2 badge text-white/50 bg-black/40 px-2 py-1 rounded">concept_v1</div>
+            </div>
+            <!-- Footer -->
+            <div class="px-3 py-2.5 flex items-center justify-between bg-black/40 border-t border-white/5">
+              <div class="min-w-0">
+                <div class="text-[11px] text-fg/80 truncate">concept_lyra.png</div>
+                <div class="badge text-muted mt-0.5">1024×1024 · 2.4MB</div>
+              </div>
+              <button class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] text-accent transition shrink-0">Abrir</button>
+            </div>
+          </div>
+        `;
+      }
+
+      else if(type === 'link') {
+        div = createArtifactBase('w-72');
+        div.innerHTML += `
+          <a class="block p-4 hover:bg-white/[0.02] transition rounded-2xl">
+            <!-- Preview card tipo OpenGraph -->
+            <div class="flex items-start gap-3">
+              <div class="w-11 h-11 rounded-xl bg-accent/15 border border-accent/20 flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-accent"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-fg truncate mb-0.5">Wiki Oficial — Crimson Vale</div>
+                <div class="text-[11px] text-muted line-clamp-2 leading-relaxed mb-2">Documentación completa de héroes, builds, lore y mecánicas de juego. Actualizado al parche 3.4.</div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-sm bg-accent/30"></div>
+                  <span class="badge text-muted truncate">crimsonvale.wiki/heroes/lyra</span>
+                </div>
+              </div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-faint shrink-0 mt-1"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+            </div>
+          </a>
+        `;
+      }
+
+      else if(type === 'markdown') {
+        div = createArtifactBase('w-72');
+        div.innerHTML += `
+          <div class="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/8 rounded-t-2xl">
+            <div class="flex items-center gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="badge text-muted">guia_implementacion.md</span>
+            </div>
+            <button class="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip="Copiar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div class="p-4 max-h-60 overflow-y-auto scrollbar-thin text-sm" style="font-family:'Fraunces',serif;">
+            <h2 class="text-base font-semibold text-fg mb-2">Guía de Implementación</h2>
+            <p class="text-[13px] text-fg/80 leading-relaxed mb-3">Para implementar el sistema <strong class="text-accent">event-sourced</strong>, sigue estos pasos:</p>
+            <ol class="text-[12px] text-fg/70 space-y-1.5 mb-3 list-decimal list-inside">
+              <li>Definir los eventos de dominio</li>
+              <li>Crear el event store con append-only</li>
+              <li>Implementar proyecciones de lectura</li>
+              <li>Configurar replay y snapshots</li>
+            </ol>
+            <div class="bg-accent/[0.08] border border-accent/20 rounded-lg px-3 py-2 text-[11px] text-accent/90 mb-3">
+              ⚠ Los eventos deben ser inmutables. Nunca modifies un evento ya persistido.
+            </div>
+            <p class="text-[12px] text-fg/70 leading-relaxed">Para testing, usa <code class="font-mono text-[10px] text-accent bg-accent/10 px-1.5 py-0.5 rounded">event-store-testkit</code>.</p>
+          </div>
+        `;
+      }
+
+      else if(type === 'diff') {
+        div = createArtifactBase('w-80');
+        div.innerHTML += `
+          <div class="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/8 rounded-t-2xl">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-warn"></div>
+              <span class="badge text-muted">fix_null_ptr.patch</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip="Aplicar">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+              <button class="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip="Copiar">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="font-mono text-[11px] leading-relaxed max-h-56 overflow-y-auto scrollbar-thin">
+            <div class="px-3 py-1.5 bg-white/[0.02] text-muted text-[9px] border-b border-white/5">src/handler.rs</div>
+            <div class="px-3 py-1 diff-del"><span class="text-red-400">- </span><span class="text-fg/60">let data = response.unwrap();</span></div>
+            <div class="px-3 py-1 diff-del"><span class="text-red-400">- </span><span class="text-fg/60">data.process();</span></div>
+            <div class="px-3 py-1 diff-add"><span class="text-green-400">+ </span><span class="text-fg">let data = response.ok_or(Error::Null)?;</span></div>
+            <div class="px-3 py-1 diff-add"><span class="text-green-400">+ </span><span class="text-fg">data.process()?;</span></div>
+            <div class="px-3 py-1 bg-white/[0.01]"><span class="text-muted">&nbsp; </span><span class="text-fg/50">// proceso principal</span></div>
+            <div class="px-3 py-1 bg-white/[0.01]"><span class="text-muted">&nbsp; </span><span class="text-fg/50">return Ok(data);</span></div>
+          </div>
+          <div class="flex items-center justify-between px-3 py-2 bg-white/[0.02] border-t border-white/8 rounded-b-2xl">
+            <div class="flex items-center gap-2 badge">
+              <span class="text-green-400">+2</span>
+              <span class="text-red-400">-2</span>
+            </div>
+            <span class="badge text-muted">2 líneas cambiadas</span>
+          </div>
+        `;
+      }
+
+      else if(type === 'table') {
+        div = createArtifactBase('w-80');
+        div.innerHTML += `
+          <div class="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/8 rounded-t-2xl">
+            <span class="badge text-muted">comparativa_modelos.csv</span>
+            <button class="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip="Exportar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            </button>
+          </div>
+          <div class="max-h-56 overflow-y-auto scrollbar-thin">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-white/[0.05] backdrop-blur">
+                <tr class="text-left badge text-muted">
+                  <th class="px-3 py-2 font-medium">Modelo</th>
+                  <th class="px-3 py-2 font-medium text-right">Latencia</th>
+                  <th class="px-3 py-2 font-medium text-right">Tokens/s</th>
+                  <th class="px-3 py-2 font-medium text-right">Costo</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5">
+                <tr class="hover:bg-white/[0.02] transition">
+                  <td class="px-3 py-2.5 font-medium text-fg">GPT-4o</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-fg/80">142ms</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-fg/80">85</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-warn">$$$</td>
+                </tr>
+                <tr class="hover:bg-white/[0.02] transition">
+                  <td class="px-3 py-2.5 font-medium text-fg">Claude 3.5</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-fg/80">98ms</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-fg/80">92</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-warn">$$$</td>
+                </tr>
+                <tr class="hover:bg-white/[0.02] transition bg-accent/[0.04]">
+                  <td class="px-3 py-2.5 font-medium text-accent">Llama 3.1</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-accent/80">210ms</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-accent/80">78</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-ok">$</td>
+                </tr>
+                <tr class="hover:bg-white/[0.02] transition">
+                  <td class="px-3 py-2.5 font-medium text-fg">Mistral L</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-fg/80">187ms</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-fg/80">81</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-ok">$$</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="px-3 py-2 bg-white/[0.02] border-t border-white/8 rounded-b-2xl flex items-center justify-between">
+            <span class="badge text-muted">4 filas · recomendado: <span class="text-accent">Llama 3.1</span></span>
+          </div>
+        `;
+      }
+
+      else if(type === 'controls') {
+        div = createArtifactBase('w-64');
+        div.innerHTML += `
+          <div class="px-4 py-3 bg-white/[0.03] border-b border-white/8 rounded-t-2xl">
+            <div class="badge text-muted mb-1">panel de configuración</div>
+            <div class="text-sm font-semibold text-fg">Parámetros del Modelo</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <!-- Slider -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-fg">Temperature</span>
+                <span class="font-mono text-xs text-accent">0.7</span>
+              </div>
+              <div class="relative h-1.5 bg-white/8 rounded-full">
+                <div class="absolute left-0 top-0 h-full bg-accent rounded-full" style="width:70%"></div>
+                <div class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent shadow-lg shadow-accent/30 border-2 border-bg" style="left:calc(70% - 7px)"></div>
+              </div>
+            </div>
+            <!-- Slider -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-fg">Max Tokens</span>
+                <span class="font-mono text-xs text-accent">2048</span>
+              </div>
+              <div class="relative h-1.5 bg-white/8 rounded-full">
+                <div class="absolute left-0 top-0 h-full bg-accent rounded-full" style="width:45%"></div>
+                <div class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent shadow-lg shadow-accent/30 border-2 border-bg" style="left:calc(45% - 7px)"></div>
+              </div>
+            </div>
+            <!-- Toggle -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-fg">Stream Response</span>
+              <button class="relative w-10 h-5 rounded-full bg-accent transition">
+                <div class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow"></div>
+              </button>
+            </div>
+            <!-- Toggle -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-fg">Auto-invocar voz</span>
+              <button class="relative w-10 h-5 rounded-full bg-white/10 transition">
+                <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white/50 shadow"></div>
+              </button>
+            </div>
+            <!-- Select -->
+            <div>
+              <div class="text-xs text-fg mb-2">Modelo</div>
+              <div class="relative">
+                <select class="w-full appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-fg outline-none focus:border-accent/50 transition cursor-pointer">
+                  <option>GPT-4o (actual)</option>
+                  <option>Claude 3.5 Sonnet</option>
+                  <option>Llama 3.1 70B</option>
+                </select>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+            </div>
+            <!-- Botón aplicar -->
+            <button class="w-full py-2.5 rounded-xl bg-accent text-bg text-xs font-bold hover:bg-accent2 transition btn-glow hover-lift">
+              Aplicar Cambios
+            </button>
+          </div>
+        `;
+      }
+
+      layer.appendChild(div);
+      updateCount();
+    }
+
+    // Función copiar código
+    window.copyCode = function(btn) {
+      const original = btn.innerHTML;
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+      btn.classList.add('text-ok');
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.classList.remove('text-ok');
+      }, 1500);
+    };
+  </script>
+</body>
+</html>

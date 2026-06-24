@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kali UI · Brainstorm</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans:['Space Grotesk','Inter','sans-serif'], body:['Inter','sans-serif'] } } } };
+</script>
+<style>
+  body { background:#0a0b0f; }
+  .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  .aurora-grad { background: radial-gradient(60% 40% at 50% 0%, rgba(124,92,255,0.18), transparent 70%), #0b0d12; }
+  .lumen-grad  { background: radial-gradient(60% 40% at 50% 0%, rgba(180,83,9,0.12), transparent 70%), #faf9f6; }
+  .nexus-grad  { background: radial-gradient(60% 40% at 50% 0%, rgba(52,211,153,0.15), transparent 70%), #0a0b0f; }
+  .tidal-grad  { background: radial-gradient(50% 40% at 50% 0%, rgba(34,211,238,0.16), transparent 70%), rgba(129,140,248,0.08), #070a12; }
+  .slate-grad  { background:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+      radial-gradient(60% 40% at 50% 0%, rgba(251,146,60,0.10), transparent 70%), #0c0c0e;
+    background-size: 24px 24px, 24px 24px, 100% 100%, 100% 100%; }
+</style>
+</head>
+<body class="min-h-screen text-white font-sans antialiased p-8 flex flex-col items-center gap-10" style="background:#0a0b0f;">
+
+  <div class="text-center max-w-2xl">
+    <div class="text-[11px] uppercase tracking-[0.3em] text-white/40 mb-3">Kali · UI brainstorm</div>
+    <h1 class="text-4xl font-semibold tracking-tight mb-3">5 propuestas de rediseño</h1>
+    <p class="text-white/50 text-sm leading-relaxed">Mockups estáticos · ábrelos directo en el browser · misma conversación de muestra para comparar.<br>A–C: enfoque "chat app". <span class="text-white/70">D–E: rompen el molde</span>.</p>
+  </div>
+
+  <!-- Grupo 1: enfoque chat -->
+  <div class="w-full max-w-5xl">
+    <div class="text-[10px] uppercase tracking-[0.25em] text-white/30 mb-3 ml-1">enfoque chat app — header + lista + input</div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+      <a href="aurora.html" class="group glass rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40">
+        <div class="aurora-grad h-32 flex items-center justify-center relative overflow-hidden">
+          <div class="absolute inset-0 opacity-60" style="background:radial-gradient(40% 40% at 50% 50%, rgba(124,92,255,0.3), transparent 70%)"></div>
+          <div class="relative glass rounded-full px-4 py-2 text-xs font-medium border border-white/10">header pill</div>
+        </div>
+        <div class="p-4">
+          <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#7c5cff"></div><span class="text-[10px] uppercase tracking-widest text-white/40">A</span></div>
+          <h2 class="text-base font-semibold mb-1">Aurora</h2>
+          <p class="text-white/50 text-xs leading-relaxed">Glassmorphism oscuro. Pills flotantes con <code class="text-white/70">backdrop-blur</code>. Tarjeta glass para asistente, echo serif para usuario.</p>
+        </div>
+      </a>
+
+      <a href="lumen.html" class="group rounded-2xl border border-black/10 overflow-hidden hover:border-black/20 transition shadow-2xl shadow-black/20" style="background:#faf9f6;">
+        <div class="lumen-grad h-32 flex items-center justify-center relative overflow-hidden border-b border-black/5">
+          <div class="absolute inset-0 opacity-50" style="background:radial-gradient(40% 40% at 50% 50%, rgba(180,83,9,0.15), transparent 70%)"></div>
+          <div class="relative rounded-md px-4 py-2 text-xs font-medium border border-black/10 text-[#2b2b2b] bg-white/70">header line</div>
+        </div>
+        <div class="p-4" style="color:#2b2b2b;">
+          <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#b45309"></div><span class="text-[10px] uppercase tracking-widest text-black/40">B</span></div>
+          <h2 class="text-base font-semibold mb-1" style="color:#2b2b2b;">Lumen</h2>
+          <p class="text-black/55 text-xs leading-relaxed">Editorial claro tipo "papel". Sin contenedores: solo serif + separadores. Echo italic tenue. Máxima legibilidad.</p>
+        </div>
+      </a>
+
+      <a href="nexus.html" class="group glass rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40">
+        <div class="nexus-grad h-32 flex items-center justify-center relative overflow-hidden">
+          <div class="absolute inset-0 opacity-60" style="background:radial-gradient(40% 40% at 50% 50%, rgba(52,211,153,0.28), transparent 70%)"></div>
+          <div class="relative w-9 h-9 rounded-full flex items-center justify-center" style="background:linear-gradient(135deg,#34d399,#10b981);box-shadow:0 0 18px rgba(52,211,153,0.5);"><div class="w-1.5 h-1.5 rounded-full bg-black/60"></div></div>
+        </div>
+        <div class="p-4">
+          <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#34d399"></div><span class="text-[10px] uppercase tracking-widest text-white/40">C</span></div>
+          <h2 class="text-base font-semibold mb-1">Nexus</h2>
+          <p class="text-white/50 text-xs leading-relaxed">AI app con orb-glow en header. Burbujas asimétricas: usuario derecha (tinte accent), asistente izquierda. Verde esmeralda.</p>
+        </div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- Grupo 2: rompen el molde -->
+  <div class="w-full max-w-5xl">
+    <div class="text-[10px] uppercase tracking-[0.25em] text-white/30 mb-3 ml-1">ruptura — no es una lista de chat</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+      <a href="tidal.html" class="group glass rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40 md:row-span-1">
+        <div class="tidal-grad h-40 relative overflow-hidden">
+          <svg class="absolute top-2 left-1/2 -translate-x-1/2 h-36" width="80" viewBox="0 0 80 144" fill="none" preserveAspectRatio="none">
+            <path d="M40 0 C 40 30, 25 60, 40 90 C 55 120, 40 144, 40 144" stroke="url(#tg)" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.1"/><stop offset="50%" stop-color="#818cf8" stop-opacity="0.7"/><stop offset="100%" stop-color="#f472b6" stop-opacity="0.1"/></linearGradient></defs>
+          </svg>
+          <div class="absolute left-6 top-8 glass rounded-2xl rounded-tl-sm px-3 py-2 text-[10px] border border-white/10">asistente</div>
+          <div class="absolute right-6 top-24 rounded-2xl rounded-tr-sm px-3 py-2 text-[10px] border border-indigo-400/20" style="background:rgba(129,140,248,0.1);">tú</div>
+        </div>
+        <div class="p-4">
+          <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#22d3ee"></div><span class="text-[10px] uppercase tracking-widest text-white/40">D</span></div>
+          <h2 class="text-base font-semibold mb-1">Tidal</h2>
+          <p class="text-white/55 text-xs leading-relaxed">La conversación es un <strong class="text-white/80">río vertical</strong>: un hilo SVG sinuoso fluye por el centro, los mensajes son nodos a izquierda/derecha conectados al hilo. Mesh gradient animado de fondo. Fuente <code class="text-white/70">Fraunces</code> variable. Breaks the chat-list paradigm entirely.</p>
+        </div>
+      </a>
+
+      <a href="slate.html" class="group rounded-2xl border border-white/8 overflow-hidden hover:border-white/20 transition shadow-2xl shadow-black/40" style="background:#0c0c0e;">
+        <div class="slate-grad h-40 relative overflow-hidden flex items-center">
+          <div class="absolute left-4 top-4 font-mono text-[10px] text-white/40">001</div>
+          <div class="absolute left-12 top-4 text-[10px] text-white/50 italic">tú dijiste…</div>
+          <div class="absolute left-4 top-12 font-mono text-[10px]" style="color:#fb923c">002</div>
+          <div class="absolute left-12 top-12 text-[10px] text-white/70">kali responde…</div>
+          <div class="absolute left-4 top-20 font-mono text-[10px]" style="color:#fb923c">004</div>
+          <div class="absolute left-12 top-20 text-[10px] text-white/70 flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-orange-400 inline-block"></span> escribiendo…</div>
+          <div class="absolute bottom-3 left-4 right-4 border-b border-white/10 pb-1 flex items-center gap-2">
+            <span class="font-mono text-[10px]" style="color:#fb923c">▸</span>
+            <span class="text-[10px] text-white/40">input…</span>
+          </div>
+        </div>
+        <div class="p-4">
+          <div class="flex items-center gap-2 mb-1.5"><div class="w-2 h-2 rounded-full" style="background:#fb923c"></div><span class="text-[10px] uppercase tracking-widest text-white/40">E</span></div>
+          <h2 class="text-base font-semibold mb-1">Slate</h2>
+          <p class="text-white/55 text-xs leading-relaxed">Metáfora de <strong class="text-white/80">ledger / blueprint</strong>: grid de fondo tipo plano técnico, cada turno numerado como entrada de registro, sin burbujas — solo tipografía <code class="text-white/70">Instrument Serif</code> enorme y mono para metadatos. Input como línea de terminal con prefijo <code class="text-white/70">▸</code>. Máxima densidad de información, cero "chat app".</p>
+        </div>
+      </a>
+
+    </div>
+  </div>
+
+  <p class="text-white/30 text-xs mt-2">Tip: compará los cinco abriendo cada uno en pestañas. D y E son los que rompen el molde de chat genérico.</p>
+
+</body>
+</html>
