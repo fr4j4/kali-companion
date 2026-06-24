@@ -67,7 +67,6 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => loadAvatarConfig());
 
   // Click override — petting the avatar → brief "ronroneando"
@@ -84,25 +83,11 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   // Mood engine — derives state + emotion from runtime context
   const { state: avatarState, emotion: avatarEmotion } = useAvatarMoodEngine(typing, overrideEmotion);
 
-  // Drive the avatar mouth from the TTS analyser while speaking.
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!tts.playing || !tts.analyser) {
-      setAudioLevel(0);
-      return;
-    }
-    const an = tts.analyser;
-    const data = new Uint8Array(an.frequencyBinCount);
-    const tick = () => {
-      an.getByteFrequencyData(data);
-      let sum = 0;
-      for (let i = 0; i < 16; i++) sum += data[i];
-      setAudioLevel(Math.min(1, sum / (16 * 255)));
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [tts.playing, tts.analyser]);
+  // NOTE (perf, docs/PERFORMANCE.md §0.5): the avatar mouth is now driven
+  // by AvatarSVG's own rAF reading the TTS analyser directly — we no
+  // longer lift `audioLevel` into React state here, which previously
+  // re-rendered the whole Stage tree on every animation frame while
+  // speaking (very expensive on WebKitGTK without GPU compositing).
 
   // Auto-adaptive input: any printable keypress reveals the text field.
   // Captures the first character in a ref so SpotlightInput can inject it.
@@ -211,7 +196,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
             <AvatarSVG
               state={avatarState}
               emotion={avatarEmotion}
-              audioLevel={audioLevel}
+              analyser={tts.analyser}
               config={avatarConfig}
               onClick={onAvatarClick}
               className="avatar-mount"
@@ -220,7 +205,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         </div>
         {/* Projection area — only visible when customizer is CLOSED */}
         {!customizerOpen && (
-          <div className="mt-4 px-10 py-8 rounded-3xl max-w-2xl w-full shadow-2xl border border-accent/10 bg-elevated/85 backdrop-blur-xl transition-all duration-500 pointer-events-none" aria-live="polite" aria-atomic="true">
+          <div className="mt-4 px-10 py-8 rounded-3xl max-w-2xl w-full shadow-2xl border border-accent/10 projection-surface pointer-events-none" aria-live="polite" aria-atomic="true">
             <ProjectionText messages={chat.messages} />
           </div>
         )}

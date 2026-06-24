@@ -67,8 +67,10 @@ export function SpotlightInput({ open, onClose, firstCharRef }: Props) {
           aria-modal="true"
           aria-label={t("chat.placeholder") as string}
         >
-          {/* Backdrop blur */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+          {/* Backdrop: solid scrim is far cheaper than backdrop-blur in
+              WebKitGTK without GPU compositing. The blur is opt-in via the
+              `.glass` utility (see styles.css) gated on `@supports`. */}
+          <div className="absolute inset-0 spotlight-scrim" />
 
           {/* Input container */}
           <motion.div

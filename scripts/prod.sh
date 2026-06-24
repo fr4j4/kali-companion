@@ -18,13 +18,22 @@
 #
 # Architecture:
 #   kali-home (cargo run, dev mode)
-#     ├── kali-web (Vite dev server via beforeDevCommand)
+#     ├── kali-web (Vite preview of production build via :5173)
 #     ├── kali-core sidecar (spawned by sidecar.rs with KALI_PYTHON)
 #     └── IPC WS server on 127.0.0.1:KALI_HOME_IPC_PORT (default 8901)
 #
-# The Tauri webview loads http://localhost:5173 (Vite).  When the user
-# asks for a screen capture, the agent calls list_monitors/screenshot
-# via the Python → IPC WS → kali-home → grim/hyprctl path.
+# The Tauri webview loads http://localhost:5173 (Vite preview, which
+# serves the optimized production bundle).  When the user asks for a
+# screen capture, the agent calls list_monitors/screenshot via the
+# Python → IPC WS → kali-home → grim/hyprctl path.
+#
+# Performance:
+#   See docs/PERFORMANCE.md. This script serves the production build
+#   of kali-web (vite preview) and enables GPU compositing when on a
+#   pure Wayland session. Override behaviour with:
+#     KALI_REBUILD=1      force a fresh `vite build` even if dist is fresh
+#     KALI_FORCE_X11=1    force the X11/XWayland backend (disables GPU)
+#     KALI_DISABLE_GPU=1  keep Wayland backend but disable GPU compositing
 
 set -euo pipefail
 
@@ -78,10 +87,21 @@ if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
 fi
 
 # GTK (used by Tauri's window) needs GDK_BACKEND to know which
-# display backend to use.  We default to x11 (via XWayland) because
-# GTK 3 on Hyprland/uwsm can produce "Error 71 (Protocol error)"
-# when dispatching to the Wayland display.  XWayland works fine.
-# Auto-detect the XWayland display number if DISPLAY is not set.
+# display backend to use.
+#
+# Performance note (see docs/PERFORMANCE.md §0.7):
+#   When running on a pure Wayland session (XDG_SESSION_TYPE=wayland),
+#   using GDK_BACKEND=wayland lets WebKitGTK use the GPU compositor,
+#   which dramatically reduces CPU cost of backdrop-blur, drop-shadow
+#   and animated SVG. We therefore prefer Wayland when available and
+#   only fall back to XWayland (x11) when:
+#     - the session is not Wayland, or
+#     - the user forces it via KALI_FORCE_X11=1, or
+#     - a previous run hit the "Error 71 / GBM buffer" issue and set
+#       KALI_DISABLE_GPU=1.
+#
+# Auto-detect the XWayland display number if DISPLAY is not set (only
+# needed when we end up on XWayland).
 if [ -z "${DISPLAY:-}" ]; then
   xdisplay="$(ps aux | grep 'Xwayland' | grep -v grep | sed 's/.*Xwayland[[:space:]]*\(:[0-9]*\).*/\1/' | head -1)"
   if [ -n "$xdisplay" ]; then
@@ -89,7 +109,26 @@ if [ -z "${DISPLAY:-}" ]; then
     echo "  Auto-detected DISPLAY=$DISPLAY (XWayland)"
   fi
 fi
-export GDK_BACKEND="${GDK_BACKEND:-x11}"
+
+# Decide display backend + GPU compositing.
+_session_type="${XDG_SESSION_TYPE:-}"
+_force_x11="${KALI_FORCE_X11:-0}"
+if [ "$_session_type" = "wayland" ] && [ "$_force_x11" != "1" ] && [ "${KALI_DISABLE_GPU:-0}" != "1" ]; then
+  # Pure Wayland: use the native Wayland backend and keep GPU
+  # compositing on (the fast path).
+  export GDK_BACKEND="${GDK_BACKEND:-wayland}"
+  # Do NOT set WEBKIT_DISABLE_COMPOSITING_MODE here; the default
+  # (GPU enabled) is what we want.
+  echo "  Wayland native session detected → GPU compositing ENABLED"
+  _USE_GPU=1
+else
+  # XWayland or forced X11: fall back to X11 and disable GPU
+  # compositing to avoid "Failed to create GBM buffer" errors.
+  export GDK_BACKEND="${GDK_BACKEND:-x11}"
+  export WEBKIT_DISABLE_COMPOSITING_MODE="${WEBKIT_DISABLE_COMPOSITING_MODE:-1}"
+  echo "  Using XWayland/X11 → GPU compositing DISABLED (software paint)"
+  _USE_GPU=0
+fi
 
 # grim + hyprctl must be installed for screen capture.
 if ! command -v grim &>/dev/null; then
@@ -183,30 +222,73 @@ if lsof -ti tcp:8901 &>/dev/null; then
 fi
 
 # ── WebKit / rendering ────────────────────────────────────
-# WEBKIT_DISABLE_COMPOSITING_MODE skips GPU-accelerated
-# compositing, avoiding "Failed to create GBM buffer" errors
-# common under XWayland + WebKitGTK.
-export WEBKIT_DISABLE_COMPOSITING_MODE="${WEBKIT_DISABLE_COMPOSITING_MODE:-1}"
+# GPU compositing flag is now set above depending on Wayland vs XWayland
+# (see the GDK_BACKEND block near the top of this script).
+# If we are on the GPU path, WEBKIT_DISABLE_COMPOSITING_MODE is unset
+# (enabled); if we are on the X11 path, it is set to 1 (disabled).
+if [ "${_USE_GPU:-0}" = "1" ]; then
+  # Ensure the env var is not lingering from a previous run that
+  # disabled compositing.
+  unset WEBKIT_DISABLE_COMPOSITING_MODE
+fi
 
-# ── Vite dev server ───────────────────────────────────────
-# beforeDevCommand (tauri.conf.json) only runs with
-# "cargo tauri dev", not "cargo run".  Start Vite manually if
-# it isn't already listening on :5173.
+# ── Vite: build production assets, then serve them via preview ──
+# Performance note (see docs/PERFORMANCE.md §0.1, §0.2, §0.3):
+#   Serving the production build instead of the dev server removes
+#   HMR overhead, inline sourcemaps and lets Rollup tree-shake +
+#   minify + split vendor chunks. This is the single biggest win
+#   for the WebKitGTK webview, whose JIT is more conservative than
+#   Chrome's and chokes on the unoptimized dev bundle.
+#
+# We build once and then run `vite preview` on :5173 (same port the
+# Tauri devUrl expects). Re-build only if the dist is stale or the
+# user asks for a fresh build via KALI_REBUILD=1.
+
+BUILD_DIR="$WEB_DIR/dist"
+NEED_BUILD=0
+
+if [ "${KALI_REBUILD:-0}" = "1" ]; then
+  NEED_BUILD=1
+elif [ ! -d "$BUILD_DIR" ] || [ -z "$(ls -A "$BUILD_DIR" 2>/dev/null)" ]; then
+  NEED_BUILD=1
+else
+  # Rebuild if any source file is newer than the dist index.
+  newest_src="$(find "$WEB_DIR/src" -type f -newer "$BUILD_DIR/index.html" 2>/dev/null | head -1)"
+  newest_cfg=""
+  for cfg in "$WEB_DIR/vite.config.ts" "$WEB_DIR/index.html" "$WEB_DIR/package.json" "$WEB_DIR/tailwind.config.ts" "$WEB_DIR/postcss.config.js"; do
+    [ -f "$cfg" ] && [ "$cfg" -nt "$BUILD_DIR/index.html" ] && newest_cfg="$cfg" && break
+  done
+  if [ -n "$newest_src" ] || [ -n "$newest_cfg" ]; then
+    NEED_BUILD=1
+  fi
+fi
+
+if [ "$NEED_BUILD" = "1" ]; then
+  echo "[prod] Building production frontend (vite build)…"
+  npm --prefix "$WEB_DIR" run build
+else
+  echo "[prod] Reusing existing production build in $BUILD_DIR"
+fi
+
+# Start `vite preview` on :5173 if nothing is already listening there.
+# preview serves the optimized dist with the same proxy rules as dev.
 if ! ss -tlnp 2>/dev/null | grep -q ':5173'; then
-  echo "[prod] Starting Vite dev server (kali-web)…"
-  npm --prefix "$WEB_DIR" run dev &>/tmp/kali-vite.log &
+  echo "[prod] Starting Vite preview server (kali-web)…"
+  npm --prefix "$WEB_DIR" run preview &>/tmp/kali-vite.log &
   VITE_PID=$!
-  # Wait up to 10 seconds for Vite to start listening.
+  # Wait up to 10 seconds for preview to start listening.
   for i in $(seq 1 10); do
     if ss -tlnp 2>/dev/null | grep -q ':5173'; then
-      echo "  Vite ready (PID $VITE_PID)"
+      echo "  Vite preview ready (PID $VITE_PID)"
       break
     fi
     sleep 1
   done
   if ! ss -tlnp 2>/dev/null | grep -q ':5173'; then
-    echo "WARNING: Vite did not start on :5173 (check /tmp/kali-vite.log)"
+    echo "WARNING: Vite preview did not start on :5173 (check /tmp/kali-vite.log)"
   fi
+else
+  echo "[prod] Vite server already listening on :5173, reusing it"
 fi
 
 # ── Launch ────────────────────────────────────────────────

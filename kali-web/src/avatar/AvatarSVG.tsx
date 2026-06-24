@@ -25,7 +25,16 @@ import { ALL_PATTERNS } from "./avatarPresets";
 interface Props {
   state: AvatarState;
   emotion: AvatarEmotion;
-  audioLevel: number;
+  /**
+   * Optional analyser to drive the mouth animation while speaking.
+   * When provided and `state === "hablando"`, the component runs its own
+   * requestAnimationFrame loop reading the analyser and mutating the SVG
+   * mouth directly — no React re-render per frame (see
+   * docs/PERFORMANCE.md §0.5). `audioLevel` is kept only for backward
+   * compatibility with callers that don't pass an analyser.
+   */
+  analyser?: AnalyserNode | null;
+  audioLevel?: number;
   config: AvatarConfig;
   onClick?: () => void;
   className?: string;
@@ -92,12 +101,14 @@ const SVG_MARKUP = `<svg id="avatar-svg" data-state="idle" data-mood="normal" vi
   </g>
 </svg>`;
 
-export function AvatarSVG({ state, emotion, audioLevel, config, onClick, className }: Props) {
+export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClick, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const headPivotRef = useRef<SVGGElement | null>(null);
   const pupilLeftRef = useRef<SVGGElement | null>(null);
   const pupilRightRef = useRef<SVGGElement | null>(null);
+  const mouthRafRef = useRef<number | null>(null);
+  const mouthDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
 
   // Inject SVG once on mount
   useEffect(() => {
@@ -119,22 +130,67 @@ export function AvatarSVG({ state, emotion, audioLevel, config, onClick, classNa
     svgRef.current.setAttribute("data-mood", emotion);
   }, [state, emotion]);
 
-  // Drive mouth-open opacity from audioLevel (only during hablando)
-  useEffect(() => {
-    if (!svgRef.current) return;
-    const mouthOpened = svgRef.current.querySelector(".mouth-opened") as SVGGElement | null;
+  // Drive mouth-open opacity/scale while speaking.
+  //
+  // Performance: when an `analyser` is provided, we run our own
+  // requestAnimationFrame loop here and mutate the mouth SVG element
+  // directly. This avoids lifting audioLevel into React state in the
+  // parent (which would re-render the whole Stage tree per frame on
+  // WebKitGTK). When no analyser is available, we fall back to the
+  // `audioLevel` prop (kept for backward compat).
+  const updateMouth = useCallback((level: number) => {
+    const mouthOpened = svgRef.current?.querySelector(".mouth-opened") as SVGGElement | null;
     if (!mouthOpened) return;
-    if (state === "hablando") {
-      mouthOpened.setAttribute("opacity", "1");
-      // Scale mouth based on audioLevel (0..1 → 0.2..1.0)
-      const scale = 0.2 + audioLevel * 0.8;
-      mouthOpened.style.transform = `scaleY(${scale})`;
-      mouthOpened.style.transformOrigin = "500px 580px";
-    } else {
-      mouthOpened.setAttribute("opacity", "0");
-      mouthOpened.style.transform = "";
+    mouthOpened.setAttribute("opacity", "1");
+    const scale = 0.2 + Math.min(1, Math.max(0, level)) * 0.8;
+    mouthOpened.style.transform = `scaleY(${scale})`;
+    mouthOpened.style.transformOrigin = "500px 580px";
+  }, []);
+
+  useEffect(() => {
+    if (state !== "hablando") {
+      // Stop any running mouth loop and close the mouth.
+      if (mouthRafRef.current) {
+        cancelAnimationFrame(mouthRafRef.current);
+        mouthRafRef.current = null;
+      }
+      mouthDataRef.current = null;
+      const mouthOpened = svgRef.current?.querySelector(".mouth-opened") as SVGGElement | null;
+      if (mouthOpened) {
+        mouthOpened.setAttribute("opacity", "0");
+        mouthOpened.style.transform = "";
+      }
+      return;
     }
-  }, [state, audioLevel]);
+
+    if (!analyser) {
+      // Fallback path: use the audioLevel prop (still no rAF here; the
+      // parent is responsible for updating it — ideally at low freq).
+      if (audioLevel !== undefined) updateMouth(audioLevel);
+      else updateMouth(0.5);
+      return;
+    }
+
+    // Primary path: self-driven rAF loop reading the analyser.
+    if (!mouthDataRef.current) {
+      mouthDataRef.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+    }
+    const data = mouthDataRef.current;
+    const tick = () => {
+      analyser.getByteFrequencyData(data);
+      let sum = 0;
+      for (let i = 0; i < 16; i++) sum += data[i];
+      updateMouth(sum / (16 * 255));
+      mouthRafRef.current = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => {
+      if (mouthRafRef.current) {
+        cancelAnimationFrame(mouthRafRef.current);
+        mouthRafRef.current = null;
+      }
+    };
+  }, [state, analyser, audioLevel, updateMouth]);
 
   // Apply config whenever it changes
   useEffect(() => {

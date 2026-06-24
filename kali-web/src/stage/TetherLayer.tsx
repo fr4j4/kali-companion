@@ -26,6 +26,15 @@ export function TetherLayer({ windows }: Props) {
   const [tethers, setTethers] = useState<TetherState[]>([]);
   const rafRef = useRef<number | null>(null);
 
+  // Performance (docs/PERFORMANCE.md §0.6): the dash-flow CSS animation
+  // forces continuous repaint of the SVG layer, which is expensive on
+  // WebKitGTK without GPU compositing. Pause it when there are many
+  // tethers or when the low-perf path is active. We also reduce the
+  // update frequency of path recomputation when the window count is
+  // high by batching through a single rAF (already the case below).
+  const visibleCount = windows.filter((w) => !w.closed).length;
+  const dashStatic = visibleCount >= 4 || (typeof document !== "undefined" && document.documentElement.classList.contains("kali-perf-low"));
+
   // Update tether paths on window position changes
   useEffect(() => {
     const update = () => {
@@ -77,11 +86,7 @@ export function TetherLayer({ windows }: Props) {
           strokeDasharray="8 6"
           strokeLinecap="round"
           opacity={t.pulsing ? 1 : 0.45}
-          style={{
-            transition: "opacity 0.3s, stroke-width 0.3s, filter 0.3s",
-            filter: t.pulsing ? "drop-shadow(0 0 10px rgba(34,211,238,0.9))" : "none",
-            animation: "dashFlow 20s linear infinite",
-          }}
+          className={dashStatic ? "tether-static" : "tether-flow"}
         />
       ))}
     </svg>
