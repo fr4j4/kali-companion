@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
+import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { SAMPLE_MERMAID } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
@@ -81,15 +82,18 @@ export function MermaidWidget({ content }: Props) {
           {headerActions}
         </div>
       )}
-      <div
-        className="mermaid-container flex-1 min-h-0 overflow-auto"
-        ref={svgRef}
-        onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
-        style={{ cursor: "grab", transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
-      >
-        {error && <p className="text-xs text-muted">{t("widget.mermaid.error")}</p>}
-      </div>
+      <StreamingSpinner content={content} windowType="mermaid" />
+      {!isStreamingContent(content) && (
+        <div
+          className="mermaid-container flex-1 min-h-0 overflow-auto"
+          ref={svgRef}
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          style={{ cursor: "grab", transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+        >
+          {error && <p className="text-xs text-muted">{t("widget.mermaid.error")}</p>}
+        </div>
+      )}
     </BaseWidget>
   );
 }

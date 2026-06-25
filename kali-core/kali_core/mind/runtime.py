@@ -28,6 +28,7 @@ from typing import Any
 
 from .llm.provider import LLMProvider, StreamEvent
 from .marker_suppressor import MarkerSuppressor
+from .artifact_stream import ArtifactStreamProcessor, ArtifactStreamEvent
 
 logger = logging.getLogger("kali_core.mind.runtime")
 
@@ -170,6 +171,37 @@ class AgentRuntime:
     def set_emit_callback(self, callback: Any) -> None:
         self._emit_event = callback
 
+    async def _emit_artifact_event(
+        self, evt: ArtifactStreamEvent, session_id: str
+    ) -> None:
+        """Forward an artifact stream event as a WS ``artifact`` event.
+
+        Builds the payload in the same shape as ``ArtifactEnvelope.to_payload``
+        plus the ``phase`` field, and sends it via the emit callback.
+        """
+        if self._emit_event is None:
+            return
+        payload = {
+            "event": "artifact",
+            "id": evt.artifact_id,
+            "type": evt.artifact_type,
+            "windowType": evt.window_type,
+            "title": evt.title,
+            "content": evt.content,
+            "update": evt.action,
+            "phase": evt.phase,
+            "session_id": session_id,
+        }
+        logger.info(
+            "[artifact_stream] %s id=%s type=%s phase=%s content_len=%d",
+            evt.action,
+            evt.artifact_id,
+            evt.artifact_type,
+            evt.phase,
+            len(evt.content),
+        )
+        await self._emit_event(payload)
+
     def _get_history(self, session_id: str) -> list[dict]:
         if session_id not in self._histories:
             self._histories[session_id] = []
@@ -210,12 +242,25 @@ class AgentRuntime:
             # stream for tool-call parsing.
             delta_filter = MarkerSuppressor(_TOOL_CALL_MARKER)
             reasoning_filter = MarkerSuppressor(_TOOL_CALL_MARKER)
+            # Artifact stream processor: detects [BEGIN_ARTIFACT]/[END_ARTIFACT]
+            # markers in the delta channel and produces progressive artifact
+            # create/update/close events. The chat text (markers stripped)
+            # flows through to delta as normal; artifact content goes to
+            # the artifact window via _emit_artifact_event.
+            artifact_processor = ArtifactStreamProcessor()
 
             async for event in self.llm.stream(history, tools=self._tools):
                 if event.kind == "delta" and event.text:
-                    safe = delta_filter.feed(event.text)
-                    if safe:
-                        yield StreamEvent(kind="delta", text=safe)
+                    # First pass through tool-call suppressor.
+                    safe_from_tc = delta_filter.feed(event.text)
+                    if not safe_from_tc:
+                        continue
+                    # Then through artifact stream processor.
+                    result = artifact_processor.feed(safe_from_tc)
+                    if result.chat_text:
+                        yield StreamEvent(kind="delta", text=result.chat_text)
+                    for art_evt in result.artifact_events:
+                        await self._emit_artifact_event(art_evt, session_id)
                 elif event.kind == "reasoning":
                     # Filter reasoning the same way as delta: hold back
                     # [TOOL_CALL: ...] blocks so the reasoning panel does
@@ -280,10 +325,21 @@ class AgentRuntime:
             # chunk boundary). Suppressed tool-call blocks are not flushed.
             tail = delta_filter.flush()
             if tail:
-                yield StreamEvent(kind="delta", text=tail)
+                art_result = artifact_processor.feed(tail)
+                if art_result.chat_text:
+                    yield StreamEvent(kind="delta", text=art_result.chat_text)
+                for art_evt in art_result.artifact_events:
+                    await self._emit_artifact_event(art_evt, session_id)
             reasoning_tail = reasoning_filter.flush()
             if reasoning_tail:
                 yield StreamEvent(kind="reasoning", text=reasoning_tail)
+
+            # Flush the artifact processor (closes any open artifact).
+            art_flush = artifact_processor.flush()
+            if art_flush.chat_text:
+                yield StreamEvent(kind="delta", text=art_flush.chat_text)
+            for art_evt in art_flush.artifact_events:
+                await self._emit_artifact_event(art_evt, session_id)
 
             # The full buffers (with markers) are what we parse for tool
             # calls after the stream completes.

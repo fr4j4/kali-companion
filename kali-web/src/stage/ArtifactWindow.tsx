@@ -1,8 +1,34 @@
 import { useRef, useCallback } from "react";
 import type { ArtifactWindowData } from "../workspace/types";
+import type { ArtifactEvent } from "../lib/protocol";
 import { startDrag, startResize } from "../workspace/useDragResize";
 import type { ResizeEdge } from "../workspace/useDragResize";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+
+function getStreamingLabel(windowType: string): string {
+  const labels: Record<string, string> = {
+    code: "Generando c\u00f3digo\u2026",
+    document: "Generando documento\u2026",
+    diff: "Generando diff\u2026",
+    html: "Generando HTML\u2026",
+    mermaid: "Generando diagrama\u2026",
+    json: "Generando \u00e1rbol JSON\u2026",
+    table: "Generando tabla\u2026",
+    checklist: "Generando checklist\u2026",
+    chart: "Generando chart\u2026",
+    quiz: "Generando quiz\u2026",
+  };
+  return labels[windowType] ?? "Generando\u2026";
+}
+
+function StreamingBadge({ windowType }: { windowType: string }) {
+  return (
+    <span className="badge text-accent flex items-center gap-1 shrink-0" title={getStreamingLabel(windowType)}>
+      <span className="w-3 h-3 border border-accent/40 border-t-accent rounded-full animate-spin inline-block" />
+      <span className="text-[10px]">{getStreamingLabel(windowType)}</span>
+    </span>
+  );
+}
 
 interface Props {
   window: ArtifactWindowData;
@@ -173,6 +199,8 @@ function WindowHeader({
   headerRef?: React.RefObject<HTMLDivElement>;
   headerActions?: React.ReactNode;
 }) {
+  const content = w.content as ArtifactEvent | undefined;
+  const isStreaming = content?.phase === "streaming";
   return (
     <div
       ref={headerRef}
@@ -188,7 +216,8 @@ function WindowHeader({
         </div>
         {w.icon && <span className="text-sm shrink-0">{w.icon}</span>}
         <span className="badge text-muted truncate">{w.title}</span>
-        {focused && <span className="badge text-accent opacity-70">foco</span>}
+        {isStreaming && <StreamingBadge windowType={w.type} />}
+        {focused && !isStreaming && <span className="badge text-accent opacity-70">foco</span>}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {headerActions && <div className="flex items-center gap-0.5 mr-1">{headerActions}</div>}

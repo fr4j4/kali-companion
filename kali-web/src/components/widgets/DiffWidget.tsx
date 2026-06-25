@@ -34,7 +34,7 @@ export function DiffWidget({ content }: Props) {
   const delCount = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
 
   return (
-    <ScrollableWidget searchable={false}>
+    <ScrollableWidget searchable={false} content={content} autoScroll>
       <pre className="p-3 text-xs font-mono leading-5">
         {lines.map((line, i) => {
           let className = "";

@@ -43,7 +43,7 @@ export function DocumentWidget({ content, variant = "markdown" }: Props) {
 
   if (variant === "markdown") {
     return (
-      <ScrollableWidget searchable={false}>
+      <ScrollableWidget searchable={false} content={content} autoScroll>
         {headerActions.length > 0 && (
           <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-white/5 shrink-0">
             {headerActions}
@@ -61,7 +61,7 @@ export function DocumentWidget({ content, variant = "markdown" }: Props) {
 
   if (variant === "prose") {
     return (
-      <ScrollableWidget searchable={false}>
+      <ScrollableWidget searchable={false} content={content} autoScroll>
         <div className="p-4">
           <div className="prose-md">
             <p className="text-muted leading-relaxed">{rawText}</p>
@@ -73,7 +73,7 @@ export function DocumentWidget({ content, variant = "markdown" }: Props) {
 
   /* transcript */
   return (
-    <ScrollableWidget searchable={true}>
+    <ScrollableWidget searchable={true} content={content} autoScroll>
       <div className="p-3">
         <pre className="term-line text-muted whitespace-pre-wrap">{rawText}</pre>
       </div>

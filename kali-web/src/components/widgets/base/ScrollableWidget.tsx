@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import type { ArtifactEvent } from "../../../lib/protocol";
 import { BaseWidget } from "./BaseWidget";
 
 interface Props {
@@ -8,13 +9,24 @@ interface Props {
   onBeep?: () => void;
   searchable?: boolean;
   onSearch?: (query: string) => void;
+  autoScroll?: boolean;
   children?: ReactNode;
 }
 
-export function ScrollableWidget({ content, onToast, onBeep, searchable, onSearch: onSearchProp, children }: Props) {
+export function ScrollableWidget({ content, onToast, onBeep, searchable, onSearch: onSearchProp, autoScroll, children }: Props) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const event = content as ArtifactEvent | undefined;
+  const isStreaming = event?.phase === "streaming";
+
+  // Auto-scroll to bottom when content changes during streaming.
+  useEffect(() => {
+    if (autoScroll && isStreaming && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [children, autoScroll, isStreaming]);
 
   const onSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;

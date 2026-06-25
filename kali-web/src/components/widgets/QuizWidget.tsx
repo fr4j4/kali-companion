@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
+import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 import { QUIZ_QUESTIONS } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
 
@@ -57,21 +58,24 @@ export function QuizWidget({ content }: Props) {
 
   return (
     <BaseWidget>
-      <div className="p-3 space-y-3">
-        {/* Progress dots */}
-        <div className="flex items-center gap-1">
-          {questions.map((_, i) => (
-            <div key={i} className={`flex-1 h-1 rounded-full ${i <= qIdx ? "bg-accent" : "bg-white/10"}`} />
-          ))}
-        </div>
+      {isStreamingContent(content) ? (
+        <StreamingSpinner content={content} windowType="quiz" />
+      ) : (
+        <div className="p-3 space-y-3">
+          {/* Progress dots */}
+          <div className="flex items-center gap-1">
+            {questions.map((_, i) => (
+              <div key={i} className={`flex-1 h-1 rounded-full ${i <= qIdx ? "bg-accent" : "bg-white/10"}`} />
+            ))}
+          </div>
 
-        {/* Question */}
-        <div className="text-sm text-fg font-medium">{question.question}</div>
+          {/* Question */}
+          <div className="text-sm text-fg font-medium">{question.question}</div>
 
-        {/* Options */}
-        <div className="space-y-1">
-          {question.options.map((opt, i) => (
-            <div
+          {/* Options */}
+          <div className="space-y-1">
+            {question.options.map((opt, i) => (
+              <div
               key={i}
               onClick={() => select(i)}
               className={`quiz-option px-3 py-2 rounded-lg border text-xs ${
@@ -102,7 +106,8 @@ export function QuizWidget({ content }: Props) {
             {qIdx < total - 1 ? t("widget.quiz.next") : t("widget.quiz.result")}
           </button>
         )}
-      </div>
+        </div>
+      )}
     </BaseWidget>
   );
 }

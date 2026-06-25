@@ -167,6 +167,7 @@ export interface ArtifactEvent {
   title: string;
   content: string;
   update: "create" | "update" | "close";
+  phase?: "streaming" | "complete";
 }
 
 export interface TurnStartEvent {

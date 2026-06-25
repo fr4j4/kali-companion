@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
+import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 
 interface Props {
   content?: unknown;
@@ -28,47 +29,51 @@ export function ChartWidget({ content }: Props) {
 
   return (
     <BaseWidget>
-      <div className="p-3">
-        <div className="flex items-end gap-2 h-40 relative">
-          <div className="flex flex-col justify-between h-full text-[10px] text-muted/60 pr-1 shrink-0">
-            <span>{maxVal}</span>
-            <span>{Math.round(maxVal / 2)}</span>
-            <span>0</span>
+      {isStreamingContent(content) ? (
+        <StreamingSpinner content={content} windowType="chart" />
+      ) : (
+        <div className="p-3">
+          <div className="flex items-end gap-2 h-40 relative">
+            <div className="flex flex-col justify-between h-full text-[10px] text-muted/60 pr-1 shrink-0">
+              <span>{maxVal}</span>
+              <span>{Math.round(maxVal / 2)}</span>
+              <span>0</span>
+            </div>
+            <div className="flex-1 flex items-end gap-1 h-full">
+              {chartData.map((item, i) => {
+                const h1 = (item.latency / maxVal) * 100;
+                const h2 = (item.throughput / maxVal) * 100;
+                return (
+                  <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0.5 h-full">
+                    <div
+                      className="chart-bar w-full rounded-t-sm bg-accent/60"
+                      style={{ height: `${h1}%`, minHeight: 2 }}
+                      onPointerEnter={() => setTooltip({ name: item.name, val: item.latency })}
+                      onPointerLeave={() => setTooltip(null)}
+                    />
+                    <div
+                      className="chart-bar w-full rounded-t-sm bg-ok/60"
+                      style={{ height: `${h2}%`, minHeight: 2 }}
+                      onPointerEnter={() => setTooltip({ name: item.name, val: item.throughput })}
+                      onPointerLeave={() => setTooltip(null)}
+                    />
+                    <span className="text-[9px] text-muted/60 mt-1 truncate w-full text-center">{item.name}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex-1 flex items-end gap-1 h-full">
-            {chartData.map((item, i) => {
-              const h1 = (item.latency / maxVal) * 100;
-              const h2 = (item.throughput / maxVal) * 100;
-              return (
-                <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0.5 h-full">
-                  <div
-                    className="chart-bar w-full rounded-t-sm bg-accent/60"
-                    style={{ height: `${h1}%`, minHeight: 2 }}
-                    onPointerEnter={() => setTooltip({ name: item.name, val: item.latency })}
-                    onPointerLeave={() => setTooltip(null)}
-                  />
-                  <div
-                    className="chart-bar w-full rounded-t-sm bg-ok/60"
-                    style={{ height: `${h2}%`, minHeight: 2 }}
-                    onPointerEnter={() => setTooltip({ name: item.name, val: item.throughput })}
-                    onPointerLeave={() => setTooltip(null)}
-                  />
-                  <span className="text-[9px] text-muted/60 mt-1 truncate w-full text-center">{item.name}</span>
-                </div>
-              );
-            })}
+          {tooltip && (
+            <div className="chart-tooltip" style={{ position: "relative", marginTop: 8 }}>
+              {tooltip.name}: {tooltip.val}
+            </div>
+          )}
+          <div className="flex items-center gap-3 mt-3 text-[10px] text-muted">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-accent/60" /> {t("widget.chart.latency")}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-ok/60" /> {t("widget.chart.throughput")}</span>
           </div>
         </div>
-        {tooltip && (
-          <div className="chart-tooltip" style={{ position: "relative", marginTop: 8 }}>
-            {tooltip.name}: {tooltip.val}
-          </div>
-        )}
-        <div className="flex items-center gap-3 mt-3 text-[10px] text-muted">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-accent/60" /> {t("widget.chart.latency")}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-ok/60" /> {t("widget.chart.throughput")}</span>
-        </div>
-      </div>
+      )}
     </BaseWidget>
   );
 }

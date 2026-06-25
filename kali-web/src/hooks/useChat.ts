@@ -327,9 +327,12 @@ export function useChat(): ChatState {
         const ev = p as ArtifactEvent;
         setArtifacts((prev) => {
           const next = new Map(prev);
-          if (ev.update === "close") {
+          if (ev.update === "close" && ev.phase !== "complete") {
+            // True close (not a streaming-complete): remove from store.
             next.delete(ev.id);
           } else {
+            // create, update, or close+complete: upsert with the event
+            // (phase lets widgets know if content is still streaming).
             next.set(ev.id, ev);
           }
           return next;

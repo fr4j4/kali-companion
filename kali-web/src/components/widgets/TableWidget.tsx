@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
+import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { SAMPLE_TABLE_DATA } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
@@ -65,34 +66,38 @@ export function TableWidget({ content }: Props) {
           {headerActions}
         </div>
       )}
-      <div className="p-0 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-white/5">
-              {columns.map((col) => (
-                <th
-                  key={col}
-                  onClick={() => onHeaderClick(col)}
-                  className="text-left px-3 py-2 text-muted font-medium cursor-pointer hover:text-fg transition whitespace-nowrap"
-                >
-                  {col} {sortCol === col ? (sortAsc ? '\u2191' : '\u2193') : ''}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((row, i) => (
-              <tr key={i} className="border-b border-white/5 last:border-none hover:bg-white/[0.02]">
+      {isStreamingContent(content) ? (
+        <StreamingSpinner content={content} windowType="table" />
+      ) : (
+        <div className="p-0 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-white/5">
                 {columns.map((col) => (
-                  <td key={col} className="px-3 py-1.5 text-fg whitespace-nowrap">
-                    {String(row[col] ?? "")}
-                  </td>
+                  <th
+                    key={col}
+                    onClick={() => onHeaderClick(col)}
+                    className="text-left px-3 py-2 text-muted font-medium cursor-pointer hover:text-fg transition whitespace-nowrap"
+                  >
+                    {col} {sortCol === col ? (sortAsc ? '\u2191' : '\u2193') : ''}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {sorted.map((row, i) => (
+                <tr key={i} className="border-b border-white/5 last:border-none hover:bg-white/[0.02]">
+                  {columns.map((col) => (
+                    <td key={col} className="px-3 py-1.5 text-fg whitespace-nowrap">
+                      {String(row[col] ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </BaseWidget>
   );
 }

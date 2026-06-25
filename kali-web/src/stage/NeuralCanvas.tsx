@@ -153,12 +153,13 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   // Sync chat.artifacts with workspace windows.
   // "create" events are processed once; "update" events always flow
   // through so streaming content reaches the window; "close" events
-  // clean up the tracking set so the same artifact ID can be re-used.
+  // with phase:"complete" update the window (rendering final content)
+  // but keep it open; true close (no phase) cleans up tracking.
   useEffect(() => {
     const artifacts = chat.artifacts;
     if (!artifacts) return;
     for (const [id, event] of artifacts) {
-      if (event.update === "close") {
+      if (event.update === "close" && event.phase !== "complete") {
         processedRef.current.delete(id);
         api.syncArtifact(event);
         continue;

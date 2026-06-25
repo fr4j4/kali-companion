@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollableWidget } from "./base/ScrollableWidget";
+import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { SAMPLE_JSON } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
@@ -69,15 +70,19 @@ export function JsonTreeWidget({ content }: Props) {
   const { rendered: headerActions } = useHeaderActions(actions);
 
   return (
-    <ScrollableWidget searchable={false}>
+    <ScrollableWidget searchable={false} content={content}>
       {headerActions.length > 0 && (
         <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-white/5 shrink-0">
           {headerActions}
         </div>
       )}
-      <div className="p-3 text-xs font-mono leading-5">
-        {renderValue(parsed, "root", 0, expandedPaths, togglePath)}
-      </div>
+      {isStreamingContent(content) ? (
+        <StreamingSpinner content={content} windowType="json" />
+      ) : (
+        <div className="p-3 text-xs font-mono leading-5">
+          {renderValue(parsed, "root", 0, expandedPaths, togglePath)}
+        </div>
+      )}
     </ScrollableWidget>
   );
 }

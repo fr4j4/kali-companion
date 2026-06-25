@@ -238,7 +238,9 @@ export function useWorkspace(): import("./types").WorkspaceAPI {
 
   // Sync with backend artifacts — creates/updates/closes windows from ArtifactEvent
   const syncArtifact = useCallback((event: ArtifactEvent) => {
-    if (event.update === "close") {
+    // True close (no phase) → mark window as closed.
+    // close+phase:"complete" → update content (streaming finished, render final).
+    if (event.update === "close" && event.phase !== "complete") {
       setWindows((prev) => prev.map((w) => w.artifactId === event.id ? { ...w, closed: true } : w));
       return;
     }
