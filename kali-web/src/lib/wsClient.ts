@@ -94,4 +94,9 @@ export class WSClient {
   private dispatch(event: IncomingEventName, payload: OutgoingEvent): void {
     this.listeners.get(event)?.forEach((l) => l(payload));
   }
+
+  simulate(payload: OutgoingEvent): void {
+    const event = (payload.event as IncomingEventName) ?? "";
+    this.dispatch(event, payload);
+  }
 }

@@ -61,17 +61,27 @@ export function startDrag(opts: DragOpts) {
   const onPointerUp = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
+    onEnd(id, startPos, startPos);
+  };
+
+  const onPointerCancel = () => {
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
     onEnd(id, startPos, startPos);
   };
 
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
+  document.addEventListener("pointercancel", onPointerCancel);
 }
 
 interface ResizeOpts {
   id: number;
   el: HTMLElement;
   edge: ResizeEdge;
+  pointerId: number;
   startSize: Size;
   startPos: Position;
   startMouse: { x: number; y: number };
@@ -119,10 +129,22 @@ export function startResize(opts: ResizeOpts) {
   const onPointerUp = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
     document.body.style.userSelect = "";
     document.body.style.pointerEvents = "";
+    el.releasePointerCapture(opts.pointerId);
+  };
+
+  const onPointerCancel = () => {
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
+    document.body.style.userSelect = "";
+    document.body.style.pointerEvents = "";
+    el.releasePointerCapture(opts.pointerId);
   };
 
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
+  document.addEventListener("pointercancel", onPointerCancel);
 }

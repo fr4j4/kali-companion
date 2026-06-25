@@ -10,6 +10,7 @@
  */
 
 import { useCallback } from "react";
+import { Bug } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStage } from "./StageProvider";
 import type { WorkspaceAPI } from "../workspace/types";
@@ -18,10 +19,11 @@ interface Props {
   onToggleDrawer?: () => void;
   onToggleCustomizer?: () => void;
   onToggleConversation?: () => void;
+  onToggleDebug?: () => void;
   api: WorkspaceAPI;
 }
 
-export function NeuralDock({ onToggleDrawer, onToggleCustomizer, onToggleConversation, api }: Props) {
+export function NeuralDock({ onToggleDrawer, onToggleCustomizer, onToggleConversation, onToggleDebug, api }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
 
@@ -114,6 +116,15 @@ export function NeuralDock({ onToggleDrawer, onToggleCustomizer, onToggleConvers
         <button onClick={api.undo} className="tooltip h-9 px-3 rounded-xl hover:bg-white/8 text-muted hover:text-fg transition flex items-center gap-2 badge" title={t("dock.undo") as string} aria-label={t("dock.undo") as string}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 13"/></svg>
         </button>
+
+        {import.meta.env.DEV && (
+          <>
+            <div className="w-px h-5 bg-white/10 mx-1" />
+            <button onClick={onToggleDebug} className="tooltip h-9 px-3 rounded-xl hover:bg-accent/20 text-muted hover:text-accent transition flex items-center gap-2 badge" title="Debug" aria-label="Debug">
+              <Bug size={14} />
+            </button>
+          </>
+        )}
 
         {/* Clear */}
         <button onClick={api.clearAll} className="tooltip h-9 px-3 rounded-xl hover:bg-red-500/15 text-red-300/80 hover:text-red-300 transition flex items-center gap-2 badge" title={t("dock.clear") as string} aria-label={t("dock.clear") as string}>

@@ -75,6 +75,7 @@ export function ArtifactWindow({
   const handleResizeStart = useCallback((e: React.PointerEvent, edge: ResizeEdge) => {
     if (isMobile) return;
     e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
     onFocus();
     const el = elRef.current;
     if (!el) return;
@@ -82,6 +83,7 @@ export function ArtifactWindow({
       id: w.id,
       el,
       edge,
+      pointerId: e.pointerId,
       startSize: { width: w.size.width, height: w.size.height || 300 },
       startPos: w.position,
       startMouse: { x: e.clientX, y: e.clientY },

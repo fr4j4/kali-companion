@@ -45,6 +45,7 @@ import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { ConsentModal } from "../components/ConsentModal";
 import { JobsPanel } from "../components/JobsPanel";
+import { DebugPad } from "./DebugPad";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 
 interface Props {
@@ -68,6 +69,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => loadAvatarConfig());
 
   // Click override — petting the avatar → brief "ronroneando"
@@ -96,7 +98,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (typing) return;
-      if (chat.isThinking) return;
+      if (chat.isTurnActive) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -106,7 +108,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [typing, chat.isThinking]);
+  }, [typing, chat.isTurnActive]);
 
   const newSession = useCallback(() => {
     setHistoryOpen(false);
@@ -122,10 +124,16 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   // Expose workspace API globally for debugging (dev only)
   useEffect(() => {
     if (import.meta.env.DEV) {
-      (window as any).kaliApi = api;
+      (window as any).kaliApi = {
+        ...api,
+        debug: {
+          simulate: (payload: unknown) => chat.wsClient?.simulate(payload as any),
+          speakText: (text: string) => chat.wsClient?.send({ event: "tts_speak", text }),
+        },
+      };
       return () => { delete (window as any).kaliApi; };
     }
-  }, [api]);
+  }, [api, chat.wsClient]);
 
   // Reset workspace when session changes (new session, attach, or refresh resume).
   // Only reset when sessionId actually changes — not when `api` ref recalculates.
@@ -275,6 +283,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onToggleDrawer={() => setArtifactsOpen(true)}
         onToggleCustomizer={() => setCustomizerOpen(true)}
         onToggleConversation={() => setConversationOpen(true)}
+        onToggleDebug={() => setDebugOpen((d) => !d)}
       />
 
       {/* Stopped toast */}
@@ -358,6 +367,10 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onCancelJob={chat.cancelJob}
         onGetLogs={chat.getJobLogs}
       />
+
+      {import.meta.env.DEV && debugOpen && (
+        <DebugPad onClose={() => setDebugOpen(false)} client={chat.wsClient as unknown as { simulate: (payload: unknown) => void; send: (payload: Record<string, unknown>) => void } | null} />
+      )}
     </div>
   );
 }

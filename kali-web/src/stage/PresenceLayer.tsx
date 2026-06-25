@@ -2,13 +2,14 @@
 //
 // This layer sits above the MomentStream and shows transient status: the
 // currently-running tool (a small pill near the avatar) and the latest
-// reasoning snippet (fades in/out). Also shows a "Thinking…" indicator
+// reasoning snippet (ThoughtCloud, draggable around the avatar). Also shows a "Thinking…" indicator
 // during the gap between send and first token.
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Cog, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStage } from "./StageProvider";
+import { ThoughtCloud } from "../components/ThoughtCloud";
 
 export function PresenceLayer() {
   const { t } = useTranslation();
@@ -64,20 +65,13 @@ export function PresenceLayer() {
         )}
       </AnimatePresence>
 
-      {/* Reasoning — fades near the avatar */}
+      {/* Reasoning — ThoughtCloud orbitando el avatar (draggable, anclada al avatar center) */}
       <AnimatePresence>
         {reasoning && (
-          <motion.p
-            key="reasoning"
-            className="ephemeral-text text-center max-w-[480px] px-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.55 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            style={{ marginTop: "calc(50vh - (200px * var(--mul-avatar)))" }}
-          >
-            {reasoning.slice(-240)}
-          </motion.p>
+          <ThoughtCloud
+            reasoning={reasoning}
+            isStreaming={streamingMsg?.streaming === true}
+          />
         )}
       </AnimatePresence>
     </div>

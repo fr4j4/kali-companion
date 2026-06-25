@@ -37,7 +37,7 @@ export function SpotlightInput({ open, onClose, firstCharRef }: Props) {
 
   const onSubmit = useCallback(() => {
     const text = value.trim();
-    if (chat.isThinking) return;
+    if (chat.isTurnActive) return;
     if (text) {
       chat.send(text);
     }

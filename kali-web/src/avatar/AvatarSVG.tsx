@@ -275,14 +275,19 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
     }
   }, []);
 
-  // Mouse tracking — update pupil + head transforms
+  // Mouse tracking — update pupil + head transforms.
+  // En estado "pensando", el avatar deja de seguir el mouse y mira la nube
+  // de pensamiento (posición notificada vía CustomEvent "kali:thought-cloud-move").
   useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
-      if (!svgRef.current || svgRef.current.getAttribute("data-state") === "pensando") return;
+    const cloudTarget = { x: 0, y: 0, active: false };
+    let pendingLook = false;
+
+    const applyLook = (targetX: number, targetY: number) => {
+      if (!svgRef.current) return;
       const rect = svgRef.current.getBoundingClientRect();
       if (rect.width === 0) return;
-      const relX = (e.clientX - rect.left) / rect.width;
-      const relY = (e.clientY - rect.top) / rect.height;
+      const relX = (targetX - rect.left) / rect.width;
+      const relY = (targetY - rect.top) / rect.height;
       const maxOffset = 18, maxHeadRot = 10, maxHeadTx = 22, maxHeadTy = 14;
       const dx = (relX - 0.5) * 2, dy = (relY - 0.5) * 2;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -294,17 +299,75 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
       if (headPivotRef.current)
         headPivotRef.current.style.transform = `translate(${dx * f * maxHeadTx}px, ${dy * f * maxHeadTy}px) rotate(${dx * f * maxHeadRot}deg)`;
     };
-    const handleLeave = () => {
-      if (!svgRef.current || svgRef.current.getAttribute("data-state") === "pensando") return;
+
+    const setTransition = (on: boolean) => {
+      const t = on ? "transform 0.4s ease" : "";
+      if (pupilLeftRef.current) pupilLeftRef.current.style.transition = t;
+      if (pupilRightRef.current) pupilRightRef.current.style.transition = t;
+      if (headPivotRef.current) headPivotRef.current.style.transition = t;
+    };
+
+    const resetLook = () => {
+      setTransition(false);
       if (pupilLeftRef.current) pupilLeftRef.current.style.transform = "translate(0, 0)";
       if (pupilRightRef.current) pupilRightRef.current.style.transform = "translate(0, 0)";
       if (headPivotRef.current) headPivotRef.current.style.transform = "translate(0, 0) rotate(0deg)";
     };
+
+    const handleMove = (e: MouseEvent) => {
+      if (!svgRef.current) return;
+      const isThinking = svgRef.current.getAttribute("data-state") === "pensando";
+      if (isThinking) return; // el tracking de mouse se ignora al pensar
+      setTransition(false);
+      applyLook(e.clientX, e.clientY);
+    };
+
+    const handleLeave = () => {
+      if (!svgRef.current) return;
+      if (svgRef.current.getAttribute("data-state") === "pensando") return;
+      resetLook();
+    };
+
+    const handleCloudMove = (e: Event) => {
+      if (!svgRef.current) return;
+      const isThinking = svgRef.current.getAttribute("data-state") === "pensando";
+      const detail = (e as CustomEvent).detail as { x: number; y: number } | undefined;
+      if (!detail) return;
+      cloudTarget.x = detail.x;
+      cloudTarget.y = detail.y;
+      cloudTarget.active = true;
+      // Si ya está pensando, o estaba esperando la posición de la nube, aplicar la mirada.
+      if (isThinking || pendingLook) {
+        setTransition(true);
+        applyLook(detail.x, detail.y);
+        pendingLook = false;
+      }
+    };
+
+    // Observa cambios de data-state para resetear/activar la mirada.
+    const observer = new MutationObserver(() => {
+      if (!svgRef.current) return;
+      const isThinking = svgRef.current.getAttribute("data-state") === "pensando";
+      if (isThinking && cloudTarget.active) {
+        setTransition(true);
+        applyLook(cloudTarget.x, cloudTarget.y);
+      } else if (isThinking && !cloudTarget.active) {
+        // La nube aún no despachó su evento; esperar al próximo.
+        pendingLook = true;
+      } else {
+        resetLook();
+      }
+    });
+    if (svgRef.current) observer.observe(svgRef.current, { attributes: true, attributeFilter: ["data-state"] });
+
     document.addEventListener("mousemove", handleMove);
     document.addEventListener("mouseleave", handleLeave);
+    window.addEventListener("kali:thought-cloud-move", handleCloudMove);
     return () => {
       document.removeEventListener("mousemove", handleMove);
       document.removeEventListener("mouseleave", handleLeave);
+      window.removeEventListener("kali:thought-cloud-move", handleCloudMove);
+      observer.disconnect();
     };
   }, []);
 

@@ -24,6 +24,7 @@ EventType = Literal[
     "cancel_job",
     "get_job_logs",
     "request_image",
+    "tts_speak",
 ]
 
 # Outgoing (core → web)

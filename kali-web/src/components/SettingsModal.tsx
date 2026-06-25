@@ -55,6 +55,8 @@ export function SettingsModal({
   const sttLanguage = systemStatus?.stt_language ?? "es";
   const inputMode = (systemStatus as { input_mode?: string })?.input_mode ?? "wake_word";
   const wakeWordEnabled = systemStatus?.wake_word_enabled ?? false;
+  const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
+  const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
 
   const handleInputModeChange = (mode: string) => {
     if (mode === "wake_word") {
@@ -63,6 +65,12 @@ export function SettingsModal({
       onUpdate({ input_mode: mode, wake_word_enabled: false });
     }
   };
+
+  const FEEDBACK_MODES = [
+    { id: "minimal", labelKey: "settings.feedback_minimal" },
+    { id: "confirm", labelKey: "settings.feedback_confirm" },
+    { id: "plan", labelKey: "settings.feedback_plan" },
+  ];
 
   return (
     <Modal open={open} onClose={onClose} title={t("settings.title")}>
@@ -79,6 +87,30 @@ export function SettingsModal({
             ))}
           </select>
         </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted">{t("settings.feedback_mode")}</label>
+          <select
+            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
+            value={feedbackMode}
+            onChange={(e) => onUpdate({ feedback_mode: e.target.value })}
+          >
+            {FEEDBACK_MODES.map((m) => (
+              <option key={m.id} value={m.id}>{t(m.labelKey)}</option>
+            ))}
+          </select>
+        </div>
+        {feedbackMode === "plan" && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={planMode}
+                onChange={(e) => onUpdate({ plan_mode: e.target.checked })}
+              />{" "}
+              {t("settings.plan_mode")}
+            </label>
+          </div>
+        )}
         {inputMode === "wake_word" && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-muted">

@@ -310,6 +310,8 @@ class Connection:
         self._stt_language: str = settings.stt_language
         self._wake_word_enabled: bool = settings.stt_wake_word_enabled
         self._input_mode: str = settings.input_mode
+        self._feedback_mode: str = "minimal"
+        self._plan_mode: bool = False
 
     async def run(self) -> None:
         while True:
@@ -494,6 +496,11 @@ class Connection:
                 session_id=self.session_id,
             )
 
+        elif kind == "tts_speak":
+            text = event.get("text", "")
+            if text and self.session_id:
+                await self._synthesize_tts(text, self.session_id)
+
         else:
             logger.debug("unhandled event: %s", kind)
 
@@ -590,6 +597,14 @@ class Connection:
         session_id = self.session_id or "sess_unknown"
         truncated = content[:120] + ("…" if len(content) > 120 else "")
         logger.info("[turn] input (%s): %s", session_id[:8], truncated)
+        # Reject if a turn is already in progress.
+        if self._current_task and not self._current_task.done():
+            logger.info("[turn] rejected (%s): a turn is already in progress", session_id[:8])
+            await self.send({
+                "event": "error",
+                "detail": "Hay un turno en progreso. Espera a que termine o cancélalo con el botón de stop.",
+            })
+            return
         self._current_task = asyncio.create_task(
             self._run_turn(content, session_id, selected_artifacts=selected_artifacts)
         )
@@ -602,9 +617,13 @@ class Connection:
     ) -> None:
         """Run one agent turn: stream deltas, execute tools, then synthesize TTS."""
         accumulated = ""
-        turn_start = time.monotonic()
-        first_token = True
+        turn_start_ts = time.monotonic()
         logger.info("[turn] start (%s)", session_id[:8])
+        # Emit turn_start immediately so the frontend can show feedback
+        # before the first token arrives (especially important for reasoning
+        # models that take 10-20s to produce output).
+        await self.send({"event": "turn_start", "session_id": session_id})
+
         # Inject selected-artifact context so the agent knows which
         # artifacts the user currently has in focus. The context is
         # prepended to the user message; the original text is what
@@ -626,39 +645,48 @@ class Connection:
             lines.append("")
             lines.append(f"USER MESSAGE: {content}")
             agent_message = "\n".join(lines)
+
+        # Feedback mode: inject a confirmation instruction before the user
+        # message when confirm or plan mode is active.
+        if self._feedback_mode in ("confirm", "plan"):
+            plan_note = (
+                "IMPORTANT: Before calling any tool, write 1-2 sentences "
+                "confirming what you understood from the user's request. "
+                "If the request is complex or ambiguous, ask a clarifying "
+                "question before proceeding. Only execute after the user "
+                "confirms your understanding is correct.\n\n"
+            )
+            if self._feedback_mode == "plan":
+                plan_note = (
+                    "IMPORTANT: The user wants you to confirm your "
+                    "understanding before acting. First, summarize what you "
+                    "will do in 1-2 sentences and wait for the user to "
+                    "confirm. If anything is unclear, ask a question. "
+                    "Do NOT call any tool until the user confirms.\n\n"
+                )
+            agent_message = plan_note + agent_message
+
         try:
             # Set the emit callback for tool events.
             self.server.agent.set_emit_callback(self.send)
             async for event in self.server.agent.respond(agent_message, session_id, language=self._stt_language):
                 if event.kind == "delta" and event.text:
-                    if first_token:
-                        first_token = False
-                        await self.send(
-                            {"event": "turn_start", "session_id": session_id}
-                        )
                     accumulated += event.text
                     await self.send(
                         {"event": "delta", "session_id": session_id, "text": event.text}
                     )
                 elif event.kind == "reasoning" and event.text:
-                    if first_token:
-                        first_token = False
-                        await self.send(
-                            {"event": "turn_start", "session_id": session_id}
-                        )
                     await self.send(
                         {"event": "reasoning_delta", "session_id": session_id, "text": event.text}
                     )
                 elif event.kind == "tool_call":
-                    if first_token:
-                        first_token = False
-                        await self.send(
-                            {"event": "turn_start", "session_id": session_id}
-                        )
+                    # tool_call events don't carry text; the tool result
+                    # will produce its own delta when the LLM resumes.
+                    pass
                 elif event.kind == "done":
                     break
         except asyncio.CancelledError:
-            elapsed = time.monotonic() - turn_start
+            elapsed = time.monotonic() - turn_start_ts
             logger.info("[turn] cancelled (%s) after %.1fs", session_id[:8], elapsed)
             await self.send({"event": "turn_end", "session_id": session_id, "cancelled": True})
             return
@@ -667,7 +695,7 @@ class Connection:
             await self.send({"event": "error", "detail": str(exc)})
             return
 
-        elapsed = time.monotonic() - turn_start
+        elapsed = time.monotonic() - turn_start_ts
         logger.info("[turn] end (%s) after %.1fs (chars=%d)", session_id[:8], elapsed, len(accumulated))
 
         # Synthesize TTS from the accumulated response.
@@ -744,6 +772,10 @@ class Connection:
             self.server.executor.profile = event["profile"]
         if "input_mode" in event:
             self._input_mode = event["input_mode"]
+        if "feedback_mode" in event:
+            self._feedback_mode = event["feedback_mode"]
+        if "plan_mode" in event:
+            self._plan_mode = bool(event["plan_mode"])
         await self._emit_status()
 
     async def _emit_status(self) -> None:
@@ -761,6 +793,8 @@ class Connection:
                 "stt_language": self._stt_language,
                 "wake_word_enabled": self._wake_word_enabled,
                 "input_mode": self._input_mode,
+                "feedback_mode": self._feedback_mode,
+                "plan_mode": self._plan_mode,
                 "tools": [t.name for t in available_tools()],
                 "available_profiles": [p["id"] for p in self.server.gateway.list_profiles()],
             }

@@ -43,6 +43,8 @@ export interface SettingsEvent {
   stt_language?: string;
   wake_word_enabled?: boolean;
   input_mode?: string;
+  feedback_mode?: string;
+  plan_mode?: boolean;
 }
 
 export interface ConsentResponseEvent {
@@ -77,6 +79,11 @@ export interface AudioStartEvent {
 
 export interface AudioEndEvent {
   event: "audio_end";
+}
+
+export interface TtsSpeakEvent {
+  event: "tts_speak";
+  text: string;
 }
 
 // ── Outgoing (core → web) ────────────────────────────────
@@ -202,6 +209,8 @@ export interface StatusEvent {
   stt_language?: string;
   wake_word_enabled?: boolean;
   input_mode?: string;
+  feedback_mode?: string;
+  plan_mode?: boolean;
 }
 
 export interface ErrorEvent {
@@ -285,6 +294,7 @@ export type IncomingEvent =
   | ConsentResponseEvent
   | AudioStartEvent
   | AudioEndEvent
+  | TtsSpeakEvent
   | ListJobsEvent
   | CancelJobEvent
   | GetJobLogsEvent

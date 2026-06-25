@@ -79,6 +79,7 @@ export interface ChatState {
   consentRequest: ConsentRequestEvent | null;
   toolEvents: ToolEvent[];
   isThinking: boolean;
+  isTurnActive: boolean;
   send: (text: string) => void;
   setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
   stop: () => void;
@@ -136,6 +137,7 @@ export function useChat(): ChatState {
   const [consentRequest, setConsentRequest] = useState<ConsentRequestEvent | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [isThinking, setIsThinking] = useState(false);
+  const [isTurnActive, setIsTurnActive] = useState(false);
   const [stopped, setStopped] = useState(false);
 
   const clientRef = useRef<WSClient | null>(null);
@@ -203,6 +205,7 @@ export function useChat(): ChatState {
 
       client.on("turn_start", () => {
         setIsThinking(true);
+        setIsTurnActive(true);
         setStopped(false);
       });
 
@@ -239,12 +242,16 @@ export function useChat(): ChatState {
             };
             return updated;
           }
-          return prev;
+          return [
+            ...prev,
+            { id: nextId(), role: "assistant", content: "", streaming: true, reasoning: ev.text },
+          ];
         });
       });
 
       client.on("turn_end", () => {
         setIsThinking(false);
+        setIsTurnActive(false);
         setStopped(false);
         setMessages((prev) => {
           const updated = [...prev];
@@ -559,6 +566,7 @@ export function useChat(): ChatState {
     consentRequest,
     toolEvents,
     isThinking,
+    isTurnActive,
     stopped,
     send,
     setSelectedArtifactsProvider,

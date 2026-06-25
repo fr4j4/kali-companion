@@ -66,6 +66,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (ptt.finalText && ptt.finalText !== prevFinalRef.current) {
       prevFinalRef.current = ptt.finalText;
+      if (chat.isTurnActive) return;
       const cleaned = ptt.finalText.replace(_STRIP_WW, "").trim();
       if (cleaned) chat.send(cleaned);
     }

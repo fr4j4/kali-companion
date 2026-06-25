@@ -8,6 +8,7 @@
 
 import { useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { Brain } from "lucide-react";
 import { useStage } from "./StageProvider";
 import type { ChatMessage } from "../hooks/useChat";
 
@@ -151,6 +152,17 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
       >
         {msg.content}
       </div>
+      {!isUser && msg.reasoning && (
+        <div className="mt-1 max-w-[85%] px-3 py-2 rounded-xl border border-dashed border-muted/40 text-xs italic text-muted/70 leading-relaxed bg-muted/5">
+          <div className="flex items-center gap-1.5 mb-1 not-italic">
+            <Brain size={11} className="text-accent" />
+            <span className="text-[10px] uppercase tracking-wide opacity-70">
+              {t("reasoning.thought")}
+            </span>
+          </div>
+          {msg.reasoning}
+        </div>
+      )}
     </div>
   );
 }

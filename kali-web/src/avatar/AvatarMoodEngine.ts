@@ -15,6 +15,7 @@ import type { AvatarState, AvatarEmotion } from "./avatarConfig";
 import { analyzeAssistantText, analyzeUserText } from "./textEmotionAnalyzer";
 import { useStage } from "../stage/StageProvider";
 import type { ChatMessage } from "../hooks/useChat";
+import { getDebugAvatarState, subscribeDebugAvatarState } from "./debugAvatarState";
 
 export interface MoodResult {
   state: AvatarState;
@@ -41,6 +42,11 @@ export function useAvatarMoodEngine(
   const { chat, tts, ptt } = useStage();
   const [emotion, setEmotion] = useState<AvatarEmotion>("normal");
   const emotionTimer = useRef<number | null>(null);
+  const [debugOverride, setDebugOverride] = useState(getDebugAvatarState());
+
+  useEffect(() => {
+    return subscribeDebugAvatarState(setDebugOverride);
+  }, []);
 
   // Last assistant/user text for contextual analysis
   const lastAssistantText = useMemo(() => {
@@ -61,19 +67,26 @@ export function useAvatarMoodEngine(
 
   // Derive base state (priority order, highest first)
   const state = useMemo<AvatarState>(() => {
+    if (debugOverride.overrideState) return debugOverride.overrideState;
     if (chat.consentRequest) return "idle"; // → judge stare
     if (chat.toolEvents.some((e) => e.status === "running")) return "idle"; // → judge stare
     if (tts.playing) return "hablando";
     if (ptt.state === "recording" || ptt.state === "listening") return "escuchando";
     if (chat.messages.some((m: ChatMessage) => m.streaming)) return "pensando";
     return "idle";
-  }, [chat.consentRequest, chat.toolEvents, tts.playing, ptt.state, chat.messages]);
+  }, [debugOverride.overrideState, chat.consentRequest, chat.toolEvents, tts.playing, ptt.state, chat.messages]);
 
   // Derive contextual emotion
   useEffect(() => {
     // Override takes priority (e.g. click → ronroneando)
     if (overrideEmotion && Date.now() < overrideEmotion.until) {
       setEmotion(overrideEmotion.emotion);
+      return;
+    }
+
+    // Debug state override takes priority
+    if (debugOverride.overrideEmotion) {
+      setEmotion(debugOverride.overrideEmotion);
       return;
     }
 
@@ -144,7 +157,7 @@ export function useAvatarMoodEngine(
 
     // No messages → normal (sleep is handled by CSS timeout)
     setEmotion("normal");
-  }, [state, overrideEmotion, chat.consentRequest, chat.toolEvents, chat.error, typing, lastAssistantText, lastUserText]);
+  }, [state, overrideEmotion, debugOverride, chat.consentRequest, chat.toolEvents, chat.error, typing, lastAssistantText, lastUserText]);
 
   return { state, emotion };
 }
