@@ -62,6 +62,7 @@ from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
+from kali_core.mind.ai_config import AIConfig, load as load_ai_config, save as save_ai_config
 from kali_core.gaze import GazeClient
 from kali_core.ear.manager import STTManager, WakeWordDetector
 from kali_core.game.gsi import gsi_state
@@ -83,9 +84,10 @@ logger = logging.getLogger("kali_core.server")
 
 
 def _build_llm_provider() -> LLMProvider:
-    if settings.llm_provider == "nanobot":
+    cfg = load_ai_config()
+    if cfg.provider == "nanobot":
         return NanobotLLMProvider()
-    return DirectLLMProvider()
+    return DirectLLMProvider(api_url=cfg.api_url, api_key=cfg.api_key, model=cfg.model)
 
 
 def _build_tts_provider():
@@ -284,6 +286,32 @@ class Server:
         async def gsi_debug() -> dict[str, Any]:
             import json as _json
             return {"state": gsi_state.state, "in_match": gsi_state.in_match}
+
+        @self.app.get("/llm/scan")
+        async def llm_scan(
+            host: str = "127.0.0.1",
+            from_port: int = 8000,
+            to_port: int = 12300,
+        ) -> dict[str, Any]:
+            from kali_core.mind.llm.scanner import scan_local
+            endpoints = await scan_local(host=host, port_from=from_port, port_to=to_port)
+            return {
+                "endpoints": [
+                    {
+                        "port": e.port,
+                        "url": e.url,
+                        "vendor": e.vendor,
+                        "models": e.models,
+                    }
+                    for e in endpoints
+                ]
+            }
+
+        @self.app.get("/llm/models")
+        async def llm_models(api_url: str, api_key: str = "") -> dict[str, Any]:
+            from kali_core.mind.llm.scanner import list_models
+            models = await list_models(api_url=api_url, api_key=api_key)
+            return {"models": models}
 
     async def run(self) -> None:
         config = uvicorn.Config(
@@ -750,6 +778,7 @@ class Connection:
 
     async def _apply_settings(self, event: dict[str, Any]) -> None:
         """Apply user settings from the frontend."""
+        ai_cfg_changed = False
         if "voice" in event:
             self.server.tts_pipeline.set_voice(voice=event["voice"])
         if "tts_mode" in event:
@@ -758,6 +787,24 @@ class Connection:
             self.server.tts_pipeline.set_auto_tts(bool(event["auto_tts"]))
         if "llm_model" in event:
             self.server.llm_provider._model = event["llm_model"]  # type: ignore[attr-defined]
+            ai_cfg_changed = True
+        if "llm_api_url" in event or "llm_api_key" in event or "llm_provider" in event:
+            api_url = event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url))
+            api_key = event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", settings.llm_api_key))
+            provider = event.get("llm_provider", "direct")
+            model = getattr(self.server.llm_provider, "_model", settings.llm_model)
+            if hasattr(self.server.llm_provider, "reconfigure"):
+                self.server.llm_provider.reconfigure(api_url=api_url, api_key=api_key, model=model)
+            ai_cfg_changed = True
+            logger.info("LLM config updated — will take effect on next turn. provider=%s url=%s model=%s", provider, api_url, model)
+        if ai_cfg_changed:
+            cfg = AIConfig(
+                provider=event.get("llm_provider", "direct"),
+                api_url=event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url)),
+                api_key=event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", "")),
+                model=getattr(self.server.llm_provider, "_model", settings.llm_model),
+            )
+            save_ai_config(cfg)
         if "stt_language" in event:
             self._stt_language = event["stt_language"]
             if self._stt_manager is not None:
@@ -783,6 +830,8 @@ class Connection:
             {
                 "event": "status",
                 "llm_provider": self.server.llm_provider.provider_name,
+                "llm_api_url": getattr(self.server.llm_provider, "_api_url", settings.llm_api_url),
+                "llm_api_key_set": bool(getattr(self.server.llm_provider, "_api_key", "")),
                 "llm_model": getattr(self.server.llm_provider, "_model", settings.llm_model),
                 "tts_provider": self.server.tts_provider.provider_name,
                 "voice": self.server.tts_pipeline.voice,

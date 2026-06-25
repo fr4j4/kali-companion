@@ -38,6 +38,9 @@ export interface SettingsEvent {
   tts_mode?: string;
   auto_tts?: boolean;
   llm_model?: string;
+  llm_provider?: string;
+  llm_api_url?: string;
+  llm_api_key?: string;
   profile?: string;
   language?: string;
   stt_language?: string;
@@ -198,6 +201,8 @@ export interface SessionListEvent {
 export interface StatusEvent {
   event: "status";
   llm_provider: string;
+  llm_api_url: string;
+  llm_api_key_set: boolean;
   llm_model: string;
   tts_provider: string;
   voice: string;

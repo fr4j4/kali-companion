@@ -30,6 +30,14 @@ export default {
         "user-bubble": "var(--user-bubble)",
         "assistant-bubble": "var(--assistant-bubble)",
         border: "var(--border)",
+        "ai-bg": "var(--ai-bg)",
+        "ai-panel": "var(--ai-panel)",
+        "ai-rail": "var(--ai-rail)",
+        "ai-signal": "var(--ai-signal)",
+        "ai-live": "var(--ai-live)",
+        "ai-fail": "var(--ai-fail)",
+        "ai-readout": "var(--ai-readout)",
+        "ai-label": "var(--ai-label)",
       },
       screens: {
         xs: "480px",
@@ -56,7 +64,8 @@ export default {
       },
       fontFamily: {
         prose: ['"Iowan Old Style"', "Georgia", "Cambria", "serif"],
-        ui: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        ui: ['"IBM Plex Sans"', "system-ui", "-apple-system", "sans-serif"],
+        mono: ['"JetBrains Mono"', '"Fira Code"', "monospace"],
       },
       transitionTimingFunction: {
         stage: "cubic-bezier(0.22, 1, 0.36, 1)",

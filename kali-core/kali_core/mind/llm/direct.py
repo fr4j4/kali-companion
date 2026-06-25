@@ -12,6 +12,7 @@ streaming response and emits `StreamEvent(kind="tool_call")`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -55,13 +56,33 @@ class DirectLLMProvider:
 
     provider_name = "direct"
 
-    def __init__(self) -> None:
-        self._client = AsyncOpenAI(
-            base_url=settings.llm_api_url,
-            api_key=settings.llm_api_key or "unused",
-        )
-        self._model = settings.llm_model
+    def __init__(self, *, api_url: str | None = None, api_key: str | None = None, model: str | None = None) -> None:
+        self._api_url = api_url or settings.llm_api_url
+        self._api_key = api_key or settings.llm_api_key
+        self._model = model or settings.llm_model
         self._system_prompt = settings.llm_system_prompt
+        self._client = AsyncOpenAI(
+            base_url=self._api_url,
+            api_key=self._api_key or "unused",
+        )
+
+    def reconfigure(self, *, api_url: str, api_key: str, model: str) -> None:
+        """Hot-swap the provider configuration without restarting."""
+        old_client = self._client
+        self._api_url = api_url
+        self._api_key = api_key
+        self._model = model
+        self._client = AsyncOpenAI(
+            base_url=self._api_url,
+            api_key=self._api_key or "unused",
+        )
+        logger.info("LLM provider reconfigured — url=%s model=%s", api_url, model)
+        # Give in-flight requests a moment to drain before closing old client.
+        try:
+            if hasattr(old_client, "close"):
+                asyncio.create_task(old_client.close())
+        except Exception:
+            pass
 
     def _build_tools_param(self, tools: list[ToolDef] | None) -> list[dict] | None:
         """Convert ToolDef list to OpenAI tools format."""
@@ -109,7 +130,8 @@ class DirectLLMProvider:
                 kwargs.pop("functions", None)
                 kwargs.pop("function_call", None)
                 logger.warning(
-                    "All tool formats rejected by '%s', falling back to plain chat",
+                    "tools param rejected by '%s', retrying without tools "
+                    "(text-based tool instructions remain in system prompt)",
                     self._model,
                 )
                 return await self._client.chat.completions.create(**kwargs)
@@ -144,12 +166,10 @@ class DirectLLMProvider:
         messages: list[dict],
         tools: list[ToolDef] | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        full = [{"role": "system", "content": self._system_prompt}]
+        system_content = self._system_prompt
         if tools:
-            full.append({
-                "role": "system",
-                "content": self._tool_descriptions_system(tools),
-            })
+            system_content += "\n\n" + self._tool_descriptions_system(tools)
+        full = [{"role": "system", "content": system_content}]
         full += messages
         tools_param = self._build_tools_param(tools)
         try:
@@ -211,10 +231,48 @@ class DirectLLMProvider:
             for idx in sorted(tool_calls_acc):
                 tc = tool_calls_acc[idx]
                 if tc["name"]:
-                    try:
-                        args = json.loads(tc["args"]) if tc["args"] else {}
-                    except json.JSONDecodeError:
-                        args = {"raw": tc["args"]}
+                    args = {}
+                    if tc["args"]:
+                        try:
+                            args = json.loads(tc["args"])
+                        except json.JSONDecodeError:
+                            # The streaming accumulation may have
+                            # truncated the JSON. Try to salvage it
+                            # by finding the last valid JSON block.
+                            raw = tc["args"].strip()
+                            # If it starts with { or [, try balanced
+                            # extraction as a last resort.
+                            if raw and raw[0] in "{[":
+                                try:
+                                    # Find the longest valid prefix.
+                                    for end in range(len(raw), 0, -1):
+                                        try:
+                                            candidate = raw[:end]
+                                            # Pad with closing braces if
+                                            # unbalanced (truncated).
+                                            opens = candidate.count("{") - candidate.count("}")
+                                            brackets = candidate.count("[") - candidate.count("]")
+                                            if opens > 0:
+                                                candidate += "}" * opens
+                                            if brackets > 0:
+                                                candidate += "]" * brackets
+                                            parsed = json.loads(candidate)
+                                            if isinstance(parsed, dict):
+                                                args = parsed
+                                                logger.warning(
+                                                    "Salvaged truncated tool args for '%s' "
+                                                    "(added %d closing braces)",
+                                                    tc["name"], opens + brackets,
+                                                )
+                                                break
+                                        except json.JSONDecodeError:
+                                            continue
+                                    if not args:
+                                        args = {"raw": raw}
+                                except Exception:
+                                    args = {"raw": raw}
+                            else:
+                                args = {"raw": raw}
                     yield StreamEvent(
                         kind="tool_call",
                         tool_name=tc["name"],
@@ -233,12 +291,10 @@ class DirectLLMProvider:
         messages: list[dict],
         tools: list[ToolDef] | None = None,
     ) -> dict:
-        full = [{"role": "system", "content": self._system_prompt}]
+        system_content = self._system_prompt
         if tools:
-            full.append({
-                "role": "system",
-                "content": self._tool_descriptions_system(tools),
-            })
+            system_content += "\n\n" + self._tool_descriptions_system(tools)
+        full = [{"role": "system", "content": system_content}]
         full += messages
         tools_param = self._build_tools_param(tools)
         try:

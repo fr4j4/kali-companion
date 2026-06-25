@@ -37,6 +37,15 @@ export default defineConfig({
       "/file": {
         target: "http://127.0.0.1:8900",
       },
+      "/voices": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/profiles": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/llm": {
+        target: "http://127.0.0.1:8900",
+      },
     },
   },
   preview: {
@@ -55,6 +64,15 @@ export default defineConfig({
         target: "http://127.0.0.1:8900",
       },
       "/file": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/voices": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/profiles": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/llm": {
         target: "http://127.0.0.1:8900",
       },
     },

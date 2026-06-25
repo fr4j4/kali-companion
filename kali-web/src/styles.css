@@ -62,7 +62,16 @@
     --cloud-text: #2a2d3a;
     --cloud-text-muted: #5a5f6e;
     --cloud-border: rgba(124, 92, 255, 0.28);
-    font-family: Inter, system-ui, -apple-system, sans-serif;
+    /* AI Config Modal — Instrument Panel theme */
+    --ai-bg: #080B12;
+    --ai-panel: #0F1521;
+    --ai-rail: #1C2640;
+    --ai-signal: #00C8E8;
+    --ai-live: #34D399;
+    --ai-fail: #F87171;
+    --ai-readout: #E2E8F0;
+    --ai-label: #64748B;
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
     font-size: 14px;
   }
 
@@ -1519,4 +1528,23 @@ html.kali-perf-low .aw {
   .spawn-anim { animation: none; }
   .entity-breathe { animation: none; }
   @keyframes dashFlow { to { stroke-dashoffset: 0; } }
+}
+
+/* ── AI Config Modal — Signal path animation ────────────────────────────── */
+@keyframes signal-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 12px 3px var(--ai-signal); }
+}
+
+.signal-node-active {
+  animation: signal-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes modal-slide-in {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ai-modal-enter {
+  animation: modal-slide-in 200ms ease-out forwards;
 }

@@ -9,13 +9,14 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Settings, Plus, Zap, History, Radio } from "lucide-react";
+import { Settings, Plus, Zap, History, Radio, Cpu } from "lucide-react";
 import { useStage } from "./StageProvider";
 import { IconButton } from "../components/ui/IconButton";
 import { Tooltip } from "../components/ui/Tooltip";
 
 interface Props {
   onOpenSettings: () => void;
+  onOpenAIConfig: () => void;
   onOpenJobs: () => void;
   onOpenHistory: () => void;
   onNewSession: () => void;
@@ -25,6 +26,7 @@ interface Props {
 
 export function HUD({
   onOpenSettings,
+  onOpenAIConfig,
   onOpenJobs,
   onOpenHistory,
   onNewSession,
@@ -59,6 +61,11 @@ export function HUD({
         <Tooltip label={t("stage.settings")}>
           <IconButton size="sm" onClick={onOpenSettings} aria-label={t("stage.settings")}>
             <Settings size={16} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip label={t("stage.ai_config")}>
+          <IconButton size="sm" onClick={onOpenAIConfig} aria-label={t("stage.ai_config")}>
+            <Cpu size={16} />
           </IconButton>
         </Tooltip>
         <Tooltip label={t("stage.new_chat")}>

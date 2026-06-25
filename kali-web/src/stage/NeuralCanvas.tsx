@@ -43,6 +43,7 @@ import { ClosedArtifactsBar } from "./ClosedArtifactsBar";
 import { SessionDrawer } from "./SessionDrawer";
 import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
+import { AIConfigModal } from "../components/AIConfigModal";
 import { ConsentModal } from "../components/ConsentModal";
 import { JobsPanel } from "../components/JobsPanel";
 import { DebugPad } from "./DebugPad";
@@ -64,6 +65,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   const api = useWorkspace();
   const [typing, setTyping] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiConfigOpen, setAIConfigOpen] = useState(false);
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -256,6 +258,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       {/* HUD — top bar */}
       <HUD
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAIConfig={() => setAIConfigOpen(true)}
         onOpenJobs={() => { chat.listJobs(); setJobsOpen(true); }}
         onOpenHistory={() => setHistoryOpen(true)}
         onNewSession={newSession}
@@ -371,6 +374,13 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onCanvasAutoExpandChange={onCanvasAutoExpandChange}
         uiScale={uiScale}
         onUIScaleChange={onUIScaleChange}
+      />
+
+      <AIConfigModal
+        open={aiConfigOpen}
+        onClose={() => setAIConfigOpen(false)}
+        systemStatus={chat.systemStatus}
+        onUpdate={chat.updateSettings}
       />
 
       <ConsentModal request={chat.consentRequest} onRespond={chat.respondConsent} />
