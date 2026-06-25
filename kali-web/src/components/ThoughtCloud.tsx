@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThoughtCloudSVG } from "./ThoughtCloudSVG";
 import { useThoughtCloudDrag } from "./useThoughtCloudDrag";
@@ -9,6 +9,8 @@ import {
   type ThoughtCloudConfig,
   type DistributionMode,
 } from "./ThoughtCloudConfig";
+
+type TailPhase = "idle" | "appearing" | "active";
 
 interface ThoughtCloudProps {
   reasoning: string;
@@ -34,10 +36,7 @@ export function ThoughtCloud({
   const [calculatedFontSize, setCalculatedFontSize] = useState(cfg.maxFontSize);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Modo activo según estado.
   const mode: DistributionMode = expanded ? cfg.expandedMode : cfg.collapsedMode;
-
-  // Dimensiones del wrapper según estado.
   const w = expanded ? cfg.expandedWidth : cfg.collapsedWidth;
   const h = expanded ? cfg.expandedHeight : cfg.collapsedHeight;
 
@@ -48,7 +47,6 @@ export function ThoughtCloud({
     maxOrbitGap: cfg.maxOrbitGap,
   });
 
-  // Texto a mostrar.
   const lines = reasoning.split("\n\n").filter(Boolean);
   const displayText =
     reasoning.length > cfg.collapsedCharLimit
@@ -56,25 +54,22 @@ export function ThoughtCloud({
       : reasoning;
   const textToShow = expanded ? reasoning : displayText;
 
-  // ── Auto-escala de fuente: medición en DOM oculto replicando shape-outside ──
-  // El foreignObject cubre todo el viewBox (200×150) y se estira con preserveAspectRatio="none".
-  // El contenido HTML se renderiza en unidades del viewBox, escaladas al wrapper.
-  // scaleX = wrapperWidth / viewBoxWidth, scaleY = wrapperHeight / viewBoxHeight.
+  // Fase de la cola: appearing cuando streaming sin texto aún, active cuando hay texto.
+  const tailPhase: TailPhase =
+    isStreaming && (!reasoning || reasoning.length < 5) ? "appearing" : isStreaming ? "active" : "idle";
+
+  // ── Auto-escala de fuente ──
   useEffect(() => {
-    const vbW = cfg.viewBoxWidth;  // 200
-    const vbH = cfg.viewBoxHeight; // 150
+    const vbW = cfg.viewBoxWidth;
+    const vbH = cfg.viewBoxHeight;
     const scaleX = w / vbW;
     const scaleY = h / vbH;
-    // Zona segura efectiva en píxeles del viewBox (área interior de la nube).
-    // Usamos el ancho/alto útil del foreignObject original como referencia.
     const safeZone = mode === "comic" ? cfg.comicSafeZone : cfg.scrollSafeZone;
-    const effectiveWidth = safeZone.width;   // ancho útil en unidades viewBox
-    const effectiveHeight = safeZone.height; // alto útil en unidades viewBox
+    const effectiveWidth = safeZone.width;
+    const effectiveHeight = safeZone.height;
     const measureText = expanded ? reasoning : displayText;
     if (!measureText) return;
 
-    // Crear un entorno de medición que replique las dimensiones del foreignObject
-    // en el espacio del viewBox (no estirado). El texto se mide en estas unidades.
     const testContainer = document.createElement("div");
     testContainer.style.position = "absolute";
     testContainer.style.visibility = "hidden";
@@ -96,11 +91,6 @@ export function ThoughtCloud({
     const testText = testContainer.querySelector("#tc-test-text") as HTMLElement;
     testText.textContent = measureText;
 
-    // El font-size se mide en unidades del viewBox. El wrapper lo estira automáticamente.
-    // Empezar con un tamaño que ya considera el factor de escala.
-    // Como el texto se renderiza en unidades viewBox y se estira por el wrapper,
-    // el font-size efectivo en pantalla = fontSize × min(scaleX, scaleY).
-    // Para que el texto se vea a maxFontSize px en pantalla, el font-size en viewBox = maxFontSize / scale.
     const scale = Math.min(scaleX, scaleY);
     let currentSize = cfg.maxFontSize / scale;
     testText.style.fontSize = `${currentSize}px`;
@@ -111,7 +101,6 @@ export function ThoughtCloud({
     }
 
     document.body.removeChild(testContainer);
-    // Guardar el font-size en unidades del viewBox (se estirará automáticamente).
     setCalculatedFontSize(currentSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reasoning, expanded, mode, w, h, cfg.maxFontSize, cfg.minFontSize, cfg.fontScaleStep, cfg.lineHeight, cfg.shapeMargin, cfg.offsetTop, cfg.offsetBottom, cfg.offsetSides, cfg.shapeFloatWidth, cfg.shapeFloatMinHeight, cfg.leftShapePolygon, cfg.rightShapePolygon, cfg.textAlign, cfg.viewBoxWidth, cfg.viewBoxHeight, cfg.comicSafeZone, cfg.scrollSafeZone]);
@@ -123,7 +112,7 @@ export function ThoughtCloud({
     }
   }, [reasoning, mode]);
 
-  // ── Notifica al avatar la posición del CENTRO de la nube (cada render) ──
+  // ── Notifica al avatar la posición del CENTRO de la nube ──
   useLayoutEffect(() => {
     const cx = placement.x + w / 2;
     const cy = placement.y + h / 2;
@@ -132,16 +121,13 @@ export function ThoughtCloud({
     );
   });
 
-  if (!reasoning) return null;
+  if (!reasoning && !isStreaming) return null;
 
   const handleClick = () => {
     if (wasDrag) return;
     setExpanded((v) => !v);
   };
 
-  // Estilos dinámicos del contenedor scroll.
-  // El foreignObject cubre todo el viewBox (0 0 200 150) y el clipPath recorta.
-  // El contenido usa 100% para llenar el foreignObject estirado por preserveAspectRatio="none".
   const isScrollMode = mode === "scroll";
 
   const scrollStyle: React.CSSProperties = {
@@ -219,92 +205,66 @@ export function ThoughtCloud({
           isStreaming === true && cfg.breathingEnabled ? "thought-cloud-breathing" : ""
         }`}
       >
-        <ThoughtCloudSVG pointingAngle={placement.pointingAngle} isStreaming={isStreaming} config={cfg}>
-        <div ref={scrollRef} className="thought-cloud-scroll" style={scrollStyle}>
-          <div className="thought-cloud-inner" style={innerStyle}>
-            <div className="thought-cloud-shape-left" style={shapeLeftStyle} />
-            <div className="thought-cloud-shape-right" style={shapeRightStyle} />
+        <ThoughtCloudSVG pointingAngle={placement.pointingAngle} isStreaming={isStreaming} config={cfg} tailPhase={tailPhase} onDismiss={onDismiss}>
+          <div ref={scrollRef} className="thought-cloud-scroll" style={scrollStyle}>
+            <div className="thought-cloud-inner" style={innerStyle}>
+              <div className="thought-cloud-shape-left" style={shapeLeftStyle} />
+              <div className="thought-cloud-shape-right" style={shapeRightStyle} />
 
-            <div className="thought-cloud-text-wrap" style={textWrapStyle}>
-              {/* Header */}
-              <div className="thought-cloud-header">
-                <Brain size={12} className="thought-cloud-brain" />
-                <span className="thought-cloud-label">
-                  {isStreaming ? t("reasoning.thinking") : t("reasoning.thought")}
-                </span>
-                {!isStreaming && !expanded && (
-                  <ChevronUp
-                    size={12}
-                    className={`thought-cloud-expand-icon ${expanded ? "opacity-100" : "opacity-50"}`}
-                  />
-                )}
-                {onDismiss && (
-                  <button
-                    className="thought-cloud-dismiss"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDismiss();
-                    }}
-                    aria-label={t("stage.collapse") as string}
-                  >
-                    <X size={11} />
-                  </button>
-                )}
+              <div className="thought-cloud-text-wrap" style={textWrapStyle}>
+                {/* Sólo texto del razonamiento — sin header */}
+                <div className="thought-cloud-text-body">
+                  {isStreaming ? (
+                    <span>
+                      {textToShow}
+                      <span
+                        className="thought-cloud-cursor"
+                        style={{
+                          display: "inline-block",
+                          width: `${cfg.cursorWidth}px`,
+                          height: `${cfg.cursorHeight}em`,
+                          background: cursorColor,
+                          marginLeft: "2px",
+                          verticalAlign: "text-bottom",
+                        }}
+                      />
+                    </span>
+                  ) : (
+                    <span>
+                      {expanded
+                        ? lines.map((l, i) => (
+                            <p key={i} className="thought-cloud-line">
+                              {l}
+                            </p>
+                          ))
+                        : textToShow}
+                    </span>
+                  )}
+                </div>
               </div>
-
-              {/* Texto */}
-              <div className="thought-cloud-text-body">
-                {isStreaming ? (
-                  <span>
-                    {textToShow}
-                    <span
-                      className="thought-cloud-cursor"
-                      style={{
-                        display: "inline-block",
-                        width: `${cfg.cursorWidth}px`,
-                        height: `${cfg.cursorHeight}em`,
-                        background: cursorColor,
-                        marginLeft: "2px",
-                        verticalAlign: "text-bottom",
-                      }}
-                    />
-                  </span>
-                ) : (
-                  <span>
-                    {expanded
-                      ? lines.map((l, i) => (
-                          <p key={i} className="thought-cloud-line">
-                            {l}
-                          </p>
-                        ))
-                      : textToShow}
-                  </span>
-                )}
-              </div>
-
-              {/* Botón cerrar (sólo expandido) */}
-              <AnimatePresence>
-                {expanded && (
-                  <motion.button
-                    className="thought-cloud-close"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpanded(false);
-                    }}
-                    aria-label={t("stage.collapse") as string}
-                  >
-                    <ChevronDown size={16} />
-                  </motion.button>
-                )}
-              </AnimatePresence>
             </div>
           </div>
-        </div>
-      </ThoughtCloudSVG>
+        </ThoughtCloudSVG>
       </div>
+
+      {/* Botón colapsar (sólo expandido) */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.button
+            className="thought-cloud-collapse-btn"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(false);
+            }}
+            aria-label={t("stage.collapse") as string}
+          >
+            <ChevronDown size={14} />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

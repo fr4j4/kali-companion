@@ -1,31 +1,25 @@
 import { motion } from "framer-motion";
 import type { ThoughtCloudConfig } from "./ThoughtCloudConfig";
 
+type TailPhase = "idle" | "appearing" | "active";
+
 interface ThoughtCloudSVGProps {
   pointingAngle: number;
   isStreaming?: boolean;
   config: ThoughtCloudConfig;
+  tailPhase?: TailPhase;
+  onDismiss?: () => void;
   children: React.ReactNode;
 }
 
-/**
- * Nube de pensamiento con enmascaramiento vectorial completo (v5.0).
- *
- * - Un único path SVG define la silueta orgánica de la nube.
- * - Ese path se usa como <clipPath> escalado al `clipScale` (94%) para crear
- *   un margen de seguridad entre el borde visible y el texto.
- * - Un <foreignObject> se posiciona en la zona segura según el modo activo
- *   (comic = más grande, scroll = confinado al centro) y se recorta con el clipPath.
- * - La colita (círculos) se posiciona dinámicamente en el borde de la nube
- *   en la dirección del avatar, para que siempre salga hacia él sin ser tapada.
- */
 export function ThoughtCloudSVG({
   pointingAngle,
   isStreaming = false,
   config,
+  tailPhase = "idle",
+  onDismiss,
   children,
 }: ThoughtCloudSVGProps) {
-  // Transform del clipPath: escala desde el centro de la nube.
   const clipTransform = `translate(${config.clipCenterX}, ${config.clipCenterY}) scale(${config.clipScale}) translate(${-config.clipCenterX}, ${-config.clipCenterY})`;
 
   const fillVal = config.cloudFill ?? "var(--cloud-fill)";
@@ -33,18 +27,17 @@ export function ThoughtCloudSVG({
   const shadowVal = config.shadowColor ?? "rgba(0,0,0,0.3)";
 
   // ── Cola dinámica: posicionar círculos en el borde hacia el avatar ──
-  // Dirección unitaria hacia el avatar (pointingAngle apunta de la nube al avatar).
   const dirX = Math.cos(pointingAngle);
   const dirY = Math.sin(pointingAngle);
-  // Borde de la nube en la dirección del avatar (elipse aproximada).
   const bordeX = config.clipCenterX + dirX * config.tailEdgeRadiusX;
   const bordeY = config.clipCenterY + dirY * config.tailEdgeRadiusY;
-  // Círculos a lo largo de la dirección, partiendo desde el borde.
   const tailPositions = config.tailOffsets.map((offset, i) => ({
     x: bordeX + dirX * offset,
     y: bordeY + dirY * offset,
     r: config.tailRadii[i] ?? 3,
   }));
+
+  const isAppearing = tailPhase === "appearing";
 
   return (
     <svg
@@ -77,10 +70,11 @@ export function ThoughtCloudSVG({
         style={{ transformOrigin: "100px 75px" }}
       />
 
-      {/* Colita — círculos posicionados dinámicamente en el borde hacia el avatar */}
+      {/* Colita — círculos posicionados dinámicamente en el borde hacia el avatar.
+          Cuando tailPhase="appearing", aparecen uno a uno con stagger. */}
       <g className="thought-cloud-tail">
         {tailPositions.map((c, i) => (
-          <circle
+          <motion.circle
             key={i}
             cx={c.x}
             cy={c.y}
@@ -91,11 +85,22 @@ export function ThoughtCloudSVG({
             strokeLinecap={config.strokeLinecap}
             strokeLinejoin={config.strokeLinejoin}
             strokeDasharray={config.strokeDasharray === "none" ? undefined : config.strokeDasharray}
+            initial={isAppearing ? { scale: 0, opacity: 0 } : false}
+            animate={
+              isAppearing
+                ? { scale: 1, opacity: 1 }
+                : { scale: 1, opacity: 1 }
+            }
+            transition={
+              isAppearing
+                ? { delay: i * 0.18, duration: 0.35, ease: "easeOut" }
+                : { duration: 0 }
+            }
           />
         ))}
       </g>
 
-      {/* Contenido textual recortado por la silueta de la nube (inset 94%) */}
+      {/* Contenido textual recortado por la silueta de la nube (inset 90%) */}
       <foreignObject
         x="0"
         y="0"
@@ -106,6 +111,45 @@ export function ThoughtCloudSVG({
       >
         {children}
       </foreignObject>
+
+      {/* Botón dismiss (X) — dentro del SVG pero fuera del clipPath, en el borde superior derecho de la nube */}
+      {onDismiss && (
+        <g
+          className="thought-cloud-dismiss-svg"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          <rect
+            x="148"
+            y="18"
+            width="22"
+            height="22"
+            rx="4"
+            fill="rgba(0,0,0,0.12)"
+          />
+          <line
+            x1="154"
+            y1="24"
+            x2="164"
+            y2="34"
+            stroke="var(--cloud-text-muted)"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <line
+            x1="164"
+            y1="24"
+            x2="154"
+            y2="34"
+            stroke="var(--cloud-text-muted)"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </g>
+      )}
     </svg>
   );
 }

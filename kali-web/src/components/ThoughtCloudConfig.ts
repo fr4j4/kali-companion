@@ -113,7 +113,7 @@ export const defaultThoughtCloudConfig: ThoughtCloudConfig = {
   collapsedMode: "comic",
   expandedMode: "scroll",
 
-  maxFontSize: 10,
+  maxFontSize: 12,
   minFontSize: 6.5,
   fontScaleStep: 0.5,
   lineHeight: 1.3,
@@ -126,19 +126,19 @@ export const defaultThoughtCloudConfig: ThoughtCloudConfig = {
   shapeFloatWidth: 28,
   shapeFloatMinHeight: 40,
 
-  offsetTop: 10,
-  offsetBottom: 12,
-  offsetSides: 2,
+  offsetTop: 18,
+  offsetBottom: 20,
+  offsetSides: 8,
 
-  clipScale: 0.94,
+  clipScale: 0.90,
   clipCenterX: 97.5,
   clipCenterY: 65,
 
   comicForeign: { x: 25, y: 12, width: 145, height: 106 },
   scrollForeign: { x: 28, y: 24, width: 144, height: 72 },
 
-  comicSafeZone: { width: 145, height: 100 },
-  scrollSafeZone: { width: 144, height: 72 },
+  comicSafeZone: { width: 170, height: 120 },
+  scrollSafeZone: { width: 170, height: 88 },
 
   maskGradientStart: 15,
   maskGradientEnd: 85,
@@ -165,10 +165,10 @@ export const defaultThoughtCloudConfig: ThoughtCloudConfig = {
   cursorWidth: 1.5,
   cursorHeight: 3,
 
-  collapsedWidth: 280,
-  collapsedHeight: 220,
-  expandedWidth: 460,
-  expandedHeight: 360,
+  collapsedWidth: 340,
+  collapsedHeight: 260,
+  expandedWidth: 520,
+  expandedHeight: 400,
 
   avatarRingRadius: 90,
   cloudCenterToTail: 110,

@@ -8,7 +8,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Cog, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStage } from "./StageProvider";
 import { ThoughtCloud } from "../components/ThoughtCloud";
 
@@ -20,24 +20,27 @@ export function PresenceLayer() {
   const lastTool = runningTools[runningTools.length - 1];
 
   // Latest message with reasoning (streaming OR finished).
-  // This keeps the cloud visible after streaming ends, dimmed instead of hidden.
   const lastMsgWithReasoning = [...chat.messages].reverse().find((m) => m.reasoning);
   const reasoning = lastMsgWithReasoning?.reasoning ?? null;
   const isCurrentlyStreaming = lastMsgWithReasoning?.streaming === true;
 
-  // Dismissal: user can close the cloud; resets when a new stream starts.
+  // Dismissal: user can close the cloud; resets when a NEW message starts streaming.
   const [dismissed, setDismissed] = useState(false);
+  const lastMsgIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (isCurrentlyStreaming) setDismissed(false);
-  }, [isCurrentlyStreaming]);
+    if (lastMsgWithReasoning && lastMsgWithReasoning.id !== lastMsgIdRef.current) {
+      lastMsgIdRef.current = lastMsgWithReasoning.id;
+      setDismissed(false);
+    }
+  }, [lastMsgWithReasoning]);
 
-  // Thinking indicator: active between turn_start and first token/tool.
-  const showThinking = chat.isThinking && !lastTool && !reasoning;
+  // Thinking indicator: active during initial gap OR while streaming reasoning.
+  const showThinking = (chat.isThinking && !lastTool && !reasoning) || isCurrentlyStreaming;
   const showCloud = reasoning && !dismissed;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
-      {/* Thinking pill — visible during initial gap */}
+      {/* Thinking pill — visible during initial gap AND while streaming */}
       <AnimatePresence>
         {showThinking && (
           <motion.div
@@ -76,7 +79,8 @@ export function PresenceLayer() {
       </AnimatePresence>
 
       {/* Reasoning — ThoughtCloud orbitando el avatar (draggable, anclada al avatar center).
-          Permanece visible (dimmed) tras el streaming hasta que el usuario la cierre. */}
+          Permanece visible (dimmed) tras el streaming hasta que el usuario la cierre.
+          Se reabre automáticamente cuando un nuevo mensaje con razonamiento aparece. */}
       <AnimatePresence>
         {showCloud && (
           <ThoughtCloud

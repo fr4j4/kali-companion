@@ -453,64 +453,6 @@
   position: relative;
 }
 
-/* Header */
-.thought-cloud-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.thought-cloud-brain {
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.thought-cloud-label {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--cloud-text-muted);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.thought-cloud-expand-icon {
-  margin-left: auto;
-  color: var(--cloud-text-muted);
-  flex-shrink: 0;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.thought-cloud:hover .thought-cloud-expand-icon {
-  transform: translateY(-2px);
-}
-
-/* Botón dismiss (X) — cierra la nube cuando no hay streaming */
-.thought-cloud-dismiss {
-  margin-left: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--cloud-text-muted);
-  cursor: pointer;
-  pointer-events: auto;
-  flex-shrink: 0;
-  opacity: 0.5;
-  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.thought-cloud-dismiss:hover {
-  opacity: 1;
-  background: var(--cloud-text-muted);
-  color: var(--cloud-fill);
-}
-
 /* Cuerpo del texto */
 .thought-cloud-text-body {
   display: inline;
@@ -530,30 +472,6 @@
   margin-left: 2px;
   vertical-align: text-bottom;
   animation: blink 1.1s steps(2, start) infinite;
-}
-
-/* Botón cerrar (sólo expandido) */
-.thought-cloud-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--cloud-text-muted);
-  cursor: pointer;
-  pointer-events: auto;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.thought-cloud-close:hover {
-  background: var(--cloud-text-muted);
-  color: var(--cloud-fill);
 }
 
 .thought-cloud-dragging {
@@ -869,27 +787,53 @@
   animation: blink 1.1s steps(2, start) infinite;
 }
 
-.thought-cloud-close {
+/* Botón dismiss (X) dentro del SVG — en el borde superior derecho de la nube */
+.thought-cloud-dismiss-svg {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.thought-cloud-dismiss-svg rect {
+  transition: fill 0.2s ease;
+}
+
+.thought-cloud-dismiss-svg:hover rect {
+  fill: rgba(0, 0, 0, 0.25);
+}
+
+.thought-cloud-dismiss-svg line {
+  transition: stroke 0.2s ease;
+}
+
+.thought-cloud-dismiss-svg:hover line {
+  stroke: var(--cloud-text);
+}
+
+/* Botón colapsar (sólo expandido) — fuera del SVG, en la esquina inferior derecha de la nube */
+.thought-cloud-collapse-btn {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  bottom: 0;
+  right: 0;
+  z-index: 10;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
+  border-radius: var(--radius-sm) 0 var(--radius-sm) 0;
+  background: rgba(0, 0, 0, 0.12);
   color: var(--cloud-text-muted);
   cursor: pointer;
   pointer-events: auto;
-  transition: background 0.2s ease, color 0.2s ease;
+  opacity: 0.5;
+  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.thought-cloud-close:hover {
-  background: var(--cloud-text-muted);
-  color: var(--cloud-fill);
+.thought-cloud-collapse-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--cloud-text);
 }
 
 /* ── Stage presence / avatar ────────────────────────── */
