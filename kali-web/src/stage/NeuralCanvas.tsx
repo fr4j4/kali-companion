@@ -27,6 +27,7 @@ import { useAvatarMoodEngine } from "../avatar/AvatarMoodEngine";
 import { AvatarSVG } from "../avatar/AvatarSVG";
 import { loadAvatarConfig, saveAvatarConfig, type AvatarConfig, type AvatarEmotion } from "../avatar/avatarConfig";
 import { useWorkspace } from "../workspace/useWorkspace";
+import type { SelectedArtifactRef } from "../lib/protocol";
 import { HUD } from "./HUD";
 import { PresenceLayer } from "./PresenceLayer";
 import { NeuralDock } from "./NeuralDock";
@@ -56,7 +57,7 @@ interface Props {
 }
 
 export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasAutoExpandChange, uiScale, onUIScaleChange }: Props) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { chat, tts, ptt, voices } = useStage();
   const { isMobile } = useBreakpoint();
   const api = useWorkspace();
@@ -157,6 +158,29 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     }
   }, [chat.artifacts, api]);
 
+  // Register a provider so useChat.send can include selected artifact
+  // metadata (id, type, title) with each input event. The workspace owns
+  // the selectedIds (numeric window ids); we map them to their backend
+  // artifactId + type + title here.
+  useEffect(() => {
+    chat.setSelectedArtifactsProvider(() => {
+      const refs: SelectedArtifactRef[] = [];
+      for (const winId of api.selectedIds) {
+        const win = api.windows.find((w) => w.id === winId);
+        if (win?.artifactId) {
+          const ev = win.content as { type?: string; title?: string } | undefined;
+          refs.push({
+            id: win.artifactId,
+            type: ev?.type ?? win.type,
+            title: win.title,
+          });
+        }
+      }
+      return refs;
+    });
+    return () => chat.setSelectedArtifactsProvider(null);
+  }, [chat, api.selectedIds, api.windows]);
+
   // Avatar click → pet → ronroneando for 3s
   const onAvatarClick = useCallback(() => {
     setOverrideEmotion({ emotion: "ronroneando", until: Date.now() + 3000 });
@@ -252,6 +276,20 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onToggleCustomizer={() => setCustomizerOpen(true)}
         onToggleConversation={() => setConversationOpen(true)}
       />
+
+      {/* Stopped toast */}
+      <AnimatePresence>
+        {chat.stopped && (
+          <motion.div
+            className="fixed top-16 left-1/2 -translate-x-1/2 bg-muted text-fg px-4 py-2 rounded-md text-sm z-50 max-w-[90vw] border border-border"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            {t("stage.stopped") || "Cancelled"}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Error toasts */}
       <AnimatePresence>

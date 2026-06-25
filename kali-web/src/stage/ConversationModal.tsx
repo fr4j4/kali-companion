@@ -79,13 +79,58 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
 
   if (msg.toolEvent && !msg.content) {
+    const { tool, status, params, output } = msg.toolEvent;
+    const command = params?.command as string | undefined;
+
+    if (status === "running" && command) {
+      return (
+        <div className="flex flex-col gap-1 py-1 px-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="badge px-1.5 py-0.5 rounded bg-accent/10 text-accent">
+              {tool}
+            </span>
+            <span className="text-muted/60">{t("tool.running")}</span>
+          </div>
+          <code className="text-muted/80 bg-muted/10 px-2 py-1 rounded max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+            {command}
+          </code>
+        </div>
+      );
+    }
+
+    if ((status === "success" || status === "error") && output) {
+      const outputObj = output as { stdout?: string; stderr?: string; error?: string };
+      const displayOutput = outputObj.stdout || outputObj.stderr || outputObj.error || String(output);
+
+      return (
+        <div className="flex flex-col gap-1 py-1 px-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="badge px-1.5 py-0.5 rounded bg-accent/10 text-accent">
+              {tool}
+            </span>
+            <span className="text-muted/60">{t(`tool.${status}`)}</span>
+            {command && (
+              <span className="text-muted/40 truncate max-w-[200px]" title={command}>
+                {command}
+              </span>
+            )}
+          </div>
+          {displayOutput && (
+            <pre className="text-muted/70 bg-muted/10 px-2 py-1.5 rounded overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+              {displayOutput.slice(0, 2000)}
+            </pre>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center gap-2 text-xs text-muted py-1 px-2">
         <span className="badge px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-          {msg.toolEvent.tool}
+          {tool}
         </span>
         <span className="text-muted/60">
-          {t(`tool.${msg.toolEvent.status}`) || msg.toolEvent.status}
+          {t(`tool.${status}`) || status}
         </span>
       </div>
     );

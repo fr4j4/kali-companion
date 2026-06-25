@@ -5,11 +5,18 @@
 
 export type EventName = string;
 
+export interface SelectedArtifactRef {
+  id: string;
+  type: string;
+  title: string;
+}
+
 export interface InputEvent {
   event: "input";
   session_id?: string;
   content: string;
   source: "text" | "voice";
+  selected_artifacts?: SelectedArtifactRef[];
 }
 
 export interface StopEvent {

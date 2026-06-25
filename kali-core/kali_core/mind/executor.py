@@ -113,6 +113,7 @@ class Executor:
             gaze_client=gaze,
             llm_provider=llm,
             job_mgr=getattr(self, "job_mgr", None),
+            session_store=self.session_store,
             emit=emit_event,
             language=language,
         )

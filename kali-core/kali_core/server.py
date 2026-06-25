@@ -42,6 +42,11 @@ from fastapi.staticfiles import StaticFiles
 from kali_core.claws.base import available_tools, register
 from kali_core.claws.command import RunCommandTool
 from kali_core.claws.create_artifact import CreateArtifactTool
+from kali_core.claws.manage_artifacts import (
+    GetArtifactTool,
+    ListArtifactsTool,
+    UpdateArtifactTool,
+)
 from kali_core.claws.fs import FsListTool, FsReadTool
 from kali_core.claws.git import GitDiffTool, GitWorktreeTool
 from kali_core.claws.game.dota_live import DotaLiveStateTool
@@ -109,6 +114,10 @@ def _register_tools() -> None:
     register(FetchGameResourceTool())
     # Generic artifact generation (documents, diagrams, tables, code, etc.).
     register(CreateArtifactTool())
+    # Artifact management (list, inspect, update existing artifacts).
+    register(ListArtifactsTool())
+    register(GetArtifactTool())
+    register(UpdateArtifactTool())
     # Phase 5 — Dota 2 live match state via GSI.
     register(DotaLiveStateTool())
     # STT post-processing (applied automatically, not user-visible).
@@ -373,8 +382,9 @@ class Connection:
 
         elif kind == "input":
             content = event.get("content", "")
+            selected = event.get("selected_artifacts") or []
             if content and self.session_id:
-                await self._handle_input(content)
+                await self._handle_input(content, selected_artifacts=selected)
 
         elif kind == "stop":
             if self._current_task and not self._current_task.done():
@@ -571,23 +581,55 @@ class Connection:
 
     # ── Agent turn ─────────────────────────────────────────
 
-    async def _handle_input(self, content: str) -> None:
+    async def _handle_input(
+        self,
+        content: str,
+        selected_artifacts: list[dict] | None = None,
+    ) -> None:
         """Route a user message through the agent and TTS pipeline."""
         session_id = self.session_id or "sess_unknown"
         truncated = content[:120] + ("…" if len(content) > 120 else "")
         logger.info("[turn] input (%s): %s", session_id[:8], truncated)
-        self._current_task = asyncio.create_task(self._run_turn(content, session_id))
+        self._current_task = asyncio.create_task(
+            self._run_turn(content, session_id, selected_artifacts=selected_artifacts)
+        )
 
-    async def _run_turn(self, content: str, session_id: str) -> None:
+    async def _run_turn(
+        self,
+        content: str,
+        session_id: str,
+        selected_artifacts: list[dict] | None = None,
+    ) -> None:
         """Run one agent turn: stream deltas, execute tools, then synthesize TTS."""
         accumulated = ""
         turn_start = time.monotonic()
         first_token = True
         logger.info("[turn] start (%s)", session_id[:8])
+        # Inject selected-artifact context so the agent knows which
+        # artifacts the user currently has in focus. The context is
+        # prepended to the user message; the original text is what
+        # gets persisted and shown to the user.
+        agent_message = content
+        if selected_artifacts:
+            lines = ["SELECTED ARTIFACTS (the user has these in focus):"]
+            for art in selected_artifacts:
+                art_id = art.get("id", "?")
+                art_type = art.get("type", "?")
+                art_title = art.get("title", "?")
+                lines.append(f"- id={art_id} type={art_type} title=\"{art_title}\"")
+            lines.append(
+                "If the user asks to modify, add to, or improve 'this' or "
+                "'the selected artifact', they likely mean one of the above. "
+                "Use update_artifact (with get_artifact first to read current "
+                "content) rather than creating a new artifact."
+            )
+            lines.append("")
+            lines.append(f"USER MESSAGE: {content}")
+            agent_message = "\n".join(lines)
         try:
             # Set the emit callback for tool events.
             self.server.agent.set_emit_callback(self.send)
-            async for event in self.server.agent.respond(content, session_id, language=self._stt_language):
+            async for event in self.server.agent.respond(agent_message, session_id, language=self._stt_language):
                 if event.kind == "delta" and event.text:
                     if first_token:
                         first_token = False

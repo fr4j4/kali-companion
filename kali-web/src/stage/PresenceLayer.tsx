@@ -57,7 +57,9 @@ export function PresenceLayer() {
             style={{ marginTop: "calc(50vh + (140px * var(--mul-avatar)))" }}
           >
             <Cog size={11} className="animate-spin text-accent" />
-            {t("tool.running", { tool: lastTool.tool })}
+            {lastTool.params?.command
+              ? t("tool.running_command", { command: (lastTool.params.command as string).split(" ")[0] })
+              : t("tool.running", { tool: lastTool.tool })}
           </motion.div>
         )}
       </AnimatePresence>

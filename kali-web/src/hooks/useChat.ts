@@ -26,6 +26,7 @@ import type {
   JobLogEvent,
   JobListEvent,
   ImageReadyEvent,
+  SelectedArtifactRef,
 } from "../lib/protocol";
 
 export interface ChatMessage {
@@ -79,7 +80,9 @@ export interface ChatState {
   toolEvents: ToolEvent[];
   isThinking: boolean;
   send: (text: string) => void;
+  setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
   stop: () => void;
+  stopped: boolean;
   newSession: () => void;
   listSessions: () => void;
   attachSession: (sid: string) => void;
@@ -133,10 +136,12 @@ export function useChat(): ChatState {
   const [consentRequest, setConsentRequest] = useState<ConsentRequestEvent | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [isThinking, setIsThinking] = useState(false);
+  const [stopped, setStopped] = useState(false);
 
   const clientRef = useRef<WSClient | null>(null);
   const ttsListeners = useRef<Array<(e: TtsAudioEvent) => void>>([]);
   const ttsEndedListeners = useRef<Array<() => void>>([]);
+  const selectedArtifactsProviderRef = useRef<(() => SelectedArtifactRef[]) | null>(null);
 
   useEffect(() => {
     let client: WSClient | null = null;
@@ -198,6 +203,7 @@ export function useChat(): ChatState {
 
       client.on("turn_start", () => {
         setIsThinking(true);
+        setStopped(false);
       });
 
       client.on("delta", (p) => {
@@ -239,6 +245,7 @@ export function useChat(): ChatState {
 
       client.on("turn_end", () => {
         setIsThinking(false);
+        setStopped(false);
         setMessages((prev) => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
@@ -247,8 +254,6 @@ export function useChat(): ChatState {
           }
           return updated;
         });
-        // Signal TTS ended if no audio came for this turn.
-        // The TTS hook will also detect when its queue empties.
         setTtsPlaying(false);
         ttsEndedListeners.current.forEach((fn) => fn());
       });
@@ -439,11 +444,26 @@ export function useChat(): ChatState {
       ...prev,
       { id: nextId(), role: "user", content: text },
     ]);
-    clientRef.current.send({ event: "input", content: text, source: "text" });
+    const provider = selectedArtifactsProviderRef.current;
+    const selected = provider ? provider() : [];
+    clientRef.current.send({
+      event: "input",
+      content: text,
+      source: "text",
+      ...(selected.length > 0 ? { selected_artifacts: selected } : {}),
+    });
   }, []);
+
+  const setSelectedArtifactsProvider = useCallback(
+    (fn: (() => SelectedArtifactRef[]) | null) => {
+      selectedArtifactsProviderRef.current = fn;
+    },
+    [],
+  );
 
   const stop = useCallback(() => {
     clientRef.current?.send({ event: "stop" });
+    setStopped(true);
     setMessages((prev) => {
       const updated = [...prev];
       const last = updated[updated.length - 1];
@@ -539,7 +559,9 @@ export function useChat(): ChatState {
     consentRequest,
     toolEvents,
     isThinking,
+    stopped,
     send,
+    setSelectedArtifactsProvider,
     stop,
     newSession,
     listSessions,

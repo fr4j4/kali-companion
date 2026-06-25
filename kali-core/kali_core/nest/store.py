@@ -177,6 +177,53 @@ class SessionStore:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
 
+    async def get_artifact(self, session_id: str, artifact_id: str) -> dict | None:
+        """Return a single artifact by id, scoped to the given session."""
+        await self._ensure_db()
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """SELECT id, session_id, type, title, content, window_type, created
+                   FROM artifacts WHERE id = ? AND session_id = ?""",
+                (artifact_id, session_id),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def update_artifact_content(
+        self,
+        session_id: str,
+        artifact_id: str,
+        content: str,
+        title: str | None = None,
+    ) -> dict | None:
+        """Update an existing artifact's content (and optionally title).
+
+        Returns the updated row as a dict, or None if the artifact was not
+        found in the given session.
+        """
+        await self._ensure_db()
+        now = datetime.now(UTC).isoformat()
+        async with aiosqlite.connect(self._db_path) as db:
+            if title is not None:
+                cursor = await db.execute(
+                    """UPDATE artifacts
+                       SET content = ?, title = ?, created = ?
+                       WHERE id = ? AND session_id = ?""",
+                    (content, title, now, artifact_id, session_id),
+                )
+            else:
+                cursor = await db.execute(
+                    """UPDATE artifacts
+                       SET content = ?, created = ?
+                       WHERE id = ? AND session_id = ?""",
+                    (content, now, artifact_id, session_id),
+                )
+            await db.commit()
+            if cursor.rowcount == 0:
+                return None
+        return await self.get_artifact(session_id, artifact_id)
+
     # ── Game image cache ───────────────────────────────────
 
     async def add_game_image(
