@@ -113,7 +113,7 @@ export const defaultThoughtCloudConfig: ThoughtCloudConfig = {
   collapsedMode: "comic",
   expandedMode: "scroll",
 
-  maxFontSize: 13,
+  maxFontSize: 10,
   minFontSize: 6.5,
   fontScaleStep: 0.5,
   lineHeight: 1.3,
@@ -170,8 +170,8 @@ export const defaultThoughtCloudConfig: ThoughtCloudConfig = {
   expandedWidth: 460,
   expandedHeight: 360,
 
-  avatarRingRadius: 100,
-  cloudCenterToTail: 100,
+  avatarRingRadius: 90,
+  cloudCenterToTail: 110,
   tailGap: 10,
   maxOrbitGap: 50,
 
