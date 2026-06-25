@@ -267,6 +267,7 @@ async def test_reasoning_delta(server: Server):
             saw_reasoning = False
             saw_delta = False
             saw_turn_end = False
+            reasoning_text = ""
             deadline = asyncio.get_event_loop().time() + 15
             while asyncio.get_event_loop().time() < deadline:
                 try:
@@ -275,7 +276,7 @@ async def test_reasoning_delta(server: Server):
                     break
                 if msg["event"] == "reasoning_delta":
                     saw_reasoning = True
-                    assert msg["text"] == "Analyzing the question..."
+                    reasoning_text += msg["text"]
                 elif msg["event"] == "delta":
                     saw_delta = True
                 elif msg["event"] == "turn_end":
@@ -283,6 +284,7 @@ async def test_reasoning_delta(server: Server):
                     break
 
             assert saw_reasoning, "did not receive reasoning_delta"
+            assert reasoning_text == "Analyzing the question...", reasoning_text
             assert saw_delta, "did not receive delta"
             assert saw_turn_end, "did not receive turn_end"
     finally:

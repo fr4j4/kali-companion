@@ -1,3 +1,5 @@
+import { injectHashGuard } from './htmlUtils';
+
 interface Props {
   content: string;
 }
@@ -7,7 +9,7 @@ export function HtmlArtifact({ content }: Props) {
     <iframe
       className="w-full h-full border-none bg-white"
       sandbox="allow-scripts"
-      srcDoc={content}
+      srcDoc={injectHashGuard(content)}
       title="HTML artifact"
     />
   );

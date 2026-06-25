@@ -707,6 +707,10 @@ class Connection:
                     await self.send(
                         {"event": "reasoning_delta", "session_id": session_id, "text": event.text}
                     )
+                elif event.kind == "step":
+                    await self.send(
+                        {"event": "step_start", "session_id": session_id, "step": event.step or 1}
+                    )
                 elif event.kind == "tool_call":
                     # tool_call events don't carry text; the tool result
                     # will produce its own delta when the LLM resumes.

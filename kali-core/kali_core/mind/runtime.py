@@ -27,6 +27,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from .llm.provider import LLMProvider, StreamEvent
+from .marker_suppressor import MarkerSuppressor
 
 logger = logging.getLogger("kali_core.mind.runtime")
 
@@ -196,149 +197,37 @@ class AgentRuntime:
         # Multi-step loop: keep going until no more tool calls.
         max_steps = 5
         for _step in range(max_steps):
+            # Signal the start of a new step so the frontend can show
+            # feedback during the gap between steps (the LLM call can
+            # take 10-60+ seconds before the first token arrives).
+            yield StreamEvent(kind="step", step=_step + 1)
             tool_call_pending = False
             native_tool_call = False
-            # Streaming state for suppressing [TOOL_CALL:] blocks.
-            # `yielded_len` tracks how many chars of `accumulated` have
-            # already been sent to the frontend. When a TOOL_CALL marker
-            # appears, we yield everything before it and stop yielding
-            # until the JSON block is balanced.
-            inside_tool_call = False
-            brace_depth = 0
-            in_string = False
-            escape = False
-            yielded_len = 0
+            # Streaming filters: suppress [TOOL_CALL: ...] blocks from
+            # both the main delta channel and the reasoning channel so the
+            # raw marker + escaped JSON never reaches the frontend. The
+            # full buffer (including markers) is still available after the
+            # stream for tool-call parsing.
+            delta_filter = MarkerSuppressor(_TOOL_CALL_MARKER)
+            reasoning_filter = MarkerSuppressor(_TOOL_CALL_MARKER)
 
             async for event in self.llm.stream(history, tools=self._tools):
                 if event.kind == "delta" and event.text:
-                    chunk = event.text
-                    if not inside_tool_call:
-                        accumulated += chunk
-                        # Check if a TOOL_CALL marker has appeared.
-                        marker_idx = accumulated.find(
-                            _TOOL_CALL_MARKER, yielded_len
-                        )
-                        if marker_idx != -1:
-                            # Yield any pending text before the marker.
-                            if marker_idx > yielded_len:
-                                yield StreamEvent(
-                                    kind="delta",
-                                    text=accumulated[yielded_len:marker_idx],
-                                )
-                            yielded_len = marker_idx
-                            inside_tool_call = True
-                            # Start counting braces from the marker.
-                            rest = accumulated[marker_idx:]
-                            for ch in rest:
-                                if escape:
-                                    escape = False
-                                    continue
-                                if ch == "\\":
-                                    escape = True
-                                    continue
-                                if ch == '"':
-                                    in_string = not in_string
-                                    continue
-                                if in_string:
-                                    continue
-                                if ch == "{":
-                                    brace_depth += 1
-                                elif ch == "}":
-                                    brace_depth -= 1
-                                    if brace_depth == 0:
-                                        inside_tool_call = False
-                                        yielded_len = len(accumulated)
-                                        break
-                        else:
-                            # No marker — yield the new chunk (but hold
-                            # back a few chars in case the marker spans
-                            # the next chunk boundary).
-                            hold = min(len(chunk), len(_TOOL_CALL_MARKER) - 1)
-                            safe_end = len(accumulated) - hold
-                            if safe_end > yielded_len:
-                                yield StreamEvent(
-                                    kind="delta",
-                                    text=accumulated[yielded_len:safe_end],
-                                )
-                                yielded_len = safe_end
-                    else:
-                        # Inside a tool call block — accumulate without yielding.
-                        accumulated += chunk
-                        for ci, ch in enumerate(chunk):
-                            if escape:
-                                escape = False
-                                continue
-                            if ch == "\\":
-                                escape = True
-                                continue
-                            if ch == '"':
-                                in_string = not in_string
-                                continue
-                            if in_string:
-                                continue
-                            if ch == "{":
-                                brace_depth += 1
-                            elif ch == "}":
-                                brace_depth -= 1
-                                if brace_depth == 0:
-                                    inside_tool_call = False
-                                    yielded_len = len(accumulated)
-                                    # Check if there's text after the
-                                    # closing brace in this chunk — it
-                                    # should be yielded as normal text.
-                                    remaining_in_chunk = chunk[ci + 1:]
-                                    if remaining_in_chunk:
-                                        # Re-process as a new delta chunk.
-                                        accumulated += remaining_in_chunk
-                                        marker_idx = accumulated.find(
-                                            _TOOL_CALL_MARKER, yielded_len
-                                        )
-                                        if marker_idx != -1:
-                                            if marker_idx > yielded_len:
-                                                yield StreamEvent(
-                                                    kind="delta",
-                                                    text=accumulated[yielded_len:marker_idx],
-                                                )
-                                            yielded_len = marker_idx
-                                            inside_tool_call = True
-                                            rest = accumulated[marker_idx:]
-                                            for ch2 in rest:
-                                                if escape:
-                                                    escape = False
-                                                    continue
-                                                if ch2 == "\\":
-                                                    escape = True
-                                                    continue
-                                                if ch2 == '"':
-                                                    in_string = not in_string
-                                                    continue
-                                                if in_string:
-                                                    continue
-                                                if ch2 == "{":
-                                                    brace_depth += 1
-                                                elif ch2 == "}":
-                                                    brace_depth -= 1
-                                                    if brace_depth == 0:
-                                                        inside_tool_call = False
-                                                        yielded_len = len(accumulated)
-                                                        break
-                                        else:
-                                            hold = min(len(remaining_in_chunk), len(_TOOL_CALL_MARKER) - 1)
-                                            safe_end = len(accumulated) - hold
-                                            if safe_end > yielded_len:
-                                                yield StreamEvent(
-                                                    kind="delta",
-                                                    text=accumulated[yielded_len:safe_end],
-                                                )
-                                                yielded_len = safe_end
-                                    break
+                    safe = delta_filter.feed(event.text)
+                    if safe:
+                        yield StreamEvent(kind="delta", text=safe)
                 elif event.kind == "reasoning":
-                    # Accumulate reasoning text so we can search for
-                    # [TOOL_CALL:] markers in it too (some models put
-                    # tool calls in the reasoning_content field).
+                    # Filter reasoning the same way as delta: hold back
+                    # [TOOL_CALL: ...] blocks so the reasoning panel does
+                    # not show the raw marker and escaped JSON payload.
+                    # Some reasoning models (DeepSeek-R1, Qwen) emit tool
+                    # calls inside reasoning_content.
                     if event.text:
-                        accumulated_reasoning += event.text
-                    yield event
+                        safe = reasoning_filter.feed(event.text)
+                        if safe:
+                            yield StreamEvent(
+                                kind="reasoning", text=safe
+                            )
                 elif event.kind == "tool_call":
                     # Native API tool call.
                     logger.info(
@@ -387,14 +276,19 @@ class AgentRuntime:
                 elif event.kind == "done":
                     break
 
-            # Flush any text held in the buffer (was kept back in case
-            # a TOOL_CALL marker spanned the chunk boundary).
-            if not inside_tool_call and yielded_len < len(accumulated):
-                remaining = accumulated[yielded_len:]
-                # Only yield if it's not part of a tool call block.
-                if _TOOL_CALL_MARKER not in remaining:
-                    yield StreamEvent(kind="delta", text=remaining)
-                    yielded_len = len(accumulated)
+            # Flush any held-back text (kept in case a marker spanned the
+            # chunk boundary). Suppressed tool-call blocks are not flushed.
+            tail = delta_filter.flush()
+            if tail:
+                yield StreamEvent(kind="delta", text=tail)
+            reasoning_tail = reasoning_filter.flush()
+            if reasoning_tail:
+                yield StreamEvent(kind="reasoning", text=reasoning_tail)
+
+            # The full buffers (with markers) are what we parse for tool
+            # calls after the stream completes.
+            accumulated = delta_filter.buffer
+            accumulated_reasoning = reasoning_filter.buffer
 
             # If no native tool call was made, check for prompt-based
             # tool calls in the accumulated text AND reasoning.

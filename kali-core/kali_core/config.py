@@ -104,6 +104,13 @@ llm_system_prompt: str = os.getenv(
         'User: "Whats the weather?"\n'
         "→ call web_search.\n\n"
         "When in doubt, prefer the most specific tool.\n\n"
+        "TOOL CALL PLACEMENT (critical for reasoning models):\n"
+        "If your backend exposes a separate reasoning/thinking channel\n"
+        "(reasoning_content, thinking, chain-of-thought), put your\n"
+        "deliberation there but NEVER emit [TOOL_CALL: ...] inside it.\n"
+        "Tool-call markers MUST appear in your FINAL answer content only,\n"
+        "so the runtime can detect and execute them. A marker placed in\n"
+        "the reasoning channel may be suppressed or parsed incorrectly.\n\n"
         "CREATE ARTIFACT — generating visual content:\n"
         "Use create_artifact when the user asks you to generate, draw, show,\n"
         "or visualize something, OR when a visual window would communicate\n"

@@ -39,8 +39,13 @@ export function PresenceLayer({ onExpand }: PresenceLayerProps) {
   }, [lastMsgWithReasoning]);
 
   // Thinking indicator: active during initial gap OR while streaming reasoning.
-  const showThinking = (chat.isThinking && !lastTool && !reasoning) || isCurrentlyStreaming;
+  // Also active during multi-step tool call gaps (turn is active but no delta,
+  // no reasoning, no tool running — the LLM is between steps).
+  const isStreamingText = chat.messages.some((m) => m.role === "assistant" && m.streaming && m.content);
+  const inStepGap = chat.isTurnActive && !lastTool && !reasoning && !isStreamingText;
+  const showThinking = (chat.isThinking && !lastTool && !reasoning) || isCurrentlyStreaming || inStepGap;
   const showCloud = reasoning && !dismissed;
+  const stepLabel = inStepGap && chat.currentStep > 1 ? ` · paso ${chat.currentStep}` : "";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
@@ -57,7 +62,7 @@ export function PresenceLayer({ onExpand }: PresenceLayerProps) {
             style={{ marginTop: "calc(50vh + (140px * var(--mul-avatar)))" }}
           >
             <Sparkles size={11} className="animate-pulse text-accent" />
-            {t("stage.thinking")}
+            {t("stage.thinking")}{stepLabel}
           </motion.div>
         )}
       </AnimatePresence>

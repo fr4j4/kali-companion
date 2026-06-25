@@ -14,6 +14,7 @@ import type {
   ReadyEvent,
   ReasoningDeltaEvent,
   SessionListEvent,
+  StepStartEvent,
   TtsAudioEvent,
   TtsFilteredEvent,
   StatusEvent,
@@ -80,6 +81,7 @@ export interface ChatState {
   toolEvents: ToolEvent[];
   isThinking: boolean;
   isTurnActive: boolean;
+  currentStep: number;
   send: (text: string) => void;
   setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
   stop: () => void;
@@ -138,6 +140,7 @@ export function useChat(): ChatState {
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isTurnActive, setIsTurnActive] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const [stopped, setStopped] = useState(false);
 
   const clientRef = useRef<WSClient | null>(null);
@@ -206,7 +209,14 @@ export function useChat(): ChatState {
       client.on("turn_start", () => {
         setIsThinking(true);
         setIsTurnActive(true);
+        setCurrentStep(0);
         setStopped(false);
+      });
+
+      client.on("step_start", (p) => {
+        const ev = p as unknown as StepStartEvent;
+        setCurrentStep(ev.step);
+        setIsThinking(true);
       });
 
       client.on("delta", (p) => {
@@ -252,6 +262,7 @@ export function useChat(): ChatState {
       client.on("turn_end", () => {
         setIsThinking(false);
         setIsTurnActive(false);
+        setCurrentStep(0);
         setStopped(false);
         setMessages((prev) => {
           const updated = [...prev];
@@ -567,6 +578,7 @@ export function useChat(): ChatState {
     toolEvents,
     isThinking,
     isTurnActive,
+    currentStep,
     stopped,
     send,
     setSelectedArtifactsProvider,

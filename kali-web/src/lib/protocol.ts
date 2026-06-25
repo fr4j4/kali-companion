@@ -174,6 +174,12 @@ export interface TurnStartEvent {
   session_id: string;
 }
 
+export interface StepStartEvent {
+  event: "step_start";
+  session_id: string;
+  step: number;
+}
+
 export interface ToolEvent {
   event: "tool_event";
   session_id: string;

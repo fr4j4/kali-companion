@@ -30,12 +30,14 @@ class StreamEvent:
     - `tool_call`: the LLM wants to call a tool
     - `reasoning`: the model's chain-of-thought (if the provider exposes it)
     - `done`: the stream is complete
+    - `step`: signals the start of a new step in the multi-step loop
     """
-    kind: Literal["delta", "tool_call", "reasoning", "done"]
+    kind: Literal["delta", "tool_call", "reasoning", "done", "step"]
     text: str | None = None
     tool_name: str | None = None
     tool_args: dict | None = None
     tool_call_id: str | None = None
+    step: int | None = None
 
 
 @runtime_checkable
