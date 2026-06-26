@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Singularity v5 — Cognitive Workspace</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { bg:'#02040a', fg:'#e2e8f0', muted:'#64748b', faint:'#3a4058',
+      accent:'#22d3ee', accent2:'#818cf8', accent3:'#f472b6', ok:'#34d399', warn:'#fbbf24', err:'#f87171' },
+    fontFamily: { sans:['Inter','sans-serif'], serif:['Fraunces','serif'], mono:['JetBrains Mono','monospace'] },
+  }}};
+</script>
+<!-- T1: External libraries for real rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script type="module">
+  import { codeToHtml, getHighlighter } from 'https://cdn.jsdelivr.net/npm/shiki/dist/index.browser.mjs';
+  window.shiki = { codeToHtml, getHighlighter };
+</script>
+<!-- V5 styles -->
+<link rel="stylesheet" href="v5/styles.css">
+</head>
+<body class="h-screen mesh relative" id="body-root" aria-label="Kali Cognitive Workspace">
+
+  <!-- TOP BAR -->
+  <header class="fixed top-0 w-full px-6 py-3 flex justify-between items-center z-50" role="banner">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2.5 glass rounded-full px-3.5 py-1.5 border-white/10">
+        <div class="relative w-2 h-2">
+          <div class="absolute inset-0 rounded-full bg-accent ring-pulse"></div>
+          <div class="absolute inset-0 rounded-full bg-accent"></div>
+        </div>
+        <span class="badge text-muted">KALI · V5</span>
+      </div>
+      <div class="hidden md:flex items-center gap-3 ml-2">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md glass">
+          <span class="badge text-muted">lat</span><span class="badge text-fg" id="metric-lat">142ms</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md glass">
+          <span class="badge text-muted">model</span><span class="badge text-fg" id="metric-model">gpt-4o</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md glass">
+          <span class="badge text-muted">tok</span><span class="badge text-fg" id="metric-tok">0</span>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openConversationModal()" class="tooltip px-3.5 py-1.5 rounded-full glass hover:bg-white/10 transition badge text-muted hover:text-fg flex items-center gap-1.5" data-tip="Ver conversacion completa">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Conversacion
+      </button>
+      <button class="tooltip p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" data-tip="Voz" aria-label="Configuracion de voz">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+      <button onclick="WS.saveWorkspace ? WS.saveWorkspace() : saveWorkspace()" class="tooltip p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" data-tip="Guardar workspace" aria-label="Guardar workspace">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      </button>
+      <button class="tooltip p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" data-tip="Ajustes" aria-label="Ajustes">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <div class="w-px h-5 bg-white/10 mx-1"></div>
+      <button class="px-3.5 py-1.5 rounded-full glass hover:bg-white/10 transition badge text-muted hover:text-fg flex items-center gap-1.5" aria-label="Nueva sesion">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nueva Sesion
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN SPACE -->
+  <main class="h-full w-full flex items-center justify-center relative" role="main">
+    <div class="relative flex flex-col items-center z-10" id="orb-zone">
+      <div class="relative w-56 h-56 flex items-center justify-center">
+        <div class="absolute w-40 h-40 rounded-full border border-accent/10" style="animation:spin 10s linear infinite"></div>
+        <div class="absolute w-32 h-32 rounded-full border border-accent2/20" style="animation:spin 15s linear infinite reverse"></div>
+        <div id="orb" class="orb w-32 h-32 flex items-center justify-center relative z-20 cursor-pointer transition-all duration-500 hover:scale-110 active:scale-95" role="button" tabindex="0" aria-label="Orbe de Kali — tocar para interactuar">
+          <div class="w-4 h-4 rounded-full bg-white/90 shadow-white/40 shadow-lg"></div>
+        </div>
+      </div>
+      <div class="absolute top-64 w-full flex justify-center pointer-events-none">
+        <div class="glass-strong px-10 py-8 rounded-3xl max-w-2xl w-full shadow-2xl border-accent/10 transition-all duration-500" aria-live="polite" aria-atomic="true">
+          <p id="projection" class="prose-center text-fg transition-opacity duration-300">Toca el orbe o escribe algo para empezar.</p>
+        </div>
+      </div>
+    </div>
+    <div id="artifact-layer" class="absolute inset-0 z-30" aria-label="Capa de artefactos"></div>
+  </main>
+
+  <!-- SPOTLIGHT -->
+  <div id="spotlight" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4" role="dialog" aria-label="Comando input" aria-hidden="true">
+    <div class="glass-strong w-full max-w-xl rounded-3xl p-3 flex items-center gap-3 shadow-2xl border-accent/20">
+      <span class="text-accent font-mono ml-3 text-lg" aria-hidden="true">|_</span>
+      <input id="cmd-input" type="text" placeholder="Escribe un comando o pregunta..." class="flex-1 bg-transparent outline-none text-lg text-fg placeholder:text-muted py-3" aria-label="Comando">
+      <kbd class="badge text-muted bg-white/5 px-2 py-1 rounded">ESC</kbd>
+      <button onclick="sendCommand()" class="bg-accent text-bg px-6 py-2 rounded-xl font-semibold text-sm hover:bg-accent2 transition btn-glow">Enviar</button>
+    </div>
+  </div>
+
+  <!-- VOICE BAR -->
+  <div id="voice-bar" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 hidden" role="status" aria-live="polite">
+    <div class="glass-strong rounded-2xl px-5 py-3 flex items-center gap-4 shadow-2xl border-accent/20">
+      <div class="flex items-end gap-0.5 h-6 w-20">
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:0ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:80ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:160ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:240ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:320ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:400ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:480ms"></div>
+        <div class="wave-bar w-1 bg-accent rounded-full" style="animation-delay:560ms"></div>
+      </div>
+      <span class="badge text-accent">kali hablando</span><span class="badge text-muted">0:12</span>
+      <div class="w-px h-4 bg-white/10"></div>
+      <button class="tooltip w-7 h-7 rounded-full hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center" data-tip="Pausar" aria-label="Pausar voz">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button onclick="hideVoiceBar()" class="tooltip w-7 h-7 rounded-full hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center" data-tip="Cerrar" aria-label="Cerrar voz">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- DOCK INFERIOR -->
+  <footer class="fixed bottom-5 left-1/2 -translate-x-1/2 z-40" role="contentinfo">
+    <div class="glass-strong rounded-2xl px-3 py-2.5 flex items-center gap-2 shadow-2xl border-white/10">
+      <button onclick="toggleGridLayout()" class="tooltip h-9 px-3 rounded-xl hover:bg-white/8 text-muted hover:text-fg transition flex items-center gap-2 badge" data-tip="Cambiar layout" id="layout-btn" aria-label="Toggle grid/canvas">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Grid
+      </button>
+      <button onclick="focusLast()" class="tooltip h-9 px-3 rounded-xl hover:bg-white/8 text-muted hover:text-fg transition flex items-center gap-2 badge" data-tip="Enfocar ultimo" aria-label="Enfocar ultimo artefacto">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+        Foco
+      </button>
+      <button onclick="toggleDrawer()" class="tooltip h-9 px-3 rounded-xl hover:bg-white/8 text-muted hover:text-fg transition flex items-center gap-2 badge" data-tip="Biblioteca de artefactos" aria-label="Abrir biblioteca" aria-expanded="false" id="drawer-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+        Biblioteca <span id="lib-count" class="text-accent ml-1">0</span>
+      </button>
+      <div class="w-px h-5 bg-white/10 mx-1"></div>
+      <button onclick="WS.undo ? WS.undo() : undo()" class="tooltip h-9 px-3 rounded-xl hover:bg-white/8 text-muted hover:text-fg transition flex items-center gap-2 badge" data-tip="Deshacer (Ctrl+Z)" aria-label="Deshacer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 13"/></svg>
+      </button>
+      <button onclick="clearAllArtifacts()" class="tooltip h-9 px-3 rounded-xl hover:bg-red-500/15 text-red-300/80 hover:text-red-300 transition flex items-center gap-2 badge" data-tip="Limpiar todo" aria-label="Limpiar todos los artefactos">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Limpiar
+      </button>
+    </div>
+  </footer>
+
+  <!-- DRAWER LATERAL -->
+  <div id="drawer" class="drawer closed fixed top-0 right-0 bottom-0 w-80 glass-strong z-[55] flex flex-col shadow-2xl border-l border-white/8" role="complementary" aria-label="Biblioteca de artefactos" aria-hidden="true">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-white/8 shrink-0">
+      <div>
+        <div class="badge text-muted mb-0.5">biblioteca</div>
+        <div class="text-sm font-semibold text-fg">Artefactos de la sesion</div>
+      </div>
+      <button onclick="toggleDrawer()" class="w-8 h-8 rounded-lg hover:bg-white/8 text-muted hover:text-fg transition flex items-center justify-center" aria-label="Cerrar biblioteca">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="drawer-list" class="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2"></div>
+    <div class="px-5 py-3 border-t border-white/8 shrink-0 flex items-center justify-between">
+      <span class="badge text-muted">total: <span id="drawer-total" class="text-fg">0</span></span>
+      <button onclick="clearAllArtifacts()" class="badge text-red-300/70 hover:text-red-300 transition">limpiar todo</button>
+    </div>
+  </div>
+
+  <!-- MODAL CONVERSACION -->
+  <div id="conv-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4 bg-black/70 backdrop-blur-md" role="dialog" aria-label="Historial de conversacion" aria-hidden="true" aria-modal="true">
+    <div class="glass-strong rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border-accent/15">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/8 shrink-0">
+        <div>
+          <div class="badge text-muted mb-0.5">historial completo</div>
+          <div class="text-base font-semibold text-fg">Conversacion de la sesion</div>
+        </div>
+        <button onclick="closeConversationModal()" class="w-8 h-8 rounded-lg hover:bg-white/8 text-muted hover:text-fg transition flex items-center justify-center" aria-label="Cerrar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="conv-list" class="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 space-y-5"></div>
+    </div>
+  </div>
+
+  <!-- DEBUG PANEL -->
+  <div id="debug-panel" class="fixed top-20 right-6 w-56 glass-strong rounded-2xl p-4 z-[100] shadow-2xl border-white/10 debug-panel max-h-[80vh] flex flex-col" role="toolbar" aria-label="Panel de eventos de prueba">
+    <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-3 shrink-0">
+      <span class="badge text-white/50">Event Lab v5</span>
+      <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-ok"></div><span class="badge text-muted">live</span></div>
+    </div>
+    <div class="grid grid-cols-1 gap-1 overflow-y-auto scrollbar-thin -mr-1 pr-1">
+      <button onclick="WS.trigger('text')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">|_</span> Texto Prosa</button>
+      <button onclick="WS.trigger('code')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">#</span> Codigo</button>
+      <button onclick="WS.trigger('hero')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">[]</span> Ficha Heroe</button>
+      <button onclick="WS.trigger('img')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">IMG</span> Imagen</button>
+      <button onclick="WS.trigger('link')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">-></span> Enlace</button>
+      <button onclick="WS.trigger('markdown')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">MD</span> Markdown Largo</button>
+      <button onclick="WS.trigger('mermaid')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center"><></span> Diagrama Mermaid</button>
+      <button onclick="WS.trigger('music')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">~</span> Musica</button>
+      <button onclick="WS.trigger('longtext')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">TXT</span> Texto Largo</button>
+      <button onclick="WS.trigger('chart')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">BAR</span> Chart Datos</button>
+      <button onclick="WS.trigger('json')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">{}</span> JSON Viewer</button>
+      <button onclick="WS.trigger('terminal')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">$_</span> Terminal</button>
+      <button onclick="WS.trigger('checklist')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">[v]</span> Checklist</button>
+      <button onclick="WS.trigger('video')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">PLAY</span> Video</button>
+      <button onclick="WS.trigger('quiz')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">?</span> Quiz</button>
+      <button onclick="WS.trigger('diff')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">+/-</span> Diff Patch</button>
+      <button onclick="WS.trigger('table')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">TAB</span> Tabla Datos</button>
+      <button onclick="WS.trigger('controls')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">DIAL</span> Panel Controles</button>
+      <button onclick="WS.trigger('voice')" class="text-left px-3 py-1.5 rounded-lg hover:bg-white/8 text-[11px] transition border border-white/5 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">MIC</span> Activar Voz</button>
+      <div class="h-px bg-white/5 my-2"></div>
+      <button onclick="clearAllArtifacts()" class="text-left px-3 py-1.5 rounded-lg hover:bg-red-500/15 text-red-300 text-[11px] transition border border-red-500/10 flex items-center gap-2.5 hover-lift"><span class="w-4 text-center">X</span> Limpiar Espacio</button>
+    </div>
+    <div class="mt-3 pt-3 border-t border-white/10 shrink-0 flex items-center justify-between">
+      <span class="badge text-muted">vivos: <span id="aw-count" class="text-fg">0</span></span>
+      <button onclick="toggleKbdHelp ? toggleKbdHelp() : null" class="badge text-muted hover:text-accent transition" data-tip="Atajos (?)">? ayuda</button>
+    </div>
+  </div>
+
+  <!-- V5 Scripts -->
+  <script src="v5/widgets.js"></script>
+  <script src="v5/workspace.js"></script>
+  <script>
+    // Init on DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { WS.init(); });
+    } else {
+      WS.init();
+    }
+
+    // T3: Live metrics simulation
+    var metricTok = 0;
+    setInterval(function() {
+      metricTok += Math.floor(Math.random() * 50) + 20;
+      var el = document.getElementById('metric-tok');
+      if (el) el.textContent = metricTok.toLocaleString();
+      var lat = 120 + Math.floor(Math.random() * 60);
+      var latEl = document.getElementById('metric-lat');
+      if (latEl) latEl.textContent = lat + 'ms';
+    }, 3000);
+
+    // Undo/redo exposed for dock buttons
+    window.undo = function() { if (typeof undo === 'function') undo(); };
+    window.redo = function() { if (typeof redo === 'function') redo(); };
+    window.saveWorkspace = function() { if (typeof saveWorkspace === 'function') saveWorkspace(); };
+    window.toggleKbdHelp = function() { if (typeof toggleKbdHelp === 'function') toggleKbdHelp(); };
+  </script>
+</body>
+</html>

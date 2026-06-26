@@ -144,7 +144,7 @@ function SectionRecipeTree({
   return (
     <div className="flex flex-wrap gap-1">
       {components.map((comp, i) => (
-        <span key={i} className="text-xs bg-elevated border border-green-600/30 rounded px-1.5 py-0.5">
+        <span key={i} className="text-xs bg-elevated border border-ok/30 rounded px-1.5 py-0.5">
           {comp.image?.path && imageReadyKeys && onRequestImage && (
             <GameImage
               imgPath={comp.image.path}
@@ -252,37 +252,6 @@ function SectionTalents({ rows }: { rows: TalentRow[] }) {
   );
 }
 
-function SectionSkillBuild({
-  levels,
-  imageReadyKeys,
-  onRequestImage,
-}: {
-  levels: SkillLevel[];
-  imageReadyKeys?: Set<string>;
-  onRequestImage?: (key: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {levels.map((sl, i) => (
-        <span key={i} className="text-xs bg-elevated border border-border rounded px-1.5 py-0.5 flex items-center gap-1">
-          <span className="text-muted font-mono text-[10px]">{sl.level}</span>
-          {sl.image?.path && imageReadyKeys && onRequestImage && (
-            <GameImage
-              imgPath={sl.image.path}
-              alt={sl.ability}
-              className="w-4 h-4 rounded object-cover"
-              fallbackEmoji=""
-              imageReadyKeys={imageReadyKeys}
-              onRequestImage={onRequestImage}
-            />
-          )}
-          <span>{sl.ability}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
 export function GameResourceCard({ data, imageReadyKeys, onRequestImage }: Props) {
   const { t } = useTranslation();
   const [showOriginal, setShowOriginal] = useState(false);
@@ -301,7 +270,7 @@ export function GameResourceCard({ data, imageReadyKeys, onRequestImage }: Props
 
   if (sections.length === 0) {
     return (
-      <div className="rounded-lg border border-cyan-600/30 bg-cyan-950/20 p-3 text-sm col-span-1">
+      <div className="rounded-lg border border-accent/30 bg-accent/10 p-3 text-sm col-span-1">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">🎮</span>
           <span className="font-medium text-foreground">{title}</span>
@@ -313,7 +282,7 @@ export function GameResourceCard({ data, imageReadyKeys, onRequestImage }: Props
   }
 
   return (
-    <div className="rounded-lg border border-cyan-600/30 bg-cyan-950/20 p-3 text-sm col-span-1">
+    <div className="rounded-lg border border-accent/30 bg-accent/10 p-3 text-sm col-span-1">
       <div className="flex items-center gap-2 mb-2">
         {image?.path && imageReadyKeys && onRequestImage ? (
           <GameImage

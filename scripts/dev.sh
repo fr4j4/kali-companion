@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Dev launcher: starts kali-core and kali-web together (no kali-home).
+# Dev launcher: starts kali-core and kali-web together (no native shell).
 #
-# This mode skips the Rust/Tauri shell (kali-home), so the frontend runs
+# This mode skips the Electron shell (kali-shell), so the frontend runs
 # in the browser via Vite's dev server.  Useful for rapid iteration on
 # the frontend and Python brain.
 #
-# LIMITATION: Because kali-home is not launched, screen capture (kali-gaze)
-# and other native features (launch_app, file dialogs) do NOT work.
-# For full functionality (including capture), use:
+# LIMITATION: Because the native shell is not launched, screen capture
+# (kali-gaze) and other native features do NOT work.  For full
+# functionality (including capture), use:
 #
 #     scripts/prod.sh
+#
 #
 # Usage: scripts/dev.sh
 #

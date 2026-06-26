@@ -1,0 +1,27 @@
+{
+  "name": "kali-shell",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Kali shell — Electron container (the cat's home). Replaces kali-home (Tauri/Rust).",
+  "license": "MIT",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && electron .",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json",
+    "start": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && electron .",
+    "dist": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && electron-builder",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.preload.json --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0",
+    "typescript": "^5.5.3",
+    "@types/node": "^20.14.0"
+  },
+  "allowScripts": {
+    "electron@33.0.0": true,
+    "electron-builder@25.1.0": true
+  }
+}

@@ -1,0 +1,14 @@
+appId: com.kalicompanion.shell
+productName: Kali
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - package.json
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  maintainer: kali-companion

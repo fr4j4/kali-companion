@@ -30,6 +30,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,12 @@ from fastapi.staticfiles import StaticFiles
 
 from kali_core.claws.base import available_tools, register
 from kali_core.claws.command import RunCommandTool
+from kali_core.claws.create_artifact import CreateArtifactTool
+from kali_core.claws.manage_artifacts import (
+    GetArtifactTool,
+    ListArtifactsTool,
+    UpdateArtifactTool,
+)
 from kali_core.claws.fs import FsListTool, FsReadTool
 from kali_core.claws.git import GitDiffTool, GitWorktreeTool
 from kali_core.claws.game.dota_live import DotaLiveStateTool
@@ -55,6 +62,7 @@ from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
+from kali_core.mind.ai_config import AIConfig, load as load_ai_config, save as save_ai_config
 from kali_core.gaze import GazeClient
 from kali_core.ear.manager import STTManager, WakeWordDetector
 from kali_core.game.gsi import gsi_state
@@ -76,9 +84,10 @@ logger = logging.getLogger("kali_core.server")
 
 
 def _build_llm_provider() -> LLMProvider:
-    if settings.llm_provider == "nanobot":
+    cfg = load_ai_config()
+    if cfg.provider == "nanobot":
         return NanobotLLMProvider()
-    return DirectLLMProvider()
+    return DirectLLMProvider(api_url=cfg.api_url, api_key=cfg.api_key, model=cfg.model)
 
 
 def _build_tts_provider():
@@ -105,6 +114,12 @@ def _register_tools() -> None:
     register(ScreenshotTool())
     # Phase 4 tools.
     register(FetchGameResourceTool())
+    # Generic artifact generation (documents, diagrams, tables, code, etc.).
+    register(CreateArtifactTool())
+    # Artifact management (list, inspect, update existing artifacts).
+    register(ListArtifactsTool())
+    register(GetArtifactTool())
+    register(UpdateArtifactTool())
     # Phase 5 — Dota 2 live match state via GSI.
     register(DotaLiveStateTool())
     # STT post-processing (applied automatically, not user-visible).
@@ -174,6 +189,7 @@ class Server:
         # Wire executor + tools into the agent.
         self.agent.set_executor(self.executor)
         self.agent.set_tools(self.tool_defs)
+        self.agent.set_session_store(self.session_store)
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -181,6 +197,51 @@ class Server:
         images_dir = Path(settings.images_dir)
         images_dir.mkdir(parents=True, exist_ok=True)
         self.app.mount("/images", StaticFiles(directory=str(images_dir)))
+
+        # Static file serving for screen capture snapshots (kali-gaze).
+        # Lets the frontend render screenshots inline via <img src="/snapshots/...">.
+        snapshots_dir = Path(settings.snapshots_dir)
+        snapshots_dir.mkdir(parents=True, exist_ok=True)
+        self.app.mount("/snapshots", StaticFiles(directory=str(snapshots_dir)))
+
+        # Generic file-serving endpoint: lets the agent display any image
+        # from an allowed directory on the user's PC. Path traversal is
+        # blocked by resolving the requested path and checking it stays
+        # inside one of the allowed roots.
+        _FILE_SERVE_ROOTS = [
+            Path(settings.data_dir).resolve(),
+            Path.home() / "Pictures",
+            Path.home() / "Downloads",
+            Path.cwd(),
+        ]
+
+        @self.app.get("/file")
+        async def serve_file(path: str) -> Any:
+            from fastapi.responses import FileResponse
+
+            if not path:
+                return {"error": "missing 'path' query param"}
+            req_path = Path(path).expanduser()
+            # If the path is relative, resolve against the cwd.
+            if not req_path.is_absolute():
+                req_path = (Path.cwd() / req_path).resolve()
+            else:
+                req_path = req_path.resolve()
+            # Security: block directory traversal. The requested path
+            # must be inside one of the allowed roots.
+            allowed = any(
+                req_path == root or root in req_path.parents
+                for root in _FILE_SERVE_ROOTS
+            )
+            if not allowed:
+                return {"error": f"path '{path}' is outside allowed directories"}
+            if not req_path.is_file():
+                return {"error": f"file not found: {path}"}
+            # Guess MIME from extension; fall back to octet-stream.
+            import mimetypes
+
+            media, _ = mimetypes.guess_type(str(req_path))
+            return FileResponse(str(req_path), media_type=media or "application/octet-stream")
 
         @self.app.websocket("/ws")
         async def ws_endpoint(ws: WebSocket) -> None:
@@ -227,6 +288,32 @@ class Server:
             import json as _json
             return {"state": gsi_state.state, "in_match": gsi_state.in_match}
 
+        @self.app.get("/llm/scan")
+        async def llm_scan(
+            host: str = "127.0.0.1",
+            from_port: int = 8000,
+            to_port: int = 12300,
+        ) -> dict[str, Any]:
+            from kali_core.mind.llm.scanner import scan_local
+            endpoints = await scan_local(host=host, port_from=from_port, port_to=to_port)
+            return {
+                "endpoints": [
+                    {
+                        "port": e.port,
+                        "url": e.url,
+                        "vendor": e.vendor,
+                        "models": e.models,
+                    }
+                    for e in endpoints
+                ]
+            }
+
+        @self.app.get("/llm/models")
+        async def llm_models(api_url: str, api_key: str = "") -> dict[str, Any]:
+            from kali_core.mind.llm.scanner import list_models
+            models = await list_models(api_url=api_url, api_key=api_key)
+            return {"models": models}
+
     async def run(self) -> None:
         config = uvicorn.Config(
             self.app,
@@ -252,6 +339,8 @@ class Connection:
         self._stt_language: str = settings.stt_language
         self._wake_word_enabled: bool = settings.stt_wake_word_enabled
         self._input_mode: str = settings.input_mode
+        self._feedback_mode: str = "minimal"
+        self._plan_mode: bool = False
 
     async def run(self) -> None:
         while True:
@@ -272,24 +361,61 @@ class Connection:
         kind = event.get("event", "")
 
         if kind == "hello":
+            requested_sid = event.get("session_id")
+            if requested_sid:
+                exists = await self.server.session_store.session_exists(requested_sid)
+                if exists:
+                    self.session_id = requested_sid
+                    if self.server.agent:
+                        self.server.agent.reset_history(requested_sid)
+                    self.server.consent.set_send_callback(self.send)
+                    self.server.job_mgr.set_emit_callback(self.send)
+                    await self.send(
+                        {"event": "ready", "session_id": requested_sid, "version": "0.1.0"}
+                    )
+                    await self._emit_status()
+                    if self._wake_word_enabled:
+                        await self._start_wake_word()
+                    msgs = await self.server.session_store.get_messages(requested_sid)
+                    for msg in msgs:
+                        self.server.agent._get_history(requested_sid).append({
+                            "role": msg["role"],
+                            "content": msg["content"],
+                        })
+                        await self.send({
+                            "event": "message",
+                            "session_id": requested_sid,
+                            "role": msg["role"],
+                            "text": msg["content"],
+                        })
+                    artifacts = await self.server.session_store.get_artifacts(requested_sid)
+                    for art in artifacts:
+                        await self.send({
+                            "event": "artifact",
+                            "id": art["id"],
+                            "type": art["type"],
+                            "windowType": art.get("window_type", ""),
+                            "title": art["title"],
+                            "content": art["content"],
+                            "update": "create",
+                        })
+                    return
             sess = await self.server.session_store.create_session()
             self.session_id = sess["id"]
-            # Set up the consent manager's send callback for this connection.
             self.server.consent.set_send_callback(self.send)
-            # Set up the job manager's emit callback for this connection.
             self.server.job_mgr.set_emit_callback(self.send)
             await self.send(
                 {"event": "ready", "session_id": self.session_id, "version": "0.1.0"}
             )
             await self._emit_status()
-            # Start wake word detector if enabled.
             if self._wake_word_enabled:
                 await self._start_wake_word()
 
         elif kind == "input":
             content = event.get("content", "")
+            selected = event.get("selected_artifacts") or []
             if content and self.session_id:
-                await self._handle_input(content)
+                await self._handle_input(content, selected_artifacts=selected)
 
         elif kind == "stop":
             if self._current_task and not self._current_task.done():
@@ -308,27 +434,31 @@ class Connection:
                 self.session_id = sid
                 if self.server.agent:
                     self.server.agent.reset_history(sid)
+                self.server.consent.set_send_callback(self.send)
+                self.server.job_mgr.set_emit_callback(self.send)
+                await self.send({"event": "connected", "session_id": sid})
+                await self._emit_status()
+                if self._wake_word_enabled:
+                    await self._start_wake_word()
                 msgs = await self.server.session_store.get_messages(sid)
                 for msg in msgs:
                     self.server.agent._get_history(sid).append({
                         "role": msg["role"],
                         "content": msg["content"],
                     })
-                await self.send({"event": "connected", "session_id": sid})
-                for msg in msgs:
                     await self.send({
                         "event": "message",
                         "session_id": sid,
                         "role": msg["role"],
                         "text": msg["content"],
                     })
-                # Replay persisted artifacts.
                 artifacts = await self.server.session_store.get_artifacts(sid)
                 for art in artifacts:
                     await self.send({
                         "event": "artifact",
                         "id": art["id"],
                         "type": art["type"],
+                        "windowType": art.get("window_type", ""),
                         "title": art["title"],
                         "content": art["content"],
                         "update": "create",
@@ -394,6 +524,11 @@ class Connection:
                 },
                 session_id=self.session_id,
             )
+
+        elif kind == "tts_speak":
+            text = event.get("text", "")
+            if text and self.session_id:
+                await self._synthesize_tts(text, self.session_id)
 
         else:
             logger.debug("unhandled event: %s", kind)
@@ -482,18 +617,88 @@ class Connection:
 
     # ── Agent turn ─────────────────────────────────────────
 
-    async def _handle_input(self, content: str) -> None:
+    async def _handle_input(
+        self,
+        content: str,
+        selected_artifacts: list[dict] | None = None,
+    ) -> None:
         """Route a user message through the agent and TTS pipeline."""
         session_id = self.session_id or "sess_unknown"
-        self._current_task = asyncio.create_task(self._run_turn(content, session_id))
+        truncated = content[:120] + ("…" if len(content) > 120 else "")
+        logger.info("[turn] input (%s): %s", session_id[:8], truncated)
+        # Reject if a turn is already in progress.
+        if self._current_task and not self._current_task.done():
+            logger.info("[turn] rejected (%s): a turn is already in progress", session_id[:8])
+            await self.send({
+                "event": "error",
+                "detail": "Hay un turno en progreso. Espera a que termine o cancélalo con el botón de stop.",
+            })
+            return
+        self._current_task = asyncio.create_task(
+            self._run_turn(content, session_id, selected_artifacts=selected_artifacts)
+        )
 
-    async def _run_turn(self, content: str, session_id: str) -> None:
+    async def _run_turn(
+        self,
+        content: str,
+        session_id: str,
+        selected_artifacts: list[dict] | None = None,
+    ) -> None:
         """Run one agent turn: stream deltas, execute tools, then synthesize TTS."""
         accumulated = ""
+        turn_start_ts = time.monotonic()
+        logger.info("[turn] start (%s)", session_id[:8])
+        # Emit turn_start immediately so the frontend can show feedback
+        # before the first token arrives (especially important for reasoning
+        # models that take 10-20s to produce output).
+        await self.send({"event": "turn_start", "session_id": session_id})
+
+        # Inject selected-artifact context so the agent knows which
+        # artifacts the user currently has in focus. The context is
+        # prepended to the user message; the original text is what
+        # gets persisted and shown to the user.
+        agent_message = content
+        if selected_artifacts:
+            lines = ["SELECTED ARTIFACTS (the user has these in focus):"]
+            for art in selected_artifacts:
+                art_id = art.get("id", "?")
+                art_type = art.get("type", "?")
+                art_title = art.get("title", "?")
+                lines.append(f"- id={art_id} type={art_type} title=\"{art_title}\"")
+            lines.append(
+                "If the user asks to modify, add to, or improve 'this' or "
+                "'the selected artifact', they likely mean one of the above. "
+                "Use update_artifact (with get_artifact first to read current "
+                "content) rather than creating a new artifact."
+            )
+            lines.append("")
+            lines.append(f"USER MESSAGE: {content}")
+            agent_message = "\n".join(lines)
+
+        # Feedback mode: inject a confirmation instruction before the user
+        # message when confirm or plan mode is active.
+        if self._feedback_mode in ("confirm", "plan"):
+            plan_note = (
+                "IMPORTANT: Before calling any tool, write 1-2 sentences "
+                "confirming what you understood from the user's request. "
+                "If the request is complex or ambiguous, ask a clarifying "
+                "question before proceeding. Only execute after the user "
+                "confirms your understanding is correct.\n\n"
+            )
+            if self._feedback_mode == "plan":
+                plan_note = (
+                    "IMPORTANT: The user wants you to confirm your "
+                    "understanding before acting. First, summarize what you "
+                    "will do in 1-2 sentences and wait for the user to "
+                    "confirm. If anything is unclear, ask a question. "
+                    "Do NOT call any tool until the user confirms.\n\n"
+                )
+            agent_message = plan_note + agent_message
+
         try:
             # Set the emit callback for tool events.
             self.server.agent.set_emit_callback(self.send)
-            async for event in self.server.agent.respond(content, session_id, language=self._stt_language):
+            async for event in self.server.agent.respond(agent_message, session_id, language=self._stt_language):
                 if event.kind == "delta" and event.text:
                     accumulated += event.text
                     await self.send(
@@ -503,15 +708,28 @@ class Connection:
                     await self.send(
                         {"event": "reasoning_delta", "session_id": session_id, "text": event.text}
                     )
+                elif event.kind == "step":
+                    await self.send(
+                        {"event": "step_start", "session_id": session_id, "step": event.step or 1}
+                    )
+                elif event.kind == "tool_call":
+                    # tool_call events don't carry text; the tool result
+                    # will produce its own delta when the LLM resumes.
+                    pass
                 elif event.kind == "done":
                     break
         except asyncio.CancelledError:
+            elapsed = time.monotonic() - turn_start_ts
+            logger.info("[turn] cancelled (%s) after %.1fs", session_id[:8], elapsed)
             await self.send({"event": "turn_end", "session_id": session_id, "cancelled": True})
             return
         except Exception as exc:
             logger.exception("agent turn error")
             await self.send({"event": "error", "detail": str(exc)})
             return
+
+        elapsed = time.monotonic() - turn_start_ts
+        logger.info("[turn] end (%s) after %.1fs (chars=%d)", session_id[:8], elapsed, len(accumulated))
 
         # Synthesize TTS from the accumulated response.
         if accumulated and self.server.tts_pipeline.auto_tts:
@@ -565,6 +783,7 @@ class Connection:
 
     async def _apply_settings(self, event: dict[str, Any]) -> None:
         """Apply user settings from the frontend."""
+        ai_cfg_changed = False
         if "voice" in event:
             self.server.tts_pipeline.set_voice(voice=event["voice"])
         if "tts_mode" in event:
@@ -573,6 +792,24 @@ class Connection:
             self.server.tts_pipeline.set_auto_tts(bool(event["auto_tts"]))
         if "llm_model" in event:
             self.server.llm_provider._model = event["llm_model"]  # type: ignore[attr-defined]
+            ai_cfg_changed = True
+        if "llm_api_url" in event or "llm_api_key" in event or "llm_provider" in event:
+            api_url = event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url))
+            api_key = event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", settings.llm_api_key))
+            provider = event.get("llm_provider", "direct")
+            model = getattr(self.server.llm_provider, "_model", settings.llm_model)
+            if hasattr(self.server.llm_provider, "reconfigure"):
+                self.server.llm_provider.reconfigure(api_url=api_url, api_key=api_key, model=model)
+            ai_cfg_changed = True
+            logger.info("LLM config updated — will take effect on next turn. provider=%s url=%s model=%s", provider, api_url, model)
+        if ai_cfg_changed:
+            cfg = AIConfig(
+                provider=event.get("llm_provider", "direct"),
+                api_url=event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url)),
+                api_key=event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", "")),
+                model=getattr(self.server.llm_provider, "_model", settings.llm_model),
+            )
+            save_ai_config(cfg)
         if "stt_language" in event:
             self._stt_language = event["stt_language"]
             if self._stt_manager is not None:
@@ -587,6 +824,10 @@ class Connection:
             self.server.executor.profile = event["profile"]
         if "input_mode" in event:
             self._input_mode = event["input_mode"]
+        if "feedback_mode" in event:
+            self._feedback_mode = event["feedback_mode"]
+        if "plan_mode" in event:
+            self._plan_mode = bool(event["plan_mode"])
         await self._emit_status()
 
     async def _emit_status(self) -> None:
@@ -594,16 +835,20 @@ class Connection:
             {
                 "event": "status",
                 "llm_provider": self.server.llm_provider.provider_name,
+                "llm_api_url": getattr(self.server.llm_provider, "_api_url", settings.llm_api_url),
+                "llm_api_key_set": bool(getattr(self.server.llm_provider, "_api_key", "")),
                 "llm_model": getattr(self.server.llm_provider, "_model", settings.llm_model),
                 "tts_provider": self.server.tts_provider.provider_name,
                 "voice": self.server.tts_pipeline.voice,
                 "tts_mode": self.server.tts_pipeline.mode,
                 "auto_tts": self.server.tts_pipeline.auto_tts,
-                "capture_backend": "hyprland" if self.server.gaze_client.connected else "none",
+                "capture_backend": "mss" if self.server.gaze_client.connected else "none",
                 "profile": self.server.executor.profile,
                 "stt_language": self._stt_language,
                 "wake_word_enabled": self._wake_word_enabled,
                 "input_mode": self._input_mode,
+                "feedback_mode": self._feedback_mode,
+                "plan_mode": self._plan_mode,
                 "tools": [t.name for t in available_tools()],
                 "available_profiles": [p["id"] for p in self.server.gateway.list_profiles()],
             }

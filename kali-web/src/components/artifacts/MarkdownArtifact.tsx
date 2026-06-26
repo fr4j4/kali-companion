@@ -49,7 +49,7 @@ export function MarkdownArtifact({ content }: Props) {
   return (
     <div
       ref={containerRef}
-      className="p-4 text-sm md:text-base overflow-x-auto markdown"
+      className="p-4 overflow-x-auto markdown"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

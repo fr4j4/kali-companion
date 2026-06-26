@@ -48,9 +48,9 @@ export function WidgetGrid({ content, imageReadyKeys, onRequestImage }: Props) {
             key={stableKey}
             className={`rounded-lg border p-3 text-sm ${
               item.status === "success"
-                ? "border-green-600/30 bg-green-950/20"
+                ? "border-ok/30 bg-ok/10"
                 : item.status === "error"
-                  ? "border-red-600/30 bg-red-950/20"
+                  ? "border-err/30 bg-err/10"
                   : "border-border bg-elevated"
             }`}
           >
@@ -58,10 +58,10 @@ export function WidgetGrid({ content, imageReadyKeys, onRequestImage }: Props) {
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${
                   item.status === "success"
-                    ? "bg-green-500"
+                    ? "bg-ok"
                     : item.status === "error"
-                      ? "bg-red-500"
-                      : "bg-blue-500"
+                      ? "bg-err"
+                      : "bg-accent"
                 }`}
               />
               <span className="font-medium text-foreground">{item.title}</span>

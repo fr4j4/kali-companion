@@ -128,7 +128,7 @@ class GameInfoTool:
                     "image": None,
                     "sections": sections,
                 },
-            ),
+            ).to_payload(),
         )
 
     async def _fetch_full(self, url: str) -> str | None:

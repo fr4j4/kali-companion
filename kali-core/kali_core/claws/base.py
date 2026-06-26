@@ -12,7 +12,7 @@ before running.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, Protocol, runtime_checkable
 
 RiskLevel = Literal["safe", "sensitive", "dangerous"]
@@ -24,6 +24,10 @@ class ToolResult:
     output: Any = None
     error: str | None = None
     artifact: dict | None = None  # canvas artifact to render, if any
+    # True when the tool already streamed the artifact via ctx.emit (the
+    # executor should persist but NOT re-emit over WS). Replaces the old
+    # implicit ``output["_streamed"]`` magic-key convention.
+    streamed: bool = False
 
 
 @dataclass
@@ -36,6 +40,7 @@ class ToolContext:
     gaze_client: Any = None  # GazeClient instance for screen capture
     llm_provider: Any = None  # LLM provider for vision/multimodal
     job_mgr: Any = None  # JobManager for spawning background jobs
+    session_store: Any = None  # SessionStore for artifact persistence/lookup
     emit: Any = None  # emit_callback for sending WS events directly
     language: str = "en"  # user's language code (e.g. "es", "en")
 

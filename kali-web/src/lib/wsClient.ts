@@ -10,13 +10,15 @@ type IncomingEventName = EventName;
 
 export class WSClient {
   private url: string;
+  private sessionId?: string;
   private ws: WebSocket | null = null;
   private listeners = new Map<IncomingEventName, Set<Listener>>();
   private reconnectDelay = 1000;
   private shouldReconnect = true;
 
-  constructor(url: string) {
+  constructor(url: string, sessionId?: string) {
     this.url = url;
+    this.sessionId = sessionId;
   }
 
   connect(): void {
@@ -26,7 +28,11 @@ export class WSClient {
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
-      this.send({ event: "hello", client: "kali-web", version: "0.1.0" } as Record<string, unknown>);
+      const hello: Record<string, unknown> = { event: "hello", client: "kali-web", version: "0.1.0" };
+      if (this.sessionId) {
+        hello.session_id = this.sessionId;
+      }
+      this.send(hello);
     };
 
     this.ws.onmessage = (ev) => {
@@ -87,5 +93,10 @@ export class WSClient {
 
   private dispatch(event: IncomingEventName, payload: OutgoingEvent): void {
     this.listeners.get(event)?.forEach((l) => l(payload));
+  }
+
+  simulate(payload: OutgoingEvent): void {
+    const event = (payload.event as IncomingEventName) ?? "";
+    this.dispatch(event, payload);
   }
 }

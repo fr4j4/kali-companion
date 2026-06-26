@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import uuid
 from typing import Any
 
 import httpx
@@ -32,51 +31,6 @@ _HERO_ABILITIES: dict[str, dict[str, Any]] | None = None
 
 
 # ── Streaming helpers ──────────────────────────────────────
-
-
-async def _emit_widget(
-    ctx: Any,
-    artifact_id: str,
-    title: str,
-    game: str,
-    res_type: str,
-    image: dict | None,
-    sections: list[dict],
-    update: str = "create",
-) -> None:
-    """Emit a widget artifact via ctx.emit for progressive streaming."""
-    emit = getattr(ctx, "emit", None) if ctx else None
-    if emit is None:
-        return
-    data = {
-        "game": game,
-        "type": res_type,
-        "title": title,
-        "image": image,
-        "sections": sections,
-    }
-    item = {
-        "title": title,
-        "description": "",
-        "status": "info",
-        "widgetType": "game_resource",
-        "data": data,
-    }
-    payload = {
-        "event": "artifact",
-        "id": artifact_id,
-        "type": "widget",
-        "title": title,
-        "content": json.dumps({"items": [item]}),
-        "update": update,
-    }
-    try:
-        result = emit(payload)
-        # Handle both sync and async emit callbacks
-        if hasattr(result, "__await__"):
-            await result
-    except Exception:
-        logger.warning("Failed to emit artifact update", exc_info=True)
 
 
 def _liquipedia_urls(slug: str) -> list[str]:
@@ -590,9 +544,16 @@ class Dota2Adapter:
     async def _build_hero_resource(
         self, hero_name: str, ctx: Any, hero_key: str
     ) -> ResourceSchema | None:
-        artifact_id = f"art_dota_{uuid.uuid4().hex[:8]}"
+        from kali_core.canvas import ArtifactStreamer
+
         title = hero_name
         img = {"path": _hero_img_path(hero_key)} if hero_key else None
+
+        streamer = ArtifactStreamer(
+            ctx, title=title, widget_type="game_resource",
+            domain_type="hero", game="dota",
+        )
+        artifact_id = streamer.artifact_id
 
         await _load_hero_constants()
         await _ensure_id_to_key()
@@ -600,17 +561,14 @@ class Dota2Adapter:
         hero_id = await self._resolve_hero_id(hero_name)
         hero_const = (
             _HERO_CONSTANTS.get(str(hero_id))
-            if _HERO_CONSTANTS and hero_id
+            if _HERO_CONSTANTS and hero_id is not None
             else None
         )
 
         sections: list[dict] = []
 
         # ── Phase 1: emit title + image ───────────────────────
-        await _emit_widget(
-            ctx, artifact_id, title, "dota", "hero", img,
-            sections, update="create",
-        )
+        await streamer.emit(sections, image=img)
 
         # ── Phase 2: stats ────────────────────────────────────
         if hero_const:
@@ -670,10 +628,7 @@ class Dota2Adapter:
                 "text": desc_text,
             })
 
-            await _emit_widget(
-                ctx, artifact_id, title, "dota", "hero", img,
-                sections, update="update",
-            )
+            await streamer.emit(sections, image=img)
 
         # ── Phase 3: abilities + talents ──────────────────────
         full_name = f"npc_dota_hero_{hero_key}"
@@ -751,10 +706,7 @@ class Dota2Adapter:
                     "rows": talent_rows,
                 })
 
-            await _emit_widget(
-                ctx, artifact_id, title, "dota", "hero", img,
-                sections, update="update",
-            )
+            await streamer.emit(sections, image=img)
 
         # ── Phase 4: build (item popularity) ──────────────────
         items = await self._fetch_item_popularity(hero_name)
@@ -792,10 +744,7 @@ class Dota2Adapter:
                 ],
             })
 
-            await _emit_widget(
-                ctx, artifact_id, title, "dota", "hero", img,
-                sections, update="update",
-            )
+            await streamer.emit(sections, image=img)
 
         # ── Phase 5: win rate ─────────────────────────────────
         win_rate = await self._fetch_win_rate(hero_name)
@@ -818,10 +767,8 @@ class Dota2Adapter:
         )
 
         # ── Final emit ────────────────────────────────────────
-        await _emit_widget(
-            ctx, artifact_id, title, "dota", "hero", img,
-            sections, update="update",
-        )
+        await streamer.emit(sections, image=img)
+        streamer.mark_streamed()
 
         return ResourceSchema(
             game="dota",
@@ -844,7 +791,8 @@ class Dota2Adapter:
         self, query: str, ctx: Any = None
     ) -> ResourceSchema | None:
         """Build a resource card for non-hero, non-item queries (NPCs, maps)."""
-        artifact_id = f"art_dota_{uuid.uuid4().hex[:8]}"
+        from kali_core.canvas import ArtifactStreamer
+
         title = query
         sections: list[dict] = []
 
@@ -931,10 +879,12 @@ class Dota2Adapter:
         if not sections:
             return None
 
-        await _emit_widget(
-            ctx, artifact_id, title, "dota", "info", None,
-            sections, update="create",
+        streamer = ArtifactStreamer(
+            ctx, title=title, widget_type="game_resource",
+            domain_type="info", game="dota",
         )
+        await streamer.emit(sections)
+        streamer.mark_streamed()
 
         return ResourceSchema(
             game="dota",
@@ -944,7 +894,7 @@ class Dota2Adapter:
             sections=sections,
             raw={
                 "query": query,
-                "_artifact_id": artifact_id,
+                "_artifact_id": streamer.artifact_id,
                 "_streamed": True,
             },
         )

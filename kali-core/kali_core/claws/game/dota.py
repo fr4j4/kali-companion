@@ -62,7 +62,8 @@ class DotaBuildsTool:
                     "image": schema.image,
                     "sections": schema.sections,
                 },
-            ),
+            ).to_payload(),
+            streamed=bool(schema.raw.get("_streamed")),
         )
 
     async def _spawn_image_download(self, schema, ctx) -> None:

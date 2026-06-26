@@ -28,6 +28,8 @@ dependencies = [
     "aiosqlite>=0.20",
     # STT correction (fuzzy matching).
     "rapidfuzz>=3.0",
+    # Screen capture (kali-gaze) — cross-platform via mss.
+    "mss>=9.0",
 ]
 
 [project.optional-dependencies]

@@ -63,3 +63,6 @@ kali-core/kali_core/ear/models/*
 # =============================================================================
 .DS_Store
 Thumbs.db
+
+.agents/
+skills-lock.json

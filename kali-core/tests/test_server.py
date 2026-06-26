@@ -267,6 +267,7 @@ async def test_reasoning_delta(server: Server):
             saw_reasoning = False
             saw_delta = False
             saw_turn_end = False
+            reasoning_text = ""
             deadline = asyncio.get_event_loop().time() + 15
             while asyncio.get_event_loop().time() < deadline:
                 try:
@@ -275,7 +276,7 @@ async def test_reasoning_delta(server: Server):
                     break
                 if msg["event"] == "reasoning_delta":
                     saw_reasoning = True
-                    assert msg["text"] == "Analyzing the question..."
+                    reasoning_text += msg["text"]
                 elif msg["event"] == "delta":
                     saw_delta = True
                 elif msg["event"] == "turn_end":
@@ -283,8 +284,52 @@ async def test_reasoning_delta(server: Server):
                     break
 
             assert saw_reasoning, "did not receive reasoning_delta"
+            assert reasoning_text == "Analyzing the question...", reasoning_text
             assert saw_delta, "did not receive delta"
             assert saw_turn_end, "did not receive turn_end"
+    finally:
+        instance.should_exit = True
+        server_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, SystemExit):
+            await server_task
+
+
+@pytest.mark.asyncio
+async def test_tts_speak(server: Server):
+    """Verify tts_speak event generates TTS audio without going through the full agent flow."""
+    import uvicorn
+
+    config = uvicorn.Config(server.app, host="127.0.0.1", port=0, log_level="error")
+    instance = uvicorn.Server(config)
+    server_task = asyncio.create_task(instance.serve())
+    try:
+        await asyncio.sleep(0.3)
+        port = list(instance.servers)[0].sockets[0].getsockname()[1]
+        url = f"ws://127.0.0.1:{port}/ws"
+
+        async with websockets.connect(url) as ws:
+            await ws.send(json.dumps({"event": "hello", "client": "test", "version": "0.1.0"}))
+            ready = json.loads(await asyncio.wait_for(ws.recv(), timeout=2))
+            assert ready["event"] == "ready"
+
+            await ws.send(json.dumps({"event": "tts_speak", "text": "Hola desde debug"}))
+
+            saw_tts = False
+            deadline = asyncio.get_event_loop().time() + 15
+            while asyncio.get_event_loop().time() < deadline:
+                try:
+                    msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+                except TimeoutError:
+                    break
+                if msg["event"] == "tts_audio":
+                    saw_tts = True
+                    assert len(msg["audio"]) > 100
+                    decoded = base64.b64decode(msg["audio"])
+                    assert decoded[:4] == b"RIFF"
+                elif msg["event"] == "turn_end":
+                    break
+
+            assert saw_tts, "did not receive any tts_audio events"
     finally:
         instance.should_exit = True
         server_task.cancel()

@@ -31,7 +31,7 @@ class ConsentRequest:
         self.reason_key = reason_key
         self.reason_params = reason_params
         self.summary_key = summary_key
-        self.future: asyncio.Future[str] = asyncio.get_event_loop().create_future()
+        self.future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
 
     def to_dict(self) -> dict[str, Any]:
         return {

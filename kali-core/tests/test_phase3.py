@@ -29,108 +29,76 @@ async def test_phase3_tools_registered():
     assert "organize_folder" in names
 
 
-# ── GazeClient ──────────────────────────────────────────────
+# ── GazeClient (local mss-backed) ──────────────────────────
 
 
-async def test_gaze_client_connect_fail():
+async def test_gaze_client_not_available():
+    """When the capture backend is unavailable, GazeClient reports
+    connected=False and capture_full raises."""
     from kali_core.gaze import GazeClient
 
-    gc = GazeClient(port=19999, timeout=1)
-    with pytest.raises(ConnectionError, match="not connected"):
+    gc = GazeClient()
+    # Force the backend to report unavailable.
+    gc._capture._backend._available = False
+    assert gc.connected is False
+    with pytest.raises(RuntimeError):
         await gc.capture_full()
-    await gc.disconnect()
 
 
 async def test_gaze_client_capture_full():
+    """GazeClient.capture_full delegates to LocalCapture."""
     from kali_core.gaze import GazeClient
 
     fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    gc = GazeClient()
+    # Mock the inner LocalCapture to return our fake PNG.
+    gc._capture._available = True
 
-    # Patch websockets.connect to return a fake WS.
-    async def fake_connect(*args, **kwargs):
-        fake_ws = AsyncMock()
-        fake_ws.send = AsyncMock()
-        fake_ws.recv = AsyncMock(
-            return_value=json.dumps({
-                "result": {
-                    "data": __import__("base64").b64encode(fake_png).decode(),
-                    "mime": "image/png",
-                    "size": len(fake_png),
-                }
-            })
-        )
-        fake_ws.close = AsyncMock()
-        return fake_ws
+    async def fake_capture(output=None):
+        return fake_png
 
-    with patch("websockets.connect", side_effect=fake_connect):
-        gc = GazeClient(port=18999, timeout=5)
-        result = await gc.capture_full()
-        assert result == fake_png
-        await gc.disconnect()
+    gc._capture.capture_full = fake_capture  # type: ignore[assignment]
+    result = await gc.capture_full()
+    assert result == fake_png
 
 
 async def test_gaze_client_capture_full_with_output():
-    """capture_full(output=...) forwards 'output' in the payload."""
+    """GazeClient.capture_full(output=...) forwards the alias."""
     from kali_core.gaze import GazeClient
 
     fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+    captured_output: list[str | None] = []
+    gc = GazeClient()
+    gc._capture._available = True
 
-    sent: list[str] = []
+    async def fake_capture(output=None):
+        captured_output.append(output)
+        return fake_png
 
-    async def fake_connect(*args, **kwargs):
-        fake_ws = AsyncMock()
-
-        async def fake_send(payload):
-            sent.append(payload)
-
-        async def fake_recv():
-            return json.dumps({
-                "result": {
-                    "data": __import__("base64").b64encode(fake_png).decode(),
-                    "mime": "image/png",
-                    "size": len(fake_png),
-                }
-            })
-
-        fake_ws.send = fake_send
-        fake_ws.recv = fake_recv
-        fake_ws.close = AsyncMock()
-        return fake_ws
-
-    with patch("websockets.connect", side_effect=fake_connect):
-        gc = GazeClient(port=18998, timeout=5)
-        result = await gc.capture_full(output="HDMI-A-1")
-        assert result == fake_png
-        assert sent, "no payload was sent"
-        payload = json.loads(sent[0])
-        assert payload["command"] == "capture_full"
-        assert payload["output"] == "HDMI-A-1"
-        await gc.disconnect()
+    gc._capture.capture_full = fake_capture  # type: ignore[assignment]
+    result = await gc.capture_full(output="primary")
+    assert result == fake_png
+    assert captured_output == ["primary"]
 
 
 async def test_gaze_client_list_monitors():
+    """GazeClient.list_monitors delegates to LocalCapture."""
     from kali_core.gaze import GazeClient
 
-    monitors_json = json.dumps([
-        {"id": 0, "name": "HDMI-A-1", "description": "Main", "width": 1920,
-         "height": 1080, "x": 0, "y": 0, "active": True, "focused": True},
-    ])
+    fake_monitors = [
+        {"id": 1, "name": "Monitor1", "width": 1920, "height": 1080,
+         "x": 0, "y": 0, "primary": True, "active": True, "focused": True},
+    ]
+    gc = GazeClient()
+    gc._capture._available = True
 
-    async def fake_connect(*args, **kwargs):
-        fake_ws = AsyncMock()
-        fake_ws.send = AsyncMock()
-        fake_ws.recv = AsyncMock(
-            return_value=json.dumps({"result": {"monitors": monitors_json}})
-        )
-        fake_ws.close = AsyncMock()
-        return fake_ws
+    async def fake_list():
+        return fake_monitors
 
-    with patch("websockets.connect", side_effect=fake_connect):
-        gc = GazeClient(port=18997, timeout=5)
-        monitors = await gc.list_monitors()
-        assert len(monitors) == 1
-        assert monitors[0]["name"] == "HDMI-A-1"
-        await gc.disconnect()
+    gc._capture.list_monitors = fake_list  # type: ignore[assignment]
+    monitors = await gc.list_monitors()
+    assert len(monitors) == 1
+    assert monitors[0]["name"] == "Monitor1"
 
 
 # ── ScreenshotTool ──────────────────────────────────────────

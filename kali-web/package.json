@@ -12,16 +12,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "framer-motion": "^11.3.0",
     "highlight.js": "^11.11.1",
     "i18next": "^23.11.0",
     "i18next-browser-languagedetector": "^7.2.0",
+    "lucide-react": "^0.439.0",
     "marked": "^12.0.2",
     "marked-highlight": "^2.2.4",
     "mermaid": "^11.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^13.5.0",
-    "react-router-dom": "^7.18.0"
+    "react-router-dom": "^7.18.0",
+    "shiki": "^4.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

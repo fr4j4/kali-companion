@@ -4,13 +4,12 @@ import asyncio
 import json
 import logging
 import re
-import uuid
 from datetime import datetime
 from typing import Any
 
 import httpx
 
-from kali_core.canvas import widget_artifact
+from kali_core.canvas import ArtifactStreamer, widget_artifact
 from kali_core.claws.base import ToolContext, ToolResult
 from kali_core.claws.game.adapter import (
     ImageRequest,
@@ -136,6 +135,7 @@ class FetchGameResourceTool:
 
         # ── Phase 6: Build artifact + spawn images ────────────
         artifact = self._build_artifact(game, schema)
+        streamed = bool(schema.raw.get("_streamed"))
         if adapter and ctx.job_mgr:
             adapter_images = adapter.build_image_requests(schema)
             if adapter_images:
@@ -147,7 +147,7 @@ class FetchGameResourceTool:
                     ctx,
                 )
 
-        return ToolResult(output=schema.raw, artifact=artifact)
+        return ToolResult(output=schema.raw, artifact=artifact, streamed=streamed)
 
     async def _web_search_and_fetch(
         self, game: str, query: str
@@ -334,42 +334,6 @@ class FetchGameResourceTool:
         except Exception:
             logger.warning("LLM build card failed", exc_info=True)
             return None
-
-    async def _emit_stream(
-        self, ctx: Any, artifact_id: str, title: str, game: str,
-        res_type: str, image: dict | None, sections: list[dict],
-    ) -> None:
-        emit = getattr(ctx, "emit", None) if ctx else None
-        if emit is None:
-            return
-        data = {
-            "game": game,
-            "type": res_type,
-            "title": title,
-            "image": image,
-            "sections": sections,
-        }
-        item = {
-            "title": title,
-            "description": "",
-            "status": "info",
-            "widgetType": "game_resource",
-            "data": data,
-        }
-        payload = {
-            "event": "artifact",
-            "id": artifact_id,
-            "type": "widget",
-            "title": title,
-            "content": json.dumps({"items": [item]}),
-            "update": "create" if not sections else "update",
-        }
-        try:
-            result = emit(payload)
-            if hasattr(result, "__await__"):
-                await result
-        except Exception:
-            logger.warning("Failed to emit web artifact", exc_info=True)
 
     async def _enrich_with_adapter(
         self,
@@ -672,19 +636,30 @@ class FetchGameResourceTool:
                 "image": schema.image,
                 "sections": schema.sections,
             },
-        )
+        ).to_payload()
 
     async def _build_from_web(
         self, game: str, query: str, ctx: ToolContext | None = None
     ) -> ResourceSchema | None:
-        """Fallback: search web, fetch pages, build schema."""
-        artifact_id = f"art_web_{uuid.uuid4().hex[:8]}"
+        """Fallback: search web, fetch pages, build schema.
+
+        Streams the artifact progressively (empty create → populated update)
+        via ``ArtifactStreamer``. The returned ``ResourceSchema`` carries
+        ``_streamed: True`` so the executor skips the final WS emit (fixes
+        the previous double-emit bug that produced two windows).
+        """
         game_key = game.lower().replace(" ", "-")
         title = query
         sections: list[dict[str, Any]] = []
         img_urls: list[str] = []
 
-        await self._emit_stream(ctx, artifact_id, title, game_key, "info", None, sections)
+        streamer = ArtifactStreamer(
+            ctx, title=title, widget_type="game_resource",
+            domain_type="info", game=game_key,
+        )
+
+        # Phase 1: emit empty card (create).
+        await streamer.emit(sections)
 
         year = datetime.now().year
         search_queries = [
@@ -729,7 +704,9 @@ class FetchGameResourceTool:
         first_img = img_urls[0] if img_urls else None
         image = {"url": first_img} if first_img else None
 
-        await self._emit_stream(ctx, artifact_id, title, game_key, "info", image, sections)
+        # Phase 2: emit populated card (update).
+        await streamer.emit(sections, image=image)
+        streamer.mark_streamed()
 
         return ResourceSchema(
             game=game_key,
@@ -742,41 +719,7 @@ class FetchGameResourceTool:
                 "query": query,
                 "total_results": len(unique),
                 "images": img_urls[:_MAX_IMAGES],
+                "_streamed": True,
+                "_artifact_id": streamer.artifact_id,
             },
         )
-
-    async def _emit_stream(
-        self, ctx: Any, artifact_id: str, title: str, game: str,
-        res_type: str, image: dict | None, sections: list[dict],
-    ) -> None:
-        emit = getattr(ctx, "emit", None) if ctx else None
-        if emit is None:
-            return
-        data = {
-            "game": game,
-            "type": res_type,
-            "title": title,
-            "image": image,
-            "sections": sections,
-        }
-        item = {
-            "title": title,
-            "description": "",
-            "status": "info",
-            "widgetType": "game_resource",
-            "data": data,
-        }
-        payload = {
-            "event": "artifact",
-            "id": artifact_id,
-            "type": "widget",
-            "title": title,
-            "content": json.dumps({"items": [item]}),
-            "update": "create" if not sections else "update",
-        }
-        try:
-            result = emit(payload)
-            if hasattr(result, "__await__"):
-                await result
-        except Exception:
-            logger.warning("Failed to emit web artifact", exc_info=True)

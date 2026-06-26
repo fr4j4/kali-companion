@@ -1,36 +1,40 @@
 #!/usr/bin/env bash
-# Full-app launcher via kali-home (Tauri).
+# Full-app launcher via kali-shell (Electron).
 #
-# Unlike dev.sh (which skips the native shell), this script launches
-# kali-home — the Rust/Tauri container that wraps the frontend, spawns
-# the Python sidecar, and serves the IPC for screen capture. Use this
-# when you need system-access features: screen capture (list_monitors,
-# screenshot), launch_app, file dialogs, etc.
+# kali-shell replaces the old kali-home (Tauri/Rust) shell. It opens a
+# Chromium-backed BrowserWindow (GPU-accelerated on Wayland, no GTK3/
+# WebKitGTK Error 71), spawns the Python sidecar (kali-core), and loads
+# the kali-web frontend.
 #
 # Usage:  scripts/prod.sh
 #
 # Requirements (checked at startup):
 #   - Wayland session with Hyprland (WAYLAND_DISPLAY,
-#     HYPRLAND_INSTANCE_SIGNATURE, XDG_RUNTIME_DIR)
-#   - grim + hyprctl installed (screen capture)
+#     HYPRLAND_INSTANCE_SIGNATURE, XDG_RUNTIME_DIR) for screen capture
+#     via mss (XWayland backend).
 #   - kali-core .venv with deps (auto-created if missing)
 #   - kali-web node_modules (auto-installed if missing)
+#   - kali-shell node_modules (auto-installed if missing)
 #
 # Architecture:
-#   kali-home (cargo run, dev mode)
-#     ├── kali-web (Vite dev server via beforeDevCommand)
-#     ├── kali-core sidecar (spawned by sidecar.rs with KALI_PYTHON)
-#     └── IPC WS server on 127.0.0.1:KALI_HOME_IPC_PORT (default 8901)
+#   kali-shell (Electron main process)
+#     ├── kali-web (Vite preview of production build on :5173)
+#     ├── kali-core sidecar (spawned by sidecar.ts with KALI_PYTHON)
+#     └── screen capture handled in-process by Python (mss) — no IPC
 #
-# The Tauri webview loads http://localhost:5173 (Vite).  When the user
-# asks for a screen capture, the agent calls list_monitors/screenshot
-# via the Python → IPC WS → kali-home → grim/hyprctl path.
+# The Electron BrowserWindow loads http://localhost:5173 (Vite preview).
+# Screen capture (screenshot, list_monitors tools) runs inside the
+# Python sidecar via the mss library — there is no IPC WS on :8901.
+#
+# Performance:
+#   See docs/PERFORMANCE.md. Electron/Chromium handles Wayland + GPU
+#   natively; no WEBKIT_DISABLE_COMPOSITING_MODE or GDK_BACKEND hacks.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CORE_DIR="$ROOT/kali-core"
-HOME_DIR="$ROOT/kali-home"
+SHELL_DIR="$ROOT/kali-shell"
 WEB_DIR="$ROOT/kali-web"
 VENV="$CORE_DIR/.venv"
 LOG="/tmp/kali-prod.log"
@@ -46,9 +50,8 @@ if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
 fi
 
 if [ -z "${WAYLAND_DISPLAY:-}" ]; then
-  # Auto-detect from Wayland socket in XDG_RUNTIME_DIR.
   for sock in "$XDG_RUNTIME_DIR"/wayland-*; do
-    [ -S "$sock" ] || continue        # skip .lock files
+    [ -S "$sock" ] || continue
     export WAYLAND_DISPLAY="$(basename "$sock")"
     echo "  Auto-detected WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
     break
@@ -77,11 +80,7 @@ if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
   exit 1
 fi
 
-# GTK (used by Tauri's window) needs GDK_BACKEND to know which
-# display backend to use.  We default to x11 (via XWayland) because
-# GTK 3 on Hyprland/uwsm can produce "Error 71 (Protocol error)"
-# when dispatching to the Wayland display.  XWayland works fine.
-# Auto-detect the XWayland display number if DISPLAY is not set.
+# mss uses the X11 backend on Linux (via XWayland). Ensure DISPLAY is set.
 if [ -z "${DISPLAY:-}" ]; then
   xdisplay="$(ps aux | grep 'Xwayland' | grep -v grep | sed 's/.*Xwayland[[:space:]]*\(:[0-9]*\).*/\1/' | head -1)"
   if [ -n "$xdisplay" ]; then
@@ -89,51 +88,6 @@ if [ -z "${DISPLAY:-}" ]; then
     echo "  Auto-detected DISPLAY=$DISPLAY (XWayland)"
   fi
 fi
-export GDK_BACKEND="${GDK_BACKEND:-x11}"
-
-# grim + hyprctl must be installed for screen capture.
-if ! command -v grim &>/dev/null; then
-  echo "ERROR: grim not found in PATH.  Install grim for screen capture."
-  echo "  Arch: sudo pacman -S grim"
-  exit 1
-fi
-
-if ! command -v hyprctl &>/dev/null; then
-  echo "ERROR: hyprctl not found in PATH.  Is Hyprland installed?"
-  exit 1
-fi
-
-# ── GStreamer plugins (WebKitGTK audio) ────────────────────
-# WebKitGTK needs autoaudiosink + pulsesrc for getUserMedia
-# (microphone) and wavparse for WAV playback (TTS).  Install
-# automatically if missing — names vary per distro.
-if ! gst-inspect-1.0 autoaudiosink &>/dev/null || \
-   ! gst-inspect-1.0 pulsesrc &>/dev/null; then
-  echo "[prod] Installing GStreamer plugins (audio for WebKitGTK)…"
-  if command -v pacman &>/dev/null; then
-    sudo pacman -S --noconfirm gst-plugins-base gst-plugins-good
-  elif command -v apt &>/dev/null; then
-    sudo apt-get install -y gstreamer1.0-plugins-base \
-      gstreamer1.0-plugins-good gstreamer1.0-pulseaudio
-  elif command -v dnf &>/dev/null; then
-    sudo dnf install -y gstreamer1-plugins-base gstreamer1-plugins-good
-  elif command -v zypper &>/dev/null; then
-    sudo zypper install -y gstreamer-plugins-base gstreamer-plugins-good
-  elif command -v apk &>/dev/null; then
-    sudo apk add gst-plugins-base gst-plugins-good
-  else
-    echo "ERROR: GStreamer plugins missing and no package manager detected."
-    echo "  Install gst-plugins-base and gst-plugins-good manually."
-    exit 1
-  fi
-fi
-
-# Verify the critical plugins are now available.
-for _plugin in autoaudiosink pulsesrc wavparse; do
-  if ! gst-inspect-1.0 "$_plugin" &>/dev/null; then
-    echo "WARNING: GStreamer plugin '$_plugin' still missing after install."
-  fi
-done
 
 # ── kali-core: ensure venv + deps ─────────────────────────
 echo "[prod] Checking kali-core deps…"
@@ -145,10 +99,9 @@ fi
 if [ ! -d "$VENV/lib/python"*/site-packages/kali_core ]; then
   echo "  Installing kali-core deps…"
   "$VENV/bin/pip" install --quiet --upgrade pip
-  "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy
+  "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy mss
 fi
 
-# Verify the python binary works and kali_core imports.
 if ! "$VENV/bin/python" -c "import kali_core; print('  venv OK')" 2>/dev/null; then
   echo "ERROR: kali-core cannot be imported from venv."
   exit 1
@@ -166,63 +119,78 @@ if [ ! -d "$WEB_DIR/node_modules" ]; then
   npm --prefix "$WEB_DIR" install
 fi
 
+# ── kali-shell: ensure node_modules ─────────────────────────
+if [ ! -d "$SHELL_DIR/node_modules" ]; then
+  echo "  Installing kali-shell deps…"
+  npm --prefix "$SHELL_DIR" install
+fi
+
 # ── Cleanup stale processes ──────────────────────────────
-# Kill a previously launched kali-core on :8900 if present
-# (dev.sh may have left one).
 if lsof -ti tcp:8900 &>/dev/null; then
   echo "[prod] Killing stale process on :8900 (leftover kali-core)…"
   lsof -ti tcp:8900 | xargs kill 2>/dev/null || true
   sleep 0.5
 fi
 
-# Kill a previously launched kali-home if present (unlikely).
-if lsof -ti tcp:8901 &>/dev/null; then
-  echo "[prod] Killing stale process on :8901 (leftover kali-home IPC)…"
-  lsof -ti tcp:8901 | xargs kill 2>/dev/null || true
-  sleep 0.5
+# ── Vite: build production assets, then serve via preview ──
+BUILD_DIR="$WEB_DIR/dist"
+NEED_BUILD=0
+
+if [ "${KALI_REBUILD:-0}" = "1" ]; then
+  NEED_BUILD=1
+elif [ ! -d "$BUILD_DIR" ] || [ -z "$(ls -A "$BUILD_DIR" 2>/dev/null)" ]; then
+  NEED_BUILD=1
+else
+  newest_src="$(find "$WEB_DIR/src" -type f -newer "$BUILD_DIR/index.html" 2>/dev/null | head -1)"
+  newest_cfg=""
+  for cfg in "$WEB_DIR/vite.config.ts" "$WEB_DIR/index.html" "$WEB_DIR/package.json" "$WEB_DIR/tailwind.config.ts" "$WEB_DIR/postcss.config.js"; do
+    [ -f "$cfg" ] && [ "$cfg" -nt "$BUILD_DIR/index.html" ] && newest_cfg="$cfg" && break
+  done
+  if [ -n "$newest_src" ] || [ -n "$newest_cfg" ]; then
+    NEED_BUILD=1
+  fi
 fi
 
-# ── WebKit / rendering ────────────────────────────────────
-# WEBKIT_DISABLE_COMPOSITING_MODE skips GPU-accelerated
-# compositing, avoiding "Failed to create GBM buffer" errors
-# common under XWayland + WebKitGTK.
-export WEBKIT_DISABLE_COMPOSITING_MODE="${WEBKIT_DISABLE_COMPOSITING_MODE:-1}"
+if [ "$NEED_BUILD" = "1" ]; then
+  echo "[prod] Building production frontend (vite build)…"
+  npm --prefix "$WEB_DIR" run build
+else
+  echo "[prod] Reusing existing production build in $BUILD_DIR"
+fi
 
-# ── Vite dev server ───────────────────────────────────────
-# beforeDevCommand (tauri.conf.json) only runs with
-# "cargo tauri dev", not "cargo run".  Start Vite manually if
-# it isn't already listening on :5173.
 if ! ss -tlnp 2>/dev/null | grep -q ':5173'; then
-  echo "[prod] Starting Vite dev server (kali-web)…"
-  npm --prefix "$WEB_DIR" run dev &>/tmp/kali-vite.log &
+  echo "[prod] Starting Vite preview server (kali-web)…"
+  npm --prefix "$WEB_DIR" run preview &>/tmp/kali-vite.log &
   VITE_PID=$!
-  # Wait up to 10 seconds for Vite to start listening.
   for i in $(seq 1 10); do
     if ss -tlnp 2>/dev/null | grep -q ':5173'; then
-      echo "  Vite ready (PID $VITE_PID)"
+      echo "  Vite preview ready (PID $VITE_PID)"
       break
     fi
     sleep 1
   done
   if ! ss -tlnp 2>/dev/null | grep -q ':5173'; then
-    echo "WARNING: Vite did not start on :5173 (check /tmp/kali-vite.log)"
+    echo "WARNING: Vite preview did not start on :5173 (check /tmp/kali-vite.log)"
   fi
+else
+  echo "[prod] Vite server already listening on :5173, reusing it"
 fi
 
+# ── Build kali-shell (TypeScript → JS) ─────────────────────
+echo "[prod] Building kali-shell (TypeScript)…"
+npm --prefix "$SHELL_DIR" run build
+
 # ── Launch ────────────────────────────────────────────────
-echo "[prod] Starting kali-home (Tauri)…"
-echo "       Web:  http://localhost:5173  (Tauri webview)"
-echo "       Core: python (venv sidecar, spawned by kali-home)"
-echo "       IPC:  127.0.0.1:8901  (kali-home ↔ kali-core)"
-echo "       Log:  $LOG"
-
-cd "$HOME_DIR"
-
-echo "[prod] Running cargo run (ctrl+c to stop)…"
+echo "[prod] Starting kali-shell (Electron)…"
+echo "       Web:    http://localhost:5173  (Electron BrowserWindow)"
+echo "       Core:   python (venv sidecar, spawned by kali-shell)"
+echo "       Capture: mss (in-process Python, no IPC)"
+echo "       Log:    $LOG"
 
 export KALI_PYTHON="$VENV/bin/python"
-export RUST_LOG="${RUST_LOG:-info}"
 
 trap 'echo "[prod] Shutting down…"; kill 0' EXIT
 
-cargo run 2>&1 | tee -a "$LOG"
+cd "$SHELL_DIR"
+echo "[prod] Running electron (ctrl+c to stop)…"
+npm start 2>&1 | tee -a "$LOG"

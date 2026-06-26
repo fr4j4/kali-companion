@@ -1,0 +1,254 @@
+/* ============================================================
+   SINGULARITY V7 — AVATAR MODULE STYLES
+   Pet-assist mascot: SVG, animations, states, emotions, customizer
+   ============================================================ */
+
+/* =========================================
+   SISTEMA DE VARIABLES DE COLOR DEL AVATAR
+   ========================================= */
+:root {
+  --cat-base: #FFFFFF;
+  --cat-spot1: #E5954B;
+  --cat-spot2: #211E1F;
+  --cat-ears: #211E1F;
+
+  --eye-light: #E8F196;
+  --eye-main: #95C23D;
+  --eye-dark: #4A7314;
+  --eye-pupil: #0D0D0D;
+
+  --collar-band: #D33C37;
+  --acc-scarf: #10B981;
+  --acc-hat: #3B82F6;
+  --acc-glasses: #1F2937;
+}
+
+#avatar-svg path, #avatar-svg circle, #avatar-svg stop,
+#avatar-svg ellipse, #avatar-svg polygon, #avatar-svg rect {
+  transition: fill 0.4s ease, stroke 0.4s ease, stop-color 0.4s ease;
+}
+
+/* =========================================
+   SISTEMA MULTI-ESPECIE (VISIBILIDAD)
+   ========================================= */
+.show-gato, .show-perro, .show-erizo,
+.ear-cat, .ear-dog-up, .ear-dog-flop, .ear-hedgehog { display: none; transition: opacity 0.3s; }
+
+#head-pivot[data-animal="gato"] .show-gato { display: block; }
+#head-pivot[data-animal="perro"] .show-perro { display: block; }
+#head-pivot[data-animal="erizo"] .show-erizo { display: block; }
+
+#head-pivot[data-ears="cat"] .ear-cat { display: block; }
+#head-pivot[data-ears="dog-up"] .ear-dog-up { display: block; }
+#head-pivot[data-ears="dog-flop"] .ear-dog-flop { display: block; }
+#head-pivot[data-ears="hedgehog"] .ear-hedgehog { display: block; }
+
+/* =========================================
+   ANIMACIONES BASE
+   ========================================= */
+@keyframes avatarBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-4px) scale(1.01); } }
+@keyframes avatarSwingBell { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(4deg) translateY(1px); } }
+@keyframes avatarBlink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.05); } }
+@keyframes avatarEarTwitchLeft { 0%, 100%, 90% { transform: rotate(0deg); } 93% { transform: rotate(-3deg); } 96% { transform: rotate(2deg); } }
+@keyframes avatarEarTwitchRight { 0%, 100%, 92% { transform: rotate(0deg); } 95% { transform: rotate(3deg); } 98% { transform: rotate(-2deg); } }
+
+.avatar-animate { transform-origin: bottom center; animation: avatarBreathe 4s ease-in-out infinite; }
+.accessory-group { transform-origin: 500px 750px; animation: avatarSwingBell 4s ease-in-out infinite; }
+.head-tilt { transform-origin: 500px 730px; transition: transform 0.15s ease-out; }
+
+.left-ear { transform-origin: 320px 300px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.right-ear { transform-origin: 680px 300px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.eyelid-left { transform-origin: 355px 480px; transition: transform 0.3s ease; }
+.eyelid-right { transform-origin: 645px 480px; transition: transform 0.3s ease; }
+.pupil-core { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.shine-main, .shine-sub { transition: transform 0.3s ease; }
+
+#avatar-svg[data-state="idle"][data-mood="normal"] .eyelid-left,
+#avatar-svg[data-state="idle"][data-mood="normal"] .eyelid-right { animation: avatarBlink 5s infinite; }
+#avatar-svg[data-state="idle"][data-mood="normal"] .left-ear { animation: avatarEarTwitchLeft 7s infinite; }
+#avatar-svg[data-state="idle"][data-mood="normal"] .right-ear { animation: avatarEarTwitchRight 8s infinite; }
+
+/* =========================================
+   SISTEMA DE ESTADOS IA
+   ========================================= */
+#avatar-svg[data-state="escuchando"] .left-ear { transform: rotate(5deg) scale(1.05); animation: none; }
+#avatar-svg[data-state="escuchando"] .right-ear { transform: rotate(-5deg) scale(1.05); animation: none; }
+#avatar-svg[data-state="escuchando"] .pupil-core { transform: scale(1.1); }
+
+@keyframes avatarThinkEye { 0%, 100% { transform: translate(18px, -15px); } 50% { transform: translate(20px, -12px); } }
+#avatar-svg[data-state="pensando"] .eye-shine { animation: avatarThinkEye 2s infinite ease-in-out; }
+#avatar-svg[data-state="pensando"] .eyelid-left, #avatar-svg[data-state="pensando"] .eyelid-right { transform: scaleY(0.75); animation: none; }
+#avatar-svg[data-state="pensando"] .mouth-closed { d: path("M 470 595 Q 500 585 530 595"); }
+
+@keyframes avatarTalkMouth { 0%, 100% { transform: scaleY(0.2); opacity: 1; } 50% { transform: scaleY(1.05); opacity: 1; } }
+#avatar-svg[data-state="hablando"] .mouth-opened { opacity: 1 !important; transform-origin: 500px 580px; animation: avatarTalkMouth 0.25s infinite alternate ease-in-out; }
+#avatar-svg[data-state="hablando"] .mouth-closed { opacity: 0 !important; }
+
+/* =========================================
+   SISTEMA DE EMOCIONES
+   ========================================= */
+#avatar-svg[data-mood="enojado"] .pupil-core { transform: scaleX(0.12); }
+#avatar-svg[data-mood="enojado"] .left-ear { transform: rotate(-38deg) translateY(10px); animation: none; }
+#avatar-svg[data-mood="enojado"] .right-ear { transform: rotate(38deg) translateY(10px); animation: none; }
+#avatar-svg[data-mood="enojado"] .eyelid-left { transform: rotate(14deg) scaleY(0.65); animation: none; }
+#avatar-svg[data-mood="enojado"] .eyelid-right { transform: rotate(-14deg) scaleY(0.65); animation: none; }
+#avatar-svg[data-mood="enojado"] .mouth-closed { d: path("M 465 605 Q 500 590 535 605"); }
+
+#avatar-svg[data-mood="sorprendido"] .pupil-core { transform: scale(0.35); }
+#avatar-svg[data-mood="sorprendido"] .shine-main, #avatar-svg[data-mood="sorprendido"] .shine-sub { transform: scale(0.5); }
+#avatar-svg[data-mood="sorprendido"] .eyelid-left, #avatar-svg[data-mood="sorprendido"] .eyelid-right { transform: scaleY(1.1); animation: none; }
+#avatar-svg[data-mood="sorprendido"] .mouth-closed { d: path("M 485 595 A 15 15 0 1 0 515 595 A 15 15 0 1 0 485 595"); stroke-width: 5; }
+
+@keyframes avatarPurr { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+#avatar-svg[data-mood="ronroneando"] .avatar-animate { animation: avatarPurr 0.12s infinite alternate; }
+#avatar-svg[data-mood="ronroneando"] .eyelid-left, #avatar-svg[data-mood="ronroneando"] .eyelid-right { transform: scaleY(0.15); animation: none; }
+
+/* =========================================
+   PATRONES (hidden / visible)
+   ========================================= */
+.hidden-pattern { display: none; }
+.visible-pattern { display: block; animation: avatarFadeIn 0.4s ease; }
+@keyframes avatarFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* =========================================
+   REDUCED MOTION
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+  .avatar-animate, .accessory-group, .head-tilt,
+  #avatar-svg[data-state="idle"][data-mood="normal"] .eyelid-left,
+  #avatar-svg[data-state="idle"][data-mood="normal"] .eyelid-right,
+  #avatar-svg[data-state="idle"][data-mood="normal"] .left-ear,
+  #avatar-svg[data-state="idle"][data-mood="normal"] .right-ear,
+  #avatar-svg[data-state="pensando"] .eye-shine,
+  #avatar-svg[data-state="hablando"] .mouth-opened,
+  #avatar-svg[data-mood="ronroneando"] .avatar-animate {
+    animation: none !important;
+  }
+}
+
+/* =========================================
+   AVATAR CONTAINER (en el workspace)
+   ========================================= */
+#avatar-container {
+  width: 260px; height: 260px;
+  max-width: 90vw; max-height: 90vh;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  filter: drop-shadow(0 10px 30px rgba(0,0,0,0.4));
+  transition: transform 0.3s ease;
+}
+#avatar-container:hover { transform: scale(1.03); }
+#avatar-container:active { transform: scale(0.98); }
+
+#avatar-svg { width: 100%; height: 100%; transition: all 0.3s; }
+
+/* Indicador de estado del avatar */
+#avatar-state-indicator {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, calc(-50% + 145px));
+  display: flex; align-items: center; gap: 6px;
+  background: var(--glass-strong-bg); backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border); border-radius: 999px;
+  padding: 4px 12px; font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--fg); pointer-events: none; z-index: 10;
+  opacity: 0; transition: opacity 0.3s;
+}
+#avatar-state-indicator.visible { opacity: 1; }
+#avatar-state-indicator .dot { width: 6px; height: 6px; border-radius: 50%; }
+#avatar-state-indicator .dot.idle { background: var(--muted); }
+#avatar-state-indicator .dot.escuchando { background: var(--ok); animation: pulseDot 1s infinite; }
+#avatar-state-indicator .dot.pensando { background: var(--warn); animation: pulseDot 0.8s infinite; }
+#avatar-state-indicator .dot.hablando { background: var(--accent); animation: pulseDot 1s infinite; }
+@keyframes pulseDot { 0%,100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.3); } }
+
+/* =========================================
+   CUSTOMIZER DRAWER
+   ========================================= */
+#customizer-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 360px;
+  max-width: 100vw; z-index: 58;
+  background: var(--glass-strong-bg); backdrop-filter: blur(24px);
+  border-left: 1px solid var(--glass-border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.2,0.7,0.3,1);
+  box-shadow: -10px 0 40px rgba(0,0,0,0.3);
+}
+#customizer-drawer.open { transform: translateX(0); }
+
+.customizer-section {
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 14px; padding: 16px; margin-bottom: 12px;
+}
+.customizer-section h3 {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+}
+
+/* Grid de botones de especie/raza */
+.cust-btn-grid { display: grid; gap: 8px; }
+.cust-btn-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.cust-btn-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.cust-btn {
+  padding: 10px 8px; border-radius: 10px; border: 2px solid transparent;
+  background: rgba(255,255,255,0.04); color: var(--fg); cursor: pointer;
+  font-size: 11px; font-weight: 600; transition: all 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-family: 'Inter', sans-serif;
+}
+.cust-btn:hover { background: rgba(255,255,255,0.08); }
+.cust-btn.active { border-color: var(--accent); background: rgba(34,211,238,0.1); color: var(--accent); }
+.cust-btn .emoji { font-size: 18px; }
+
+/* Color pickers */
+.cust-color-pickers { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; }
+.cust-picker-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cust-picker-wrap input[type="color"] {
+  -webkit-appearance: none; border: none; width: 36px; height: 36px;
+  border-radius: 50%; padding: 0; overflow: hidden; cursor: pointer;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15); border: 2px solid rgba(255,255,255,0.2);
+}
+.cust-picker-wrap input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.cust-picker-wrap input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+.cust-picker-label {
+  font-size: 8px; font-weight: 700; text-transform: uppercase;
+  color: var(--muted); text-align: center; width: 50px; line-height: 1.2;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Selects */
+.cust-select {
+  background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: 600;
+  color: var(--fg); cursor: pointer; outline: none;
+  font-family: 'Inter', sans-serif;
+}
+.cust-select:focus { border-color: var(--accent); }
+
+/* Preset color buttons (eyes, collar) */
+.cust-preset-color {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15);
+  cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.cust-preset-color:hover { transform: scale(1.15); }
+
+/* Customizer header */
+.cust-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+.cust-body { flex: 1; overflow-y: auto; padding: 16px; }
+.cust-body::-webkit-scrollbar { width: 5px; }
+.cust-body::-webkit-scrollbar-track { background: transparent; }
+.cust-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  #customizer-drawer { width: 100%; }
+  #avatar-container { width: 180px; height: 180px; }
+  #avatar-state-indicator { transform: translate(-50%, calc(-50% + 100px)); }
+}

@@ -53,8 +53,7 @@ def test_gaming_profile_allowed_tools():
     tools = prof["allowed_tools"]
     assert "web_search" in tools
     assert "web_fetch" in tools
-    assert "game_info" in tools
-    assert "fetch_dota2_build" in tools
+    assert "fetch_game_resource" in tools
 
 
 def test_files_profile_allowed_tools():

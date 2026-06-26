@@ -17,6 +17,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from ..canvas.registry import widget_artifact
 from ..config import settings
 from .base import ToolContext, ToolResult
 
@@ -117,10 +118,31 @@ class ScreenshotTool:
 
         # Persist to disk so the user can review captures.
         save_path = ""
+        rel_path = ""
         try:
             save_path = _save_snapshot(png_bytes, monitor)
+            # Relative path under the /snapshots static mount so the
+            # frontend can render it via <img src="/snapshots/...">.
+            rel_path = Path(save_path).name
         except Exception as e:
             logger.warning("Failed to save snapshot: %s", e)
+
+        # Build an image artifact so the screenshot appears inline as a
+        # floating window on the canvas (not just a file path in text).
+        artifact = None
+        if rel_path:
+            monitor_label = monitor or "primary"
+            artifact = widget_artifact(
+                title=f"Screenshot — {monitor_label}",
+                widget_type="img",
+                data={
+                    "type": "img",
+                    "path": f"snapshots/{rel_path}",
+                    "name": f"Capture of {monitor_label}",
+                    "title": f"Screenshot — {monitor_label}",
+                },
+                window_type="image",
+            ).to_payload()
 
         return ToolResult(
             output={
@@ -130,5 +152,6 @@ class ScreenshotTool:
                 "monitor": monitor or "primary",
                 "description": description,
                 "path": save_path,
-            }
+            },
+            artifact=artifact,
         )

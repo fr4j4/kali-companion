@@ -1,0 +1,320 @@
+/* ============================================================
+   SINGULARITY V6 — STYLES
+   v5 base (T0-T3) + Kali Neural visual polish
+   ============================================================ */
+
+:root {
+  --bg: #02040a; --fg: #e2e8f0; --muted: #64748b; --faint: #3a4058;
+  --accent: #22d3ee; --accent2: #818cf8; --accent3: #f472b6;
+  --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+  --glass-bg: rgba(255,255,255,0.03);
+  --glass-border: rgba(255,255,255,0.07);
+  --glass-strong-bg: rgba(10,15,30,0.85);
+  --glass-ide-bg: rgba(8,12,24,0.95);
+}
+
+/* --- Base --- */
+body { background: var(--bg); color: var(--fg); font-family:'Inter',sans-serif; overflow:hidden; }
+.prose-center { font-family:'Fraunces',serif; font-size:1.6rem; line-height:1.5; text-align:center; font-variation-settings:"SOFT" 60; }
+
+/* --- Mesh background --- */
+.mesh {
+  background: radial-gradient(circle at 50% 50%, rgba(34,211,238,0.08), transparent 50%),
+              radial-gradient(circle at 10% 10%, rgba(129,140,248,0.05), transparent 40%),
+              radial-gradient(circle at 90% 90%, rgba(244,114,182,0.05), transparent 40%), var(--bg);
+  animation: drift 30s ease-in-out infinite alternate;
+}
+@keyframes drift { from{background-position:0% 0%;} to{background-position:100% 100%;} }
+
+/* --- Orb --- */
+@keyframes morph { 0%,100%{border-radius:40% 60% 70% 30%/40% 40% 60% 60%;} 50%{border-radius:60% 40% 30% 70%/60% 60% 40% 40%;} }
+.orb { animation: morph 8s ease-in-out infinite; background:radial-gradient(circle at 30% 30%, #67e8f9, #22d3ee 40%, #0891b2 100%); filter:drop-shadow(0 0 40px rgba(34,211,238,0.4)); }
+
+/* --- Glass layers --- */
+.glass { background: var(--glass-bg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid var(--glass-border); }
+.glass-strong { background: var(--glass-strong-bg); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.08); }
+.glass-ide { background: var(--glass-ide-bg); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.06); }
+
+/* --- Streaming cursor --- */
+.cursor { display:inline-block; width:2px; height:1em; background:var(--accent); animation:blink 1.1s steps(2,start) infinite; }
+@keyframes blink { 50%{opacity:0;} }
+
+/* --- Scrollbars --- */
+.scrollbar-thin::-webkit-scrollbar { width:5px; height:5px; }
+.scrollbar-thin::-webkit-scrollbar-track { background:transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:3px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
+.scrollbar-hide::-webkit-scrollbar { display:none; }
+.scrollbar-hide { scrollbar-width:none; }
+
+/* --- Misc utility --- */
+.btn-glow { box-shadow:0 0 20px rgba(34,211,238,0.3); }
+.hover-lift { transition:all 0.2s ease; }
+.hover-lift:hover { transform:translateY(-2px); }
+.badge { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; text-transform:uppercase; }
+
+/* ============================================================
+   T0: ACCESSIBILITY
+   ============================================================ */
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+button:focus-visible, a:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .orb { animation: none !important; }
+  .mesh { animation: none !important; }
+  .cursor { animation: none !important; opacity: 1 !important; }
+  .wave-bar, .music-bar, .ring-pulse { animation: none !important; }
+  .aw.entering, .aw.leaving { animation: none !important; }
+  .tether-path { animation: none !important; }
+  .entity-breathe { animation: none !important; }
+}
+
+/* ============================================================
+   T0: TOASTS
+   ============================================================ */
+#toast-container { position: fixed; bottom: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { background: var(--glass-strong-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px 16px; min-width: 240px; max-width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg); pointer-events: auto; animation: toastIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+.toast.leaving { animation: toastOut 0.3s ease both; }
+.toast-icon { width: 18px; height: 18px; flex-shrink: 0; }
+.toast.ok { border-left: 3px solid var(--ok); }
+.toast.err { border-left: 3px solid var(--err); }
+.toast.info { border-left: 3px solid var(--accent); }
+.toast.warn { border-left: 3px solid var(--warn); }
+@keyframes toastIn { from{opacity:0; transform:translateX(40px);} to{opacity:1; transform:none;} }
+@keyframes toastOut { to{opacity:0; transform:translateX(40px);} }
+
+/* ============================================================
+   T0: SKELETON
+   ============================================================ */
+.skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.06), rgba(255,255,255,0.02)); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+@keyframes shimmer { from{background-position:200% 0;} to{background-position:-200% 0;} }
+.skeleton-orb { position: absolute; inset: 0; border-radius: inherit; }
+
+/* ============================================================
+   T0: WINDOW SYSTEM
+   ============================================================ */
+.aw { position: absolute; display: flex; flex-direction: column; background: var(--glass-ide-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); transition: box-shadow 0.3s, border-color 0.3s, opacity 0.3s, transform 0.3s, filter 0.3s; overflow: hidden; }
+.aw.focused { border-color: rgba(34,211,238,0.4); box-shadow: 0 0 0 1px rgba(34,211,238,0.15), 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(34,211,238,0.12); }
+.aw.dimmed { opacity: 0.72; filter: saturate(0.6); }
+.aw.selected { border-color: rgba(34,211,238,0.5); box-shadow: 0 0 0 2px rgba(34,211,238,0.2), 0 20px 60px rgba(0,0,0,0.5); }
+.aw.minimized { height: 36px !important; overflow: hidden; }
+.aw.minimized .aw-body { display: none; }
+.aw.minimized .aw-resize { display: none; }
+.aw.entering { animation: awEnter 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+@keyframes awEnter { from{opacity:0; transform:scale(0.6);} to{opacity:1; transform:scale(1);} }
+.aw.leaving { animation: awLeave 0.3s ease both; }
+@keyframes awLeave { to{opacity:0; transform:scale(0.85);} }
+
+.aw-header { cursor: grab; user-select: none; position: relative; }
+.aw-header:active { cursor: grabbing; }
+.aw-drag-dots { display: flex; flex-direction: column; gap: 2px; margin-right: 4px; opacity: 0.2; transition: opacity 0.2s; }
+.aw-header:hover .aw-drag-dots { opacity: 0.4; }
+.aw-drag-dots span { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+
+.aw-resize { cursor: nwse-resize; position: absolute; bottom: 0; right: 0; width: 24px; height: 24px; z-index: 5; }
+.aw-resize::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 14px; height: 14px; border-right: 2px solid rgba(255,255,255,0.25); border-bottom: 2px solid rgba(255,255,255,0.25); border-radius: 0 0 4px 0; transition: border-color 0.2s; }
+.aw-resize:hover::after { border-color: var(--accent); }
+
+.aw-focus-label { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); opacity: 0; transition: opacity 0.2s; }
+.aw.focused .aw-focus-label { opacity: 0.7; }
+
+#minimize-dock { position: fixed; bottom: 70px; left: 20px; z-index: 35; display: flex; flex-direction: column; gap: 4px; max-width: 200px; }
+.min-bar { background: var(--glass-strong-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 8px; padding: 4px 10px; font-size: 11px; color: var(--fg); cursor: pointer; transition: all 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+.min-bar:hover { background: rgba(34,211,238,0.1); border-color: rgba(34,211,238,0.2); }
+
+/* ============================================================
+   T2: SNAP GUIDES
+   ============================================================ */
+.snap-guide { position: fixed; background: var(--accent); z-index: 9998; pointer-events: none; opacity: 0.6; }
+.snap-guide.v { width: 1px; top: 0; bottom: 0; }
+.snap-guide.h { height: 1px; left: 0; right: 0; }
+.snap-guide.edge-v { width: 2px; }
+.snap-guide.edge-h { height: 2px; }
+
+/* ============================================================
+   T2: LASSO
+   ============================================================ */
+#lasso { position: fixed; border: 1px solid rgba(34,211,238,0.4); background: rgba(34,211,238,0.05); z-index: 9997; pointer-events: none; display: none; }
+
+/* ============================================================
+   T2: CONTEXT MENU
+   ============================================================ */
+.ctx-menu { position: fixed; z-index: 9999; min-width: 180px; background: var(--glass-strong-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); padding: 4px; animation: ctxIn 0.15s ease both; }
+@keyframes ctxIn { from{opacity:0; transform:scale(0.95);} to{opacity:1; transform:none;} }
+.ctx-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; color: var(--fg); border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+.ctx-item:hover { background: rgba(34,211,238,0.1); }
+.ctx-item.danger { color: var(--err); }
+.ctx-item.danger:hover { background: rgba(248,113,113,0.1); }
+.ctx-sep { height: 1px; background: var(--glass-border); margin: 4px 0; }
+.ctx-submenu-arrow { margin-left: auto; opacity: 0.4; }
+
+/* ============================================================
+   T3: TOOLTIPS
+   ============================================================ */
+.tt { position: fixed; z-index: 10000; background: rgba(10,15,30,0.95); color: var(--fg); font-size: 10px; padding: 5px 9px; border-radius: 6px; white-space: nowrap; font-family: 'JetBrains Mono', monospace; pointer-events: none; border: 1px solid var(--glass-border); box-shadow: 0 4px 12px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.15s; }
+.tt.visible { opacity: 1; }
+
+/* ============================================================
+   T3: MOBILE
+   ============================================================ */
+@media (max-width: 768px) {
+  .aw { width: calc(100vw - 24px) !important; max-width: 400px; }
+  #drawer { width: 100% !important; }
+  .prose-center { font-size: 1.2rem; }
+  #debug-panel { width: 140px; font-size: 10px; }
+  #orb-zone { width: 120px; height: 120px; }
+  #orb { width: 80px !important; height: 80px !important; }
+  #minimize-dock { display: none; }
+  footer .glass-strong { padding: 6px 8px; gap: 4px; }
+  footer .badge { font-size: 8px; }
+  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Grid mode */
+.grid-mode #artifact-layer { display: flex; flex-wrap: wrap; gap: 16px; padding: 80px 20px 120px; align-items: flex-start; justify-content: center; align-content: flex-start; }
+.grid-mode .aw { position: relative !important; left: auto !important; top: auto !important; }
+
+/* ============================================================
+   WIDGET STYLES (T1)
+   ============================================================ */
+.wave-bar { animation: wave 0.8s ease-in-out infinite; }
+@keyframes wave { 0%,100%{height:20%;} 50%{height:100%;} }
+.ring-pulse { animation: ringPulse 3s ease-out infinite; }
+@keyframes ringPulse { 0%{transform:scale(0.8);opacity:0.5;} 100%{transform:scale(2);opacity:0;} }
+
+.diff-add { background: rgba(52,211,153,0.08); border-left: 2px solid var(--ok); }
+.diff-del { background: rgba(248,113,113,0.08); border-left: 2px solid var(--err); }
+
+.prose-md { font-family: 'Fraunces', serif; font-size: 0.92rem; line-height: 1.72; }
+.prose-md h1 { font-size: 1.3rem; font-weight: 600; margin: 1rem 0 0.6rem; color: var(--fg); }
+.prose-md h2 { font-size: 1.1rem; font-weight: 600; margin: 0.9rem 0 0.5rem; color: var(--fg); }
+.prose-md h3 { font-size: 0.98rem; font-weight: 600; margin: 0.8rem 0 0.4rem; color: #cbd5e1; }
+.prose-md p { margin: 0.5rem 0; color: rgba(226,232,240,0.85); }
+.prose-md ul, .prose-md ol { margin: 0.5rem 0; padding-left: 1.2rem; }
+.prose-md li { margin: 0.2rem 0; color: rgba(226,232,240,0.8); }
+.prose-md ul li { list-style: disc; }
+.prose-md ol li { list-style: decimal; }
+.prose-md code { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; background: rgba(34,211,238,0.08); color: var(--accent); padding: 1px 5px; border-radius: 4px; }
+.prose-md pre { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 0.7rem 0; }
+.prose-md pre code { background: none; color: var(--fg); padding: 0; }
+.prose-md blockquote { border-left: 3px solid rgba(34,211,238,0.3); padding-left: 12px; margin: 0.7rem 0; color: rgba(226,232,240,0.6); font-style: italic; }
+.prose-md a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(34,211,238,0.3); }
+.prose-md strong { color: var(--fg); font-weight: 600; }
+.prose-md table { width: 100%; border-collapse: collapse; margin: 0.7rem 0; font-size: 0.82rem; }
+.prose-md th, .prose-md td { border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; text-align: left; }
+.prose-md th { background: rgba(255,255,255,0.03); font-weight: 600; }
+
+.callout { border-radius: 8px; padding: 10px 14px; margin: 0.7rem 0; font-size: 0.85rem; }
+.callout-info { background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.15); color: rgba(34,211,238,0.9); }
+.callout-warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.15); color: rgba(251,191,36,0.9); }
+.callout-tip { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.15); color: rgba(52,211,153,0.9); }
+
+.mermaid-container { display: flex; align-items: center; justify-content: center; overflow: auto; padding: 12px; }
+.mermaid-container svg { max-width: none; }
+
+.json-key { color: var(--accent); }
+.json-string { color: #86efac; }
+.json-num { color: var(--warn); }
+.json-bool { color: var(--accent3); }
+.json-null { color: var(--muted); }
+.json-toggle { cursor: pointer; user-select: none; }
+.json-toggle::before { content: '\25B8 '; color: var(--muted); }
+.json-toggle.open::before { content: '\25BE '; }
+
+.term-line { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.term-prompt { color: var(--accent); }
+.term-out { color: rgba(226,232,240,0.7); }
+.term-err { color: var(--err); }
+.term-ok { color: var(--ok); }
+.term-warn { color: var(--warn); }
+.term-input { background: transparent; border: none; outline: none; color: var(--fg); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; width: 100%; }
+
+.chart-bar { transition: opacity 0.2s; }
+.chart-bar:hover { opacity: 0.8; }
+.chart-tooltip { position: absolute; background: rgba(10,15,30,0.95); border: 1px solid var(--glass-border); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; pointer-events: none; z-index: 10; white-space: nowrap; }
+
+.quiz-option { transition: all 0.2s; cursor: pointer; }
+.quiz-option:hover { background: rgba(255,255,255,0.06); }
+.quiz-option.correct { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.4); animation: quizReveal 0.4s ease; }
+.quiz-option.wrong { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.4); animation: quizReveal 0.4s ease; }
+@keyframes quizReveal { from{transform:scale(0.98);} to{transform:scale(1);} }
+.quiz-score-dot { transition: all 0.3s; }
+
+.check-item { transition: all 0.2s; }
+.check-item.done .check-label { text-decoration: line-through; color: rgba(226,232,240,0.4); }
+.check-box { transition: all 0.2s; cursor: pointer; }
+.check-item.done .check-box { background: var(--accent); border-color: var(--accent); }
+@keyframes checkPop { 0%{transform:scale(1);} 50%{transform:scale(1.15);} 100%{transform:scale(1);} }
+.check-item.done .check-box { animation: checkPop 0.3s ease; }
+
+.video-controls { opacity: 0; transition: opacity 0.3s; }
+.video-container:hover .video-controls { opacity: 1; }
+
+.music-bar { animation: musicWave 0.6s ease-in-out infinite; transform-origin: bottom; }
+@keyframes musicWave { 0%,100%{transform:scaleY(0.3);} 50%{transform:scaleY(1);} }
+.music-bar.paused { animation-play-state: paused; }
+
+.drawer { transition: transform 0.35s cubic-bezier(0.2,0.7,0.3,1); }
+.drawer.closed { transform: translateX(100%); }
+
+.debug-panel { cursor: grab; user-select: none; }
+.debug-panel:active { cursor: grabbing; }
+
+.kbd-help { position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; }
+.kbd-help.visible { display: flex; }
+.kbd { display: inline-block; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg); }
+
+/* ============================================================
+   KALI NEURAL ADDITIONS: TETHERS
+   ============================================================ */
+.tether-path {
+  fill: none; stroke: url(#tetherGrad); stroke-width: 2.5;
+  stroke-linecap: round; stroke-dasharray: 8 6;
+  animation: dashFlow 20s linear infinite; opacity: 0.45;
+  transition: opacity 0.3s, stroke-width 0.3s, filter 0.3s;
+}
+@keyframes dashFlow { to { stroke-dashoffset: -1000; } }
+.artifact-node:hover ~ #tether-layer .tether-path { opacity: 0.85; stroke-width: 3.5; }
+.pulse-tether { filter: drop-shadow(0 0 10px rgba(34,211,238,0.9)); stroke-width: 5; opacity: 1; stroke: #fff; }
+
+/* ============================================================
+   KALI NEURAL ADDITIONS: ENTITY BREATHE + SPAWN
+   ============================================================ */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 25px rgba(34,211,238,0.25)); }
+  50% { transform: scale(1.04); filter: drop-shadow(0 0 50px rgba(129,140,248,0.45)); }
+}
+.entity-breathe { animation: breathe 5s infinite ease-in-out; }
+
+@keyframes spawnNode {
+  0% { opacity: 0; transform: scale(0.5) translateY(30px); filter: blur(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
+}
+.spawn-anim { animation: spawnNode 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* ============================================================
+   KALI NEURAL ADDITIONS: SLIDER RANGE
+   ============================================================ */
+input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: var(--accent); cursor: pointer; margin-top: -4px; }
+input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ============================================================
+   KALI NEURAL ADDITIONS: VINYL SPIN + EQ BOUNCE
+   ============================================================ */
+@keyframes spin-record { 100% { transform: rotate(360deg); } }
+.spin-active { animation: spin-record 5s linear infinite; }
+.eq-bar { animation: eq-bounce 0.8s ease-in-out infinite alternate; }
+@keyframes eq-bounce { 0% { height: 3px; } 100% { height: 18px; } }
+
+/* ============================================================
+   KALI NEURAL ADDITIONS: HERO ATTRIBUTE BARS
+   ============================================================ */
+.hero-attr-bar { height: 8px; background: rgba(0,0,0,0.6); border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; }
+.hero-attr-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.hero-skill-btn { transition: all 0.2s; }
+.hero-skill-btn.active { border-color: rgba(239,68,68,0.6); background: rgba(239,68,68,0.2); }
+.hero-skill-panel { min-height: 48px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 10px; }

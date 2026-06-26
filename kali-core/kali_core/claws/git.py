@@ -152,7 +152,7 @@ class GitDiffTool:
         # Emit a diff artifact for the Canvas.
         from kali_core.canvas import diff_artifact
 
-        artifact = diff_artifact(
+        envelope = diff_artifact(
             title=f"git diff {ref or ('--cached' if staged else 'HEAD')}",
             content=diff_text,
         )
@@ -164,5 +164,5 @@ class GitDiffTool:
                 "ref": ref or "HEAD",
                 "staged": staged,
             },
-            artifact=artifact,
+            artifact=envelope.to_payload(),
         )

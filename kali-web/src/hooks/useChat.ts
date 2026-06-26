@@ -14,6 +14,7 @@ import type {
   ReadyEvent,
   ReasoningDeltaEvent,
   SessionListEvent,
+  StepStartEvent,
   TtsAudioEvent,
   TtsFilteredEvent,
   StatusEvent,
@@ -26,6 +27,7 @@ import type {
   JobLogEvent,
   JobListEvent,
   ImageReadyEvent,
+  SelectedArtifactRef,
 } from "../lib/protocol";
 
 export interface ChatMessage {
@@ -35,7 +37,6 @@ export interface ChatMessage {
   streaming?: boolean;
   reasoning?: string;
   toolEvent?: ToolEvent;
-  inlineArtifacts?: ArtifactEvent[];
 }
 
 export interface SessionListItem {
@@ -78,8 +79,13 @@ export interface ChatState {
   wsClient: WSClient | null;
   consentRequest: ConsentRequestEvent | null;
   toolEvents: ToolEvent[];
+  isThinking: boolean;
+  isTurnActive: boolean;
+  currentStep: number;
   send: (text: string) => void;
+  setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
   stop: () => void;
+  stopped: boolean;
   newSession: () => void;
   listSessions: () => void;
   attachSession: (sid: string) => void;
@@ -99,16 +105,17 @@ function nextId(): string {
   return `m${Date.now()}_${idCounter}`;
 }
 
-// Tauri exposes registered commands on window.__TAURI__. Outside Tauri
-// (plain browser dev) we fall back to the env-provided port.
+// The Electron shell exposes a `window.kali.getSidecarPort()` API via
+// contextBridge (see kali-shell/src/preload.ts). Outside Electron (plain
+// browser dev) we fall back to the env-provided port.
 export async function getSidecarPort(): Promise<number | undefined> {
-  const tauri = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string) => Promise<unknown> } } }).__TAURI__;
-  if (tauri?.core?.invoke) {
+  const kali = (window as unknown as { kali?: { getSidecarPort: () => Promise<unknown> } }).kali;
+  if (kali?.getSidecarPort) {
     try {
-      const port = await tauri.core.invoke("get_sidecar_port");
+      const port = await kali.getSidecarPort();
       return typeof port === "number" ? port : undefined;
     } catch {
-      // not running under Tauri yet
+      // not running under Electron yet
     }
   }
   return Number(import.meta.env.VITE_KALI_PORT ?? 8900);
@@ -131,10 +138,15 @@ export function useChat(): ChatState {
   const [systemStatus, setSystemStatus] = useState<StatusEvent | null>(null);
   const [consentRequest, setConsentRequest] = useState<ConsentRequestEvent | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isTurnActive, setIsTurnActive] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [stopped, setStopped] = useState(false);
 
   const clientRef = useRef<WSClient | null>(null);
   const ttsListeners = useRef<Array<(e: TtsAudioEvent) => void>>([]);
   const ttsEndedListeners = useRef<Array<() => void>>([]);
+  const selectedArtifactsProviderRef = useRef<(() => SelectedArtifactRef[]) | null>(null);
 
   useEffect(() => {
     let client: WSClient | null = null;
@@ -146,10 +158,10 @@ export function useChat(): ChatState {
         setStatus("error");
         return;
       }
-      const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+      const isElectron = !!(window as unknown as { kali?: unknown }).kali;
       let wsUrl: string;
-      if (isTauri) {
-        // Tauri: connect directly to the core sidecar.
+      if (isElectron) {
+        // Electron: connect directly to the core sidecar.
         wsUrl = `ws://127.0.0.1:${port}/ws`;
       } else {
         // Browser dev: connect via Vite proxy (same origin, no mixed content).
@@ -157,13 +169,15 @@ export function useChat(): ChatState {
         const host = window.location.host;
         wsUrl = `${proto}//${host}/ws`;
       }
-      client = new WSClient(wsUrl);
+      const savedSessionId = localStorage.getItem("kali.sessionId") || undefined;
+      client = new WSClient(wsUrl, savedSessionId);
       clientRef.current = client;
 
       client.on("ready", (p) => {
         const ev = p as ReadyEvent;
         setError(null);
         setSessionId(ev.session_id);
+        localStorage.setItem("kali.sessionId", ev.session_id);
         setStatus("ready");
         client?.send({ event: "list_sessions" });
       });
@@ -171,6 +185,7 @@ export function useChat(): ChatState {
         const ev = p as ConnectedEvent;
         setError(null);
         setSessionId(ev.session_id);
+        localStorage.setItem("kali.sessionId", ev.session_id);
       });
       client.on("session_list", (p) => {
         const ev = p as SessionListEvent;
@@ -191,7 +206,21 @@ export function useChat(): ChatState {
         setStatus("error");
       });
 
+      client.on("turn_start", () => {
+        setIsThinking(true);
+        setIsTurnActive(true);
+        setCurrentStep(0);
+        setStopped(false);
+      });
+
+      client.on("step_start", (p) => {
+        const ev = p as unknown as StepStartEvent;
+        setCurrentStep(ev.step);
+        setIsThinking(true);
+      });
+
       client.on("delta", (p) => {
+        setIsThinking(false);
         const ev = p as DeltaEvent;
         setMessages((prev) => {
           const last = prev[prev.length - 1];
@@ -211,6 +240,7 @@ export function useChat(): ChatState {
       });
 
       client.on("reasoning_delta", (p) => {
+        setIsThinking(false);
         const ev = p as ReasoningDeltaEvent;
         setMessages((prev) => {
           const last = prev[prev.length - 1];
@@ -222,11 +252,18 @@ export function useChat(): ChatState {
             };
             return updated;
           }
-          return prev;
+          return [
+            ...prev,
+            { id: nextId(), role: "assistant", content: "", streaming: true, reasoning: ev.text },
+          ];
         });
       });
 
       client.on("turn_end", () => {
+        setIsThinking(false);
+        setIsTurnActive(false);
+        setCurrentStep(0);
+        setStopped(false);
         setMessages((prev) => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
@@ -235,8 +272,6 @@ export function useChat(): ChatState {
           }
           return updated;
         });
-        // Signal TTS ended if no audio came for this turn.
-        // The TTS hook will also detect when its queue empties.
         setTtsPlaying(false);
         ttsEndedListeners.current.forEach((fn) => fn());
       });
@@ -292,41 +327,16 @@ export function useChat(): ChatState {
         const ev = p as ArtifactEvent;
         setArtifacts((prev) => {
           const next = new Map(prev);
-          if (ev.update === "close") {
+          if (ev.update === "close" && ev.phase !== "complete") {
+            // True close (not a streaming-complete): remove from store.
             next.delete(ev.id);
           } else {
+            // create, update, or close+complete: upsert with the event
+            // (phase lets widgets know if content is still streaming).
             next.set(ev.id, ev);
           }
           return next;
         });
-        // Attach widget artifacts inline to the last assistant message.
-        if (ev.type === "widget" && (ev.update === "create" || ev.update === "update")) {
-          setMessages((prev) => {
-            for (let i = prev.length - 1; i >= 0; i--) {
-              const msg = prev[i];
-              if (msg.role === "assistant") {
-                const existing = msg.inlineArtifacts ?? [];
-                const found = existing.find((a) => a.id === ev.id);
-                if (ev.update === "create" && found) break;
-                const updated = [...prev];
-                if (found) {
-                  // Update existing inline artifact
-                  updated[i] = {
-                    ...msg,
-                    inlineArtifacts: existing.map((a) =>
-                      a.id === ev.id ? ev : a
-                    ),
-                  };
-                } else {
-                  // Add new inline artifact
-                  updated[i] = { ...msg, inlineArtifacts: [...existing, ev] };
-                }
-                return updated;
-              }
-            }
-            return prev;
-          });
-        }
       });
 
       // ── Job events ──────────────────────────────────────
@@ -455,11 +465,26 @@ export function useChat(): ChatState {
       ...prev,
       { id: nextId(), role: "user", content: text },
     ]);
-    clientRef.current.send({ event: "input", content: text, source: "text" });
+    const provider = selectedArtifactsProviderRef.current;
+    const selected = provider ? provider() : [];
+    clientRef.current.send({
+      event: "input",
+      content: text,
+      source: "text",
+      ...(selected.length > 0 ? { selected_artifacts: selected } : {}),
+    });
   }, []);
+
+  const setSelectedArtifactsProvider = useCallback(
+    (fn: (() => SelectedArtifactRef[]) | null) => {
+      selectedArtifactsProviderRef.current = fn;
+    },
+    [],
+  );
 
   const stop = useCallback(() => {
     clientRef.current?.send({ event: "stop" });
+    setStopped(true);
     setMessages((prev) => {
       const updated = [...prev];
       const last = updated[updated.length - 1];
@@ -473,6 +498,11 @@ export function useChat(): ChatState {
   const newSession = useCallback(() => {
     setMessages([]);
     setArtifacts(new Map());
+    setToolEvents([]);
+    setConsentRequest(null);
+    setTtsPlaying(false);
+    setTtsSegment(0);
+    setTtsTotal(0);
     clientRef.current?.send({ event: "new_session" });
   }, []);
 
@@ -483,6 +513,11 @@ export function useChat(): ChatState {
   const attachSession = useCallback((sid: string) => {
     setMessages([]);
     setArtifacts(new Map());
+    setToolEvents([]);
+    setConsentRequest(null);
+    setTtsPlaying(false);
+    setTtsSegment(0);
+    setTtsTotal(0);
     clientRef.current?.send({ event: "attach_session", session_id: sid });
   }, []);
 
@@ -544,7 +579,12 @@ export function useChat(): ChatState {
     wsClient: clientRef.current,
     consentRequest,
     toolEvents,
+    isThinking,
+    isTurnActive,
+    currentStep,
+    stopped,
     send,
+    setSelectedArtifactsProvider,
     stop,
     newSession,
     listSessions,

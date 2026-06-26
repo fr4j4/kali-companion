@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Singularity v2 — Cognitive Support UI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { bg:'#02040a', fg:'#e2e8f0', muted:'#64748b', faint:'#3a4058',
+      accent:'#22d3ee', accent2:'#818cf8', accent3:'#f472b6', ok:'#34d399', warn:'#fbbf24', err:'#f87171' },
+    fontFamily: { sans:['Inter','sans-serif'], serif:['Fraunces','serif'], mono:['JetBrains Mono','monospace'] },
+  }}};
+</script>
+<style>
+  body { background:#02040a; color:#e2e8f0; font-family:'Inter', sans-serif; overflow:hidden; }
+  .prose-center { font-family:'Fraunces', serif; font-size:1.6rem; line-height:1.5; text-align:center; }
+  
+  .mesh {
+    background: radial-gradient(circle at 50% 50%, rgba(34,211,238,0.08), transparent 50%),
+                radial-gradient(circle at 10% 10%, rgba(129,140,248,0.05), transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(244,114,182,0.05), transparent 40%),
+                #02040a;
+    animation: drift 30s ease-in-out infinite alternate;
+  }
+  @keyframes drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+
+  @keyframes morph { 0%,100%{ border-radius:40% 60% 70% 30%/40% 40% 60% 60%; } 50%{ border-radius:60% 40% 30% 70%/60% 60% 40% 40%; } }
+  .orb { animation: morph 8s ease-in-out infinite; background:radial-gradient(circle at 30% 30%, #67e8f9, #22d3ee 40%, #0891b2 100%); filter:drop-shadow(0 0 40px rgba(34,211,238,0.4)); }
+  
+  .artifact { animation: float 6s ease-in-out infinite; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+  @keyframes float { 0%,100%{ transform: translate(0, 0) rotate(0deg); } 50%{ transform: translate(0, -15px) rotate(1deg); } }
+  
+  .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.07); }
+  .glass-strong { background: rgba(10, 15, 30, 0.8); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08); }
+  .cursor { display:inline-block; width:2px; height:1em; background:#22d3ee; animation:blink 1.1s steps(2,start) infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .debug-panel { cursor: grab; user-select: none; }
+  .debug-panel:active { cursor: grabbing; }
+</style>
+</head>
+<body class="h-screen mesh relative">
+
+  <!-- TOP BAR: Config & System -->
+  <header class="fixed top-0 w-full px-6 py-3 flex justify-between items-center z-50">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2 glass rounded-full px-3 py-1 border-white/10">
+        <div class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></div>
+        <span class="text-[10px] font-mono tracking-widest uppercase text-muted">KALI_SYSTEM_V2</span>
+      </div>
+      <div class="hidden md:flex items-center gap-3 ml-4">
+        <span class="text-[10px] font-mono text-muted">MODEL: <span class="text-fg">GPT-4o</span></span>
+        <div class="w-px h-3 bg-white/10"></div>
+        <span class="text-[10px] font-mono text-muted">LATENCY: <span class="text-fg">142ms</span></span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="p-2 rounded-full glass hover:bg-white/10 transition text-muted hover:text-fg" title="Ajustes">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="px-3 py-1.5 rounded-full glass text-[10px] font-mono hover:bg-white/10 transition text-muted hover:text-fg uppercase tracking-wider">
+        Nueva Sesión
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN SPACE -->
+  <main class="h-full w-full flex items-center justify-center relative">
+    
+    <!-- ASISTENTE CENTRAL -->
+    <div class="relative flex flex-col items-center">
+      <!-- Orb Wrapper con anillos de estado -->
+      <div class="relative w-56 h-56 flex items-center justify-center">
+        <div class="absolute w-40 h-40 rounded-full border border-accent/10 animate-[spin_10s_linear_infinite]"></div>
+        <div class="absolute w-32 h-32 rounded-full border border-accent2/20 animate-[spin_15s_linear_infinite_reverse]"></div>
+        
+        <div id="orb" class="orb w-32 h-32 flex items-center justify-center relative z-20 cursor-pointer transition-transform hover:scale-110 active:scale-95">
+          <div class="w-4 h-4 rounded-full bg-white/90 shadow-white/40 shadow-lg"></div>
+        </div>
+      </div>
+      
+      <!-- Proyector de Texto: Protagonismo y Jerarquía -->
+      <div class="absolute top-64 w-full flex justify-center pointer-events-none">
+        <div class="glass-strong px-8 py-6 rounded-3xl max-w-2xl w-full shadow-2xl border-accent/10 transition-all duration-500" id="projection-container">
+          <p id="projection" class="prose-center text-fg transition-opacity duration-300">
+            Toca el orbe o escribe algo para empezar.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPA DE ARTEFACTOS HOLOGRAMÁTICOS -->
+    <div id="artifact-layer" class="absolute inset-0 pointer-events-none">
+      <!-- Dinámico -->
+    </div>
+  </main>
+
+  <!-- INPUT SPOTLIGHT -->
+  <div id="spotlight" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all">
+    <div class="glass-strong w-full max-w-xl rounded-3xl p-3 flex items-center gap-3 shadow-2xl border-accent/20">
+      <span class="text-accent font-mono ml-3 text-lg">▸</span>
+      <input id="cmd-input" type="text" placeholder="Escribe un comando..." class="flex-1 bg-transparent outline-none text-lg text-fg placeholder:text-muted py-3">
+      <button onclick="sendCommand()" class="bg-accent text-bg px-6 py-2 rounded-xl font-semibold text-sm hover:bg-accent2 transition">Enviar</button>
+    </div>
+  </div>
+
+  <!-- BOTONERA DEBUG (Arrastrable) -->
+  <div id="debug-panel" class="fixed top-24 right-6 w-52 glass rounded-2xl p-4 z-[100] shadow-2xl border-white/10 debug-panel">
+    <div class="text-[10px] font-mono text-white/40 uppercase mb-4 tracking-widest border-b border-white/10 pb-2">Event Lab v2</div>
+    <div class="grid grid-cols-1 gap-2">
+      <button onclick="window.trigger('text')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5 flex items-center gap-2"><span>💬</span> Texto Prosa</button>
+      <button onclick="window.trigger('code')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5 flex items-center gap-2"><span>💻</span> Snippet Código</button>
+      <button onclick="window.trigger('hero')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5 flex items-center gap-2"><span>🛡️</span> Ficha Héroe</button>
+      <button onclick="window.trigger('img')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5 flex items-center gap-2"><span>🖼️</span> Generar Imagen</button>
+      <button onclick="window.trigger('link')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5 flex items-center gap-2"><span>🔗</span> Enlace Externo</button>
+      <button onclick="window.trigger('voice')" class="text-left px-3 py-2 rounded-lg hover:bg-white/10 text-xs transition border border-white/5 flex items-center gap-2"><span>🎙️</span> Activar Voz</button>
+      <div class="h-px bg-white/5 my-2"></div>
+      <button onclick="window.clearArtifacts()" class="text-left px-3 py-2 rounded-lg hover:bg-red-500/20 text-red-300 text-xs transition border border-red-500/10 flex items-center gap-2"><span>🗑️</span> Limpiar Espacio</button>
+    </div>
+  </div>
+
+  <script>
+    // Draggable Panel Logic
+    const panel = document.getElementById('debug-panel');
+    let isDragging = false; let offset = { x: 0, y: 0 };
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      isDragging = true;
+      offset.x = e.clientX - panel.offsetLeft;
+      offset.y = e.clientY - panel.offsetTop;
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      panel.style.left = (e.clientX - offset.x) + 'px';
+      panel.style.top = (e.clientY - offset.y) + 'px';
+      panel.style.right = 'auto';
+    });
+    document.addEventListener('mouseup', () => isDragging = false);
+
+    // Spotlight
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSpotlight();
+      if (document.activeElement.tagName !== 'INPUT') {
+        document.getElementById('spotlight').classList.remove('hidden');
+        document.getElementById('cmd-input').focus();
+      }
+    });
+    function closeSpotlight() { document.getElementById('spotlight').classList.add('hidden'); }
+    function sendCommand() {
+      const input = document.getElementById('cmd-input');
+      if (input.value) window.trigger('text', input.value);
+      input.value = ''; closeSpotlight();
+    }
+
+    const projection = document.getElementById('projection');
+    const layer = document.getElementById('artifact-layer');
+
+    window.trigger = function(type, customText = "") {
+      const orb = document.getElementById('orb');
+      orb.style.filter = 'drop-shadow(0 0 60px #22d3ee)';
+      
+      setTimeout(() => {
+        if(type === 'text') {
+          streamText(customText || "He analizado el contexto de tu request. La implementación de la arquitectura de red debe priorizar la baja latencia sobre la consistencia inmediata.");
+        } else if(type === 'code') {
+          streamText("Aquí tienes la implementación técnica optimizada:");
+          createArtifact('code');
+        } else if(type === 'hero') {
+          streamText("He recuperado los datos del personaje solicitado:");
+          createArtifact('hero');
+        } else if(type === 'img') {
+          streamText("Generando la representación visual del concepto...");
+          createArtifact('image');
+        } else if(type === 'link') {
+          streamText("Para profundizar, te recomiendo consultar la documentación oficial:");
+          createArtifact('link');
+        } else if(type === 'voice') {
+          streamText("Sincronizando salida de audio. ¿Me escuchas con claridad?");
+          orb.style.background = 'radial-gradient(circle at 35% 30%, #34d399, #22d3ee 45%, #0891b2 90%)';
+        }
+        orb.style.filter = 'drop-shadow(0 0 40px rgba(34,211,238,0.4))';
+      }, 400);
+    };
+
+    window.clearArtifacts = function() { layer.innerHTML = ""; };
+
+    function streamText(text) {
+      projection.innerHTML = "";
+      let i = 0;
+      const interval = setInterval(() => {
+        projection.innerHTML = text.slice(0, i) + '<span class="cursor"></span>';
+        i++;
+        if (i > text.length) clearInterval(interval);
+      }, 30);
+    }
+
+    function createArtifact(type) {
+      const div = document.createElement('div');
+      div.className = `artifact absolute p-0 rounded-2xl glass shadow-2xl cursor-pointer transition-all hover:scale-110 fade-in`;
+      
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 280 + Math.random() * 120;
+      div.style.left = `calc(50% + ${Math.cos(angle) * dist}px)`;
+      div.style.top = `calc(50% + ${Math.sin(angle) * dist}px)`;
+      div.style.transform = 'translate(-50%, -50%)';
+
+      if(type === 'code') {
+        div.innerHTML = `
+          <div class="flex items-center justify-between px-4 py-2 bg-white/10 border-b border-white/10 rounded-t-2xl">
+            <span class="text-[10px] font-mono text-muted uppercase">main.rs</span>
+            <button class="text-[10px] text-accent hover:text-white transition">Copy</button>
+          </div>
+          <div class="p-3 font-mono text-xs text-fg overflow-y-auto max-h-48 scrollbar-hide">
+            <div class="flex gap-3">
+              <div class="text-muted text-[10px] text-right select-none">1<br>2<br>3<br>4</div>
+              <pre class="m-0">use tokio;<br>async fn main() {<br>  println!("Hello");<br>}</pre>
+            </div>
+          </div>
+        `;
+        div.classList.add('w-64');
+      } else if(type === 'hero') {
+        div.innerHTML = `
+          <div class="w-56 bg-gradient-to-b from-white/10 to-transparent rounded-2xl overflow-hidden">
+            <div class="h-2 w-full bg-accent"></div>
+            <div class="p-4">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-12 h-12 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center font-serif text-accent text-xl">L</div>
+                <div class="min-w-0"><div class="text-sm font-semibold truncate">Lyra, the Silencer</div><div class="text-[10px] text-muted">S-Tier Assassin</div></div>
+              </div>
+              <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="text-center bg-white/5 rounded p-1 border border-white/5"><div class="text-[8px] text-muted uppercase">ATK</div><div class="font-mono text-xs">847</div></div>
+                <div class="text-center bg-white/5 rounded p-1 border border-white/5"><div class="text-[8px] text-muted uppercase">SPD</div><div class="font-mono text-xs">92</div></div>
+                <div class="text-center bg-white/5 rounded p-1 border border-white/5"><div class="text-[8px] text-muted uppercase">INT</div><div class="font-mono text-xs">68</div></div>
+              </div>
+              <div class="text-[11px] text-muted italic mb-4 leading-relaxed">" la sombra que silencia la tormenta antes del primer golpe."</div>
+              <button class="w-full py-2 rounded-lg bg-accent text-bg text-xs font-bold shadow-lg shadow-accent/20 transition hover:brightness-110">INVOCAR</button>
+            </div>
+          </div>
+        `;
+      } else if(type === 'image') {
+        div.innerHTML = `
+          <div class="w-56 rounded-2xl overflow-hidden">
+            <div class="aspect-square relative bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border-b border-white/10">
+              <div class="absolute inset-0 opacity-50" style="background:radial-gradient(circle at 50% 50%, #f472b6, transparent 70%);"></div>
+              <div class="absolute inset-0 flex items-center justify-center text-white/20 text-xs font-mono">GENERATED_ART_V2</div>
+            </div>
+            <div class="p-3 flex items-center justify-between bg-black/40">
+              <span class="text-[10px] text-muted">concept_art_v2.png</span>
+              <button class="text-accent text-[10px] hover:underline">Descargar</button>
+            </div>
+          </div>
+        `;
+      } else if(type === 'link') {
+        div.innerHTML = `
+          <div class="w-48 p-3 flex items-center gap-3 hover:bg-white/5 transition">
+            <div class="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center text-accent shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/></svg>
+            </div>
+            <div class="min-w-0 truncate">
+              <div class="text-xs font-semibold truncate">Crimson Vale Wiki</div>
+              <div class="text-[10px] text-muted truncate">crimsonvale.wiki/heroes/lyra</div>
+            </div>
+          </div>
+        `;
+      }
+
+      layer.appendChild(div);
+    }
+  </script>
+</body>
+</html>

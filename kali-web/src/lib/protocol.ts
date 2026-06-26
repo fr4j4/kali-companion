@@ -5,11 +5,18 @@
 
 export type EventName = string;
 
+export interface SelectedArtifactRef {
+  id: string;
+  type: string;
+  title: string;
+}
+
 export interface InputEvent {
   event: "input";
   session_id?: string;
   content: string;
   source: "text" | "voice";
+  selected_artifacts?: SelectedArtifactRef[];
 }
 
 export interface StopEvent {
@@ -31,11 +38,16 @@ export interface SettingsEvent {
   tts_mode?: string;
   auto_tts?: boolean;
   llm_model?: string;
+  llm_provider?: string;
+  llm_api_url?: string;
+  llm_api_key?: string;
   profile?: string;
   language?: string;
   stt_language?: string;
   wake_word_enabled?: boolean;
   input_mode?: string;
+  feedback_mode?: string;
+  plan_mode?: boolean;
 }
 
 export interface ConsentResponseEvent {
@@ -70,6 +82,11 @@ export interface AudioStartEvent {
 
 export interface AudioEndEvent {
   event: "audio_end";
+}
+
+export interface TtsSpeakEvent {
+  event: "tts_speak";
+  text: string;
 }
 
 // ── Outgoing (core → web) ────────────────────────────────
@@ -146,9 +163,22 @@ export interface ArtifactEvent {
   event: "artifact";
   id: string;
   type: "html" | "markdown" | "diff" | "widget";
+  windowType: string;
   title: string;
   content: string;
   update: "create" | "update" | "close";
+  phase?: "streaming" | "complete";
+}
+
+export interface TurnStartEvent {
+  event: "turn_start";
+  session_id: string;
+}
+
+export interface StepStartEvent {
+  event: "step_start";
+  session_id: string;
+  step: number;
 }
 
 export interface ToolEvent {
@@ -178,6 +208,8 @@ export interface SessionListEvent {
 export interface StatusEvent {
   event: "status";
   llm_provider: string;
+  llm_api_url: string;
+  llm_api_key_set: boolean;
   llm_model: string;
   tts_provider: string;
   voice: string;
@@ -189,6 +221,8 @@ export interface StatusEvent {
   stt_language?: string;
   wake_word_enabled?: boolean;
   input_mode?: string;
+  feedback_mode?: string;
+  plan_mode?: boolean;
 }
 
 export interface ErrorEvent {
@@ -272,6 +306,7 @@ export type IncomingEvent =
   | ConsentResponseEvent
   | AudioStartEvent
   | AudioEndEvent
+  | TtsSpeakEvent
   | ListJobsEvent
   | CancelJobEvent
   | GetJobLogsEvent
@@ -290,6 +325,7 @@ export type OutgoingEvent =
   | TtsAudioEvent
   | TtsFilteredEvent
   | ArtifactEvent
+  | TurnStartEvent
   | ToolEvent
   | ConsentRequestEvent
   | SessionListEvent

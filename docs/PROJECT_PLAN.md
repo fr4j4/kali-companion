@@ -582,6 +582,7 @@ Total: 68 test functions, todas pasando.
 | Install tesseract-ocr + pytesseract | Baja | Opcional: mejora precisión de OCR. Script `scripts/install-vision-deps.sh` existente. |
 | Tests de integración con web_search real | Baja | Los tests actuales mockean SearXNG. Sin test end-to-end. |
 | `ruff check` pasando | Baja | Ejecutar ruff y corregir warnings si hay. |
+| Avatar animado de Kali | Media | Rediseño del avatar central tomando como referencia el calico ilustrado compartido: cara expresiva, ojos verdes grandes, collar visible y silueta amable. Debe animarse por estado (`idle`, `sleep`, `listen`, `think`, `speak`, `look`, `judge`) con blink, eye-tracking, ear twitch, breathing, tail sway, mouth sync con TTS y glow reactivo. |
 
 #### Fase 5 (parcialmente iniciada)
 

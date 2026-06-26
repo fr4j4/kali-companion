@@ -254,18 +254,18 @@ class DotaLiveState:
                 ab_name = ab.get("name", "")
                 if not ab_name or ab_name in _skip_abilities:
                     continue
-                    ab_clean = _clean_name(ab_name)
-                    ab_level = ab.get("level", 0)
-                    if ab_level == 0:
-                        continue
-                    ab_cd = ab.get("cooldown", 0)
-                    ab_can_cast = ab.get("can_cast", True)
-                    ab_ult = ab.get("ultimate", False)
-                    ab_passive = ab.get("passive", False)
-                    prefix = "🔥" if ab_ult else "⚡"
-                    cd_str = f" [{ab_cd}s]" if ab_cd and ab_cd > 0 else ""
-                    cast_str = " (sin mana/CD)" if not ab_can_cast and not ab_passive else ""
-                    ability_list.append(f"{prefix} {ab_clean} Lv{ab_level}{cd_str}{cast_str}")
+                ab_clean = _clean_name(ab_name)
+                ab_level = ab.get("level", 0)
+                if ab_level == 0:
+                    continue
+                ab_cd = ab.get("cooldown", 0)
+                ab_can_cast = ab.get("can_cast", True)
+                ab_ult = ab.get("ultimate", False)
+                ab_passive = ab.get("passive", False)
+                prefix = "🔥" if ab_ult else "⚡"
+                cd_str = f" [{ab_cd}s]" if ab_cd and ab_cd > 0 else ""
+                cast_str = " (sin mana/CD)" if not ab_can_cast and not ab_passive else ""
+                ability_list.append(f"{prefix} {ab_clean} Lv{ab_level}{cd_str}{cast_str}")
             if ability_list:
                 lines.append(f"🗡 Habilidades: {' | '.join(ability_list)}")
 
