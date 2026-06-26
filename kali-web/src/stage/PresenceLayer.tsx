@@ -45,7 +45,7 @@ export function PresenceLayer({ onExpand }: PresenceLayerProps) {
   const inStepGap = chat.isTurnActive && !lastTool && !reasoning && !isStreamingText;
   const showThinking = (chat.isThinking && !lastTool && !reasoning) || isCurrentlyStreaming || inStepGap;
   const showCloud = reasoning && !dismissed;
-  const stepLabel = inStepGap && chat.currentStep > 1 ? ` · paso ${chat.currentStep}` : "";
+  const stepLabel = inStepGap && chat.currentStep > 1 ? ` · ${t("stage.step", { n: chat.currentStep })}` : "";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">

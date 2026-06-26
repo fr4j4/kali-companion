@@ -43,7 +43,6 @@ import { ClosedArtifactsBar } from "./ClosedArtifactsBar";
 import { SessionDrawer } from "./SessionDrawer";
 import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
-import { AIConfigModal } from "../components/AIConfigModal";
 import { ConsentModal } from "../components/ConsentModal";
 import { JobsPanel } from "../components/JobsPanel";
 import { DebugPad } from "./DebugPad";
@@ -65,7 +64,6 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   const api = useWorkspace();
   const [typing, setTyping] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [aiConfigOpen, setAIConfigOpen] = useState(false);
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -269,12 +267,12 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       {/* HUD — top bar */}
       <HUD
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenAIConfig={() => setAIConfigOpen(true)}
         onOpenJobs={() => { chat.listJobs(); setJobsOpen(true); }}
         onOpenHistory={() => setHistoryOpen(true)}
+        onOpenCustomizer={() => setCustomizerOpen(true)}
+        onOpenArtifacts={() => setArtifactsOpen(true)}
+        onOpenConversation={() => setConversationOpen(true)}
         onNewSession={newSession}
-        onLanguageChange={onLanguageChange}
-        currentLanguage={i18n.language}
       />
 
       {/* Presence layer — tool pills + reasoning snippets */}
@@ -286,7 +284,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
           api.focusWindow(existing.id);
         } else {
           const id = api.createWindow("reasoning", {
-            title: "Razonamiento",
+            title: t("reasoning.title"),
             width: 420,
             height: 350,
           });
@@ -309,9 +307,6 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       {/* Dock — bottom input + workspace controls */}
       <NeuralDock
         api={api}
-        onToggleDrawer={() => setArtifactsOpen(true)}
-        onToggleCustomizer={() => setCustomizerOpen(true)}
-        onToggleConversation={() => setConversationOpen(true)}
         onToggleDebug={() => setDebugOpen((d) => !d)}
       />
 
@@ -324,7 +319,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
-            {t("stage.stopped") || "Cancelled"}
+            {t("stage.stopped")}
           </motion.div>
         )}
       </AnimatePresence>
@@ -385,13 +380,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onCanvasAutoExpandChange={onCanvasAutoExpandChange}
         uiScale={uiScale}
         onUIScaleChange={onUIScaleChange}
-      />
-
-      <AIConfigModal
-        open={aiConfigOpen}
-        onClose={() => setAIConfigOpen(false)}
-        systemStatus={chat.systemStatus}
-        onUpdate={chat.updateSettings}
+        currentLanguage={i18n.language}
+        onLanguageChange={onLanguageChange}
       />
 
       <ConsentModal request={chat.consentRequest} onRespond={chat.respondConsent} />
@@ -413,7 +403,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
 
 /** Streaming text projection — shows the latest assistant message. */
 function ProjectionText({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
-  let text = "Toca al avatar o escribe algo para empezar.";
+  const { t } = useTranslation();
+  let text = t("stage.empty_state") as string;
   let isStreaming = false;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];

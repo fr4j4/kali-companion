@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
 import { SectionRenderer } from "./utils/SectionRenderer";
 import { SAMPLE_RESOURCE } from "./utils/sampleData";
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function ResourceCardWidget({ content }: Props) {
+  const { t } = useTranslation();
   const { data, isReal } = useMemo(() => parseContent(content), [content]);
   const d = (isReal ? data : SAMPLE_RESOURCE) as typeof SAMPLE_RESOURCE;
   const sections = (d as any).sections;
@@ -21,7 +23,7 @@ export function ResourceCardWidget({ content }: Props) {
           <span className="text-lg">{'\u26A1'}</span>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-fg truncate">{d.name}</div>
-            <div className="text-xs text-muted">{d.category} · {d.price} coins</div>
+            <div className="text-xs text-muted">{d.category} · {d.price} {t("widget.resource.coins")}</div>
           </div>
         </div>
 

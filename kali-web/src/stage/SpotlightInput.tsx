@@ -87,7 +87,7 @@ export function SpotlightInput({ open, onClose, firstCharRef }: Props) {
               type="text"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder={t("chat.placeholder") as string || "Escribe algo..."}
+              placeholder={t("chat.placeholder") as string}
               onKeyDown={onKeyDown}
               className="w-full bg-transparent outline-none text-center text-fg placeholder:text-muted/40"
               style={{

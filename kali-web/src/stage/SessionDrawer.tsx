@@ -63,7 +63,7 @@ export function SessionDrawer({ open, onClose, sessions, activeSessionId, onNewS
               <button
                 className="dock-btn w-8 h-8"
                 onClick={onClose}
-                aria-label="Close"
+                aria-label={t("common.aria_close")}
               >
                 <X size={15} />
               </button>

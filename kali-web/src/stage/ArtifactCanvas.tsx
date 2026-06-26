@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { WorkspaceAPI } from "../workspace/types";
 import { ArtifactWindow } from "./ArtifactWindow";
 import { WindowContentRouter } from "./WindowContentRouter";
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ArtifactCanvas({ api, winScale = 1 }: Props) {
+  const { t } = useTranslation();
   const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize, toggleMaximize } = api;
 
   const handleMoveEnd = useCallback((id: number, prevPos: { x: number; y: number }) => {
@@ -53,7 +55,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
   }
 
   return (
-    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 30 }} aria-label="Capa de artefactos">
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 30 }} aria-label={t("canvas.aria_label")}>
       {windows.filter((w) => !w.closed).map((w) => {
         const entry = widgetRegistry[w.type];
         return (

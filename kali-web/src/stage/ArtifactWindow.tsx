@@ -1,31 +1,31 @@
 import { useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { ArtifactWindowData } from "../workspace/types";
 import type { ArtifactEvent } from "../lib/protocol";
 import { startDrag, startResize } from "../workspace/useDragResize";
 import type { ResizeEdge } from "../workspace/useDragResize";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 
-function getStreamingLabel(windowType: string): string {
-  const labels: Record<string, string> = {
-    code: "Generando c\u00f3digo\u2026",
-    document: "Generando documento\u2026",
-    diff: "Generando diff\u2026",
-    html: "Generando HTML\u2026",
-    mermaid: "Generando diagrama\u2026",
-    json: "Generando \u00e1rbol JSON\u2026",
-    table: "Generando tabla\u2026",
-    checklist: "Generando checklist\u2026",
-    chart: "Generando chart\u2026",
-    quiz: "Generando quiz\u2026",
-  };
-  return labels[windowType] ?? "Generando\u2026";
-}
+const STREAMING_LABEL_KEYS: Record<string, string> = {
+  code: "window.streaming.code",
+  document: "window.streaming.document",
+  diff: "window.streaming.diff",
+  html: "window.streaming.html",
+  mermaid: "window.streaming.mermaid",
+  json: "window.streaming.json",
+  table: "window.streaming.table",
+  checklist: "window.streaming.checklist",
+  chart: "window.streaming.chart",
+  quiz: "window.streaming.quiz",
+};
 
 function StreamingBadge({ windowType }: { windowType: string }) {
+  const { t } = useTranslation();
+  const label = t(STREAMING_LABEL_KEYS[windowType] ?? "window.streaming.default") as string;
   return (
-    <span className="badge text-accent flex items-center gap-1 shrink-0" title={getStreamingLabel(windowType)}>
+    <span className="badge text-accent flex items-center gap-1 shrink-0" title={label}>
       <span className="w-3 h-3 border border-accent/40 border-t-accent rounded-full animate-spin inline-block" />
-      <span className="text-[10px]">{getStreamingLabel(windowType)}</span>
+      <span className="text-[10px]">{label}</span>
     </span>
   );
 }
@@ -199,6 +199,7 @@ function WindowHeader({
   headerRef?: React.RefObject<HTMLDivElement>;
   headerActions?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const content = w.content as ArtifactEvent | undefined;
   const isStreaming = content?.phase === "streaming";
   return (
@@ -217,7 +218,7 @@ function WindowHeader({
         {w.icon && <span className="text-sm shrink-0">{w.icon}</span>}
         <span className="badge text-muted truncate">{w.title}</span>
         {isStreaming && <StreamingBadge windowType={w.type} />}
-        {focused && !isStreaming && <span className="badge text-accent opacity-70">foco</span>}
+        {focused && !isStreaming && <span className="badge text-accent opacity-70">{t("window.focus")}</span>}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {headerActions && <div className="flex items-center gap-0.5 mr-1">{headerActions}</div>}
@@ -225,8 +226,8 @@ function WindowHeader({
           <button
             onClick={(e) => { e.stopPropagation(); onMaximize(); }}
             className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"
-            aria-label="Maximizar"
-            title="Maximizar"
+            aria-label={t("window.maximize")}
+            title={t("window.maximize")}
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
@@ -236,8 +237,8 @@ function WindowHeader({
         <button
           onClick={(e) => { e.stopPropagation(); onMinimize(); }}
           className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"
-          aria-label="Minimizar"
-          title="Minimizar"
+          aria-label={t("window.minimize")}
+          title={t("window.minimize")}
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M5 12h14" />
@@ -246,8 +247,8 @@ function WindowHeader({
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
           className="w-6 h-6 rounded hover:bg-red-500/20 text-muted hover:text-red-300 transition flex items-center justify-center"
-          aria-label="Cerrar"
-          title="Cerrar"
+          aria-label={t("window.close")}
+          title={t("window.close")}
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6 6 18M6 6l12 12" />

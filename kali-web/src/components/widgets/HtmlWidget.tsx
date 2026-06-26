@@ -74,10 +74,10 @@ export function HtmlWidget({ content }: Props) {
         {/* Tab bar */}
         <div className="flex items-center gap-0 border-b border-white/8 bg-white/[0.02] shrink-0">
           <TabButton active={tab === "html"} onClick={() => handleTabClick("html")}>
-            {"</>"} HTML
+            {"</>"} {t("widget.html.tab_code")}
           </TabButton>
           <TabButton active={tab === "preview"} onClick={() => handleTabClick("preview")}>
-            {"\u{1F441}"} Preview
+            {"\u{1F441}"} {t("widget.html.tab_preview")}
           </TabButton>
           <div className="ml-auto flex items-center gap-0.5 px-2 py-1">
             {headerActions}
@@ -96,7 +96,7 @@ export function HtmlWidget({ content }: Props) {
         ) : isStreaming ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-white">
             <div className="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-            <span className="text-xs text-gray-500">{t("widget.html.generating") || "Generando HTML\u2026"}</span>
+            <span className="text-xs text-gray-500">{t("window.streaming.html")}</span>
           </div>
         ) : (
           <iframe

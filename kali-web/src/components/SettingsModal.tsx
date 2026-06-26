@@ -1,34 +1,49 @@
-// SettingsModal — voice, TTS mode, auto-TTS, model, language, STT, wake word, input mode.
+// SettingsModal — unified configuration shell with rail + 4 sections.
+//
+// Sections: Proveedor IA / Voz / Comportamiento / Apariencia.
+// Replaces the old SettingsModal + AIConfigModal split.
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { StatusEvent } from "../lib/protocol";
+import { Cpu, Volume2, Sliders, Palette } from "lucide-react";
+import type { StatusEvent, SettingsEvent } from "../lib/protocol";
 import { Modal } from "./ui/Modal";
+import { useBreakpoint } from "../hooks/useBreakpoint";
+import { ProviderSection } from "./settings/ProviderSection";
+import { VoiceSection } from "./settings/VoiceSection";
+import { BehaviorSection } from "./settings/BehaviorSection";
+import { AppearanceSection } from "./settings/AppearanceSection";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   systemStatus: StatusEvent | null;
   voices: { id: string; name: string }[];
-  onUpdate: (patch: Record<string, unknown>) => void;
-  theme?: string;
-  onThemeChange?: (t: string) => void;
-  canvasAutoExpand?: boolean;
-  onCanvasAutoExpandChange?: (v: boolean) => void;
+  onUpdate: (patch: Partial<SettingsEvent>) => void;
+  theme: string;
+  onThemeChange: (t: string) => void;
+  canvasAutoExpand: boolean;
+  onCanvasAutoExpandChange: (v: boolean) => void;
   uiScale: { global: number; text: number; avatar: number; window: number; density: number };
   onUIScaleChange: (patch: Record<string, number>) => void;
+  currentLanguage: string;
+  onLanguageChange: (lang: string) => void;
 }
 
-const MODES = ["normal", "whisper", "robotic", "radio", "deep"];
-const STT_LANGS = [
-  { id: "es", label: "Español" },
-  { id: "en", label: "English" },
+type SectionId = "provider" | "voice" | "behavior" | "appearance";
+
+interface SectionDef {
+  id: SectionId;
+  icon: typeof Cpu;
+  labelKey: string;
+}
+
+const SECTIONS: SectionDef[] = [
+  { id: "provider", icon: Cpu, labelKey: "settings.section.provider" },
+  { id: "voice", icon: Volume2, labelKey: "settings.section.voice" },
+  { id: "behavior", icon: Sliders, labelKey: "settings.section.behavior" },
+  { id: "appearance", icon: Palette, labelKey: "settings.section.appearance" },
 ];
-const INPUT_MODES = [
-  { id: "ptt", labelKey: "input_mode.ptt" },
-  { id: "wake_word", labelKey: "input_mode.wake_word" },
-  { id: "continuous", labelKey: "input_mode.continuous" },
-];
-const THEMES = ["synthwave", "midnight", "sunset", "forest"];
 
 export function SettingsModal({
   open,
@@ -36,219 +51,108 @@ export function SettingsModal({
   systemStatus,
   voices,
   onUpdate,
-  theme = "midnight",
+  theme,
   onThemeChange,
-  canvasAutoExpand = true,
+  canvasAutoExpand,
   onCanvasAutoExpandChange,
   uiScale,
   onUIScaleChange,
+  currentLanguage,
+  onLanguageChange,
 }: Props) {
   const { t } = useTranslation();
+  const { isMobile } = useBreakpoint();
+  const [active, setActive] = useState<SectionId>("provider");
+
   if (!open) return null;
 
-  const profile = systemStatus?.profile ?? "dev";
-  const currentVoice = systemStatus?.voice ?? "glados-es";
-  const currentMode = systemStatus?.tts_mode ?? "normal";
-  const profiles = systemStatus?.available_profiles ?? ["dev", "general", "files", "gaming"];
-  const autoTts = systemStatus?.auto_tts ?? true;
-  const model = systemStatus?.llm_model ?? "";
-  const sttLanguage = systemStatus?.stt_language ?? "es";
-  const inputMode = (systemStatus as { input_mode?: string })?.input_mode ?? "wake_word";
-  const wakeWordEnabled = systemStatus?.wake_word_enabled ?? false;
-  const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
-  const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
-
-  const handleInputModeChange = (mode: string) => {
-    if (mode === "wake_word") {
-      onUpdate({ input_mode: mode, wake_word_enabled: true });
-    } else {
-      onUpdate({ input_mode: mode, wake_word_enabled: false });
-    }
-  };
-
-  const FEEDBACK_MODES = [
-    { id: "minimal", labelKey: "settings.feedback_minimal" },
-    { id: "confirm", labelKey: "settings.feedback_confirm" },
-    { id: "plan", labelKey: "settings.feedback_plan" },
-  ];
+  const rail = (
+    <nav className="flex gap-1" role="tablist">
+      {SECTIONS.map((s) => {
+        const Icon = s.icon;
+        const isActive = active === s.id;
+        return (
+          <button
+            key={s.id}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => setActive(s.id)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+              isActive
+                ? s.id === "provider"
+                  ? "bg-ai-signal/10 text-ai-signal border border-ai-signal/30"
+                  : "bg-accent/15 text-accent border border-accent/30"
+                  : "text-muted hover:text-fg hover:bg-white/5 border border-transparent"
+            }`}
+          >
+            <Icon size={14} />
+            {t(s.labelKey)}
+          </button>
+        );
+      })}
+    </nav>
+  );
 
   return (
-    <Modal open={open} onClose={onClose} title={t("settings.title")}>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.input_mode")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={inputMode}
-            onChange={(e) => handleInputModeChange(e.target.value)}
-          >
-            {INPUT_MODES.map((m) => (
-              <option key={m.id} value={m.id}>{t(m.labelKey)}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.feedback_mode")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={feedbackMode}
-            onChange={(e) => onUpdate({ feedback_mode: e.target.value })}
-          >
-            {FEEDBACK_MODES.map((m) => (
-              <option key={m.id} value={m.id}>{t(m.labelKey)}</option>
-            ))}
-          </select>
-        </div>
-        {feedbackMode === "plan" && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={planMode}
-                onChange={(e) => onUpdate({ plan_mode: e.target.checked })}
-              />{" "}
-              {t("settings.plan_mode")}
-            </label>
-          </div>
-        )}
-        {inputMode === "wake_word" && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={wakeWordEnabled}
-                onChange={(e) => onUpdate({ wake_word_enabled: e.target.checked })}
-              />{" "}
-              {t("settings.wake_word")}
-            </label>
-          </div>
-        )}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.profile")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={profile}
-            onChange={(e) => onUpdate({ profile: e.target.value })}
-          >
-            {profiles.map((p) => (
-              <option key={p} value={p}>{t(`profile.${p}`)}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.voice")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={currentVoice}
-            onChange={(e) => onUpdate({ voice: e.target.value })}
-          >
-            {voices.length === 0 ? <option value={currentVoice}>{currentVoice}</option> : voices.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.tts_mode")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={currentMode}
-            onChange={(e) => onUpdate({ tts_mode: e.target.value })}
-          >
-            {MODES.map((m) => (
-              <option key={m} value={m}>{t(`voice.mode.${m}`)}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">
-            <input
-              type="checkbox"
-              checked={autoTts}
-              onChange={(e) => onUpdate({ auto_tts: e.target.checked })}
-            />{" "}
-            {t("settings.tts_enabled")}
-          </label>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.theme")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={theme}
-            onChange={(e) => onThemeChange?.(e.target.value)}
-          >
-            {THEMES.map((tname) => (
-              <option key={tname} value={tname}>{t(`theme.${tname}`)}</option>
-            ))}
-          </select>
-        </div>
-        {/* Appearance — UI Scale */}
-        <div className="flex flex-col gap-3 border-t border-border pt-3 mt-1">
-          <label className="text-xs text-muted font-semibold">{t("settings.appearance")}</label>
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between items-center">
-              <label className="text-xs text-muted">{t("settings.scale_global")}</label>
-              <span className="text-xs text-muted font-mono">{Math.round(uiScale.global * 100)}%</span>
+    <Modal open={open} onClose={onClose} size="xl" bare title={t("settings.title")}>
+      <div className="flex flex-col h-full">
+        {isMobile ? (
+          <>
+            <div className="px-4 pt-3 pb-2 border-b border-border overflow-x-auto shrink-0">
+              {rail}
             </div>
-            <input
-              type="range" min="0.8" max="1.4" step="0.05"
-              value={uiScale.global}
-              onChange={(e) => onUIScaleChange({ global: parseFloat(e.target.value) })}
-              className="w-full accent-accent"
-            />
-          </div>
-          {([
-            ["text", "settings.scale_text"] as const,
-            ["avatar", "settings.scale_avatar"] as const,
-            ["window", "settings.scale_window"] as const,
-            ["density", "settings.scale_density"] as const,
-          ]).map(([key, labelKey]) => (
-            <div key={key} className="flex flex-col gap-1 pl-2 border-l border-border/30">
-              <div className="flex justify-between items-center">
-                <label className="text-xs text-muted">{t(labelKey)}</label>
-                <span className="text-xs text-muted font-mono">
-                  {uiScale[key] !== 1 ? `\u00D7${uiScale[key].toFixed(2)}` : "1\u00D7"}
-                </span>
+            <div className="flex-1 overflow-y-auto stage-scroll p-4">
+              {renderSection()}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-1 overflow-hidden">
+            <aside className="w-44 border-r border-border p-3 shrink-0">
+              <div className="flex flex-col gap-1">
+                {SECTIONS.map((s) => {
+                  const Icon = s.icon;
+                  const isActive = active === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setActive(s.id)}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
+                        isActive
+                          ? s.id === "provider"
+                            ? "bg-ai-signal/10 text-ai-signal"
+                            : "bg-accent/15 text-accent"
+                          : "text-muted hover:text-fg hover:bg-white/5"
+                      }`}
+                    >
+                      <Icon size={14} />
+                      {t(s.labelKey)}
+                    </button>
+                  );
+                })}
               </div>
-              <input
-                type="range" min="0.8" max="1.4" step="0.05"
-                value={uiScale[key]}
-                onChange={(e) => onUIScaleChange({ [key]: parseFloat(e.target.value) })}
-                className="w-full accent-accent/60"
-              />
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.llm_model")}</label>
-          <input
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={model}
-            onChange={(e) => onUpdate({ llm_model: e.target.value })}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.stt_language")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 font-inherit text-sm outline-none focus:border-accent-dim"
-            value={sttLanguage}
-            onChange={(e) => onUpdate({ stt_language: e.target.value })}
-          >
-            {STT_LANGS.map((l) => (
-              <option key={l.id} value={l.id}>{l.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">
-            <input
-              type="checkbox"
-              checked={canvasAutoExpand}
-              onChange={(e) => onCanvasAutoExpandChange?.(e.target.checked)}
-            />{" "}
-            {t("settings.canvas_auto_expand")}
-          </label>
-        </div>
+            </aside>
+            <div className="flex-1 overflow-y-auto stage-scroll p-5">{renderSection()}</div>
+          </div>
+        )}
       </div>
     </Modal>
   );
+
+  function renderSection() {
+    if (active === "provider") return <ProviderSection systemStatus={systemStatus} onUpdate={onUpdate} />;
+    if (active === "voice") return <VoiceSection systemStatus={systemStatus} voices={voices} onUpdate={onUpdate} />;
+    if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
+    return (
+      <AppearanceSection
+        theme={theme}
+        onThemeChange={onThemeChange}
+        canvasAutoExpand={canvasAutoExpand}
+        onCanvasAutoExpandChange={onCanvasAutoExpandChange}
+        uiScale={uiScale}
+        onUIScaleChange={onUIScaleChange}
+        currentLanguage={currentLanguage}
+        onLanguageChange={onLanguageChange}
+      />
+    );
+  }
 }

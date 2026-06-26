@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 
@@ -30,6 +31,7 @@ function sideClasses(side: Side, open: boolean): string {
 }
 
 export function Sheet({ side, open, onClose, children, title }: Props) {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(open);
   const trapRef = useFocusTrap(open);
   const startY = useRef(0);
@@ -111,7 +113,7 @@ export function Sheet({ side, open, onClose, children, title }: Props) {
             <button
               className="bg-transparent border-none text-muted text-base cursor-pointer p-1"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t("common.aria_close") as string}
             >
               ✕
             </button>

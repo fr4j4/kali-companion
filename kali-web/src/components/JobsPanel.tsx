@@ -46,7 +46,7 @@ export function JobsPanel({ open, onClose, jobs, onCancelJob, onGetLogs }: Props
   const runningCount = jobList.filter((j) => j.status === "running").length;
 
   return (
-    <Modal open={open} onClose={onClose} title={`Jobs${runningCount > 0 ? ` (${runningCount} active)` : ""}`}>
+    <Modal open={open} onClose={onClose} title={runningCount > 0 ? `${t("jobs.title")} (${t("jobs.active", { count: runningCount })})` : t("jobs.title") as string}>
       {jobList.length === 0 && (
         <p className="text-muted text-sm text-center py-4">{t("jobs.empty")}</p>
       )}

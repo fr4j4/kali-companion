@@ -45,7 +45,7 @@ export function QuizWidget({ content }: Props) {
       <BaseWidget>
         <div className="p-4 text-center space-y-3">
           <div className="text-2xl">{score === total ? '\u{1F3C6}' : '\u2705'}</div>
-          <div className="text-sm text-fg">Score: {score}/{total}</div>
+          <div className="text-sm text-fg">{t("widget.quiz.score", { score, total })}</div>
           <div className="flex items-center justify-center gap-1">
             {questions.map((_, i) => (
               <span key={i} className={`quiz-score-dot w-2 h-2 rounded-full ${i < score ? "bg-ok" : "bg-white/10"}`} />

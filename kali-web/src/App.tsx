@@ -39,9 +39,15 @@ function usePerfProfile() {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("kali.theme") ?? "midnight",
-  );
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("kali.theme");
+    if (saved && ["amberwave", "foxglove", "vellum", "tidepool"].includes(saved)) return saved;
+    if (saved && ["synthwave", "midnight", "sunset", "forest"].includes(saved)) {
+      localStorage.setItem("kali.theme", "amberwave");
+      return "amberwave";
+    }
+    return "amberwave";
+  });
   const [canvasAutoExpand, setCanvasAutoExpand] = useState(
     () => localStorage.getItem("kali.canvasAutoExpand") !== "false",
   );

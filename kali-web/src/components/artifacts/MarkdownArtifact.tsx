@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { marked } from "marked";
 import mermaid from "mermaid";
 
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function MarkdownArtifact({ content }: Props) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const html = useMemo(() => marked.parse(content, { async: false }) as string, [content]);
 
@@ -41,7 +43,7 @@ export function MarkdownArtifact({ content }: Props) {
           pre.outerHTML = svg;
         })
         .catch(() => {
-          pre.outerHTML = `<pre class="text-err text-xs p-2 border border-err/30 rounded">Failed to render diagram</pre>`;
+          pre.outerHTML = `<pre class="text-err text-xs p-2 border border-err/30 rounded">${t("widget.html.error")}</pre>`;
         });
     });
   }, [html]);
