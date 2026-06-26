@@ -248,12 +248,10 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
             />
           </div>
         </div>
-        {/* Projection area — only visible when customizer is CLOSED */}
-        {!customizerOpen && (
-          <div className="mt-4 px-10 py-8 rounded-3xl max-w-2xl w-full shadow-2xl border border-accent/10 projection-surface pointer-events-none" aria-live="polite" aria-atomic="true">
-            <ProjectionText messages={chat.messages} />
-          </div>
-        )}
+        {/* Ambient welcome text — only when no assistant messages */}
+        <WelcomeText messages={chat.messages} />
+        {/* Floating transcript — in the flow, below avatar */}
+        <FloatingTranscript messages={chat.messages} />
       </div>
 
       {/* Tether layer — SVG paths avatar→windows */}
@@ -401,10 +399,24 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   );
 }
 
-/** Streaming text projection — shows the latest assistant message. */
-function ProjectionText({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
+/** Ambient welcome text — shown below avatar when no assistant messages. */
+function WelcomeText({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
   const { t } = useTranslation();
-  let text = t("stage.empty_state") as string;
+  const hasAssistantText = messages.some((m) => m.role === "assistant" && m.content);
+  if (hasAssistantText) return null;
+  return (
+    <p className="mt-6 text-center text-muted/50 transition-opacity duration-300 pointer-events-auto" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1rem * var(--mul-text))", lineHeight: 1.5 }}>
+      {t("stage.empty_state")}
+    </p>
+  );
+}
+
+/** Floating transcript — overlay above the dock, narrow, border-left accent. */
+function FloatingTranscript({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  let text = "";
   let isStreaming = false;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -416,35 +428,60 @@ function ProjectionText({ messages }: { messages: import("../hooks/useChat").Cha
   }
 
   const html = useMemo(() => {
-    if (isStreaming || !text) return null;
+    if (!text) return null;
     try {
       return marked.parse(text, { async: false }) as string;
     } catch {
-      return `<p>${text}</p>`;
+      return `<p>${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
     }
-  }, [text, isStreaming]);
+  }, [text]);
 
-  if (!text) {
-    return (
-      <p className="text-center text-muted/60 transition-opacity duration-300" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1.2rem * var(--mul-text))", lineHeight: 1.5 }}>
-        Toca al avatar o escribe algo para empezar.
-      </p>
-    );
-  }
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (atBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [html, isStreaming, atBottom]);
 
-  if (isStreaming) {
-    return (
-      <p className="text-center text-fg transition-opacity duration-300" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1.6rem * var(--mul-text))", lineHeight: 1.5, fontVariationSettings: '"SOFT" 60' }}>
-        {text}
-        <span className="inline-block w-0.5 h-em bg-accent ml-0.5" style={{ animation: "blink 1.1s steps(2,start) infinite" }} />
-      </p>
-    );
-  }
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    setAtBottom(isAtBottom);
+    el.classList.toggle("scrolled-to-bottom", isAtBottom);
+  }, []);
+
+  if (!text) return null;
 
   return (
-    <div
-      className="prose-md text-left max-h-48 overflow-y-auto scrollbar-thin"
-      dangerouslySetInnerHTML={{ __html: html || `<p>${text}</p>` }}
-    />
+    <AnimatePresence>
+      <motion.div
+        className="w-full max-w-lg pointer-events-none mt-6"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div
+          ref={scrollRef}
+          className="projection-scroll max-h-[30vh] border-l-2 border-accent/30 pl-4 pointer-events-auto"
+          onScroll={handleScroll}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {html && (
+            <div
+              className="leading-relaxed text-sm"
+              style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )}
+          {isStreaming && (
+            <span className="inline-block w-0.5 h-[1em] bg-accent ml-0.5 align-text-bottom" style={{ animation: "blink 1.1s steps(2,start) infinite" }} />
+          )}
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

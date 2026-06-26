@@ -352,6 +352,8 @@
   "widget.html.tab_code": "Código",
   "widget.html.tab_preview": "Vista previa",
   "widget.html.error": "Error al renderizar el diagrama",
+  "widget.html.refresh": "Recargar",
+  "widget.html.toggle_console": "Consola",
   "widget.quiz.score": "Puntuación: {{score}}/{{total}}",
   "widget.resource.coins": "monedas",
   "widget.entity.cooldown": "CD: {{n}}s"

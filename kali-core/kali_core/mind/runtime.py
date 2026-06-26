@@ -197,6 +197,7 @@ class AgentRuntime:
             "content": evt.content,
             "update": evt.action,
             "phase": evt.phase,
+            "language": evt.language,
             "session_id": session_id,
         }
         logger.info(
@@ -224,6 +225,7 @@ class AgentRuntime:
                     evt.title,
                     evt.content,
                     evt.window_type,
+                    evt.language,
                 )
             except Exception:
                 logger.warning(

@@ -899,6 +899,23 @@
   transition: opacity 300ms ease, transform 300ms ease;
 }
 
+/* ── Stage projection area ────────────────────────── */
+.projection-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  transition: -webkit-mask-image 0.3s ease, mask-image 0.3s ease;
+}
+.projection-scroll.scrolled-to-bottom {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.projection-scroll::-webkit-scrollbar { width: 4px; }
+.projection-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.projection-scroll::-webkit-scrollbar-track { background: transparent; }
+
 /* ── Stage dock ─────────────────────────────────────── */
 .glass-strong {
   background: color-mix(in srgb, var(--bg-elev) 88%, transparent);

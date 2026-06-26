@@ -492,7 +492,10 @@ export function ProviderSection({ systemStatus, onUpdate }: Props) {
             <div className="relative flex-1">
               <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  handleApply({ model: e.target.value });
+                }}
                 className="w-full appearance-none bg-ai-panel border border-ai-rail rounded-lg px-3 py-2.5 pr-9 text-sm font-mono text-ai-readout outline-none cursor-pointer hover:border-ai-signal/40 transition-colors"
               >
                 {models.map((m) => (
@@ -518,7 +521,10 @@ export function ProviderSection({ systemStatus, onUpdate }: Props) {
             <input
               type="text"
               value={modelInput}
-              onChange={(e) => setModelInput(e.target.value)}
+              onChange={(e) => {
+                setModelInput(e.target.value);
+                handleApply({ model: e.target.value });
+              }}
               placeholder={t("ai.model_placeholder")}
               className="flex-1 bg-ai-panel border border-ai-rail rounded-lg px-3 py-2.5 text-sm font-mono text-ai-readout outline-none focus:border-ai-signal/60 transition-colors placeholder:text-ai-label/30"
             />

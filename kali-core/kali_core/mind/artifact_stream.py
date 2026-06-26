@@ -81,6 +81,7 @@ class ArtifactStreamEvent:
     content: str              # accumulated content so far (or final)
     action: ArtifactAction    # create | update | close
     phase: Phase              # streaming | complete
+    language: str = ""        # programming language (e.g. "python", "java")
 
 
 @dataclass
@@ -109,6 +110,7 @@ class _ActiveArtifact:
     window_type: str
     title: str
     content: str = ""
+    language: str = ""
     is_streamable: bool = True
     last_emit_ts: float = 0.0
 
@@ -171,13 +173,13 @@ class ArtifactStreamProcessor:
                     if header_result is None:
                         # Header not complete — need more chunks.
                         break
-                    atype, title = header_result
+                    atype, title, language = header_result
                     if not atype:
                         # Malformed marker — treat as chat text.
                         # _chat_emitted was already advanced past it.
                         continue
                     # Start the artifact.
-                    events.extend(self._start_artifact(atype, title))
+                    events.extend(self._start_artifact(atype, title, language))
                     if self._active is not None:
                         # Continue the loop in artifact mode to process
                         # any content already in the buffer.
@@ -283,11 +285,11 @@ class ArtifactStreamProcessor:
 
     # ── Internal helpers ──
 
-    def _try_parse_begin_header(self) -> tuple[str, str] | None:
+    def _try_parse_begin_header(self) -> tuple[str, str, str] | None:
         """Try to parse [BEGIN_ARTIFACT: type] {header_json} from buf.
 
-        Returns (artifact_type, title) if complete and valid.
-        Returns ("", "") if the marker is malformed (treat as chat text).
+        Returns (artifact_type, title, language) if complete and valid.
+        Returns ("", "", "") if the marker is malformed (treat as chat text).
         Returns None if more chunks are needed.
         """
         n = len(self._buf)
@@ -302,7 +304,7 @@ class ArtifactStreamProcessor:
             # Invalid type — treat marker as plain chat text.
             # Don't advance _chat_yielded so the marker text gets emitted.
             self._chat_emitted = bracket_idx + 1
-            return ("", "")
+            return ("", "", "")
 
         # Phase 2: skip whitespace after ']' and find JSON '{'
         json_start = bracket_idx + 1
@@ -314,7 +316,7 @@ class ArtifactStreamProcessor:
             # No JSON header — allow [BEGIN_ARTIFACT: code] without JSON.
             self._content_start = json_start
             self._content_emitted = json_start
-            return (atype, "")
+            return (atype, "", "")
 
         # Phase 3: balanced JSON extraction for the header.
         i = json_start + 1
@@ -347,18 +349,20 @@ class ArtifactStreamProcessor:
                     self._content_start = i + 1
                     self._content_emitted = i + 1
                     title = ""
+                    language = ""
                     try:
                         parsed = json.loads(raw_json)
                         if isinstance(parsed, dict):
                             title = str(parsed.get("title", ""))
+                            language = str(parsed.get("language", ""))
                     except (json.JSONDecodeError, TypeError):
                         pass
-                    return (atype, title)
+                    return (atype, title, language)
             i += 1
         return None  # JSON not complete yet
 
     def _start_artifact(
-        self, atype: str, title: str
+        self, atype: str, title: str, language: str = ""
     ) -> list[ArtifactStreamEvent]:
         """Start a new active artifact and emit the create event."""
         events: list[ArtifactStreamEvent] = []
@@ -376,6 +380,7 @@ class ArtifactStreamProcessor:
             artifact_type=atype,
             window_type=window_type,
             title=title,
+            language=language,
             is_streamable=is_streamable,
             last_emit_ts=time.monotonic(),
         )
@@ -388,6 +393,7 @@ class ArtifactStreamProcessor:
                 content="",
                 action="create",
                 phase="streaming",
+                language=language,
             )
         )
         return events
@@ -411,6 +417,7 @@ class ArtifactStreamProcessor:
                     content=a.content,
                     action="update",
                     phase="streaming",
+                    language=a.language,
                 )
             )
 
@@ -423,6 +430,7 @@ class ArtifactStreamProcessor:
                 content=a.content,
                 action="close",
                 phase="complete",
+                language=a.language,
             )
         )
         return events
@@ -441,6 +449,7 @@ class ArtifactStreamProcessor:
             content=a.content,
             action=action,
             phase=phase,
+            language=a.language,
         )
 
 

@@ -135,7 +135,7 @@ llm_system_prompt: str = os.getenv(
         "STREAMING FORMAT — for 'code', 'document', 'diff', 'html' (text\n"
         "that is meaningful as it grows). The user watches the content\n"
         "being written live. Use this EXACT format:\n\n"
-        '  [BEGIN_ARTIFACT: code] {"title": "Herencia Java"}\n'
+        '  [BEGIN_ARTIFACT: code] {"title": "Herencia Java", "language": "java"}\n'
         "  public class Herencia {\n"
         "      void main() {}\n"
         "  }\n"
@@ -159,7 +159,12 @@ llm_system_prompt: str = os.getenv(
         "  or any variant.\n"
         "- NEVER omit the opening [BEGIN_ARTIFACT] marker. Content without\n"
         "  it goes to the chat as plain text, not the artifact window.\n"
-        '- The title goes in the JSON header: {"title": "..."}.\n\n'
+        '- The title goes in the JSON header: {"title": "..."}.\n'
+        '- For "code" artifacts, also include the language:\n'
+        '  {"title": "...", "language": "python"}\n'
+        '  Supported languages: python, javascript, typescript, java, c, cpp,\n'
+        '  csharp, go, rust, ruby, php, swift, kotlin, scala, r, sql, bash,\n'
+        '  html, css, json, yaml, markdown, xml, plaintext.\n\n'
         "NON-STREAMING FORMAT — for 'table', 'json', 'checklist', 'chart',\n"
         "'quiz' (structured content needing a complete payload). Use the\n"
         "classic tool-call format:\n"
@@ -175,7 +180,8 @@ llm_system_prompt: str = os.getenv(
         "- 'table': JSON {\"rows\": [{...}]} — use for tabular data,\n"
         "  comparisons, schedules, or any rows-and-columns data.\n"
         "- 'code': source code text — use for code snippets the user wants\n"
-        "  to see in a dedicated window.\n"
+        "  to see in a dedicated window. Always include the language in the\n"
+        "  JSON header: {\"title\": \"...\", \"language\": \"python\"}.\n"
         "- 'json': JSON string — use to show structured data as an\n"
         "  expandable tree.\n"
         "- 'checklist': JSON {\"items\": [{\"text\": str, \"done\": bool}]} —\n"

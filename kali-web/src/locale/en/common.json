@@ -352,6 +352,8 @@
   "widget.html.tab_code": "Code",
   "widget.html.tab_preview": "Preview",
   "widget.html.error": "Failed to render diagram",
+  "widget.html.refresh": "Refresh",
+  "widget.html.toggle_console": "Console",
   "widget.quiz.score": "Score: {{score}}/{{total}}",
   "widget.resource.coins": "coins",
   "widget.entity.cooldown": "CD: {{n}}s"

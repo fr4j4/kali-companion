@@ -113,6 +113,7 @@ class ArtifactEnvelope:
     artifact_id: str = ""
     update: str = "create"  # "create" | "update" | "close"
     domain_type: str = ""  # domain hint for window_type resolution (widget only)
+    language: str = ""  # programming language (e.g. "python", "java")
 
     def to_payload(self) -> dict[str, Any]:
         """Convert to the WS wire-format dict (``event: "artifact"``)."""
@@ -125,6 +126,7 @@ class ArtifactEnvelope:
             "title": self.title,
             "content": self.content,
             "update": self.update,
+            "language": self.language,
         }
 
 

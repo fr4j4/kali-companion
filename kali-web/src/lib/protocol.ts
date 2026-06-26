@@ -168,6 +168,7 @@ export interface ArtifactEvent {
   content: string;
   update: "create" | "update" | "close";
   phase?: "streaming" | "complete";
+  language?: string;
 }
 
 export interface TurnStartEvent {

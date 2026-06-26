@@ -428,8 +428,8 @@ async def test_streamed_artifact_persists_on_close():
     persisted: list[tuple] = []
 
     class FakeStore:
-        async def add_artifact(self, session_id, art_id, atype, title, content, wt):
-            persisted.append((session_id, art_id, atype, title, content, wt))
+        async def add_artifact(self, session_id, art_id, atype, title, content, wt, language=""):
+            persisted.append((session_id, art_id, atype, title, content, wt, language))
 
     runtime._session_store = FakeStore()
 
@@ -444,6 +444,7 @@ async def test_streamed_artifact_persists_on_close():
         content="<html></html>",
         action="close",
         phase="complete",
+        language="",
     )
 
     # Without emit_callback, _emit_artifact_event returns early — so set one.
@@ -454,8 +455,9 @@ async def test_streamed_artifact_persists_on_close():
     await runtime._emit_artifact_event(close_evt, "sess_1")
 
     assert len(persisted) == 1
-    sess, art_id, atype, title, content, wt = persisted[0]
+    sess, art_id, atype, title, content, wt, lang = persisted[0]
     assert sess == "sess_1"
     assert art_id == "art_test"
     assert atype == "html"
     assert content == "<html></html>"
+    assert lang == ""
