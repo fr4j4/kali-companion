@@ -82,7 +82,7 @@ export function HtmlWidget({ content }: Props) {
         ) : (
           <iframe
             srcDoc={injectHashGuard(html)}
-            sandbox="allow-scripts allow-popups allow-forms"
+            sandbox="allow-scripts allow-popups allow-forms allow-modals"
             className="w-full flex-1 min-h-0 border-none bg-white"
             title={t("widget.html.title")}
           />
