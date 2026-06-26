@@ -159,13 +159,13 @@ def test_throttle_suppresses_intermediate_updates():
 
 def test_all_streamable_types():
     """All streamable types are classified correctly."""
-    for t in ["code", "document", "diff", "html"]:
+    for t in ["code", "document", "diff", "html", "mermaid"]:
         assert t in STREAMABLE_TYPES
 
 
 def test_all_non_streamable_types():
     """All non-streamable types are classified correctly."""
-    for t in ["mermaid", "json", "table", "checklist", "chart", "quiz"]:
+    for t in ["json", "table", "checklist", "chart", "quiz"]:
         assert t in NON_STREAMABLE_TYPES
 
 

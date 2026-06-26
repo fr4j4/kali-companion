@@ -42,14 +42,14 @@ from typing import Literal
 # Streamable types: content is plain text that renders meaningfully as it
 # grows. The frontend shows the content live during streaming.
 STREAMABLE_TYPES: frozenset[str] = frozenset({
-    "code", "document", "diff", "html",
+    "code", "document", "diff", "html", "mermaid",
 })
 
 # Non-streamable types: content needs to be complete to render (JSON,
-# Mermaid syntax, table rows, etc.). The frontend shows a spinner during
-# streaming and renders only on close.
+# table rows, etc.). The frontend shows a spinner during streaming and
+# renders only on close.
 NON_STREAMABLE_TYPES: frozenset[str] = frozenset({
-    "mermaid", "json", "table", "checklist", "chart", "quiz",
+    "json", "table", "checklist", "chart", "quiz",
 })
 
 # All valid artifact types for BEGIN markers.

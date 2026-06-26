@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
 import { parseContent } from "./base/DataWidget";
 import { injectHashGuard } from "../artifacts/htmlUtils";
+import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import type { ArtifactEvent } from "../../lib/protocol";
 
 interface Props {
@@ -30,6 +31,21 @@ export function HtmlWidget({ content }: Props) {
   const [tab, setTab] = useState<"html" | "preview">("preview");
   const userSwitchedRef = useRef(false);
   const codeRef = useRef<HTMLPreElement>(null);
+
+  const actions: HeaderAction[] = useMemo(
+    () => [
+      { type: "copy", getContent: () => html, tip: t("widget.html.copy_source") },
+      {
+        type: "download",
+        content: html,
+        filename: event?.title ? `${event.title}.html` : "artifact.html",
+        tip: t("widget.html.download"),
+      },
+    ],
+    [html, event?.title, t]
+  );
+
+  const { rendered: headerActions } = useHeaderActions(actions);
 
   // Auto-switch to Preview after streaming completes (with delay), unless
   // the user manually switched tabs during streaming.
@@ -63,6 +79,9 @@ export function HtmlWidget({ content }: Props) {
           <TabButton active={tab === "preview"} onClick={() => handleTabClick("preview")}>
             {"\u{1F441}"} Preview
           </TabButton>
+          <div className="ml-auto flex items-center gap-0.5 px-2 py-1">
+            {headerActions}
+          </div>
         </div>
 
         {/* Tab content */}

@@ -155,20 +155,30 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   // through so streaming content reaches the window; "close" events
   // with phase:"complete" update the window (rendering final content)
   // but keep it open; true close (no phase) cleans up tracking.
+  //
+  // syncArtifactRef breaks the dependency cycle: syncArtifact closes over
+  // `windows`, so when windows changes the useMemo returns a new api with a
+  // new syncArtifact. Using a ref avoids re-running this effect when api
+  // changes — only chat.artifacts changes (new Map per event) trigger sync.
+  const syncArtifactRef = useRef(api.syncArtifact);
+  useEffect(() => {
+    syncArtifactRef.current = api.syncArtifact;
+  }, [api]);
+
   useEffect(() => {
     const artifacts = chat.artifacts;
     if (!artifacts) return;
     for (const [id, event] of artifacts) {
       if (event.update === "close" && event.phase !== "complete") {
         processedRef.current.delete(id);
-        api.syncArtifact(event);
+        syncArtifactRef.current(event);
         continue;
       }
       if (event.update === "create" && processedRef.current.has(id)) continue;
       processedRef.current.add(id);
-      api.syncArtifact(event);
+      syncArtifactRef.current(event);
     }
-  }, [chat.artifacts, api]);
+  }, [chat.artifacts]);
 
   // Register a provider so useChat.send can include selected artifact
   // metadata (id, type, title) with each input event. The workspace owns

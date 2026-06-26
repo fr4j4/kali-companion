@@ -1241,7 +1241,7 @@ html.kali-perf-low .aw {
 .callout-warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.15); color: rgba(251,191,36,0.9); }
 .callout-tip { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.15); color: rgba(52,211,153,0.9); }
 
-.mermaid-container { display: flex; align-items: center; justify-content: center; overflow: auto; padding: calc(12px * var(--mul-density)); }
+.mermaid-container { display: flex; align-items: center; justify-content: center; overflow: hidden; padding: calc(12px * var(--mul-density)); }
 .mermaid-container svg { max-width: none; }
 
 .json-key { color: var(--accent); }
