@@ -20,11 +20,22 @@ export function ArtifactModal({ open, onClose, api }: Props) {
 
   const handleFocus = (artifactId: string) => {
     const w = api.windows.find((win) => win.artifactId === artifactId);
-    if (w) api.focusWindow(w.id);
+    if (w && !w.closed) {
+      // Already open → just focus it.
+      api.focusWindow(w.id);
+    } else if (w && w.closed) {
+      // Closed window → restore + fetch content on demand.
+      api.reopenArtifact(artifactId);
+    } else {
+      // No window yet (metadata-only) → create + fetch.
+      api.reopenArtifact(artifactId);
+    }
     onClose();
   };
 
   if (!open) return null;
+
+  const count = artifactList.length;
 
   return (
     <div
@@ -39,9 +50,14 @@ export function ArtifactModal({ open, onClose, api }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <h2 className="text-sm font-semibold text-foreground m-0">
-            {t("artifact.title")}
-          </h2>
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-sm font-semibold text-foreground m-0">
+              {t("artifact.title")}
+            </h2>
+            {count > 0 && (
+              <span className="badge text-muted">{count}</span>
+            )}
+          </div>
           <button
             className="bg-transparent border-none text-muted text-base cursor-pointer hover:text-fg transition"
             onClick={onClose}
@@ -59,9 +75,13 @@ export function ArtifactModal({ open, onClose, api }: Props) {
           )}
           {artifactList.map((art) => {
             const icon = WINDOW_ICONS[art.windowType as keyof typeof WINDOW_ICONS] || "📦";
-            const preview = art.content
-              ? art.content.replace(/<[^>]+>/g, "").slice(0, 120)
-              : "";
+            const win = api.windows.find((w) => w.artifactId === art.id);
+            const isOpen = win != null && !win.closed;
+            // Prefer the backend-provided preview; fall back to deriving one
+            // from content (for live-streamed artifacts that still hold content).
+            const preview =
+              art.preview ??
+              (art.content ? art.content.replace(/<[^>]+>/g, "").slice(0, 120) : "");
             return (
               <button
                 key={art.id}
@@ -71,6 +91,11 @@ export function ArtifactModal({ open, onClose, api }: Props) {
                 <span className="text-xl mt-0.5 shrink-0">{icon}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
+                    {/* Open / closed indicator dot */}
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-ok" : "bg-muted/50"}`}
+                      title={isOpen ? (t("artifact.open") as string) : (t("artifact.closed") as string)}
+                    />
                     <span className="text-sm font-medium text-fg truncate">
                       {art.title || t("artifact.untitled")}
                     </span>

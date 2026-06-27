@@ -30,30 +30,32 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from kali_core.claws.base import available_tools, register
 from kali_core.claws.command import RunCommandTool
 from kali_core.claws.create_artifact import CreateArtifactTool
+from kali_core.claws.fs import FsListTool, FsReadTool
+from kali_core.claws.game.adapter import get_adapter
+from kali_core.claws.game.dota_live import DotaLiveStateTool
+from kali_core.claws.game.fetch_resource import FetchGameResourceTool
+from kali_core.claws.game.image_cache import download_game_images_handler
+from kali_core.claws.git import GitDiffTool, GitWorktreeTool
+from kali_core.claws.launcher import LaunchAppTool
+from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.manage_artifacts import (
     GetArtifactTool,
     ListArtifactsTool,
     UpdateArtifactTool,
 )
-from kali_core.claws.fs import FsListTool, FsReadTool
-from kali_core.claws.git import GitDiffTool, GitWorktreeTool
-from kali_core.claws.game.dota_live import DotaLiveStateTool
-from kali_core.claws.game.fetch_resource import FetchGameResourceTool
-from kali_core.claws.game.adapter import get_adapter
-from kali_core.claws.launcher import LaunchAppTool
-from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.organize import OrganizeFolderTool
 from kali_core.claws.screenshot import ScreenshotTool
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
@@ -62,25 +64,39 @@ from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
-from kali_core.mind.ai_config import AIConfig, load as load_ai_config, save as save_ai_config
-from kali_core.gaze import GazeClient
 from kali_core.ear.manager import STTManager, WakeWordDetector
 from kali_core.game.gsi import gsi_state
+from kali_core.gaze import GazeClient
+from kali_core.mind.ai_config import AIConfig
+from kali_core.mind.ai_config import load as load_ai_config
+from kali_core.mind.ai_config import save as save_ai_config
 from kali_core.mind.executor import Executor
 from kali_core.mind.jobs import JobManager
 from kali_core.mind.llm.direct import DirectLLMProvider
 from kali_core.mind.llm.nanobot import NanobotLLMProvider
 from kali_core.mind.llm.provider import LLMProvider, ToolDef
 from kali_core.mind.runtime import AgentRuntime
-from kali_core.nest.store import SessionStore
 from kali_core.nest.job_store import JobStore
-from kali_core.claws.game.image_cache import download_game_images_handler
+from kali_core.nest.store import SessionStore
 from kali_core.voice.pipeline import TTSPipeline
 from kali_core.voice.providers.http import HTTPTTSProvider
 from kali_core.voice.providers.inproc import InProcTTSProvider
 from kali_core.voice.voice_config import VoiceConfigManager
 
 logger = logging.getLogger("kali_core.server")
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _artifact_preview(content: str, limit: int = 200) -> str:
+    """Strip HTML/markdown tags and return a short preview string."""
+    if not content:
+        return ""
+    text = _TAG_RE.sub("", content).strip()
+    if len(text) > limit:
+        text = text[:limit].rstrip() + "…"
+    return text
 
 
 def _build_llm_provider() -> LLMProvider:
@@ -243,6 +259,28 @@ class Server:
             media, _ = mimetypes.guess_type(str(req_path))
             return FileResponse(str(req_path), media_type=media or "application/octet-stream")
 
+        # Artifact content endpoint — lets the frontend fetch the full
+        # content of a closed artifact by id when the user reopens it.
+        # Used by the "Artefactos" library beacon: closed artifacts keep
+        # only metadata in memory; content is fetched on demand here.
+        @self.app.get("/sessions/{session_id}/artifacts/{artifact_id}")
+        async def get_artifact(session_id: str, artifact_id: str) -> Any:
+            art = await self.session_store.get_artifact(session_id, artifact_id)
+            if art is None:
+                raise HTTPException(status_code=404, detail="artifact not found")
+            wt = art.get("window_type") or ""
+            if not wt:
+                from kali_core.canvas.registry import resolve_window_type as _rwt
+                wt = _rwt(art.get("type", ""))
+            return {
+                "id": art["id"],
+                "type": art["type"],
+                "windowType": wt,
+                "title": art["title"],
+                "content": art["content"],
+                "language": art.get("language", ""),
+            }
+
         @self.app.websocket("/ws")
         async def ws_endpoint(ws: WebSocket) -> None:
             await ws.accept()
@@ -285,7 +323,6 @@ class Server:
 
         @self.app.get("/gsi/debug")
         async def gsi_debug() -> dict[str, Any]:
-            import json as _json
             return {"state": gsi_state.state, "in_match": gsi_state.in_match}
 
         @self.app.get("/llm/scan")
@@ -396,7 +433,9 @@ class Connection:
                             "type": art["type"],
                             "windowType": art.get("window_type", ""),
                             "title": art["title"],
-                            "content": art["content"],
+                            "content": None,
+                            "preview": _artifact_preview(art["content"]),
+                            "language": art.get("language", ""),
                             "update": "create",
                         })
                     return
@@ -464,7 +503,9 @@ class Connection:
                         "type": art["type"],
                         "windowType": art.get("window_type", ""),
                         "title": art["title"],
-                        "content": art["content"],
+                        "content": None,
+                        "preview": _artifact_preview(art["content"]),
+                        "language": art.get("language", ""),
                         "update": "create",
                     })
             else:

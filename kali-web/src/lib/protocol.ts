@@ -166,10 +166,18 @@ export interface ArtifactEvent {
   type: "html" | "markdown" | "diff" | "widget";
   windowType: string;
   title: string;
-  content: string;
+  /**
+   * Full payload during live streaming / updates.
+   * `null` on metadata-only replays (session reattach): the frontend keeps
+   * only the `preview` in memory and fetches the full content on demand via
+   * `fetchArtifact` when the user reopens a closed artifact.
+   */
+  content: string | null;
   update: "create" | "update" | "close";
   phase?: "streaming" | "complete";
   language?: string;
+  /** Short text preview (HTML stripped). Present on metadata-only replays. */
+  preview?: string;
 }
 
 export interface TurnStartEvent {

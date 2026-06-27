@@ -123,6 +123,12 @@ export interface WorkspaceAPI {
   syncArtifact: (event: ArtifactEvent) => void;
   toggleMinimize: (id: number) => void;
   toggleMaximize: (id: number) => void;
+  /**
+   * Reopen an artifact by its backend id: restore its window (creating one if
+   * needed) and fetch its content on demand. Used by the library list when
+   * the user clicks a closed artifact.
+   */
+  reopenArtifact: (artifactId: string) => void;
 }
 
 /** Options for creating a window. */

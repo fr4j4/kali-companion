@@ -39,7 +39,6 @@ import { VoiceBar } from "./VoiceBar";
 import { ConversationModal } from "./ConversationModal";
 import { CustomizerDrawer } from "./CustomizerDrawer";
 import { MinimizeDock } from "./MinimizeDock";
-import { ClosedArtifactsBar } from "./ClosedArtifactsBar";
 import { SessionDrawer } from "./SessionDrawer";
 import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
@@ -61,7 +60,11 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   const { t, i18n } = useTranslation();
   const { chat, tts, ptt, voices } = useStage();
   const { isMobile } = useBreakpoint();
-  const api = useWorkspace();
+  const api = useWorkspace({
+    sessionId: chat.sessionId,
+    onCloseArtifact: chat.markArtifactClosed,
+    onContentLoaded: chat.setArtifactContent,
+  });
   const [typing, setTyping] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [jobsOpen, setJobsOpen] = useState(false);
@@ -285,6 +288,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onOpenArtifacts={() => setArtifactsOpen(true)}
         onOpenConversation={() => setConversationOpen(true)}
         onNewSession={newSession}
+        artifactsOpenCount={api.windows.filter((w) => w.artifactId && !w.closed).length}
+        artifactsClosedCount={api.windows.filter((w) => w.artifactId && w.closed).length}
       />
 
       {/* Presence layer — tool pills + reasoning snippets */}
@@ -312,9 +317,6 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
 
       {/* Minimize dock — minimized windows */}
       <MinimizeDock windows={api.windows} onRestore={api.toggleMinimize} />
-
-      {/* Closed artifacts bar — restore closed windows */}
-      <ClosedArtifactsBar windows={api.windows} onRestore={api.restoreWindow} />
 
       {/* Dock — bottom input + workspace controls */}
       <NeuralDock

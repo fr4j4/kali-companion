@@ -21,6 +21,10 @@ interface Props {
   onOpenArtifacts: () => void;
   onOpenConversation: () => void;
   onNewSession: () => void;
+  /** Open artifact windows count (for the beacon readout). */
+  artifactsOpenCount: number;
+  /** Closed artifact windows count (for the beacon readout). */
+  artifactsClosedCount: number;
 }
 
 export function HUD({
@@ -31,6 +35,8 @@ export function HUD({
   onOpenArtifacts,
   onOpenConversation,
   onNewSession,
+  artifactsOpenCount,
+  artifactsClosedCount,
 }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
@@ -50,37 +56,50 @@ export function HUD({
   const statusDotClass =
     chat.status === "ready" ? "bg-ok" : chat.status === "error" ? "bg-err" : "bg-muted";
 
+  // Artifact readout — the beacon shows open · closed at a glance.
+  const openArtifacts = artifactsOpenCount;
+  const closedArtifacts = artifactsClosedCount;
+  const totalArtifacts = openArtifacts + closedArtifacts;
+
   return (
     <>
-      {/* Top-left: clock + panel buttons */}
-      <div className="hud-corner pointer-events-auto absolute top-4 left-5 z-20 flex items-center gap-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-foreground text-lg font-prose leading-none tabular-nums">{timeStr}</span>
-          <span className="text-muted text-[11px] leading-none capitalize">{dateStr}</span>
+      {/* Top-left: clock + panel buttons + artifacts beacon */}
+      <div className="pointer-events-auto absolute top-4 left-5 z-20 flex flex-col gap-2">
+        <div className="hud-corner flex items-center gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-foreground text-lg font-prose leading-none tabular-nums">{timeStr}</span>
+            <span className="text-muted text-[11px] leading-none capitalize">{dateStr}</span>
+          </div>
+          <div className="w-px h-7 bg-border/40" />
+          <div className="flex items-center gap-0.5">
+            <Tooltip label={t("stage.history")}>
+              <IconButton size="sm" onClick={onOpenHistory} aria-label={t("stage.history")}>
+                <History size={15} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip label={t("dock.customizer")}>
+              <IconButton size="sm" onClick={onOpenCustomizer} aria-label={t("dock.customizer")}>
+                <Palette size={15} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip label={t("dock.conversation")}>
+              <IconButton size="sm" onClick={onOpenConversation} aria-label={t("dock.conversation")}>
+                <MessageSquare size={15} />
+              </IconButton>
+            </Tooltip>
+          </div>
         </div>
-        <div className="w-px h-7 bg-border/40" />
-        <div className="flex items-center gap-0.5">
-          <Tooltip label={t("stage.history")}>
-            <IconButton size="sm" onClick={onOpenHistory} aria-label={t("stage.history")}>
-              <History size={15} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip label={t("dock.customizer")}>
-            <IconButton size="sm" onClick={onOpenCustomizer} aria-label={t("dock.customizer")}>
-              <Palette size={15} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip label={t("dock.library")}>
-            <IconButton size="sm" onClick={onOpenArtifacts} aria-label={t("dock.library")}>
-              <Library size={15} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip label={t("dock.conversation")}>
-            <IconButton size="sm" onClick={onOpenConversation} aria-label={t("dock.conversation")}>
-              <MessageSquare size={15} />
-            </IconButton>
-          </Tooltip>
-        </div>
+
+        {/* Artifacts beacon — the one fixed beacon for everything Kali built
+            in this session. Full opacity (exempt from the HUD's dim-at-rest
+            convention): it is the thesis of the feature. Accent fill signals
+            a real action; the readout shows open · closed at a glance. */}
+        <ArtifactsBeacon
+          count={totalArtifacts}
+          openCount={openArtifacts}
+          closedCount={closedArtifacts}
+          onClick={onOpenArtifacts}
+        />
       </div>
 
       {/* Top-right: status·model pill + new chat + settings */}
@@ -123,5 +142,45 @@ export function HUD({
         </Tooltip>
       </div>
     </>
+  );
+}
+
+/**
+ * Artifacts beacon — a prominent pill button for the "Artefactos" library.
+ * Lives on its own row below the dim HUD cluster, at full opacity with an
+ * accent fill. The counter is a two-segment readout: open · closed, so you
+ * see the session's state at a glance without a word.
+ */
+function ArtifactsBeacon({
+  count,
+  openCount,
+  closedCount,
+  onClick,
+}: {
+  count: number;
+  openCount: number;
+  closedCount: number;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const hasArtifacts = count > 0;
+  return (
+    <Tooltip label={t("dock.artifacts_hint")}>
+      <button
+        onClick={onClick}
+        aria-label={t("dock.artifacts_hint") as string}
+        className="artifacts-beacon group inline-flex items-center gap-2 rounded-full bg-accent text-white border border-accent px-3 py-1.5 cursor-pointer transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+      >
+        <Library size={14} className="shrink-0" />
+        <span className="badge text-white/90">{t("dock.artifacts")}</span>
+        {hasArtifacts && (
+          <span className="flex items-center gap-1 tabular-nums text-[11px] font-mono leading-none">
+            <span className="text-white">{openCount}</span>
+            <span className="text-white/40">·</span>
+            <span className="text-white/60">{closedCount}</span>
+          </span>
+        )}
+      </button>
+    </Tooltip>
   );
 }

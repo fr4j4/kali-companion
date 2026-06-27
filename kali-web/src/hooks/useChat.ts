@@ -99,6 +99,10 @@ export interface ChatState {
   cancelJob: (id: string) => void;
   getJobLogs: (id: string) => void;
   requestImage: (key: string) => void;
+  /** Release the full content of an artifact from memory (close → metadata-only). */
+  markArtifactClosed: (artifactId: string) => void;
+  /** Store full content for an artifact (after a REST fetch on reopen). */
+  setArtifactContent: (artifactId: string, event: ArtifactEvent) => void;
 }
 
 let idCounter = 0;
@@ -340,8 +344,21 @@ export function useChat(): ChatState {
           if (ev.update === "close" && ev.phase !== "complete") {
             // True close (not a streaming-complete): remove from store.
             next.delete(ev.id);
+          } else if (ev.content == null && ev.preview !== undefined) {
+            // Metadata-only replay (session reattach): the backend sent an
+            // index entry with no content. Keep the existing entry if we
+            // already have one with content (e.g. live update arrived first),
+            // otherwise store this lightweight entry as-is. The workspace
+            // sync effect decides whether to fetch content for open windows.
+            const existing = next.get(ev.id);
+            if (!existing || existing.content == null) {
+              next.set(ev.id, ev);
+            } else {
+              // Preserve any metadata refresh (title/type) on an existing entry.
+              next.set(ev.id, { ...existing, ...ev, content: existing.content });
+            }
           } else {
-            // create, update, or close+complete: upsert with the event
+            // create/update, or close+complete: upsert with the event
             // (phase lets widgets know if content is still streaming).
             next.set(ev.id, ev);
           }
@@ -564,6 +581,26 @@ export function useChat(): ChatState {
     clientRef.current?.send({ event: "request_image", key });
   }, []);
 
+  /** Release the full content of an artifact, keeping only metadata + preview. */
+  const markArtifactClosed = useCallback((artifactId: string) => {
+    setArtifacts((prev) => {
+      const entry = prev.get(artifactId);
+      if (!entry || entry.content == null) return prev;
+      const next = new Map(prev);
+      next.set(artifactId, { ...entry, content: null });
+      return next;
+    });
+  }, []);
+
+  /** Store full content for an artifact (e.g. after a REST fetch on reopen). */
+  const setArtifactContent = useCallback((artifactId: string, event: ArtifactEvent) => {
+    setArtifacts((prev) => {
+      const next = new Map(prev);
+      next.set(artifactId, event);
+      return next;
+    });
+  }, []);
+
   // Allow the TTS hook to subscribe to audio events.
   const subscribeTts = useCallback((fn: (e: TtsAudioEvent) => void) => {
     ttsListeners.current.push(fn);
@@ -617,5 +654,7 @@ export function useChat(): ChatState {
     cancelJob,
     getJobLogs,
     requestImage,
+    markArtifactClosed,
+    setArtifactContent,
   };
 }

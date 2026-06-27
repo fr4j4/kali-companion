@@ -20,7 +20,7 @@ interface Props {
  */
 function extractVariant(w: ArtifactWindowData): string | undefined {
   const content = w.content as ArtifactEvent | null;
-  if (!content) return undefined;
+  if (!content || content.content == null) return undefined;
   try {
     const parsed = JSON.parse(content.content);
     const items = parsed.items ?? [];
@@ -36,6 +36,14 @@ function extractVariant(w: ArtifactWindowData): string | undefined {
 }
 
 export function WindowContentRouter({ window: w }: Props) {
+  // Content not yet loaded (closed artifact reopened, or reattach of an open
+  // artifact whose content is fetched on demand). Only applies to backend
+  // artifacts (those with an artifactId); local windows like "reasoning"
+  // carry no content prop and read their data from chat state directly.
+  if (w.content == null && w.artifactId != null) {
+    return <LoadingPlaceholder />;
+  }
+
   const entry = widgetRegistry[w.type];
 
   if (!entry) {

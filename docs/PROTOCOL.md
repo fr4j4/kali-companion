@@ -266,6 +266,16 @@ A canvas artifact create/update/close.
 
 `type` ∈ `{"html", "markdown", "diff", "widget"}`.
 `update` ∈ `{"create", "update", "close"}`.
+`content` holds the full payload during live streaming and `update_artifact`
+re-emits. On session (re)attach the backend replays the session's artifacts as
+**metadata-only** `create` events: `content` is `null` and a short `preview`
+string (HTML stripped, ~200 chars) is included instead. The frontend keeps
+only this metadata in memory for closed artifacts and fetches the full content
+on demand via `GET /sessions/{session_id}/artifacts/{artifact_id}` when the
+user reopens one.
+
+Optional fields: `preview` (string, metadata-only replays), `language`
+(string), `phase` (`"streaming" | "complete"`, streaming lifecycle).
 
 ### `tool_event`
 
