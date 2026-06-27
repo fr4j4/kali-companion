@@ -398,9 +398,17 @@ class DirectLLMProvider:
                     # Emit the synthetic BEGIN_ARTIFACT marker.
                     atype = parser.artifact_type
                     title = parser.title or ""
+                    language = parser.language or ""
+                    if language:
+                        header = (
+                            f'{{"title":"{title}",'
+                            f'"language":"{language}"}}'
+                        )
+                    else:
+                        header = f'{{"title":"{title}"}}'
                     yield StreamEvent(
                         kind="delta",
-                        text=f'[BEGIN_ARTIFACT: {atype}] {{"title":"{title}"}} ',
+                        text=f"[BEGIN_ARTIFACT: {atype}] {header} ",
                     )
                     acc["art_streaming"] = True
                 # Emit the unescaped content chunk as a synthetic delta.

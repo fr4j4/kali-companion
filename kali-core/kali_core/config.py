@@ -166,6 +166,18 @@ llm_system_prompt: str = os.getenv(
         "  or any variant.\n"
         "- NEVER omit the opening [BEGIN_ARTIFACT] marker. Content without\n"
         "  it goes to the chat as plain text, not the artifact window.\n"
+        "- The JSON header ONLY accepts \"title\" and (for code) \"language\".\n"
+        "  NEVER include a \"content\" field in the JSON header. The content\n"
+        "  goes as RAW TEXT after the header, never escaped inside JSON.\n"
+        "  Putting the body inside {\"content\":\"...\"} breaks streaming and\n"
+        "  may corrupt the artifact. This applies to html, code, document,\n"
+        "  diff, and mermaid alike.\n"
+        "- WRONG (do not do this):\n"
+        '  [BEGIN_ARTIFACT: html] {"title":"X","content":"<html>...</html>"}\n'
+        "- RIGHT:\n"
+        '  [BEGIN_ARTIFACT: html] {"title":"X"}\n'
+        "  <html>...</html>\n"
+        "  [END_ARTIFACT]\n"
         '- The title goes in the JSON header: {"title": "..."}.\n'
         '- For "code" artifacts, also include the language:\n'
         '  {"title": "...", "language": "python"}\n'

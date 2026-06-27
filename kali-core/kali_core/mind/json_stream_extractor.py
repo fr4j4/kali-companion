@@ -49,6 +49,7 @@ from .artifact_stream import STREAMABLE_TYPES
 # Keys we care about inside the create_artifact arguments object.
 _KEY_ARTIFACT_TYPE = "artifact_type"
 _KEY_TITLE = "title"
+_KEY_LANGUAGE = "language"
 _KEY_CONTENT = "content"
 
 ArgEventKind = Literal["field", "content_chunk", "content_done", "json_done"]
@@ -112,6 +113,7 @@ class StreamingArtifactArgParser:
         # Public-ish results.
         self.artifact_type: str = ""
         self.title: str = ""
+        self.language: str = ""
         self.content: str = ""
         self.is_streamable: bool | None = None
         self.failed: bool = False
@@ -120,6 +122,7 @@ class StreamingArtifactArgParser:
         # Whether we've already emitted the Field event for a key.
         self._artifact_type_emitted: bool = False
         self._title_emitted: bool = False
+        self._language_emitted: bool = False
 
     # ── Public API ────────────────────────────────────────────
 
@@ -366,6 +369,10 @@ class StreamingArtifactArgParser:
         elif key == _KEY_TITLE and not self._title_emitted:
             self.title = value
             self._title_emitted = True
+            events.append(ArgEvent(kind="field", key=key, value=value))
+        elif key == _KEY_LANGUAGE and not self._language_emitted:
+            self.language = value
+            self._language_emitted = True
             events.append(ArgEvent(kind="field", key=key, value=value))
         else:
             # Unknown key or duplicate; still emit so callers can inspect.
