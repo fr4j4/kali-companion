@@ -117,6 +117,20 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     window.location.hash = "#/";
   }, [chat]);
 
+  const deleteSession = useCallback((sid: string) => {
+    chat.deleteSession(sid);
+    if (sid === chat.sessionId) {
+      chat.newSession();
+      window.location.hash = "#/";
+    }
+  }, [chat]);
+
+  const clearAllSessions = useCallback(() => {
+    chat.clearAllSessions();
+    chat.newSession();
+    window.location.hash = "#/";
+  }, [chat]);
+
   const onLanguageChange = useCallback((lang: string) => {
     void i18n.changeLanguage(lang);
     localStorage.setItem("kali.lang", lang);
@@ -353,6 +367,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         sessions={chat.sessions}
         activeSessionId={chat.sessionId}
         onNewSession={newSession}
+        onDeleteSession={deleteSession}
+        onClearAllSessions={clearAllSessions}
       />
 
       <ArtifactModal open={artifactsOpen} onClose={() => setArtifactsOpen(false)} api={api} />

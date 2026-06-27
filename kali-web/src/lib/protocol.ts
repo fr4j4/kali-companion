@@ -41,6 +41,7 @@ export interface SettingsEvent {
   llm_provider?: string;
   llm_api_url?: string;
   llm_api_key?: string;
+  llm_max_tokens?: number;
   profile?: string;
   language?: string;
   stt_language?: string;
@@ -212,6 +213,7 @@ export interface StatusEvent {
   llm_api_url: string;
   llm_api_key_set: boolean;
   llm_model: string;
+  llm_max_tokens?: number;
   tts_provider: string;
   voice: string;
   tts_mode: string;
@@ -297,12 +299,23 @@ export interface AttachSessionEvent {
   session_id: string;
 }
 
+export interface DeleteSessionEvent {
+  event: "delete_session";
+  session_id: string;
+}
+
+export interface ClearAllSessionsEvent {
+  event: "clear_all_sessions";
+}
+
 export type IncomingEvent =
   | InputEvent
   | StopEvent
   | NewSessionEvent
   | ListSessionsEvent
   | AttachSessionEvent
+  | DeleteSessionEvent
+  | ClearAllSessionsEvent
   | SettingsEvent
   | ConsentResponseEvent
   | AudioStartEvent

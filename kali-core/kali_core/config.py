@@ -30,6 +30,7 @@ llm_provider: Literal["direct", "nanobot"] = os.getenv(
 llm_api_url: str = os.getenv("KALI_LLM_API_URL", "http://localhost:11434/v1")
 llm_api_key: str = os.getenv("KALI_LLM_API_KEY", "")
 llm_model: str = os.getenv("KALI_LLM_MODEL", "glm-5.1")
+llm_max_tokens: int = int(os.getenv("KALI_LLM_MAX_TOKENS", "16384"))
 llm_system_prompt: str = os.getenv(
     "KALI_LLM_SYSTEM_PROMPT",
     (
@@ -317,6 +318,7 @@ class _Settings:
     llm_api_url = llm_api_url
     llm_api_key = llm_api_key
     llm_model = llm_model
+    llm_max_tokens = llm_max_tokens
     llm_system_prompt = llm_system_prompt
 
     nanobot_ws_url = nanobot_ws_url

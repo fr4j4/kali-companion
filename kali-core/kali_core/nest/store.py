@@ -282,3 +282,21 @@ class SessionStore:
             cursor = await db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,))
             row = await cursor.fetchone()
             return row is not None
+
+    async def delete_session(self, session_id: str) -> None:
+        """Delete a session, its messages, and its artifacts."""
+        await self._ensure_db()
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+            await db.execute("DELETE FROM artifacts WHERE session_id = ?", (session_id,))
+            await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            await db.commit()
+
+    async def delete_all_sessions(self) -> None:
+        """Delete all sessions, messages, and artifacts."""
+        await self._ensure_db()
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute("DELETE FROM messages")
+            await db.execute("DELETE FROM artifacts")
+            await db.execute("DELETE FROM sessions")
+            await db.commit()

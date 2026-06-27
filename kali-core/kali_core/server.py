@@ -87,7 +87,7 @@ def _build_llm_provider() -> LLMProvider:
     cfg = load_ai_config()
     if cfg.provider == "nanobot":
         return NanobotLLMProvider()
-    return DirectLLMProvider(api_url=cfg.api_url, api_key=cfg.api_key, model=cfg.model)
+    return DirectLLMProvider(api_url=cfg.api_url, api_key=cfg.api_key, model=cfg.model, max_tokens=cfg.max_tokens)
 
 
 def _build_tts_provider():
@@ -400,12 +400,10 @@ class Connection:
                             "update": "create",
                         })
                     return
-            sess = await self.server.session_store.create_session()
-            self.session_id = sess["id"]
             self.server.consent.set_send_callback(self.send)
             self.server.job_mgr.set_emit_callback(self.send)
             await self.send(
-                {"event": "ready", "session_id": self.session_id, "version": "0.1.0"}
+                {"event": "ready", "session_id": "", "version": "0.1.0"}
             )
             await self._emit_status()
             if self._wake_word_enabled:
@@ -414,7 +412,13 @@ class Connection:
         elif kind == "input":
             content = event.get("content", "")
             selected = event.get("selected_artifacts") or []
-            if content and self.session_id:
+            if content:
+                if not self.session_id:
+                    sess = await self.server.session_store.create_session()
+                    self.session_id = sess["id"]
+                    if self.server.agent:
+                        self.server.agent.reset_history(self.session_id)
+                    await self.send({"event": "connected", "session_id": self.session_id})
                 await self._handle_input(content, selected_artifacts=selected)
 
         elif kind == "stop":
@@ -430,7 +434,7 @@ class Connection:
 
         elif kind == "attach_session":
             sid = event.get("session_id", "")
-            if sid:
+            if sid and await self.server.session_store.session_exists(sid):
                 self.session_id = sid
                 if self.server.agent:
                     self.server.agent.reset_history(sid)
@@ -463,10 +467,23 @@ class Connection:
                         "content": art["content"],
                         "update": "create",
                     })
+            else:
+                await self.send({"event": "connected", "session_id": ""})
 
         elif kind == "list_sessions":
             sessions = await self.server.session_store.list_sessions()
             await self.send({"event": "session_list", "sessions": sessions})
+
+        elif kind == "delete_session":
+            session_id = event.get("session_id", "")
+            if session_id:
+                await self.server.session_store.delete_session(session_id)
+            sessions = await self.server.session_store.list_sessions()
+            await self.send({"event": "session_list", "sessions": sessions})
+
+        elif kind == "clear_all_sessions":
+            await self.server.session_store.delete_all_sessions()
+            await self.send({"event": "session_list", "sessions": []})
 
         elif kind == "settings":
             await self._apply_settings(event)
@@ -793,6 +810,9 @@ class Connection:
         if "llm_model" in event:
             self.server.llm_provider._model = event["llm_model"]  # type: ignore[attr-defined]
             ai_cfg_changed = True
+        if "llm_max_tokens" in event:
+            self.server.llm_provider._max_tokens = int(event["llm_max_tokens"])  # type: ignore[attr-defined]
+            ai_cfg_changed = True
         if "llm_api_url" in event or "llm_api_key" in event or "llm_provider" in event:
             api_url = event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url))
             api_key = event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", settings.llm_api_key))
@@ -808,6 +828,7 @@ class Connection:
                 api_url=event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url)),
                 api_key=event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", "")),
                 model=getattr(self.server.llm_provider, "_model", settings.llm_model),
+                max_tokens=getattr(self.server.llm_provider, "_max_tokens", settings.llm_max_tokens),
             )
             save_ai_config(cfg)
         if "stt_language" in event:
@@ -838,6 +859,7 @@ class Connection:
                 "llm_api_url": getattr(self.server.llm_provider, "_api_url", settings.llm_api_url),
                 "llm_api_key_set": bool(getattr(self.server.llm_provider, "_api_key", "")),
                 "llm_model": getattr(self.server.llm_provider, "_model", settings.llm_model),
+                "llm_max_tokens": getattr(self.server.llm_provider, "_max_tokens", settings.llm_max_tokens),
                 "tts_provider": self.server.tts_provider.provider_name,
                 "voice": self.server.tts_pipeline.voice,
                 "tts_mode": self.server.tts_pipeline.mode,

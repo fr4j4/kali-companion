@@ -57,22 +57,25 @@ class DirectLLMProvider:
 
     provider_name = "direct"
 
-    def __init__(self, *, api_url: str | None = None, api_key: str | None = None, model: str | None = None) -> None:
+    def __init__(self, *, api_url: str | None = None, api_key: str | None = None, model: str | None = None, max_tokens: int | None = None) -> None:
         self._api_url = api_url or settings.llm_api_url
         self._api_key = api_key or settings.llm_api_key
         self._model = model or settings.llm_model
+        self._max_tokens = max_tokens or settings.llm_max_tokens
         self._system_prompt = settings.llm_system_prompt
         self._client = AsyncOpenAI(
             base_url=self._api_url,
             api_key=self._api_key or "unused",
         )
 
-    def reconfigure(self, *, api_url: str, api_key: str, model: str) -> None:
+    def reconfigure(self, *, api_url: str, api_key: str, model: str, max_tokens: int | None = None) -> None:
         """Hot-swap the provider configuration without restarting."""
         old_client = self._client
         self._api_url = api_url
         self._api_key = api_key
         self._model = model
+        if max_tokens is not None:
+            self._max_tokens = max_tokens
         self._client = AsyncOpenAI(
             base_url=self._api_url,
             api_key=self._api_key or "unused",
@@ -179,7 +182,7 @@ class DirectLLMProvider:
                 "messages": full,
                 "stream": True,
                 "temperature": 0.7,
-                "max_tokens": 16384,
+                "max_tokens": self._max_tokens,
             }
             if tools_param:
                 kwargs["tools"] = tools_param
@@ -418,7 +421,7 @@ class DirectLLMProvider:
                 "model": self._model,
                 "messages": full,
                 "temperature": 0.7,
-                "max_tokens": 16384,
+                "max_tokens": self._max_tokens,
             }
             if tools_param:
                 kwargs["tools"] = tools_param

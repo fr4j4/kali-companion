@@ -89,6 +89,8 @@ export interface ChatState {
   newSession: () => void;
   listSessions: () => void;
   attachSession: (sid: string) => void;
+  deleteSession: (sid: string) => void;
+  clearAllSessions: () => void;
   updateSettings: (patch: Record<string, unknown>) => void;
   respondConsent: (id: string, decision: "allow" | "no_capture" | "cancel") => void;
   subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void;
@@ -176,16 +178,24 @@ export function useChat(): ChatState {
       client.on("ready", (p) => {
         const ev = p as ReadyEvent;
         setError(null);
-        setSessionId(ev.session_id);
-        localStorage.setItem("kali.sessionId", ev.session_id);
+        setSessionId(ev.session_id || null);
+        if (ev.session_id) {
+          localStorage.setItem("kali.sessionId", ev.session_id);
+        } else {
+          localStorage.removeItem("kali.sessionId");
+        }
         setStatus("ready");
         client?.send({ event: "list_sessions" });
       });
       client.on("connected", (p) => {
         const ev = p as ConnectedEvent;
         setError(null);
-        setSessionId(ev.session_id);
-        localStorage.setItem("kali.sessionId", ev.session_id);
+        setSessionId(ev.session_id || null);
+        if (ev.session_id) {
+          localStorage.setItem("kali.sessionId", ev.session_id);
+        } else {
+          localStorage.removeItem("kali.sessionId");
+        }
       });
       client.on("session_list", (p) => {
         const ev = p as SessionListEvent;
@@ -521,6 +531,14 @@ export function useChat(): ChatState {
     clientRef.current?.send({ event: "attach_session", session_id: sid });
   }, []);
 
+  const deleteSession = useCallback((sid: string) => {
+    clientRef.current?.send({ event: "delete_session", session_id: sid });
+  }, []);
+
+  const clearAllSessions = useCallback(() => {
+    clientRef.current?.send({ event: "clear_all_sessions" });
+  }, []);
+
   const updateSettings = useCallback((patch: Record<string, unknown>) => {
     clientRef.current?.send({ event: "settings", ...patch });
   }, []);
@@ -589,6 +607,8 @@ export function useChat(): ChatState {
     newSession,
     listSessions,
     attachSession,
+    deleteSession,
+    clearAllSessions,
     updateSettings,
     respondConsent,
     subscribeTts,

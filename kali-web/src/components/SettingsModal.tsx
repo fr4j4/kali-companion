@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cpu, Volume2, Sliders, Palette } from "lucide-react";
+import { Cpu, Volume2, Sliders, Palette, Gauge } from "lucide-react";
 import type { StatusEvent, SettingsEvent } from "../lib/protocol";
 import { Modal } from "./ui/Modal";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -13,6 +13,7 @@ import { ProviderSection } from "./settings/ProviderSection";
 import { VoiceSection } from "./settings/VoiceSection";
 import { BehaviorSection } from "./settings/BehaviorSection";
 import { AppearanceSection } from "./settings/AppearanceSection";
+import { GenerationSection } from "./settings/GenerationSection";
 
 interface Props {
   open: boolean;
@@ -30,7 +31,7 @@ interface Props {
   onLanguageChange: (lang: string) => void;
 }
 
-type SectionId = "provider" | "voice" | "behavior" | "appearance";
+type SectionId = "provider" | "voice" | "behavior" | "generation" | "appearance";
 
 interface SectionDef {
   id: SectionId;
@@ -40,6 +41,7 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: "provider", icon: Cpu, labelKey: "settings.section.provider" },
+  { id: "generation", icon: Gauge, labelKey: "settings.section.generation" },
   { id: "voice", icon: Volume2, labelKey: "settings.section.voice" },
   { id: "behavior", icon: Sliders, labelKey: "settings.section.behavior" },
   { id: "appearance", icon: Palette, labelKey: "settings.section.appearance" },
@@ -66,6 +68,9 @@ export function SettingsModal({
 
   if (!open) return null;
 
+  // Teal AI accent applies to provider + generation (both LLM-related).
+  const isAISection = (id: SectionId) => id === "provider" || id === "generation";
+
   const rail = (
     <nav className="flex gap-1" role="tablist">
       {SECTIONS.map((s) => {
@@ -79,7 +84,7 @@ export function SettingsModal({
             onClick={() => setActive(s.id)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
               isActive
-                ? s.id === "provider"
+                ? isAISection(s.id)
                   ? "bg-ai-signal/10 text-ai-signal border border-ai-signal/30"
                   : "bg-accent/15 text-accent border border-accent/30"
                   : "text-muted hover:text-fg hover:bg-white/5 border border-transparent"
@@ -118,7 +123,7 @@ export function SettingsModal({
                       onClick={() => setActive(s.id)}
                       className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
                         isActive
-                          ? s.id === "provider"
+                          ? isAISection(s.id)
                             ? "bg-ai-signal/10 text-ai-signal"
                             : "bg-accent/15 text-accent"
                           : "text-muted hover:text-fg hover:bg-white/5"
@@ -140,6 +145,7 @@ export function SettingsModal({
 
   function renderSection() {
     if (active === "provider") return <ProviderSection systemStatus={systemStatus} onUpdate={onUpdate} />;
+    if (active === "generation") return <GenerationSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "voice") return <VoiceSection systemStatus={systemStatus} voices={voices} onUpdate={onUpdate} />;
     if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     return (
