@@ -66,6 +66,7 @@ from kali_core.collar.consent import ConsentManager as ConsentMgr
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.ear.manager import STTManager, WakeWordDetector
+from kali_core.lang_map import normalize
 from kali_core.game.gsi import gsi_state
 from kali_core.gaze import GazeClient
 from kali_core.mind.ai_config import AIConfig
@@ -379,7 +380,7 @@ class Connection:
         self._current_task: asyncio.Task | None = None
         self._stt_manager: STTManager | None = None
         self._wake_word: WakeWordDetector | None = None
-        self._stt_language: str = settings.stt_language
+        self._stt_language: str = normalize(settings.stt_language)
         self._wake_word_enabled: bool = settings.stt_wake_word_enabled
         self._input_mode: str = settings.input_mode
         self._feedback_mode: str = "minimal"
@@ -607,7 +608,7 @@ class Connection:
 
     async def _handle_audio_start(self, event: dict[str, Any]) -> None:
         """Start a new STT session."""
-        language = event.get("language", self._stt_language)
+        language = normalize(event.get("language", self._stt_language))
         if self._stt_manager is None:
             self._stt_manager = STTManager(language)
         else:
@@ -906,7 +907,7 @@ class Connection:
             )
             save_ai_config(cfg)
         if "stt_language" in event:
-            self._stt_language = event["stt_language"]
+            self._stt_language = normalize(event["stt_language"])
             if self._stt_manager is not None:
                 self._stt_manager.set_language(self._stt_language)
         if "wake_word_enabled" in event:
@@ -923,6 +924,8 @@ class Connection:
             self._feedback_mode = event["feedback_mode"]
         if "plan_mode" in event:
             self._plan_mode = bool(event["plan_mode"])
+        if "artifact_diff_preview" in event:
+            settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         await self._emit_status()
 
     async def _emit_status(self) -> None:
@@ -945,6 +948,7 @@ class Connection:
                 "input_mode": self._input_mode,
                 "feedback_mode": self._feedback_mode,
                 "plan_mode": self._plan_mode,
+                "artifact_diff_preview": settings.artifact_diff_preview,
                 "tools": [t.name for t in available_tools()],
                 "available_profiles": [p["id"] for p in self.server.gateway.list_profiles()],
             }

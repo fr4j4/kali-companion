@@ -30,6 +30,7 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
   const wakeWordEnabled = systemStatus?.wake_word_enabled ?? false;
   const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
   const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
+  const artifactDiffPreview = systemStatus?.artifact_diff_preview ?? true;
 
   const handleInputModeChange = (mode: string) => {
     if (mode === "wake_word") {
@@ -92,6 +93,12 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           </option>
         ))}
       </SelectField>
+
+      <ToggleField
+        label={t("settings.artifact_diff_preview")}
+        checked={artifactDiffPreview}
+        onChange={(v) => onUpdate({ artifact_diff_preview: v })}
+      />
     </div>
   );
 }

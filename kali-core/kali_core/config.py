@@ -224,15 +224,32 @@ llm_system_prompt: str = os.getenv(
         "'SELECTED ARTIFACTS') lists any artifacts the user currently has\n"
         "selected — if the user says 'add more info to this' or 'modify\n"
         "this artifact', they likely mean one of those.\n\n"
-        "If the user refers to an artifact that is NOT selected (e.g. 'add\n"
+        "If they refer to an artifact that is NOT selected (e.g. 'add\n"
         "a section to the document about X'), call list_artifacts to find\n"
-        "the matching artifact by title or content preview, then\n"
-        "get_artifact to read its full content, and finally update_artifact\n"
-        "with the complete new content.\n\n"
-        "CRITICAL: update_artifact replaces the ENTIRE content. Always\n"
-        "include the original content plus your additions/modifications in\n"
-        "the new content string. Never send only the diff or the new\n"
-        "section — the old content would be lost.\n\n"
+        "the matching artifact by title or content preview (use preview_len\n"
+        "to see more context when searching), then get_artifact to read its\n"
+        "current content, and finally update_artifact.\n\n"
+        "TWO UPDATE MODES — pick one:\n"
+        "- Patch mode (preferred for small, localized changes): pass\n"
+        "  old_string (the exact text to replace in the current content)\n"
+        "  and new_string (the replacement; empty string deletes). Use\n"
+        "  get_artifact with offset+limit to read ONLY the region you need\n"
+        "  to change, then patch just that fragment. This avoids\n"
+        "  regenerating the whole artifact, saves tokens, and reduces the\n"
+        "  risk of losing content.\n"
+        "  - old_string MUST appear exactly once in the current content,\n"
+        "    unless you set replace_all=true (use only when the patch\n"
+        "    should apply to every occurrence).\n"
+        "  - Only works for streamable types (code, document, diff, html,\n"
+        "    mermaid). For table/json/checklist/chart/quiz, use full mode.\n"
+        "- Full mode (for large rewrites, restructuring, or non-streamable\n"
+        "  types): pass content with the ENTIRE new body. Use get_artifact\n"
+        "  (no offset/limit) to read the current content first, then\n"
+        "  produce the full replacement including the original content\n"
+        "  plus your additions/modifications.\n\n"
+        "A unified diff of the applied patch is returned in the tool\n"
+        "output for verification (patch mode only).\n\n"
+        "Do NOT pass both 'content' and 'old_string' — pick one mode.\n\n"
         "ANTI-CONFABULATION RULE (critical):\n"
         "- NEVER claim an artifact is 'shown', 'visible', 'above', or\n"
         "  'on the canvas' unless you emitted [BEGIN_ARTIFACT: ...] or\n"
@@ -314,6 +331,12 @@ vision_mode: str = os.getenv("KALI_VISION_MODE", "auto")
 # ── Permissions (kali-collar) ──────────────────────────────
 active_profile: str = os.getenv("KALI_PROFILE", "dev")
 
+# ── Canvas / artifacts ────────────────────────────────────
+# When True, applying a patch to an existing artifact also emits a `diff`
+# artifact to the canvas so the user visually sees what changed. Toggled
+# from the UI (Behavior section). Default ON.
+artifact_diff_preview: bool = _env_bool("KALI_ARTIFACT_DIFF_PREVIEW", True)
+
 # ── Paths ─────────────────────────────────────────────────
 data_dir = Path.home() / ".local" / "share" / "kali"
 db_path: str = str(data_dir / "kali.db")
@@ -361,6 +384,8 @@ class _Settings:
     vision_mode = vision_mode
 
     active_profile = active_profile
+
+    artifact_diff_preview = artifact_diff_preview
 
     searxng_url = searxng_url
 

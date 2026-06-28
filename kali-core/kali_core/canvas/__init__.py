@@ -16,9 +16,12 @@ from __future__ import annotations
 
 from .registry import (
     ArtifactEnvelope,
+    NON_STREAMABLE_TYPES,
+    STREAMABLE_TYPES,
     diff_artifact,
     html_artifact,
     is_game_resource,
+    is_streamable_type,
     markdown_artifact,
     resolve_window_type,
     widget_artifact,
@@ -30,6 +33,9 @@ __all__ = [
     "ArtifactStreamer",
     "resolve_window_type",
     "is_game_resource",
+    "is_streamable_type",
+    "STREAMABLE_TYPES",
+    "NON_STREAMABLE_TYPES",
     "html_artifact",
     "markdown_artifact",
     "diff_artifact",

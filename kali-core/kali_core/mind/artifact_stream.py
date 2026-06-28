@@ -39,20 +39,24 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from ..canvas.registry import (
+    NON_STREAMABLE_TYPES,
+    STREAMABLE_TYPES,
+)
+
 # ── Artifact type classification ──────────────────────────────
-
-# Streamable types: content is plain text that renders meaningfully as it
-# grows. The frontend shows the content live during streaming.
-STREAMABLE_TYPES: frozenset[str] = frozenset({
-    "code", "document", "diff", "html", "mermaid",
-})
-
-# Non-streamable types: content needs to be complete to render (JSON,
-# table rows, etc.). The frontend shows a spinner during streaming and
-# renders only on close.
-NON_STREAMABLE_TYPES: frozenset[str] = frozenset({
-    "json", "table", "checklist", "chart", "quiz",
-})
+#
+# Reexported from ``canvas.registry`` (the single source of truth) so
+# existing imports (`from kali_core.mind.artifact_stream import
+# STREAMABLE_TYPES`) keep working. The canonical definitions live in
+# registry.py alongside ``is_streamable_type``.
+__all__ = [
+    "ArtifactStreamProcessor",
+    "ArtifactStreamEvent",
+    "FeedResult",
+    "STREAMABLE_TYPES",
+    "NON_STREAMABLE_TYPES",
+]
 
 # All valid artifact types for BEGIN markers.
 _VALID_BEGIN_TYPES: frozenset[str] = STREAMABLE_TYPES | NON_STREAMABLE_TYPES
@@ -579,10 +583,6 @@ class ArtifactStreamProcessor:
         )
 
 
-__all__ = [
-    "ArtifactStreamProcessor",
-    "ArtifactStreamEvent",
-    "FeedResult",
-    "STREAMABLE_TYPES",
-    "NON_STREAMABLE_TYPES",
-]
+# NOTE: ``__all__`` is declared near the top of this module (next to the
+# reexported STREAMABLE_TYPES / NON_STREAMABLE_TYPES) to keep the public
+# surface grouped with the canonical definitions in ``canvas.registry``.

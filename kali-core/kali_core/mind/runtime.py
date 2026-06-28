@@ -26,6 +26,8 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
+from kali_core.lang_map import normalize
+
 from .llm.provider import LLMProvider, StreamEvent
 from .marker_suppressor import MarkerSuppressor
 from .artifact_stream import ArtifactStreamProcessor, ArtifactStreamEvent
@@ -249,6 +251,7 @@ class AgentRuntime:
         language: str = "en",
     ) -> AsyncIterator[StreamEvent]:
         """Stream the agent's response to a user message."""
+        language = normalize(language)
         history = self._get_history(session_id)
         history.append({"role": "user", "content": user_message})
 

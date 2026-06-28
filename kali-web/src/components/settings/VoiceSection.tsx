@@ -13,6 +13,7 @@ interface Props {
 const MODES = ["normal", "whisper", "robotic", "radio", "deep"];
 const STT_LANGS = [
   { id: "es", labelKey: "language.es" },
+  { id: "es-CL", labelKey: "language.es_CL" },
   { id: "en", labelKey: "language.en" },
 ];
 

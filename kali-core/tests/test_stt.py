@@ -6,6 +6,7 @@ import numpy as np
 
 from kali_core.ear.manager import STTManager, WakeWordDetector, model_for_language
 from kali_core.ear.vosk_engine import StreamingSTT
+from kali_core.lang_map import normalize
 
 
 def _silence_pcm(duration_s: float = 1.0) -> bytes:
@@ -22,8 +23,32 @@ def test_model_for_language_en():
     assert model_for_language("en") == "vosk-model-small-en-us-0.15"
 
 
-def test_model_for_language_unknown_defaults_es():
-    assert model_for_language("fr") == "vosk-model-small-es-0.42"
+def test_model_for_language_unknown_defaults_en():
+    assert model_for_language("fr") == "vosk-model-small-en-us-0.15"
+
+
+def test_model_for_language_regional_es():
+    assert model_for_language("es-CL") == "vosk-model-small-es-0.42"
+    assert model_for_language("es-ES") == "vosk-model-small-es-0.42"
+    assert model_for_language("es-MX") == "vosk-model-small-es-0.42"
+
+
+def test_model_for_language_regional_en():
+    assert model_for_language("en-US") == "vosk-model-small-en-us-0.15"
+    assert model_for_language("en-GB") == "vosk-model-small-en-us-0.15"
+
+
+def test_normalize():
+    assert normalize("es-CL") == "es"
+    assert normalize("es-ES") == "es"
+    assert normalize("es-MX") == "es"
+    assert normalize("es-US") == "es"
+    assert normalize("en-US") == "en"
+    assert normalize("en-GB") == "en"
+    assert normalize("es") == "es"
+    assert normalize("en") == "en"
+    assert normalize("fr") == "en"
+    assert normalize("") == "en"
 
 
 def test_streaming_stt_start_accept_finish():

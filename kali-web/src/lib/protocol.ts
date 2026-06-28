@@ -49,6 +49,7 @@ export interface SettingsEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  artifact_diff_preview?: boolean;
 }
 
 export interface ConsentResponseEvent {
@@ -256,6 +257,7 @@ export interface StatusEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  artifact_diff_preview?: boolean;
 }
 
 export interface ErrorEvent {
