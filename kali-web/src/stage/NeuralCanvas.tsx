@@ -39,11 +39,9 @@ import { VoiceBar } from "./VoiceBar";
 import { ConversationModal } from "./ConversationModal";
 import { CustomizerDrawer } from "./CustomizerDrawer";
 import { MinimizeDock } from "./MinimizeDock";
-import { ClosedArtifactsBar } from "./ClosedArtifactsBar";
 import { SessionDrawer } from "./SessionDrawer";
 import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
-import { AIConfigModal } from "../components/AIConfigModal";
 import { ConsentModal } from "../components/ConsentModal";
 import { JobsPanel } from "../components/JobsPanel";
 import { DebugPad } from "./DebugPad";
@@ -62,10 +60,13 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   const { t, i18n } = useTranslation();
   const { chat, tts, ptt, voices } = useStage();
   const { isMobile } = useBreakpoint();
-  const api = useWorkspace();
+  const api = useWorkspace({
+    sessionId: chat.sessionId,
+    onCloseArtifact: chat.markArtifactClosed,
+    onContentLoaded: chat.setArtifactContent,
+  });
   const [typing, setTyping] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [aiConfigOpen, setAIConfigOpen] = useState(false);
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -119,6 +120,20 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     window.location.hash = "#/";
   }, [chat]);
 
+  const deleteSession = useCallback((sid: string) => {
+    chat.deleteSession(sid);
+    if (sid === chat.sessionId) {
+      chat.newSession();
+      window.location.hash = "#/";
+    }
+  }, [chat]);
+
+  const clearAllSessions = useCallback(() => {
+    chat.clearAllSessions();
+    chat.newSession();
+    window.location.hash = "#/";
+  }, [chat]);
+
   const onLanguageChange = useCallback((lang: string) => {
     void i18n.changeLanguage(lang);
     localStorage.setItem("kali.lang", lang);
@@ -155,20 +170,30 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   // through so streaming content reaches the window; "close" events
   // with phase:"complete" update the window (rendering final content)
   // but keep it open; true close (no phase) cleans up tracking.
+  //
+  // syncArtifactRef breaks the dependency cycle: syncArtifact closes over
+  // `windows`, so when windows changes the useMemo returns a new api with a
+  // new syncArtifact. Using a ref avoids re-running this effect when api
+  // changes — only chat.artifacts changes (new Map per event) trigger sync.
+  const syncArtifactRef = useRef(api.syncArtifact);
+  useEffect(() => {
+    syncArtifactRef.current = api.syncArtifact;
+  }, [api]);
+
   useEffect(() => {
     const artifacts = chat.artifacts;
     if (!artifacts) return;
     for (const [id, event] of artifacts) {
       if (event.update === "close" && event.phase !== "complete") {
         processedRef.current.delete(id);
-        api.syncArtifact(event);
+        syncArtifactRef.current(event);
         continue;
       }
       if (event.update === "create" && processedRef.current.has(id)) continue;
       processedRef.current.add(id);
-      api.syncArtifact(event);
+      syncArtifactRef.current(event);
     }
-  }, [chat.artifacts, api]);
+  }, [chat.artifacts]);
 
   // Register a provider so useChat.send can include selected artifact
   // metadata (id, type, title) with each input event. The workspace owns
@@ -240,12 +265,10 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
             />
           </div>
         </div>
-        {/* Projection area — only visible when customizer is CLOSED */}
-        {!customizerOpen && (
-          <div className="mt-4 px-10 py-8 rounded-3xl max-w-2xl w-full shadow-2xl border border-accent/10 projection-surface pointer-events-none" aria-live="polite" aria-atomic="true">
-            <ProjectionText messages={chat.messages} />
-          </div>
-        )}
+        {/* Ambient welcome text — only when no assistant messages */}
+        <WelcomeText messages={chat.messages} />
+        {/* Floating transcript — in the flow, below avatar */}
+        <FloatingTranscript messages={chat.messages} />
       </div>
 
       {/* Tether layer — SVG paths avatar→windows */}
@@ -259,12 +282,14 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       {/* HUD — top bar */}
       <HUD
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenAIConfig={() => setAIConfigOpen(true)}
         onOpenJobs={() => { chat.listJobs(); setJobsOpen(true); }}
         onOpenHistory={() => setHistoryOpen(true)}
+        onOpenCustomizer={() => setCustomizerOpen(true)}
+        onOpenArtifacts={() => setArtifactsOpen(true)}
+        onOpenConversation={() => setConversationOpen(true)}
         onNewSession={newSession}
-        onLanguageChange={onLanguageChange}
-        currentLanguage={i18n.language}
+        artifactsOpenCount={api.windows.filter((w) => w.artifactId && !w.closed).length}
+        artifactsClosedCount={api.windows.filter((w) => w.artifactId && w.closed).length}
       />
 
       {/* Presence layer — tool pills + reasoning snippets */}
@@ -276,7 +301,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
           api.focusWindow(existing.id);
         } else {
           const id = api.createWindow("reasoning", {
-            title: "Razonamiento",
+            title: t("reasoning.title"),
             width: 420,
             height: 350,
           });
@@ -293,15 +318,9 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       {/* Minimize dock — minimized windows */}
       <MinimizeDock windows={api.windows} onRestore={api.toggleMinimize} />
 
-      {/* Closed artifacts bar — restore closed windows */}
-      <ClosedArtifactsBar windows={api.windows} onRestore={api.restoreWindow} />
-
       {/* Dock — bottom input + workspace controls */}
       <NeuralDock
         api={api}
-        onToggleDrawer={() => setArtifactsOpen(true)}
-        onToggleCustomizer={() => setCustomizerOpen(true)}
-        onToggleConversation={() => setConversationOpen(true)}
         onToggleDebug={() => setDebugOpen((d) => !d)}
       />
 
@@ -314,7 +333,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
-            {t("stage.stopped") || "Cancelled"}
+            {t("stage.stopped")}
           </motion.div>
         )}
       </AnimatePresence>
@@ -350,6 +369,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         sessions={chat.sessions}
         activeSessionId={chat.sessionId}
         onNewSession={newSession}
+        onDeleteSession={deleteSession}
+        onClearAllSessions={clearAllSessions}
       />
 
       <ArtifactModal open={artifactsOpen} onClose={() => setArtifactsOpen(false)} api={api} />
@@ -375,13 +396,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onCanvasAutoExpandChange={onCanvasAutoExpandChange}
         uiScale={uiScale}
         onUIScaleChange={onUIScaleChange}
-      />
-
-      <AIConfigModal
-        open={aiConfigOpen}
-        onClose={() => setAIConfigOpen(false)}
-        systemStatus={chat.systemStatus}
-        onUpdate={chat.updateSettings}
+        currentLanguage={i18n.language}
+        onLanguageChange={onLanguageChange}
       />
 
       <ConsentModal request={chat.consentRequest} onRespond={chat.respondConsent} />
@@ -401,9 +417,24 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
   );
 }
 
-/** Streaming text projection — shows the latest assistant message. */
-function ProjectionText({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
-  let text = "Toca al avatar o escribe algo para empezar.";
+/** Ambient welcome text — shown below avatar when no assistant messages. */
+function WelcomeText({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
+  const { t } = useTranslation();
+  const hasAssistantText = messages.some((m) => m.role === "assistant" && m.content);
+  if (hasAssistantText) return null;
+  return (
+    <p className="mt-6 text-center text-muted/50 transition-opacity duration-300 pointer-events-auto" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1rem * var(--mul-text))", lineHeight: 1.5 }}>
+      {t("stage.empty_state")}
+    </p>
+  );
+}
+
+/** Floating transcript — overlay above the dock, narrow, border-left accent. */
+function FloatingTranscript({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  let text = "";
   let isStreaming = false;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -415,35 +446,60 @@ function ProjectionText({ messages }: { messages: import("../hooks/useChat").Cha
   }
 
   const html = useMemo(() => {
-    if (isStreaming || !text) return null;
+    if (!text) return null;
     try {
       return marked.parse(text, { async: false }) as string;
     } catch {
-      return `<p>${text}</p>`;
+      return `<p>${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
     }
-  }, [text, isStreaming]);
+  }, [text]);
 
-  if (!text) {
-    return (
-      <p className="text-center text-muted/60 transition-opacity duration-300" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1.2rem * var(--mul-text))", lineHeight: 1.5 }}>
-        Toca al avatar o escribe algo para empezar.
-      </p>
-    );
-  }
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (atBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [html, isStreaming, atBottom]);
 
-  if (isStreaming) {
-    return (
-      <p className="text-center text-fg transition-opacity duration-300" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1.6rem * var(--mul-text))", lineHeight: 1.5, fontVariationSettings: '"SOFT" 60' }}>
-        {text}
-        <span className="inline-block w-0.5 h-em bg-accent ml-0.5" style={{ animation: "blink 1.1s steps(2,start) infinite" }} />
-      </p>
-    );
-  }
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    setAtBottom(isAtBottom);
+    el.classList.toggle("scrolled-to-bottom", isAtBottom);
+  }, []);
+
+  if (!text) return null;
 
   return (
-    <div
-      className="prose-md text-left max-h-48 overflow-y-auto scrollbar-thin"
-      dangerouslySetInnerHTML={{ __html: html || `<p>${text}</p>` }}
-    />
+    <AnimatePresence>
+      <motion.div
+        className="w-full max-w-lg pointer-events-none mt-6"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div
+          ref={scrollRef}
+          className="projection-scroll max-h-[30vh] border-l-2 border-accent/30 pl-4 pointer-events-auto"
+          onScroll={handleScroll}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {html && (
+            <div
+              className="leading-relaxed text-sm"
+              style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )}
+          {isStreaming && (
+            <span className="inline-block w-0.5 h-[1em] bg-accent ml-0.5 align-text-bottom" style={{ animation: "blink 1.1s steps(2,start) infinite" }} />
+          )}
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -41,6 +41,7 @@ class ToolContext:
     llm_provider: Any = None  # LLM provider for vision/multimodal
     job_mgr: Any = None  # JobManager for spawning background jobs
     session_store: Any = None  # SessionStore for artifact persistence/lookup
+    console_requester: Any = None  # ConsoleRequester for agent→frontend log requests
     emit: Any = None  # emit_callback for sending WS events directly
     language: str = "en"  # user's language code (e.g. "es", "en")
 

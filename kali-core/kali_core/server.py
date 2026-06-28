@@ -30,30 +30,33 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from kali_core.claws.base import available_tools, register
 from kali_core.claws.command import RunCommandTool
 from kali_core.claws.create_artifact import CreateArtifactTool
+from kali_core.claws.fs import FsListTool, FsReadTool
+from kali_core.claws.game.adapter import get_adapter
+from kali_core.claws.game.dota_live import DotaLiveStateTool
+from kali_core.claws.game.fetch_resource import FetchGameResourceTool
+from kali_core.claws.game.image_cache import download_game_images_handler
+from kali_core.claws.git import GitDiffTool, GitWorktreeTool
+from kali_core.claws.launcher import LaunchAppTool
+from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.manage_artifacts import (
+    GetArtifactConsoleTool,
     GetArtifactTool,
     ListArtifactsTool,
     UpdateArtifactTool,
 )
-from kali_core.claws.fs import FsListTool, FsReadTool
-from kali_core.claws.git import GitDiffTool, GitWorktreeTool
-from kali_core.claws.game.dota_live import DotaLiveStateTool
-from kali_core.claws.game.fetch_resource import FetchGameResourceTool
-from kali_core.claws.game.adapter import get_adapter
-from kali_core.claws.launcher import LaunchAppTool
-from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.organize import OrganizeFolderTool
 from kali_core.claws.screenshot import ScreenshotTool
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
@@ -62,19 +65,22 @@ from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
-from kali_core.mind.ai_config import AIConfig, load as load_ai_config, save as save_ai_config
-from kali_core.gaze import GazeClient
 from kali_core.ear.manager import STTManager, WakeWordDetector
+from kali_core.lang_map import normalize
 from kali_core.game.gsi import gsi_state
+from kali_core.gaze import GazeClient
+from kali_core.mind.ai_config import AIConfig
+from kali_core.mind.ai_config import load as load_ai_config
+from kali_core.mind.ai_config import save as save_ai_config
 from kali_core.mind.executor import Executor
 from kali_core.mind.jobs import JobManager
+from kali_core.mind.console_requester import ConsoleRequester
 from kali_core.mind.llm.direct import DirectLLMProvider
 from kali_core.mind.llm.nanobot import NanobotLLMProvider
 from kali_core.mind.llm.provider import LLMProvider, ToolDef
 from kali_core.mind.runtime import AgentRuntime
-from kali_core.nest.store import SessionStore
 from kali_core.nest.job_store import JobStore
-from kali_core.claws.game.image_cache import download_game_images_handler
+from kali_core.nest.store import SessionStore
 from kali_core.voice.pipeline import TTSPipeline
 from kali_core.voice.providers.http import HTTPTTSProvider
 from kali_core.voice.providers.inproc import InProcTTSProvider
@@ -83,11 +89,24 @@ from kali_core.voice.voice_config import VoiceConfigManager
 logger = logging.getLogger("kali_core.server")
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _artifact_preview(content: str, limit: int = 200) -> str:
+    """Strip HTML/markdown tags and return a short preview string."""
+    if not content:
+        return ""
+    text = _TAG_RE.sub("", content).strip()
+    if len(text) > limit:
+        text = text[:limit].rstrip() + "…"
+    return text
+
+
 def _build_llm_provider() -> LLMProvider:
     cfg = load_ai_config()
     if cfg.provider == "nanobot":
         return NanobotLLMProvider()
-    return DirectLLMProvider(api_url=cfg.api_url, api_key=cfg.api_key, model=cfg.model)
+    return DirectLLMProvider(api_url=cfg.api_url, api_key=cfg.api_key, model=cfg.model, max_tokens=cfg.max_tokens)
 
 
 def _build_tts_provider():
@@ -120,6 +139,7 @@ def _register_tools() -> None:
     register(ListArtifactsTool())
     register(GetArtifactTool())
     register(UpdateArtifactTool())
+    register(GetArtifactConsoleTool())
     # Phase 5 — Dota 2 live match state via GSI.
     register(DotaLiveStateTool())
     # STT post-processing (applied automatically, not user-visible).
@@ -170,6 +190,8 @@ class Server:
         _register_tools()
         self.tool_defs = _build_tool_defs()
         self.gaze_client = GazeClient()
+        # Console log requester — agent→frontend request/response for runtime logs.
+        self.console_requester = ConsoleRequester()
         # Session store (SQLite, kali-nest) — needed by executor for artifact persistence.
         self.session_store = SessionStore(settings.db_path)
         # Job system (background tasks with progress, logs, cancellation).
@@ -185,6 +207,7 @@ class Server:
             llm_provider=self.llm_provider,
             session_store=self.session_store,
             job_mgr=self.job_mgr,
+            console_requester=self.console_requester,
         )
         # Wire executor + tools into the agent.
         self.agent.set_executor(self.executor)
@@ -243,6 +266,28 @@ class Server:
             media, _ = mimetypes.guess_type(str(req_path))
             return FileResponse(str(req_path), media_type=media or "application/octet-stream")
 
+        # Artifact content endpoint — lets the frontend fetch the full
+        # content of a closed artifact by id when the user reopens it.
+        # Used by the "Artefactos" library beacon: closed artifacts keep
+        # only metadata in memory; content is fetched on demand here.
+        @self.app.get("/sessions/{session_id}/artifacts/{artifact_id}")
+        async def get_artifact(session_id: str, artifact_id: str) -> Any:
+            art = await self.session_store.get_artifact(session_id, artifact_id)
+            if art is None:
+                raise HTTPException(status_code=404, detail="artifact not found")
+            wt = art.get("window_type") or ""
+            if not wt:
+                from kali_core.canvas.registry import resolve_window_type as _rwt
+                wt = _rwt(art.get("type", ""))
+            return {
+                "id": art["id"],
+                "type": art["type"],
+                "windowType": wt,
+                "title": art["title"],
+                "content": art["content"],
+                "language": art.get("language", ""),
+            }
+
         @self.app.websocket("/ws")
         async def ws_endpoint(ws: WebSocket) -> None:
             await ws.accept()
@@ -285,7 +330,6 @@ class Server:
 
         @self.app.get("/gsi/debug")
         async def gsi_debug() -> dict[str, Any]:
-            import json as _json
             return {"state": gsi_state.state, "in_match": gsi_state.in_match}
 
         @self.app.get("/llm/scan")
@@ -336,7 +380,7 @@ class Connection:
         self._current_task: asyncio.Task | None = None
         self._stt_manager: STTManager | None = None
         self._wake_word: WakeWordDetector | None = None
-        self._stt_language: str = settings.stt_language
+        self._stt_language: str = normalize(settings.stt_language)
         self._wake_word_enabled: bool = settings.stt_wake_word_enabled
         self._input_mode: str = settings.input_mode
         self._feedback_mode: str = "minimal"
@@ -396,16 +440,16 @@ class Connection:
                             "type": art["type"],
                             "windowType": art.get("window_type", ""),
                             "title": art["title"],
-                            "content": art["content"],
+                            "content": None,
+                            "preview": _artifact_preview(art["content"]),
+                            "language": art.get("language", ""),
                             "update": "create",
                         })
                     return
-            sess = await self.server.session_store.create_session()
-            self.session_id = sess["id"]
             self.server.consent.set_send_callback(self.send)
             self.server.job_mgr.set_emit_callback(self.send)
             await self.send(
-                {"event": "ready", "session_id": self.session_id, "version": "0.1.0"}
+                {"event": "ready", "session_id": "", "version": "0.1.0"}
             )
             await self._emit_status()
             if self._wake_word_enabled:
@@ -414,7 +458,13 @@ class Connection:
         elif kind == "input":
             content = event.get("content", "")
             selected = event.get("selected_artifacts") or []
-            if content and self.session_id:
+            if content:
+                if not self.session_id:
+                    sess = await self.server.session_store.create_session()
+                    self.session_id = sess["id"]
+                    if self.server.agent:
+                        self.server.agent.reset_history(self.session_id)
+                    await self.send({"event": "connected", "session_id": self.session_id})
                 await self._handle_input(content, selected_artifacts=selected)
 
         elif kind == "stop":
@@ -430,7 +480,7 @@ class Connection:
 
         elif kind == "attach_session":
             sid = event.get("session_id", "")
-            if sid:
+            if sid and await self.server.session_store.session_exists(sid):
                 self.session_id = sid
                 if self.server.agent:
                     self.server.agent.reset_history(sid)
@@ -460,13 +510,28 @@ class Connection:
                         "type": art["type"],
                         "windowType": art.get("window_type", ""),
                         "title": art["title"],
-                        "content": art["content"],
+                        "content": None,
+                        "preview": _artifact_preview(art["content"]),
+                        "language": art.get("language", ""),
                         "update": "create",
                     })
+            else:
+                await self.send({"event": "connected", "session_id": ""})
 
         elif kind == "list_sessions":
             sessions = await self.server.session_store.list_sessions()
             await self.send({"event": "session_list", "sessions": sessions})
+
+        elif kind == "delete_session":
+            session_id = event.get("session_id", "")
+            if session_id:
+                await self.server.session_store.delete_session(session_id)
+            sessions = await self.server.session_store.list_sessions()
+            await self.send({"event": "session_list", "sessions": sessions})
+
+        elif kind == "clear_all_sessions":
+            await self.server.session_store.delete_all_sessions()
+            await self.send({"event": "session_list", "sessions": []})
 
         elif kind == "settings":
             await self._apply_settings(event)
@@ -482,6 +547,12 @@ class Connection:
             request_id = event.get("id", "")
             decision = event.get("decision", "cancel")
             self.server.consent.respond(request_id, decision)
+
+        elif kind == "console_response":
+            # Resolve a pending console-log request from the agent.
+            request_id = event.get("id", "")
+            logs = event.get("logs")
+            self.server.console_requester.respond(request_id, logs)
 
         elif kind == "list_jobs":
             jobs = await self.server.job_mgr.list_jobs()
@@ -537,7 +608,7 @@ class Connection:
 
     async def _handle_audio_start(self, event: dict[str, Any]) -> None:
         """Start a new STT session."""
-        language = event.get("language", self._stt_language)
+        language = normalize(event.get("language", self._stt_language))
         if self._stt_manager is None:
             self._stt_manager = STTManager(language)
         else:
@@ -698,8 +769,13 @@ class Connection:
         try:
             # Set the emit callback for tool events.
             self.server.agent.set_emit_callback(self.send)
+            first_token_ts: float | None = None
+            tool_call_count = 0
+            usage_stats: dict | None = None
             async for event in self.server.agent.respond(agent_message, session_id, language=self._stt_language):
                 if event.kind == "delta" and event.text:
+                    if first_token_ts is None:
+                        first_token_ts = time.monotonic()
                     accumulated += event.text
                     await self.send(
                         {"event": "delta", "session_id": session_id, "text": event.text}
@@ -713,9 +789,13 @@ class Connection:
                         {"event": "step_start", "session_id": session_id, "step": event.step or 1}
                     )
                 elif event.kind == "tool_call":
-                    # tool_call events don't carry text; the tool result
-                    # will produce its own delta when the LLM resumes.
-                    pass
+                    tool_call_count += 1
+                elif event.kind == "usage":
+                    usage_stats = {
+                        "prompt_tokens": event.prompt_tokens,
+                        "completion_tokens": event.completion_tokens,
+                        "reasoning_tokens": event.reasoning_tokens,
+                    }
                 elif event.kind == "done":
                     break
         except asyncio.CancelledError:
@@ -729,7 +809,19 @@ class Connection:
             return
 
         elapsed = time.monotonic() - turn_start_ts
+        first_token_latency = (first_token_ts - turn_start_ts) if first_token_ts else None
         logger.info("[turn] end (%s) after %.1fs (chars=%d)", session_id[:8], elapsed, len(accumulated))
+
+        # Send turn_stats event with performance metrics.
+        await self.send({
+            "event": "turn_stats",
+            "session_id": session_id,
+            "elapsed": round(elapsed, 2),
+            "first_token_latency": round(first_token_latency, 2) if first_token_latency else None,
+            "char_count": len(accumulated),
+            "tool_call_count": tool_call_count,
+            "usage": usage_stats,
+        })
 
         # Synthesize TTS from the accumulated response.
         if accumulated and self.server.tts_pipeline.auto_tts:
@@ -793,6 +885,9 @@ class Connection:
         if "llm_model" in event:
             self.server.llm_provider._model = event["llm_model"]  # type: ignore[attr-defined]
             ai_cfg_changed = True
+        if "llm_max_tokens" in event:
+            self.server.llm_provider._max_tokens = int(event["llm_max_tokens"])  # type: ignore[attr-defined]
+            ai_cfg_changed = True
         if "llm_api_url" in event or "llm_api_key" in event or "llm_provider" in event:
             api_url = event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url))
             api_key = event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", settings.llm_api_key))
@@ -808,10 +903,11 @@ class Connection:
                 api_url=event.get("llm_api_url", getattr(self.server.llm_provider, "_api_url", settings.llm_api_url)),
                 api_key=event.get("llm_api_key", getattr(self.server.llm_provider, "_api_key", "")),
                 model=getattr(self.server.llm_provider, "_model", settings.llm_model),
+                max_tokens=getattr(self.server.llm_provider, "_max_tokens", settings.llm_max_tokens),
             )
             save_ai_config(cfg)
         if "stt_language" in event:
-            self._stt_language = event["stt_language"]
+            self._stt_language = normalize(event["stt_language"])
             if self._stt_manager is not None:
                 self._stt_manager.set_language(self._stt_language)
         if "wake_word_enabled" in event:
@@ -828,6 +924,8 @@ class Connection:
             self._feedback_mode = event["feedback_mode"]
         if "plan_mode" in event:
             self._plan_mode = bool(event["plan_mode"])
+        if "artifact_diff_preview" in event:
+            settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         await self._emit_status()
 
     async def _emit_status(self) -> None:
@@ -838,6 +936,7 @@ class Connection:
                 "llm_api_url": getattr(self.server.llm_provider, "_api_url", settings.llm_api_url),
                 "llm_api_key_set": bool(getattr(self.server.llm_provider, "_api_key", "")),
                 "llm_model": getattr(self.server.llm_provider, "_model", settings.llm_model),
+                "llm_max_tokens": getattr(self.server.llm_provider, "_max_tokens", settings.llm_max_tokens),
                 "tts_provider": self.server.tts_provider.provider_name,
                 "voice": self.server.tts_pipeline.voice,
                 "tts_mode": self.server.tts_pipeline.mode,
@@ -849,6 +948,7 @@ class Connection:
                 "input_mode": self._input_mode,
                 "feedback_mode": self._feedback_mode,
                 "plan_mode": self._plan_mode,
+                "artifact_diff_preview": settings.artifact_diff_preview,
                 "tools": [t.name for t in available_tools()],
                 "available_profiles": [p["id"] for p in self.server.gateway.list_profiles()],
             }

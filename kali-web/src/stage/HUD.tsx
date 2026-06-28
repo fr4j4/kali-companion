@@ -1,41 +1,48 @@
 // HUD — corner widgets overlay on the Stage.
 //
-//   top-left    : clock / date
-//   top-right   : connection status · model · language · settings · new chat
-//   bottom-left : history (opens SessionDrawer)
+//   top-left    : clock / date + panel buttons (history, customizer, library, conversation)
+//   top-right   : status·model pill (consolidated) + new chat + settings
 //   bottom-right: jobs (mini progress)
 //
 // Everything is low-opacity at rest and brightens on hover.
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Settings, Plus, Zap, History, Radio, Cpu } from "lucide-react";
+import { Settings, Plus, History, Radio, Cpu, Palette, Library, MessageSquare, X, Zap } from "lucide-react";
 import { useStage } from "./StageProvider";
 import { IconButton } from "../components/ui/IconButton";
 import { Tooltip } from "../components/ui/Tooltip";
+import type { StatusEvent, TurnStatsEvent } from "../lib/protocol";
 
 interface Props {
   onOpenSettings: () => void;
-  onOpenAIConfig: () => void;
   onOpenJobs: () => void;
   onOpenHistory: () => void;
+  onOpenCustomizer: () => void;
+  onOpenArtifacts: () => void;
+  onOpenConversation: () => void;
   onNewSession: () => void;
-  onLanguageChange: (lang: string) => void;
-  currentLanguage: string;
+  /** Open artifact windows count (for the beacon readout). */
+  artifactsOpenCount: number;
+  /** Closed artifact windows count (for the beacon readout). */
+  artifactsClosedCount: number;
 }
 
 export function HUD({
   onOpenSettings,
-  onOpenAIConfig,
   onOpenJobs,
   onOpenHistory,
+  onOpenCustomizer,
+  onOpenArtifacts,
+  onOpenConversation,
   onNewSession,
-  onLanguageChange,
-  currentLanguage,
+  artifactsOpenCount,
+  artifactsClosedCount,
 }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
   const [now, setNow] = useState(() => new Date());
+  const [statsOpen, setStatsOpen] = useState(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000 * 30);
@@ -48,24 +55,55 @@ export function HUD({
   const runningJobs = Array.from(chat.jobs.values()).filter((j) => j.status === "running").length;
   const statusKey = `status.${chat.status}`;
 
+  const statusDotClass =
+    chat.status === "ready" ? "bg-ok" : chat.status === "error" ? "bg-err" : "bg-muted";
+
+  const openArtifacts = artifactsOpenCount;
+  const closedArtifacts = artifactsClosedCount;
+  const totalArtifacts = openArtifacts + closedArtifacts;
+
   return (
     <>
-      {/* Top-left: clock */}
-      <div className="hud-corner pointer-events-none absolute top-4 left-5 z-20 flex-col gap-0.5">
-        <span className="text-foreground text-lg font-prose leading-none tabular-nums">{timeStr}</span>
-        <span className="text-muted text-[11px] leading-none capitalize">{dateStr}</span>
+      {/* Top-left: clock + panel buttons + artifacts beacon */}
+      <div className="pointer-events-auto absolute top-4 left-5 z-20 flex flex-col gap-2">
+        <div className="hud-corner flex items-center gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-foreground text-lg font-prose leading-none tabular-nums">{timeStr}</span>
+            <span className="text-muted text-[11px] leading-none capitalize">{dateStr}</span>
+          </div>
+          <div className="w-px h-7 bg-border/40" />
+          <div className="flex items-center gap-0.5">
+            <Tooltip label={t("stage.history")}>
+              <IconButton size="sm" onClick={onOpenHistory} aria-label={t("stage.history")}>
+                <History size={15} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip label={t("dock.customizer")}>
+              <IconButton size="sm" onClick={onOpenCustomizer} aria-label={t("dock.customizer")}>
+                <Palette size={15} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip label={t("dock.conversation")}>
+              <IconButton size="sm" onClick={onOpenConversation} aria-label={t("dock.conversation")}>
+                <MessageSquare size={15} />
+              </IconButton>
+            </Tooltip>
+          </div>
+        </div>
+
+        <ArtifactsBeacon
+          count={totalArtifacts}
+          openCount={openArtifacts}
+          closedCount={closedArtifacts}
+          onClick={onOpenArtifacts}
+        />
       </div>
 
-      {/* Top-right: status · model · wake word · language · new · settings */}
-      <div className="hud-corner absolute top-4 right-5 z-20 flex-row-reverse">
+      {/* Top-right: status·model pill + new chat + settings */}
+      <div className="hud-corner absolute top-4 right-5 z-20 flex items-center gap-2">
         <Tooltip label={t("stage.settings")}>
           <IconButton size="sm" onClick={onOpenSettings} aria-label={t("stage.settings")}>
             <Settings size={16} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip label={t("stage.ai_config")}>
-          <IconButton size="sm" onClick={onOpenAIConfig} aria-label={t("stage.ai_config")}>
-            <Cpu size={16} />
           </IconButton>
         </Tooltip>
         <Tooltip label={t("stage.new_chat")}>
@@ -73,46 +111,41 @@ export function HUD({
             <Plus size={16} />
           </IconButton>
         </Tooltip>
-        <select
-          className="bg-transparent border border-border rounded-full px-2 py-1 text-[11px] text-muted cursor-pointer outline-none hover:text-foreground max-lg:min-h-[32px]"
-          value={currentLanguage}
-          onChange={(e) => onLanguageChange(e.target.value)}
-          aria-label={t("settings.language")}
-        >
-          <option value="en">{t("language.en")}</option>
-          <option value="es">{t("language.es")}</option>
-        </select>
-        {chat.systemStatus && (
-          <span className="hud-pill" title={chat.systemStatus.llm_model}>
-            {chat.systemStatus.llm_model}
-          </span>
-        )}
         {ptt.wakeWordActive && (
           <span className="hud-pill" title={t("wake_word.listening")}>
             <Radio size={11} className="text-accent" />
             {t("wake_word.listening")}
           </span>
         )}
-        <span className={`hud-pill status-${chat.status}`} title={t(statusKey)}>
-          <span className={`w-1.5 h-1.5 rounded-full ${chat.status === "ready" ? "bg-ok" : chat.status === "error" ? "bg-err" : "bg-muted"}`} />
-          {t(statusKey)}
-        </span>
-      </div>
-
-      {/* Bottom-left: history */}
-      <div className="hud-corner absolute bottom-4 left-5 z-20">
-        <Tooltip label={t("stage.history")}>
-          <IconButton size="sm" onClick={onOpenHistory} aria-label={t("stage.history")}>
-            <History size={16} />
-          </IconButton>
-        </Tooltip>
+        {chat.systemStatus && (
+          <div className="relative">
+            <button
+              onClick={() => setStatsOpen((v) => !v)}
+              className="hud-pill cursor-pointer"
+              title={chat.systemStatus.llm_model}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${statusDotClass}`} />
+              {t(statusKey)} · {chat.systemStatus.llm_model}
+            </button>
+            {statsOpen && (
+              <ModelStatsPanel
+                systemStatus={chat.systemStatus}
+                turnStats={chat.turnStats}
+                messageCount={chat.messages.length}
+                artifactCount={chat.artifacts.size}
+                toolCallCount={chat.toolEvents.length}
+                onClose={() => setStatsOpen(false)}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bottom-right: jobs */}
       <div className="hud-corner absolute bottom-4 right-5 z-20">
         <Tooltip label={t("stage.jobs")}>
           <IconButton size="sm" onClick={onOpenJobs} aria-label={t("stage.jobs")} active={runningJobs > 0}>
-            <Zap size={16} />
+            <Cpu size={16} />
             {runningJobs > 0 && (
               <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
                 {runningJobs}
@@ -122,5 +155,157 @@ export function HUD({
         </Tooltip>
       </div>
     </>
+  );
+}
+
+/**
+ * Artifacts beacon — a prominent pill button for the "Artefactos" library.
+ * Lives on its own row below the dim HUD cluster, at full opacity with an
+ * accent fill. The counter is a two-segment readout: open · closed, so you
+ * see the session's state at a glance without a word.
+ */
+function ArtifactsBeacon({
+  count,
+  openCount,
+  closedCount,
+  onClick,
+}: {
+  count: number;
+  openCount: number;
+  closedCount: number;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const hasArtifacts = count > 0;
+  return (
+    <Tooltip label={t("dock.artifacts_hint")}>
+      <button
+        onClick={onClick}
+        aria-label={t("dock.artifacts_hint") as string}
+        className="artifacts-beacon group inline-flex items-center gap-2 rounded-full bg-accent text-white border border-accent px-3 py-1.5 cursor-pointer transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+      >
+        <Library size={14} className="shrink-0" />
+        <span className="badge text-white/90">{t("dock.artifacts")}</span>
+        {hasArtifacts && (
+          <span className="flex items-center gap-1 tabular-nums text-[11px] font-mono leading-none">
+            <span className="text-white">{openCount}</span>
+            <span className="text-white/40">·</span>
+            <span className="text-white/60">{closedCount}</span>
+          </span>
+        )}
+      </button>
+    </Tooltip>
+  );
+}
+
+function ModelStatsPanel({
+  systemStatus,
+  turnStats,
+  messageCount,
+  artifactCount,
+  toolCallCount,
+  onClose,
+}: {
+  systemStatus: StatusEvent;
+  turnStats: TurnStatsEvent | null;
+  messageCount: number;
+  artifactCount: number;
+  toolCallCount: number;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const ts = turnStats;
+
+  return (
+    <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-border bg-bg/95 backdrop-blur-sm shadow-xl overflow-hidden z-50">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+        <span className="text-xs font-medium text-muted uppercase tracking-wider">Model Stats</span>
+        <button
+          onClick={onClose}
+          className="w-5 h-5 rounded flex items-center justify-center hover:bg-border/50 transition-colors"
+        >
+          <X size={12} className="text-muted" />
+        </button>
+      </div>
+
+      <div className="p-3 space-y-3">
+        <StatsSection title={t("stats.model")} icon={<Cpu size={12} />}>
+          <StatsRow label={t("stats.provider")} value={systemStatus.llm_provider} />
+          <StatsRow label={t("stats.model")} value={systemStatus.llm_model} mono />
+          <StatsRow label={t("stats.api_url")} value={systemStatus.llm_api_url.replace(/^https?:\/\//, "")} mono />
+          <StatsRow label={t("stats.max_tokens")} value={String(systemStatus.llm_max_tokens ?? "-")} />
+        </StatsSection>
+
+        <StatsSection title={t("stats.session")} icon={<MessageSquare size={12} />}>
+          <StatsRow label={t("stats.messages")} value={String(messageCount)} />
+          <StatsRow label={t("stats.artifacts")} value={String(artifactCount)} />
+          <StatsRow label={t("stats.tool_calls")} value={String(toolCallCount)} />
+        </StatsSection>
+
+        <StatsSection title={t("stats.last_turn")} icon={<Zap size={12} />}>
+          {ts ? (
+            <>
+              <StatsRow label={t("stats.duration")} value={`${ts.elapsed}s`} />
+              <StatsRow
+                label={t("stats.first_token")}
+                value={ts.first_token_latency != null ? `${ts.first_token_latency}s` : "-"}
+              />
+              <StatsRow label={t("stats.chars")} value={String(ts.char_count)} />
+              <StatsRow label={t("stats.tool_calls")} value={String(ts.tool_call_count)} />
+              {ts.usage && (
+                <>
+                  <StatsRow label={t("stats.prompt_tokens")} value={String(ts.usage.prompt_tokens ?? "-")} />
+                  <StatsRow label={t("stats.completion_tokens")} value={String(ts.usage.completion_tokens ?? "-")} />
+                  {ts.usage.reasoning_tokens != null && (
+                    <StatsRow label={t("stats.reasoning_tokens")} value={String(ts.usage.reasoning_tokens)} />
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted italic">{t("stats.no_data")}</p>
+          )}
+        </StatsSection>
+      </div>
+    </div>
+  );
+}
+
+function StatsSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 text-xs text-muted font-medium uppercase tracking-wider">
+        {icon}
+        <span>{title}</span>
+      </div>
+      <div className="pl-3 space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function StatsRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="text-muted">{label}</span>
+      <span className={`text-foreground font-medium truncate ${mono ? "font-mono text-[10px]" : ""}`}>
+        {value}
+      </span>
+    </div>
   );
 }

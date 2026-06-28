@@ -16,6 +16,8 @@ EventType = Literal[
     "new_session",
     "attach_session",
     "list_sessions",
+    "delete_session",
+    "clear_all_sessions",
     "audio_start",
     "audio_end",
     "settings",
@@ -52,6 +54,7 @@ EventTypeOut = Literal[
     "job_log",
     "job_list",
     "image_ready",
+    "turn_stats",
 ]
 
 

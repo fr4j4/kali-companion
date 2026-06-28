@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { ArtifactEvent } from "../../../lib/protocol";
 
 interface Props {
@@ -5,13 +6,13 @@ interface Props {
   windowType: string;
 }
 
-const SPINNER_LABELS: Record<string, string> = {
-  mermaid: "Generando diagrama\u2026",
-  json: "Generando \u00e1rbol JSON\u2026",
-  table: "Generando tabla\u2026",
-  checklist: "Generando checklist\u2026",
-  chart: "Generando chart\u2026",
-  quiz: "Generando quiz\u2026",
+const SPINNER_LABEL_KEYS: Record<string, string> = {
+  mermaid: "window.streaming.mermaid",
+  json: "window.streaming.json",
+  table: "window.streaming.table",
+  checklist: "window.streaming.checklist",
+  chart: "window.streaming.chart",
+  quiz: "window.streaming.quiz",
 };
 
 const SPINNER_ICONS: Record<string, string> = {
@@ -29,8 +30,9 @@ export function isStreaming(content: unknown): boolean {
 }
 
 export function StreamingSpinner({ content, windowType }: Props) {
+  const { t } = useTranslation();
   if (!isStreaming(content)) return null;
-  const label = SPINNER_LABELS[windowType] ?? "Generando\u2026";
+  const label = t(SPINNER_LABEL_KEYS[windowType] ?? "window.streaming.default") as string;
   const icon = SPINNER_ICONS[windowType] ?? "\u25CF";
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 min-h-0">

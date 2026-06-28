@@ -26,6 +26,7 @@ class AIConfig:
     api_key: str = ""
     model: str = "glm-5.1"
     system_prompt_override: str | None = None
+    max_tokens: int = 16384
 
     def to_env_map(self) -> dict[str, str]:
         """Return a dict suitable for updating os.environ / dotenv."""
@@ -34,6 +35,7 @@ class AIConfig:
             "KALI_LLM_API_URL": self.api_url,
             "KALI_LLM_API_KEY": self.api_key,
             "KALI_LLM_MODEL": self.model,
+            "KALI_LLM_MAX_TOKENS": str(self.max_tokens),
         }
         if self.system_prompt_override is not None:
             out["KALI_LLM_SYSTEM_PROMPT"] = self.system_prompt_override

@@ -36,8 +36,8 @@ export function VoiceBar() {
             <button
               onClick={tts.stop}
               className="w-8 h-8 rounded-lg hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center shrink-0"
-              aria-label={t("chat.mute_tts") as string || "Mute"}
-              title={t("chat.mute_tts") as string || "Mute TTS"}
+              aria-label={t("chat.mute_tts") as string}
+              title={t("chat.mute_tts") as string}
             >
               <VolumeX size={14} />
             </button>

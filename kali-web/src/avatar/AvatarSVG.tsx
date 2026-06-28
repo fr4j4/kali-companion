@@ -19,6 +19,7 @@
  */
 
 import { useRef, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { AvatarState, AvatarEmotion, AvatarConfig } from "./avatarConfig";
 import { ALL_PATTERNS } from "./avatarPresets";
 
@@ -102,6 +103,7 @@ const SVG_MARKUP = `<svg id="avatar-svg" data-state="idle" data-mood="normal" vi
 </svg>`;
 
 export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClick, className }: Props) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const headPivotRef = useRef<SVGGElement | null>(null);
@@ -377,7 +379,7 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
       onClick={onClick}
       className={className}
       style={{ cursor: "pointer", userSelect: "none" }}
-      aria-label="Kali avatar"
+      aria-label={t("avatar.aria_label")}
       role="img"
     />
   );

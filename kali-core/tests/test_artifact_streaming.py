@@ -159,13 +159,13 @@ def test_throttle_suppresses_intermediate_updates():
 
 def test_all_streamable_types():
     """All streamable types are classified correctly."""
-    for t in ["code", "document", "diff", "html"]:
+    for t in ["code", "document", "diff", "html", "mermaid"]:
         assert t in STREAMABLE_TYPES
 
 
 def test_all_non_streamable_types():
     """All non-streamable types are classified correctly."""
-    for t in ["mermaid", "json", "table", "checklist", "chart", "quiz"]:
+    for t in ["json", "table", "checklist", "chart", "quiz"]:
         assert t in NON_STREAMABLE_TYPES
 
 
@@ -356,6 +356,7 @@ async def test_native_tool_call_streamed_as_artifact():
     provider._model = "fake-model"
     provider._system_prompt = ""
     provider._client = _FakeOpenAIClient(chunks)
+    provider._max_tokens = 4096
 
     events = []
     async for ev in provider.stream([{"role": "user", "content": "make html"}]):
@@ -393,6 +394,7 @@ async def test_native_tool_call_non_streamable_stays_batch():
     provider._model = "fake-model"
     provider._system_prompt = ""
     provider._client = _FakeOpenAIClient(chunks)
+    provider._max_tokens = 4096
 
     events = []
     async for ev in provider.stream([{"role": "user", "content": "make table"}]):
@@ -428,8 +430,8 @@ async def test_streamed_artifact_persists_on_close():
     persisted: list[tuple] = []
 
     class FakeStore:
-        async def add_artifact(self, session_id, art_id, atype, title, content, wt):
-            persisted.append((session_id, art_id, atype, title, content, wt))
+        async def add_artifact(self, session_id, art_id, atype, title, content, wt, language=""):
+            persisted.append((session_id, art_id, atype, title, content, wt, language))
 
     runtime._session_store = FakeStore()
 
@@ -444,6 +446,7 @@ async def test_streamed_artifact_persists_on_close():
         content="<html></html>",
         action="close",
         phase="complete",
+        language="",
     )
 
     # Without emit_callback, _emit_artifact_event returns early — so set one.
@@ -454,8 +457,164 @@ async def test_streamed_artifact_persists_on_close():
     await runtime._emit_artifact_event(close_evt, "sess_1")
 
     assert len(persisted) == 1
-    sess, art_id, atype, title, content, wt = persisted[0]
+    sess, art_id, atype, title, content, wt, lang = persisted[0]
     assert sess == "sess_1"
     assert art_id == "art_test"
     assert atype == "html"
     assert content == "<html></html>"
+    assert lang == ""
+
+
+# ── Defensive salvage tests (1a / 1b) ───────────────────────────
+
+
+def test_header_with_content_field_rescued(caplog):
+    """1a: a VALID header JSON that smuggles a 'content' field is
+    salvaged — the artifact is created with that content."""
+    import logging
+
+    p = ArtifactStreamProcessor(throttle_ms=0)
+    html = "<html><body>Hello</body></html>"
+    payload = json.dumps({"title": "Page", "content": html})
+    r = p.feed(f"[BEGIN_ARTIFACT: html] {payload} [END_ARTIFACT]")
+    fr = p.flush()
+
+    events = r.artifact_events + fr.artifact_events
+    creates = [e for e in events if e.action == "create"]
+    closes = [e for e in events if e.action == "close"]
+    assert len(creates) == 1
+    assert creates[0].title == "Page"
+    assert creates[0].artifact_type == "html"
+    assert len(closes) == 1
+    # The salvaged content should reach the close event.
+    assert html in closes[0].content
+    # The raw content after the header (between markers) is just " ",
+    # so the close content equals the salvaged body.
+    assert closes[0].content.strip() == html
+
+    # A warning should be logged about the malformed header.
+    with caplog.at_level(logging.WARNING, logger="kali_core.mind.artifact_stream"):
+        # Re-run to capture the log since caplog may not have caught it.
+        p2 = ArtifactStreamProcessor(throttle_ms=0)
+        p2.feed(f"[BEGIN_ARTIFACT: html] {payload} [END_ARTIFACT]")
+        p2.flush()
+    assert any(
+        "'content' field" in rec.getMessage()
+        for rec in caplog.records
+    )
+
+
+def test_malformed_unescaped_content_salvaged():
+    """1b: a header where the model put raw HTML with unescaped quotes
+    inside a 'content' field (so the JSON is technically invalid) is
+    salvaged via the fallback path. Reproduces the exact bug reported."""
+    p = ArtifactStreamProcessor(throttle_ms=0)
+    # Mimic the real-world malformed output: header JSON that contains a
+    # "content" field whose value has unescaped double quotes (charset="...",
+    # id="ui", ...). No [END_ARTIFACT] — the model omitted it.
+    body_html = (
+        '<html lang="es">\n <meta charset="UTF-8">\n'
+        ' <div id="ui">Sim</div>\n'
+        " <script>console.log(1)</script>\n"
+        "</html>"
+    )
+    malformed = (
+        '[BEGIN_ARTIFACT: html] {"title": "Simulador", "content": "'
+        + body_html
+        + '")]'  # the model's broken tail
+    )
+    # Pad to exceed the salvage threshold so the fallback triggers.
+    # We append enough trailing chars so the in-flight header is large.
+    malformed += " " * 4200
+    r = p.feed(malformed)
+    fr = p.flush()
+
+    events = r.artifact_events + fr.artifact_events
+    creates = [e for e in events if e.action == "create"]
+    closes = [e for e in events if e.action == "close"]
+    assert len(creates) == 1
+    assert creates[0].artifact_type == "html"
+    assert creates[0].title == "Simulador"
+    assert len(closes) == 1
+    # The salvaged body should contain the raw HTML.
+    assert "<html lang=" in closes[0].content
+    assert '<meta charset="UTF-8">' in closes[0].content
+    assert '<div id="ui">' in closes[0].content
+    assert "console.log(1)" in closes[0].content
+
+    # The malformed header text should NOT leak into chat text.
+    chat = r.chat_text + fr.chat_text
+    assert "[BEGIN_ARTIFACT" not in chat
+
+
+def test_salvage_does_not_trigger_on_legitimate_small_header():
+    """Guard: a normal small header that is still incomplete (waiting for
+    more chunks) must NOT trigger the salvage fallback — it should return
+    None and wait for the rest of the JSON."""
+    p = ArtifactStreamProcessor(throttle_ms=0)
+    # Small, legit, incomplete header (no closing brace yet).
+    r = p.feed('[BEGIN_ARTIFACT: html] {"title":"X"')
+    # Should not create an artifact yet — awaiting more chunks.
+    assert r.artifact_events == []
+    assert p.has_active_artifact is False
+    # Now complete it normally.
+    r2 = p.feed('} <html></html> [END_ARTIFACT]')
+    fr = p.flush()
+    events = r2.artifact_events + fr.artifact_events
+    closes = [e for e in events if e.action == "close"]
+    assert len(closes) == 1
+    assert closes[0].title == "X"
+    assert closes[0].content.strip() == "<html></html>"
+
+
+def test_prompt_forbids_content_field_in_header():
+    """The system prompt must explicitly forbid a 'content' field in the
+    streaming header JSON and show a WRONG/RIGHT contrast."""
+    from kali_core import config
+
+    prompt = config.llm_system_prompt
+    assert "NEVER include a \"content\" field" in prompt
+    assert "WRONG" in prompt
+    assert '"content":"<html>...</html>"' in prompt
+
+
+def test_synthetic_header_includes_language_for_code():
+    """direct.py must include 'language' in the synthetic BEGIN header
+    when the model invokes create_artifact(code) with a language field."""
+    import asyncio
+
+    from kali_core.mind.llm.direct import DirectLLMProvider
+
+    args_json = json.dumps(
+        {
+            "artifact_type": "code",
+            "title": "Suma",
+            "language": "python",
+            "content": "print(1+1)\n",
+        }
+    )
+    chunks = [_mk_chunk(tool_name="create_artifact", tool_args=args_json)]
+    chunks.append(_mk_chunk())  # empty final chunk
+
+    provider = DirectLLMProvider.__new__(DirectLLMProvider)
+    provider._model = "fake-model"
+    provider._system_prompt = ""
+    provider._client = _FakeOpenAIClient(chunks)
+    provider._max_tokens = 4096
+
+    deltas: list[str] = []
+
+    async def _run() -> None:
+        async for ev in provider.stream(
+            [{"role": "user", "content": "make code"}]
+        ):
+            if ev.kind == "delta" and ev.text:
+                deltas.append(ev.text)
+
+    asyncio.run(_run())
+    joined = "".join(deltas)
+
+    assert "[BEGIN_ARTIFACT: code]" in joined
+    assert '"language":"python"' in joined
+    assert '"title":"Suma"' in joined
+    assert "[END_ARTIFACT]" in joined

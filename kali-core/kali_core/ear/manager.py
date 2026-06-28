@@ -12,6 +12,7 @@ import re
 import time
 
 from kali_core.config import settings
+from kali_core.lang_map import normalize
 
 from .vosk_engine import StreamingSTT
 
@@ -29,6 +30,7 @@ _LANG_MODELS: dict[str, str] = {
 
 def model_for_language(lang: str) -> str:
     """Return the Vosk model name for a language code."""
+    lang = normalize(lang)
     if lang == "es":
         return settings.stt_model
     if lang == "en":
@@ -46,7 +48,7 @@ class STTManager:
 
     def set_language(self, lang: str) -> None:
         """Switch the active language (takes effect on next session)."""
-        self.language = lang
+        self.language = normalize(lang)
         self.model_name = model_for_language(lang)
 
     def start_session(self) -> StreamingSTT:

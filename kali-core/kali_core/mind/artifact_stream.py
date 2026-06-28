@@ -32,25 +32,31 @@ remains in the runtime for backward compatibility.
 from __future__ import annotations
 
 import json
+import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from ..canvas.registry import (
+    NON_STREAMABLE_TYPES,
+    STREAMABLE_TYPES,
+)
+
 # ── Artifact type classification ──────────────────────────────
-
-# Streamable types: content is plain text that renders meaningfully as it
-# grows. The frontend shows the content live during streaming.
-STREAMABLE_TYPES: frozenset[str] = frozenset({
-    "code", "document", "diff", "html",
-})
-
-# Non-streamable types: content needs to be complete to render (JSON,
-# Mermaid syntax, table rows, etc.). The frontend shows a spinner during
-# streaming and renders only on close.
-NON_STREAMABLE_TYPES: frozenset[str] = frozenset({
-    "mermaid", "json", "table", "checklist", "chart", "quiz",
-})
+#
+# Reexported from ``canvas.registry`` (the single source of truth) so
+# existing imports (`from kali_core.mind.artifact_stream import
+# STREAMABLE_TYPES`) keep working. The canonical definitions live in
+# registry.py alongside ``is_streamable_type``.
+__all__ = [
+    "ArtifactStreamProcessor",
+    "ArtifactStreamEvent",
+    "FeedResult",
+    "STREAMABLE_TYPES",
+    "NON_STREAMABLE_TYPES",
+]
 
 # All valid artifact types for BEGIN markers.
 _VALID_BEGIN_TYPES: frozenset[str] = STREAMABLE_TYPES | NON_STREAMABLE_TYPES
@@ -59,6 +65,20 @@ _VALID_BEGIN_TYPES: frozenset[str] = STREAMABLE_TYPES | NON_STREAMABLE_TYPES
 
 _BEGIN_MARKER = "[BEGIN_ARTIFACT:"
 _END_MARKER = "[END_ARTIFACT]"
+
+# Guard for the salvage fallback (1b): a well-formed header is tiny
+# ({"title":"...","language":"..."}). If the balanced-scanner consumes more
+# than this many chars without closing the JSON, the header is almost
+# certainly malformed (e.g. unescaped quotes inside a "content" field) and
+# we switch to best-effort salvage.
+_SALVAGE_MAX_HEADER_CHARS = 4096
+
+# Regex used by the salvage path to extract the title and to locate the
+# start of a (malformed) "content" field. Compiled once.
+_TITLE_RE = re.compile(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"')
+_CONTENT_FIELD_RE = re.compile(r'"content"\s*:\s*"')
+
+logger = logging.getLogger(__name__)
 
 # ── Events ────────────────────────────────────────────────────
 
@@ -81,6 +101,7 @@ class ArtifactStreamEvent:
     content: str              # accumulated content so far (or final)
     action: ArtifactAction    # create | update | close
     phase: Phase              # streaming | complete
+    language: str = ""        # programming language (e.g. "python", "java")
 
 
 @dataclass
@@ -109,8 +130,10 @@ class _ActiveArtifact:
     window_type: str
     title: str
     content: str = ""
+    language: str = ""
     is_streamable: bool = True
     last_emit_ts: float = 0.0
+    salvaged_content: str = ""  # content pulled from a malformed "content" header field
 
 
 class ArtifactStreamProcessor:
@@ -171,14 +194,36 @@ class ArtifactStreamProcessor:
                     if header_result is None:
                         # Header not complete — need more chunks.
                         break
-                    atype, title = header_result
+                    atype, title, language, salvaged = header_result
                     if not atype:
                         # Malformed marker — treat as chat text.
                         # _chat_emitted was already advanced past it.
                         continue
                     # Start the artifact.
-                    events.extend(self._start_artifact(atype, title))
+                    events.extend(self._start_artifact(atype, title, language))
                     if self._active is not None:
+                        # If the header smuggled a "content" field
+                        # (malformed streaming format), seed the artifact
+                        # with that content and emit an initial update so
+                        # the frontend shows it immediately.
+                        if salvaged:
+                            self._active.content = salvaged
+                            self._active.salvaged_content = salvaged
+                            events.append(
+                                self._make_event("update", "streaming")
+                            )
+                            # 1b salvage: the entire buffer was consumed
+                            # (the body lived inside the header JSON with
+                            # unescaped quotes). Close immediately so any
+                            # text the model emits afterwards does not
+                            # leak into the artifact content.
+                            if self._content_emitted >= len(self._buf):
+                                events.extend(self._close_artifact())
+                                self._active = None
+                                self._content_emitted = 0
+                                self._chat_emitted = len(self._buf)
+                                self._chat_yielded = len(self._buf)
+                                continue
                         # Continue the loop in artifact mode to process
                         # any content already in the buffer.
                         continue
@@ -283,12 +328,17 @@ class ArtifactStreamProcessor:
 
     # ── Internal helpers ──
 
-    def _try_parse_begin_header(self) -> tuple[str, str] | None:
+    def _try_parse_begin_header(self) -> tuple[str, str, str, str] | None:
         """Try to parse [BEGIN_ARTIFACT: type] {header_json} from buf.
 
-        Returns (artifact_type, title) if complete and valid.
-        Returns ("", "") if the marker is malformed (treat as chat text).
-        Returns None if more chunks are needed.
+        Returns (artifact_type, title, language, salvaged_content) if
+        complete and valid. ``salvaged_content`` is non-empty when the
+        model smuggled the artifact body inside a ``"content"`` field of
+        the header JSON (a malformed streaming format we rescue
+        best-effort).
+
+        Returns ("", "", "", "") if the marker is malformed (treat as
+        chat text). Returns None if more chunks are needed.
         """
         n = len(self._buf)
         scan = self._chat_emitted + self._begin_len
@@ -302,7 +352,7 @@ class ArtifactStreamProcessor:
             # Invalid type — treat marker as plain chat text.
             # Don't advance _chat_yielded so the marker text gets emitted.
             self._chat_emitted = bracket_idx + 1
-            return ("", "")
+            return ("", "", "", "")
 
         # Phase 2: skip whitespace after ']' and find JSON '{'
         json_start = bracket_idx + 1
@@ -314,7 +364,7 @@ class ArtifactStreamProcessor:
             # No JSON header — allow [BEGIN_ARTIFACT: code] without JSON.
             self._content_start = json_start
             self._content_emitted = json_start
-            return (atype, "")
+            return (atype, "", "", "")
 
         # Phase 3: balanced JSON extraction for the header.
         i = json_start + 1
@@ -347,18 +397,102 @@ class ArtifactStreamProcessor:
                     self._content_start = i + 1
                     self._content_emitted = i + 1
                     title = ""
+                    language = ""
+                    salvaged = ""
                     try:
                         parsed = json.loads(raw_json)
                         if isinstance(parsed, dict):
                             title = str(parsed.get("title", ""))
+                            language = str(parsed.get("language", ""))
+                            # 1a — rescue a smuggled "content" field from a
+                            # VALID header JSON. The model sometimes emits
+                            # [BEGIN_ARTIFACT: html] {"title":"X","content":"..."}
+                            # instead of writing the body as raw text after
+                            # the header. Salvage it so the user still sees
+                            # the content.
+                            if "content" in parsed:
+                                salvaged = str(parsed.get("content", ""))
+                                logger.warning(
+                                    "artifact_stream: header for %s included a "
+                                    "'content' field (malformed streaming "
+                                    "format) — salvaging %d chars",
+                                    atype,
+                                    len(salvaged),
+                                )
                     except (json.JSONDecodeError, TypeError):
                         pass
-                    return (atype, title)
+                    return (atype, title, language, salvaged)
             i += 1
+
+        # Phase 4 — salvage fallback (1b): the balanced scanner did not
+        # close the JSON within a reasonable bound. This almost always
+        # means the model put raw HTML/code with unescaped double quotes
+        # inside a "content" field, breaking the string-state tracking.
+        # Guard with two conditions to avoid false positives on legit
+        # partial headers that just need more chunks:
+        #   (a) the in-flight header is large (> salvage threshold), AND
+        #   (b) the literal "content":" pattern appears in it.
+        header_in_flight = self._buf[json_start:]
+        if (
+            len(header_in_flight) >= _SALVAGE_MAX_HEADER_CHARS
+            and _CONTENT_FIELD_RE.search(header_in_flight)
+        ):
+            salvaged = self._salvage_unescaped_content(header_in_flight)
+            if salvaged is not None:
+                title_match = _TITLE_RE.search(header_in_flight)
+                title = (
+                    title_match.group(1)
+                    if title_match
+                    else ""
+                )
+                # Decode common JSON escapes in the salvaged title.
+                try:
+                    title = json.loads(f'"{title}"')
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                logger.warning(
+                    "artifact_stream: header for %s had unescaped content "
+                    "(malformed JSON) — salvaged %d chars via fallback",
+                    atype,
+                    len(salvaged),
+                )
+                # Consume the entire remainder so the artifact body does
+                # not also leak as content; flush() will close it.
+                self._content_start = n
+                self._content_emitted = n
+                return (atype, title, "", salvaged)
+
         return None  # JSON not complete yet
 
+    @staticmethod
+    def _salvage_unescaped_content(header: str) -> str | None:
+        """Extract raw content from a malformed header of the form
+        ``{"title":"...","content":"<raw with unescaped quotes>"}``.
+
+        The model frequently emits the artifact body inside a ``content``
+        field but forgets to escape double quotes inside it (e.g.
+        ``charset="UTF-8"``), so the JSON is technically invalid. We
+        locate the opening of the content string and take everything
+        after it, stripping a trailing ``"}`` or ``")]`` if present, then
+        decode the JSON escapes we can recognize.
+        """
+        m = _CONTENT_FIELD_RE.search(header)
+        if not m:
+            return None
+        body = header[m.end():]
+        # Strip a trailing close if the model appended one (best-effort).
+        for tail in ('"}', '")]', '")\n]', '")'):
+            if body.endswith(tail):
+                body = body[: -len(tail)]
+                break
+        # Decode common JSON string escapes. The body may contain raw
+        # (non-escaped) quotes from the original HTML, which we keep as-is.
+        body = body.replace("\\n", "\n").replace("\\t", "\t")
+        body = body.replace('\\"', '"').replace("\\\\", "\\")
+        return body
+
     def _start_artifact(
-        self, atype: str, title: str
+        self, atype: str, title: str, language: str = ""
     ) -> list[ArtifactStreamEvent]:
         """Start a new active artifact and emit the create event."""
         events: list[ArtifactStreamEvent] = []
@@ -376,6 +510,7 @@ class ArtifactStreamProcessor:
             artifact_type=atype,
             window_type=window_type,
             title=title,
+            language=language,
             is_streamable=is_streamable,
             last_emit_ts=time.monotonic(),
         )
@@ -388,6 +523,7 @@ class ArtifactStreamProcessor:
                 content="",
                 action="create",
                 phase="streaming",
+                language=language,
             )
         )
         return events
@@ -411,6 +547,7 @@ class ArtifactStreamProcessor:
                     content=a.content,
                     action="update",
                     phase="streaming",
+                    language=a.language,
                 )
             )
 
@@ -423,6 +560,7 @@ class ArtifactStreamProcessor:
                 content=a.content,
                 action="close",
                 phase="complete",
+                language=a.language,
             )
         )
         return events
@@ -441,13 +579,10 @@ class ArtifactStreamProcessor:
             content=a.content,
             action=action,
             phase=phase,
+            language=a.language,
         )
 
 
-__all__ = [
-    "ArtifactStreamProcessor",
-    "ArtifactStreamEvent",
-    "FeedResult",
-    "STREAMABLE_TYPES",
-    "NON_STREAMABLE_TYPES",
-]
+# NOTE: ``__all__`` is declared near the top of this module (next to the
+# reexported STREAMABLE_TYPES / NON_STREAMABLE_TYPES) to keep the public
+# surface grouped with the canonical definitions in ``canvas.registry``.

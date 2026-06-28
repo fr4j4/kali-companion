@@ -9,6 +9,8 @@ import { WSClient } from "../lib/wsClient";
 import type {
   ArtifactEvent,
   ConnectedEvent,
+  ConsoleLogEntry,
+  ConsoleRequestEvent,
   DeltaEvent,
   MessageEvent,
   ReadyEvent,
@@ -28,6 +30,7 @@ import type {
   JobListEvent,
   ImageReadyEvent,
   SelectedArtifactRef,
+  TurnStatsEvent,
 } from "../lib/protocol";
 
 export interface ChatMessage {
@@ -82,6 +85,7 @@ export interface ChatState {
   isThinking: boolean;
   isTurnActive: boolean;
   currentStep: number;
+  turnStats: TurnStatsEvent | null;
   send: (text: string) => void;
   setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
   stop: () => void;
@@ -89,6 +93,8 @@ export interface ChatState {
   newSession: () => void;
   listSessions: () => void;
   attachSession: (sid: string) => void;
+  deleteSession: (sid: string) => void;
+  clearAllSessions: () => void;
   updateSettings: (patch: Record<string, unknown>) => void;
   respondConsent: (id: string, decision: "allow" | "no_capture" | "cancel") => void;
   subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void;
@@ -97,6 +103,16 @@ export interface ChatState {
   cancelJob: (id: string) => void;
   getJobLogs: (id: string) => void;
   requestImage: (key: string) => void;
+  /** Release the full content of an artifact from memory (close → metadata-only). */
+  markArtifactClosed: (artifactId: string) => void;
+  /** Store full content for an artifact (after a REST fetch on reopen). */
+  setArtifactContent: (artifactId: string, event: ArtifactEvent) => void;
+  /**
+   * Register a getter for the current console logs of an open HTML artifact.
+   * The getter is called when the agent requests logs via get_artifact_console.
+   * Pass null to unregister.
+   */
+  registerConsoleProvider: (artifactId: string, getter: (() => ConsoleLogEntry[]) | null) => void;
 }
 
 let idCounter = 0;
@@ -142,11 +158,16 @@ export function useChat(): ChatState {
   const [isTurnActive, setIsTurnActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [stopped, setStopped] = useState(false);
+  const [turnStats, setTurnStats] = useState<TurnStatsEvent | null>(null);
 
   const clientRef = useRef<WSClient | null>(null);
   const ttsListeners = useRef<Array<(e: TtsAudioEvent) => void>>([]);
   const ttsEndedListeners = useRef<Array<() => void>>([]);
   const selectedArtifactsProviderRef = useRef<(() => SelectedArtifactRef[]) | null>(null);
+  // Registry of open HTML widgets keyed by artifact id, so the agent can
+  // request console logs on demand. Each entry is a getter that returns
+  // the current ConsoleLogEntry[] from the widget's React state.
+  const consoleProvidersRef = useRef<Map<string, () => ConsoleLogEntry[]>>(new Map());
 
   useEffect(() => {
     let client: WSClient | null = null;
@@ -176,16 +197,24 @@ export function useChat(): ChatState {
       client.on("ready", (p) => {
         const ev = p as ReadyEvent;
         setError(null);
-        setSessionId(ev.session_id);
-        localStorage.setItem("kali.sessionId", ev.session_id);
+        setSessionId(ev.session_id || null);
+        if (ev.session_id) {
+          localStorage.setItem("kali.sessionId", ev.session_id);
+        } else {
+          localStorage.removeItem("kali.sessionId");
+        }
         setStatus("ready");
         client?.send({ event: "list_sessions" });
       });
       client.on("connected", (p) => {
         const ev = p as ConnectedEvent;
         setError(null);
-        setSessionId(ev.session_id);
-        localStorage.setItem("kali.sessionId", ev.session_id);
+        setSessionId(ev.session_id || null);
+        if (ev.session_id) {
+          localStorage.setItem("kali.sessionId", ev.session_id);
+        } else {
+          localStorage.removeItem("kali.sessionId");
+        }
       });
       client.on("session_list", (p) => {
         const ev = p as SessionListEvent;
@@ -211,6 +240,7 @@ export function useChat(): ChatState {
         setIsTurnActive(true);
         setCurrentStep(0);
         setStopped(false);
+        setTurnStats(null);
       });
 
       client.on("step_start", (p) => {
@@ -276,6 +306,10 @@ export function useChat(): ChatState {
         ttsEndedListeners.current.forEach((fn) => fn());
       });
 
+      client.on("turn_stats", (p) => {
+        setTurnStats(p as TurnStatsEvent);
+      });
+
       client.on("tts_audio", (p) => {
         const ev = p as TtsAudioEvent;
         setTtsSegment(ev.segment);
@@ -330,8 +364,21 @@ export function useChat(): ChatState {
           if (ev.update === "close" && ev.phase !== "complete") {
             // True close (not a streaming-complete): remove from store.
             next.delete(ev.id);
+          } else if (ev.content == null && ev.preview !== undefined) {
+            // Metadata-only replay (session reattach): the backend sent an
+            // index entry with no content. Keep the existing entry if we
+            // already have one with content (e.g. live update arrived first),
+            // otherwise store this lightweight entry as-is. The workspace
+            // sync effect decides whether to fetch content for open windows.
+            const existing = next.get(ev.id);
+            if (!existing || existing.content == null) {
+              next.set(ev.id, ev);
+            } else {
+              // Preserve any metadata refresh (title/type) on an existing entry.
+              next.set(ev.id, { ...existing, ...ev, content: existing.content });
+            }
           } else {
-            // create, update, or close+complete: upsert with the event
+            // create/update, or close+complete: upsert with the event
             // (phase lets widgets know if content is still streaming).
             next.set(ev.id, ev);
           }
@@ -449,6 +496,21 @@ export function useChat(): ChatState {
         }
       });
 
+      // ── Console log request (agent → frontend) ──────────
+
+      client.on("console_request", (p) => {
+        const ev = p as ConsoleRequestEvent;
+        const getter = consoleProvidersRef.current.get(ev.artifact_id);
+        if (getter) {
+          const allLogs = getter();
+          const logs = allLogs.slice(-ev.limit);
+          client?.send({ event: "console_response", id: ev.id, logs });
+        } else {
+          // No widget open for this artifact id.
+          client?.send({ event: "console_response", id: ev.id, logs: null });
+        }
+      });
+
       client.connect();
     }
 
@@ -503,6 +565,7 @@ export function useChat(): ChatState {
     setTtsPlaying(false);
     setTtsSegment(0);
     setTtsTotal(0);
+    setTurnStats(null);
     clientRef.current?.send({ event: "new_session" });
   }, []);
 
@@ -519,6 +582,14 @@ export function useChat(): ChatState {
     setTtsSegment(0);
     setTtsTotal(0);
     clientRef.current?.send({ event: "attach_session", session_id: sid });
+  }, []);
+
+  const deleteSession = useCallback((sid: string) => {
+    clientRef.current?.send({ event: "delete_session", session_id: sid });
+  }, []);
+
+  const clearAllSessions = useCallback(() => {
+    clientRef.current?.send({ event: "clear_all_sessions" });
   }, []);
 
   const updateSettings = useCallback((patch: Record<string, unknown>) => {
@@ -544,6 +615,35 @@ export function useChat(): ChatState {
 
   const requestImage = useCallback((key: string) => {
     clientRef.current?.send({ event: "request_image", key });
+  }, []);
+
+  /** Release the full content of an artifact, keeping only metadata + preview. */
+  const markArtifactClosed = useCallback((artifactId: string) => {
+    setArtifacts((prev) => {
+      const entry = prev.get(artifactId);
+      if (!entry || entry.content == null) return prev;
+      const next = new Map(prev);
+      next.set(artifactId, { ...entry, content: null });
+      return next;
+    });
+  }, []);
+
+  /** Store full content for an artifact (e.g. after a REST fetch on reopen). */
+  const setArtifactContent = useCallback((artifactId: string, event: ArtifactEvent) => {
+    setArtifacts((prev) => {
+      const next = new Map(prev);
+      next.set(artifactId, event);
+      return next;
+    });
+  }, []);
+
+  /** Register/unregister a getter for the current console logs of an open HTML widget. */
+  const registerConsoleProvider = useCallback((artifactId: string, getter: (() => ConsoleLogEntry[]) | null) => {
+    if (getter) {
+      consoleProvidersRef.current.set(artifactId, getter);
+    } else {
+      consoleProvidersRef.current.delete(artifactId);
+    }
   }, []);
 
   // Allow the TTS hook to subscribe to audio events.
@@ -582,6 +682,7 @@ export function useChat(): ChatState {
     isThinking,
     isTurnActive,
     currentStep,
+    turnStats,
     stopped,
     send,
     setSelectedArtifactsProvider,
@@ -589,6 +690,8 @@ export function useChat(): ChatState {
     newSession,
     listSessions,
     attachSession,
+    deleteSession,
+    clearAllSessions,
     updateSettings,
     respondConsent,
     subscribeTts,
@@ -597,5 +700,8 @@ export function useChat(): ChatState {
     cancelJob,
     getJobLogs,
     requestImage,
+    markArtifactClosed,
+    setArtifactContent,
+    registerConsoleProvider,
   };
 }

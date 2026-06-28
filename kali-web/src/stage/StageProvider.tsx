@@ -38,12 +38,14 @@ export function StageProvider({ children }: { children: ReactNode }) {
     }
   }, [urlSid, chat.status, chat.sessionId, chat.attachSession]);
 
-  // State -> URL: bookmark the active session.
+  // State -> URL: bookmark the active session, or clear URL if no session.
   useEffect(() => {
     if (chat.sessionId && !urlSid) {
       navigate(`/session/${chat.sessionId}`, { replace: true });
+    } else if (!chat.sessionId && urlSid && chat.status === "ready") {
+      navigate("/", { replace: true });
     }
-  }, [chat.sessionId, urlSid, navigate]);
+  }, [chat.sessionId, urlSid, chat.status, navigate]);
 
   // Wake-word barge-in: stop TTS + generation.
   const onWakeWord = useCallback(() => {

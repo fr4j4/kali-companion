@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
 import { SectionRenderer } from "./utils/SectionRenderer";
 import { SAMPLE_ENTITY } from "./utils/sampleData";
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function EntityCardWidget({ content }: Props) {
+  const { t } = useTranslation();
   const { data, isReal } = useMemo(() => parseContent(content), [content]);
   const entityData = isReal ? data : SAMPLE_ENTITY;
   const [selectedSkill, setSelectedSkill] = useState<number | null>(null);
@@ -83,7 +85,7 @@ export function EntityCardWidget({ content }: Props) {
               <div className="hero-skill-panel">
                 <div className="text-xs text-fg font-medium">{d.abilities[selectedSkill].name}</div>
                 <div className="text-xs text-muted mt-0.5">{d.abilities[selectedSkill].description}</div>
-                <div className="text-xs text-muted mt-1">CD: {d.abilities[selectedSkill].cd}s</div>
+                <div className="text-xs text-muted mt-1">{t("widget.entity.cooldown", { n: d.abilities[selectedSkill].cd })}</div>
               </div>
             )}
           </div>

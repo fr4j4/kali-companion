@@ -18,6 +18,35 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+# ── Streamable vs non-streamable artifact types ─────────────────
+#
+# Single source of truth for which artifact types render meaningfully as
+# they grow (streamable: the frontend shows the content live during
+# streaming) versus which need to be complete to render (non-streamable:
+# the frontend shows a spinner during streaming and renders on close).
+#
+# ``artifact_stream.py`` reexports these so existing imports keep working.
+STREAMABLE_TYPES: frozenset[str] = frozenset({
+    "code", "document", "diff", "html", "mermaid",
+})
+
+NON_STREAMABLE_TYPES: frozenset[str] = frozenset({
+    "json", "table", "checklist", "chart", "quiz",
+})
+
+
+def is_streamable_type(artifact_type: str) -> bool:
+    """True if ``artifact_type`` supports live streaming and patch-mode edits.
+
+    Streamable types are plain text (code, document, diff, html, mermaid),
+    so their content can be edited surgically via string replacement
+    (``update_artifact`` patch mode) and read by line ranges
+    (``get_artifact`` offset/limit). Non-streamable types are JSON
+    structures that require full-content replacement.
+    """
+    return artifact_type in STREAMABLE_TYPES
+
+
 # ── Domain → window type mapping (the single backend source of truth) ──
 #
 # Keys are domain types a tool might emit (the ``data.type`` field of a
@@ -113,6 +142,7 @@ class ArtifactEnvelope:
     artifact_id: str = ""
     update: str = "create"  # "create" | "update" | "close"
     domain_type: str = ""  # domain hint for window_type resolution (widget only)
+    language: str = ""  # programming language (e.g. "python", "java")
 
     def to_payload(self) -> dict[str, Any]:
         """Convert to the WS wire-format dict (``event: "artifact"``)."""
@@ -125,6 +155,7 @@ class ArtifactEnvelope:
             "title": self.title,
             "content": self.content,
             "update": self.update,
+            "language": self.language,
         }
 
 
@@ -202,6 +233,9 @@ __all__ = [
     "ArtifactEnvelope",
     "resolve_window_type",
     "is_game_resource",
+    "is_streamable_type",
+    "STREAMABLE_TYPES",
+    "NON_STREAMABLE_TYPES",
     "html_artifact",
     "markdown_artifact",
     "diff_artifact",

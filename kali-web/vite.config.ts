@@ -46,6 +46,9 @@ export default defineConfig({
       "/llm": {
         target: "http://127.0.0.1:8900",
       },
+      "/sessions": {
+        target: "http://127.0.0.1:8900",
+      },
     },
   },
   preview: {
@@ -73,6 +76,9 @@ export default defineConfig({
         target: "http://127.0.0.1:8900",
       },
       "/llm": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/sessions": {
         target: "http://127.0.0.1:8900",
       },
     },

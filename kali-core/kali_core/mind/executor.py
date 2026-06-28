@@ -36,6 +36,7 @@ class Executor:
         llm_provider: Any = None,
         session_store: Any = None,
         job_mgr: Any = None,
+        console_requester: Any = None,
     ) -> None:
         self.gateway = gateway
         self.consent = consent
@@ -45,6 +46,7 @@ class Executor:
         self.llm_provider = llm_provider
         self.session_store = session_store
         self.job_mgr = job_mgr
+        self.console_requester = console_requester
         # Per-session flag: True once a game_resource artifact has been returned.
         self._game_resource_returned: dict[str, bool] = {}
 
@@ -114,6 +116,7 @@ class Executor:
             llm_provider=llm,
             job_mgr=getattr(self, "job_mgr", None),
             session_store=self.session_store,
+            console_requester=getattr(self, "console_requester", None),
             emit=emit_event,
             language=language,
         )

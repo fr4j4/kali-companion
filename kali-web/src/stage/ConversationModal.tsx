@@ -6,9 +6,10 @@
  * in the HUD.
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Brain } from "lucide-react";
+import { marked } from "marked";
 import { useStage } from "./StageProvider";
 import type { ChatMessage } from "../hooks/useChat";
 
@@ -39,7 +40,7 @@ export function ConversationModal({ open, onClose }: Props) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={t("conversation.title") as string || "Conversation"}
+      aria-label={t("conversation.title") as string}
     >
       <div
         className="bg-elevated border border-border rounded-xl shadow-lg w-full max-w-2xl max-h-[80vh] flex flex-col mx-4"
@@ -48,12 +49,12 @@ export function ConversationModal({ open, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-sm font-semibold text-foreground m-0">
-            {t("conversation.title") || "Conversation"}
+            {t("conversation.title")}
           </h2>
           <button
             className="bg-transparent border-none text-muted text-base cursor-pointer"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.aria_close")}
           >
             ✕
           </button>
@@ -63,7 +64,7 @@ export function ConversationModal({ open, onClose }: Props) {
         <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-5 space-y-3">
           {messages.length === 0 && (
             <p className="text-muted text-sm text-center py-8">
-              {t("conversation.empty") || "No messages yet"}
+              {t("conversation.empty")}
             </p>
           )}
           {messages.map((msg) => (
@@ -78,6 +79,15 @@ export function ConversationModal({ open, onClose }: Props) {
 function MessageRow({ msg }: { msg: ChatMessage }) {
   const { t } = useTranslation();
   const isUser = msg.role === "user";
+
+  const assistantHtml = useMemo(() => {
+    if (isUser || !msg.content) return null;
+    try {
+      return marked.parse(msg.content, { async: false }) as string;
+    } catch {
+      return `<p>${msg.content}</p>`;
+    }
+  }, [msg.content, isUser]);
 
   if (msg.toolEvent && !msg.content) {
     const { tool, status, params, output } = msg.toolEvent;
@@ -140,7 +150,7 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
   return (
     <div className={`flex flex-col gap-0.5 ${isUser ? "items-end" : "items-start"}`}>
       <span className="text-[10px] text-muted/40 badge px-1">
-        {isUser ? t("conversation.you") || "You" : "Kali"}
+        {isUser ? t("conversation.you") : t("assistant.name")}
       </span>
       <div
         className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
@@ -150,7 +160,9 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
         }`}
         style={!isUser ? { fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' } : {}}
       >
-        {msg.content}
+        {isUser ? msg.content : (
+          <div className="prose-md" dangerouslySetInnerHTML={{ __html: assistantHtml || "" }} />
+        )}
       </div>
       {!isUser && msg.reasoning && (
         <div className="mt-1 max-w-[85%] px-3 py-2 rounded-xl border border-dashed border-muted/40 text-xs italic text-muted/70 leading-relaxed bg-muted/5">

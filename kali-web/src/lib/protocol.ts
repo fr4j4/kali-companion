@@ -41,6 +41,7 @@ export interface SettingsEvent {
   llm_provider?: string;
   llm_api_url?: string;
   llm_api_key?: string;
+  llm_max_tokens?: number;
   profile?: string;
   language?: string;
   stt_language?: string;
@@ -48,12 +49,35 @@ export interface SettingsEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  artifact_diff_preview?: boolean;
 }
 
 export interface ConsentResponseEvent {
   event: "consent_response";
   id: string;
   decision: "allow" | "no_capture" | "cancel";
+}
+
+/** A single console log entry from an HTML artifact's iframe. */
+export interface ConsoleLogEntry {
+  level: "log" | "warn" | "error" | "info" | "debug";
+  message: string;
+  timestamp: number;
+}
+
+/** Backend → frontend: the agent requests console logs for an artifact. */
+export interface ConsoleRequestEvent {
+  event: "console_request";
+  id: string;
+  artifact_id: string;
+  limit: number;
+}
+
+/** Frontend → backend: the frontend responds with the artifact's console logs. */
+export interface ConsoleResponseEvent {
+  event: "console_response";
+  id: string;
+  logs: ConsoleLogEntry[] | null;
 }
 
 export interface ListJobsEvent {
@@ -165,9 +189,18 @@ export interface ArtifactEvent {
   type: "html" | "markdown" | "diff" | "widget";
   windowType: string;
   title: string;
-  content: string;
+  /**
+   * Full payload during live streaming / updates.
+   * `null` on metadata-only replays (session reattach): the frontend keeps
+   * only the `preview` in memory and fetches the full content on demand via
+   * `fetchArtifact` when the user reopens a closed artifact.
+   */
+  content: string | null;
   update: "create" | "update" | "close";
   phase?: "streaming" | "complete";
+  language?: string;
+  /** Short text preview (HTML stripped). Present on metadata-only replays. */
+  preview?: string;
 }
 
 export interface TurnStartEvent {
@@ -211,6 +244,7 @@ export interface StatusEvent {
   llm_api_url: string;
   llm_api_key_set: boolean;
   llm_model: string;
+  llm_max_tokens?: number;
   tts_provider: string;
   voice: string;
   tts_mode: string;
@@ -223,6 +257,7 @@ export interface StatusEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  artifact_diff_preview?: boolean;
 }
 
 export interface ErrorEvent {
@@ -291,9 +326,32 @@ export interface ImageReadyEvent {
   error?: string;
 }
 
+export interface TurnStatsEvent {
+  event: "turn_stats";
+  session_id: string;
+  elapsed: number;
+  first_token_latency: number | null;
+  char_count: number;
+  tool_call_count: number;
+  usage?: {
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+    reasoning_tokens: number | null;
+  };
+}
+
 export interface AttachSessionEvent {
   event: "attach_session";
   session_id: string;
+}
+
+export interface DeleteSessionEvent {
+  event: "delete_session";
+  session_id: string;
+}
+
+export interface ClearAllSessionsEvent {
+  event: "clear_all_sessions";
 }
 
 export type IncomingEvent =
@@ -302,8 +360,11 @@ export type IncomingEvent =
   | NewSessionEvent
   | ListSessionsEvent
   | AttachSessionEvent
+  | DeleteSessionEvent
+  | ClearAllSessionsEvent
   | SettingsEvent
   | ConsentResponseEvent
+  | ConsoleResponseEvent
   | AudioStartEvent
   | AudioEndEvent
   | TtsSpeakEvent
@@ -328,6 +389,7 @@ export type OutgoingEvent =
   | TurnStartEvent
   | ToolEvent
   | ConsentRequestEvent
+  | ConsoleRequestEvent
   | SessionListEvent
   | StatusEvent
   | ErrorEvent
@@ -337,4 +399,5 @@ export type OutgoingEvent =
   | JobDoneEvent
   | JobLogEvent
   | JobListEvent
-  | ImageReadyEvent;
+  | ImageReadyEvent
+  | TurnStatsEvent;

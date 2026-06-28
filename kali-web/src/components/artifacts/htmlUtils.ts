@@ -305,6 +305,53 @@ const SANDBOX_SHIM_SCRIPT = `<script>
 
 const HASH_GUARD_SCRIPT = `<script>(function(){document.addEventListener('click',function(e){var t=e.target;if(!t||!t.closest)return;var a=t.closest('a[href^="#"]');if(!a)return;e.preventDefault();var id=a.getAttribute('href').slice(1);if(!id){window.scrollTo({top:0,behavior:'smooth'});return;}var el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});})();</script>`;
 
+const CONSOLE_CAPTURE_SCRIPT = `<script>
+(function(){
+  var _console = window.console;
+  var _logs = [];
+  var _maxLogs = 500;
+  function post(level, args) {
+    try {
+      var msg = Array.prototype.map.call(args, function(a) {
+        try {
+          return typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a);
+        } catch(e) { return String(a); }
+      }).join(' ');
+      _logs.push({level: level, message: msg, timestamp: Date.now()});
+      if (_logs.length > _maxLogs) _logs.shift();
+      window.parent.postMessage({type: 'kali:console', level: level, message: msg}, '*');
+    } catch(e) {}
+  }
+  window.console = {
+    log:    function(){ post('log', arguments); try { _console.log.apply(_console, arguments); } catch(e) {} },
+    warn:   function(){ post('warn', arguments); try { _console.warn.apply(_console, arguments); } catch(e) {} },
+    error:  function(){ post('error', arguments); try { _console.error.apply(_console, arguments); } catch(e) {} },
+    info:   function(){ post('info', arguments); try { _console.info.apply(_console, arguments); } catch(e) {} },
+    debug:  function(){ post('debug', arguments); try { _console.debug.apply(_console, arguments); } catch(e) {} },
+    assert: function(cond, msg){ if(!cond) post('error', [msg || 'Assertion failed']); try { _console.assert.apply(_console, arguments); } catch(e) {} },
+    clear:  function(){ _logs = []; post('clear', []); try { _console.clear.apply(_console, arguments); } catch(e) {} },
+    dir:    function(obj){ post('log', [obj]); try { _console.dir.apply(_console, arguments); } catch(e) {} },
+    trace:  function(){ post('log', ['console.trace']); try { _console.trace.apply(_console, arguments); } catch(e) {} },
+    count:  function(label){ post('log', [label || 'default']); try { _console.count.apply(_console, arguments); } catch(e) {} },
+    group:  function(){ try { _console.group.apply(_console, arguments); } catch(e) {} },
+    groupEnd: function(){ try { _console.groupEnd.apply(_console, arguments); } catch(e) {} },
+    groupCollapsed: function(){ try { _console.groupCollapsed.apply(_console, arguments); } catch(e) {} },
+    table:  function(data){ post('log', [JSON.stringify(data)]); try { _console.table.apply(_console, arguments); } catch(e) {} },
+    time:   function(label){ try { _console.time.apply(_console, arguments); } catch(e) {} },
+    timeEnd: function(label){ try { _console.timeEnd.apply(_console, arguments); } catch(e) {} },
+    memory: _console.memory
+  };
+  window.onerror = function(msg, source, line, col, err) {
+    var stack = err && err.stack ? '\\n' + err.stack : '';
+    post('error', [msg + ' at ' + source + ':' + line + ':' + col + stack]);
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function(e) {
+    post('error', ['Unhandled Promise rejection: ' + (e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : 'unknown')]);
+  });
+})();
+</script>`;
+
 /**
  * Inject a script at the earliest possible point so it runs before any
  * user-supplied <script>. Targets <head> first (before any children),
@@ -347,8 +394,11 @@ function injectBeforeBodyClose(html: string, script: string): string {
  * placed at the start of <head> (runs first); the hash guard is placed
  * before </body> (runs after DOM is ready).
  */
-export function injectHashGuard(html: string): string {
+export function injectHashGuard(html: string, captureConsole = false): string {
   if (typeof html !== "string" || html.length === 0) return html;
-  const withShim = injectAtHeadStart(html, SANDBOX_SHIM_SCRIPT);
-  return injectBeforeBodyClose(withShim, HASH_GUARD_SCRIPT);
+  let result = injectAtHeadStart(html, SANDBOX_SHIM_SCRIPT);
+  if (captureConsole) {
+    result = injectAtHeadStart(result, CONSOLE_CAPTURE_SCRIPT);
+  }
+  return injectBeforeBodyClose(result, HASH_GUARD_SCRIPT);
 }

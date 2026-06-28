@@ -13,6 +13,9 @@ interface Props {
 export function parseContent(content: unknown): { data: unknown; title: string; isReal: boolean } {
   if (content && typeof content === "object" && "content" in (content as any)) {
     const event = content as ArtifactEvent;
+    if (event.content == null) {
+      return { data: undefined, title: event.title || "", isReal: true };
+    }
     try {
       const parsed = JSON.parse(event.content);
       const items = parsed.items ?? [];

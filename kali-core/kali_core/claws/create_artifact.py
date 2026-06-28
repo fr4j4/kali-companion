@@ -87,6 +87,14 @@ class CreateArtifactTool:
                     "a JSON string with the expected shape."
                 ),
             },
+            "language": {
+                "type": "string",
+                "description": (
+                    "Programming language for 'code' artifacts "
+                    "(e.g. 'python', 'java', 'javascript', 'rust'). "
+                    "Used for syntax highlighting. Optional but recommended."
+                ),
+            },
         },
         "required": ["artifact_type", "title", "content"],
     }
@@ -96,6 +104,7 @@ class CreateArtifactTool:
         atype = params.get("artifact_type", "").strip()
         title = params.get("title", "").strip()
         content = params.get("content", "")
+        language = params.get("language", "").strip()
 
         if not atype:
             return ToolResult(error="Missing 'artifact_type' parameter.")
@@ -117,7 +126,7 @@ class CreateArtifactTool:
                           f"Content must be valid JSON."
                 )
 
-        envelope = _build_envelope(atype, title, content)
+        envelope = _build_envelope(atype, title, content, language)
         if envelope is None:
             return ToolResult(error=f"Failed to build artifact of type '{atype}'.")
 
@@ -131,7 +140,7 @@ class CreateArtifactTool:
 
 
 def _build_envelope(
-    artifact_type: str, title: str, content: str
+    artifact_type: str, title: str, content: str, language: str = ""
 ) -> ArtifactEnvelope | None:
     """Build an ArtifactEnvelope for the given type.
 
@@ -156,6 +165,7 @@ def _build_envelope(
         env = html_artifact(title, content)
         env.domain_type = "code"
         env.window_type = "code"
+        env.language = language
         return env
     if artifact_type == "html":
         return html_artifact(title, content)
