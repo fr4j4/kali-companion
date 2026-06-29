@@ -1,6 +1,3 @@
-// VoiceSection — voice, TTS mode, auto-TTS, STT language.
-// Handles both Piper (inproc/http) and Qwen3 (qwen3/qwen3-voicedesign) providers.
-
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StatusEvent, VoiceDesignPreset, QwenVoice } from "../../lib/protocol";
@@ -22,31 +19,27 @@ const TTS_LANGS = [
   { id: "es", labelKey: "language.es" },
 ];
 
-export function VoiceSection({ systemStatus, voices, onUpdate }: Props) {
+export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
   const { t } = useTranslation();
   const { customVoices, sttLanguage, ttsProvider } = useStage();
 
-  const provider = systemStatus?.tts_provider ?? "inproc";
+  const provider = systemStatus?.tts_provider ?? "piper";
+  const variant = systemStatus?.tts_variant ?? null;
   const currentVoice = systemStatus?.voice ?? "glados-es";
   const currentMode = systemStatus?.tts_mode ?? "normal";
   const autoTts = systemStatus?.auto_tts ?? true;
 
-  // VoiceDesign state
-  const [instructions, setInstructions] = useState(
-    t("voice.instructions_default"),
-  );
+  const [instructions, setInstructions] = useState(t("voice.instructions_default"));
   const [seed, setSeed] = useState(-1);
   const [selectedPreset, setSelectedPreset] = useState("warm-female");
 
-  const isQwen = provider === "qwen3" || provider === "qwen3-voicedesign";
-  const isVoiceDesign = provider === "qwen3-voicedesign";
+  const isQwen = provider === "qwen3";
+  const isVoiceDesign = isQwen && variant === "voicedesign";
+  const isCustomVoice = isQwen && variant === "customvoice";
 
-  // Cast voices to richer types when provider is qwen
   const qwenVoices = voices as unknown as QwenVoice[];
   const voiceDesignPresets = voices as unknown as VoiceDesignPreset[];
 
-  // Defensive fallback: if the backend voice is not a valid qwen voice
-  // (e.g. piper default "glados-es" leaked through), use "serena".
   const qwenVoiceIds = qwenVoices.map((v) => v.id);
   const effectiveVoice =
     isQwen && qwenVoiceIds.length > 0 && !qwenVoiceIds.includes(currentVoice)
@@ -54,9 +47,23 @@ export function VoiceSection({ systemStatus, voices, onUpdate }: Props) {
       : currentVoice;
 
   const refreshCustomVoices = () => {
-    // Trigger a re-fetch in StageProvider by dispatching a custom event
     window.dispatchEvent(new CustomEvent("refresh-custom-voices"));
   };
+
+  if (provider === "unavailable") {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="text-xs text-err bg-err/10 rounded-md p-2">
+          {systemStatus?.tts_error ?? t("settings.tts_unavailable")}
+        </div>
+        <ToggleField
+          label={t("settings.tts_enabled")}
+          checked={false}
+          onChange={() => { }}
+        />
+      </div>
+    );
+  }
 
   if (isVoiceDesign) {
     return (
@@ -74,7 +81,6 @@ export function VoiceSection({ systemStatus, voices, onUpdate }: Props) {
           ttsProvider={ttsProvider}
           onCustomVoicesChange={refreshCustomVoices}
         />
-
         <ToggleField
           label={t("settings.tts_enabled")}
           checked={autoTts}
@@ -84,10 +90,9 @@ export function VoiceSection({ systemStatus, voices, onUpdate }: Props) {
     );
   }
 
-  if (isQwen) {
+  if (isCustomVoice) {
     return (
       <div className="flex flex-col gap-4">
-        {/* Voice selector with preview */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-muted">{t("settings.voice")}</label>
           <div className="flex items-center gap-2">
@@ -109,12 +114,7 @@ export function VoiceSection({ systemStatus, voices, onUpdate }: Props) {
             <VoicePreviewButton voiceId={effectiveVoice} sttLanguage={sttLanguage} />
           </div>
         </div>
-
-        {/* Language always auto for qwen3 */}
-        <p className="text-[11px] text-muted/60">
-          {t("voice.qwen3_language_auto")}
-        </p>
-
+        <p className="text-[11px] text-muted/60">{t("voice.qwen3_language_auto")}</p>
         <ToggleField
           label={t("settings.tts_enabled")}
           checked={autoTts}
@@ -124,7 +124,6 @@ export function VoiceSection({ systemStatus, voices, onUpdate }: Props) {
     );
   }
 
-  // Piper/inproc/http — original UI
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">

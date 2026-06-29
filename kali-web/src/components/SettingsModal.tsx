@@ -10,7 +10,7 @@ import type { StatusEvent, SettingsEvent } from "../lib/protocol";
 import { Modal } from "./ui/Modal";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { ProviderSection } from "./settings/ProviderSection";
-import { VoiceSection } from "./settings/VoiceSection";
+import { TTSEngineSection } from "./settings/TTSEngineSection";
 import { STTSection } from "./settings/STTSection";
 import { BehaviorSection } from "./settings/BehaviorSection";
 import { AppearanceSection } from "./settings/AppearanceSection";
@@ -148,7 +148,7 @@ export function SettingsModal({
   function renderSection() {
     if (active === "provider") return <ProviderSection />;
     if (active === "generation") return <GenerationSection systemStatus={systemStatus} onUpdate={onUpdate} />;
-    if (active === "voice") return <VoiceSection systemStatus={systemStatus} voices={voices} onUpdate={onUpdate} />;
+    if (active === "voice") return <TTSEngineSection systemStatus={systemStatus} voices={voices} onUpdate={onUpdate} />;
     if (active === "stt") return <STTSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     return (
