@@ -12,10 +12,12 @@ export function VoicePreviewButton({
   voiceId,
   sttLanguage = "en",
   mode,
+  provider = "piper",
 }: {
   voiceId: string;
   sttLanguage?: string;
   mode?: string;
+  provider?: string;
 }) {
   const { t } = useTranslation();
   const [playing, setPlaying] = useState(false);
@@ -43,7 +45,7 @@ export function VoicePreviewButton({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voice_id: voiceId, language: sttLanguage, mode }),
+          body: JSON.stringify({ voice_id: voiceId, language: sttLanguage, mode, provider }),
         },
       );
       if (!resp.ok) {
@@ -81,7 +83,7 @@ export function VoicePreviewButton({
       console.error("VoicePreviewButton error:", err);
       setPlaying(false);
     }
-  }, [voiceId, sttLanguage, mode, playing, stop]);
+  }, [voiceId, sttLanguage, mode, provider, playing, stop]);
 
   return (
     <button

@@ -556,5 +556,6 @@
   "settings.tts_device": "Device",
   "settings.tts_use_piper": "Use Piper",
   "settings.tts_use_qwen3": "Use Qwen3",
-  "settings.tts_unavailable": "TTS is unavailable. Check configuration."
+  "settings.tts_unavailable": "TTS is unavailable. Check configuration.",
+  "settings.tts_qwen_no_model": "Load a Qwen model to use voices. Go to the Models tab above."
 }

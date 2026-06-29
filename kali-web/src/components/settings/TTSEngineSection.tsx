@@ -2,22 +2,25 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { apiBase, fetchWithRetry } from "../../lib/api/http";
 import type { StatusEvent, TtsModelInfo, TtsDeviceInfo } from "../../lib/protocol";
-import { VoiceControls } from "./VoiceControls";
+import { TTS_PROVIDERS } from "../../lib/tts-providers";
+import type { TtsProviderId } from "../../lib/tts-providers";
+import { PiperVoiceControls } from "./PiperVoiceControls";
+import { QwenVoiceControls } from "./QwenVoiceControls";
 
 interface Props {
   systemStatus: StatusEvent | null;
-  voices: Record<string, unknown>[];
   onUpdate: (patch: Record<string, unknown>) => void;
 }
 
-type TtsTab = "piper" | "qwen3";
-
-export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
+export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
   const { t } = useTranslation();
-  const activeProvider = (systemStatus?.tts_provider ?? "piper") as TtsTab;
-  const [tab, setTab] = useState<TtsTab>(activeProvider === "qwen3" ? "qwen3" : "piper");
+  const activeProvider = systemStatus?.tts_provider ?? TTS_PROVIDERS.PIPER;
+  const [tab, setTab] = useState<TtsProviderId>(
+    activeProvider === TTS_PROVIDERS.QWEN3 ? TTS_PROVIDERS.QWEN3 : TTS_PROVIDERS.PIPER,
+  );
   const [models, setModels] = useState<TtsModelInfo[]>([]);
   const [devices, setDevices] = useState<TtsDeviceInfo[]>([]);
+  const [tabVoices, setTabVoices] = useState<Record<string, unknown>[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingAction, setLoadingAction] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(systemStatus?.tts_device ?? "cpu");
@@ -25,6 +28,12 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
   const mountedRef = useRef(true);
 
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
+  useEffect(() => {
+    if (activeProvider === TTS_PROVIDERS.QWEN3 || activeProvider === TTS_PROVIDERS.PIPER) {
+      setTab(activeProvider);
+    }
+  }, [activeProvider]);
 
   const fetchModels = useCallback(async (forProvider?: string) => {
     setLoadingModels(true);
@@ -40,6 +49,25 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
       if (mountedRef.current) setLoadingModels(false);
     }
   }, [tab]);
+
+  const loadedVariant = models.find((m) => m.loaded)?.variant ?? null;
+
+  const fetchVoices = useCallback(async (forProvider: string, forVariant: string | null) => {
+    try {
+      const base = await apiBase();
+      const params = new URLSearchParams({ provider: forProvider });
+      if (forVariant) params.set("variant", forVariant);
+      const resp = await fetchWithRetry(`${base}/voices?${params}`);
+      if (resp && resp.ok) {
+        const data = await resp.json();
+        if (mountedRef.current) setTabVoices(data.voices ?? []);
+      } else {
+        if (mountedRef.current) setTabVoices([]);
+      }
+    } catch {
+      if (mountedRef.current) setTabVoices([]);
+    }
+  }, []);
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -57,6 +85,10 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
     void fetchModels(tab);
     void fetchDevices();
   }, [fetchModels, fetchDevices, tab]);
+
+  useEffect(() => {
+    void fetchVoices(tab, loadedVariant);
+  }, [tab, loadedVariant, fetchVoices]);
 
   useEffect(() => { setSelectedDevice(systemStatus?.tts_device ?? "cpu"); }, [systemStatus?.tts_device]);
 
@@ -93,7 +125,7 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
       }
       await fetchModels(tab);
       if (activeProvider === tab && systemStatus?.tts_model === modelId) {
-        onUpdate({ tts_provider: "piper" });
+        onUpdate({ tts_provider: TTS_PROVIDERS.PIPER });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -102,12 +134,12 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
     }
   };
 
-  const compatibleDevices = devices.filter((d) => tab === "qwen3" || d.id === "cpu");
+  const compatibleDevices = devices.filter((d) => tab === TTS_PROVIDERS.QWEN3 || d.id === "cpu");
 
   return (
     <div className="space-y-4">
       <div className="flex gap-1 p-1 bg-surface rounded-lg border border-border">
-        {(["piper", "qwen3"] as TtsTab[]).map((p) => (
+        {([TTS_PROVIDERS.PIPER, TTS_PROVIDERS.QWEN3] as TtsProviderId[]).map((p) => (
           <button
             key={p}
             onClick={() => setTab(p)}
@@ -149,7 +181,7 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
             {m.loaded ? (
               <button
                 onClick={() => handleUnloadModel(m.id)}
-                disabled={loadingAction || activeProvider === tab}
+                disabled={loadingAction}
                 className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {t("tts.unload")}
@@ -167,7 +199,7 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
         ))}
       </div>
 
-      {tab === "qwen3" && compatibleDevices.length > 0 && (
+      {tab === TTS_PROVIDERS.QWEN3 && compatibleDevices.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-muted">{t("settings.tts_device")}</label>
           <select
@@ -189,7 +221,7 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
       {activeProvider !== tab && (
         <button
           onClick={() => onUpdate({ tts_provider: tab })}
-          disabled={tab === "qwen3" && !models.some((m) => m.loaded)}
+          disabled={tab === TTS_PROVIDERS.QWEN3 && !models.some((m) => m.loaded)}
           className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-accent-dim text-foreground text-sm font-medium hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t(`settings.tts_use_${tab}`)}
@@ -200,7 +232,20 @@ export function TTSEngineSection({ systemStatus, voices, onUpdate }: Props) {
         <div className="text-xs text-err bg-err/10 rounded-md p-2">{error}</div>
       )}
 
-      <VoiceControls systemStatus={systemStatus} voices={voices} onUpdate={onUpdate} />
+      {tab === TTS_PROVIDERS.PIPER ? (
+        <PiperVoiceControls
+          systemStatus={systemStatus}
+          voices={tabVoices}
+          onUpdate={onUpdate}
+        />
+      ) : (
+        <QwenVoiceControls
+          systemStatus={systemStatus}
+          voices={tabVoices}
+          variant={loadedVariant}
+          onUpdate={onUpdate}
+        />
+      )}
     </div>
   );
 }

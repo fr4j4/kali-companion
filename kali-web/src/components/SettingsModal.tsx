@@ -20,7 +20,6 @@ interface Props {
   open: boolean;
   onClose: () => void;
   systemStatus: StatusEvent | null;
-  voices: Record<string, unknown>[];
   onUpdate: (patch: Partial<SettingsEvent>) => void;
   theme: string;
   onThemeChange: (t: string) => void;
@@ -53,7 +52,6 @@ export function SettingsModal({
   open,
   onClose,
   systemStatus,
-  voices,
   onUpdate,
   theme,
   onThemeChange,
@@ -148,7 +146,7 @@ export function SettingsModal({
   function renderSection() {
     if (active === "provider") return <ProviderSection />;
     if (active === "generation") return <GenerationSection systemStatus={systemStatus} onUpdate={onUpdate} />;
-    if (active === "voice") return <TTSEngineSection systemStatus={systemStatus} voices={voices} onUpdate={onUpdate} />;
+    if (active === "voice") return <TTSEngineSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "stt") return <STTSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     return (

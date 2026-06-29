@@ -12,6 +12,7 @@ Inspired by the legacy `nanobot.py:_process_tts` flow.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncIterator
 
 from kali_core.voice.filter import filter_for_tts, segment_for_tts
@@ -69,15 +70,41 @@ class TTSPipeline:
         if not segments:
             return
 
+        logger.info(
+            "synthesize_stream start: provider=%s voice=%s mode=%s lang=%s segments=%d",
+            getattr(self.provider, "provider_name", "?"),
+            self.voice,
+            self.mode,
+            self.language,
+            len(segments),
+        )
+
         for i, segment in enumerate(segments):
             try:
+                t0 = time.perf_counter()
+                logger.info(
+                    "synthesize segment %d: chars=%d voice=%s text_preview=%r",
+                    i, len(segment), self.voice, segment[:80],
+                )
                 result = await self.provider.synthesize(
                     segment,
                     voice=self.voice,
                     mode=self.mode,
                     language=self.language,
                 )
+                elapsed = time.perf_counter() - t0
+                logger.info(
+                    "synthesize segment %d done: %.3fs bytes=%d",
+                    i, elapsed, len(result.audio),
+                )
                 result.segment = i
                 yield result
             except Exception as exc:
-                logger.error("TTS synthesis failed for segment %d: %s", i, exc)
+                logger.error(
+                    "TTS synthesis failed for segment %d (voice=%s, provider=%s): %s",
+                    i,
+                    self.voice,
+                    getattr(self.provider, "provider_name", "?"),
+                    exc,
+                    exc_info=True,
+                )

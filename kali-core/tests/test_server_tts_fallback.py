@@ -5,6 +5,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from kali_core.config import settings
+
 
 def test_tts_fallback_to_piper_when_qwen3_fails():
     from kali_core.voice.providers import reset_registry
@@ -46,12 +48,13 @@ def test_stt_fallback_to_null_when_vosk_model_missing():
 def test_qwen3_voicedesign_env_maps_to_qwen3_provider():
     from kali_core.voice.providers import reset_registry
     reset_registry()
-    with patch("kali_core.voice.providers.qwen.QwenTTSProvider.__init__", return_value=None), \
-         patch("kali_core.voice.providers.qwen.QwenTTSProvider.load_model") as mock_load:
+    mock_provider = MagicMock()
+    mock_provider.provider_name = "qwen3"
+    with patch("kali_core.voice.providers.get_tts_provider", return_value=mock_provider):
         from kali_core.server import _build_tts_provider_with_fallback
         provider, error = _build_tts_provider_with_fallback(configured_id="qwen3-voicedesign")
         assert error is None
-        mock_load.assert_called_with("qwen3-tts-1.7b-voicedesign")
+        mock_provider.load_model.assert_called_with("qwen3-tts-1.7b-voicedesign", settings.qwen_backend)
     reset_registry()
 
 

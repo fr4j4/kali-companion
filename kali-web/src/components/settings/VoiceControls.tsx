@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StatusEvent, VoiceDesignPreset, QwenVoice } from "../../lib/protocol";
+import { TTS_PROVIDERS } from "../../lib/tts-providers";
+import type { TtsProviderId } from "../../lib/tts-providers";
 import { SelectField, ToggleField } from "./fields";
 import { VoiceDesignControls } from "./VoiceDesignControls";
 import { VoicePreviewButton } from "./VoicePreviewButton";
@@ -9,6 +11,7 @@ import { useStage } from "../../stage/StageProvider";
 interface Props {
   systemStatus: StatusEvent | null;
   voices: Record<string, unknown>[];
+  tab: TtsProviderId;
   onUpdate: (patch: Record<string, unknown>) => void;
 }
 
@@ -19,11 +22,11 @@ const TTS_LANGS = [
   { id: "es", labelKey: "language.es" },
 ];
 
-export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
+export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
   const { t } = useTranslation();
-  const { customVoices, sttLanguage, ttsProvider } = useStage();
+  const { customVoices, sttLanguage } = useStage();
 
-  const provider = systemStatus?.tts_provider ?? "piper";
+  const activeProvider = systemStatus?.tts_provider ?? TTS_PROVIDERS.PIPER;
   const variant = systemStatus?.tts_variant ?? null;
   const currentVoice = systemStatus?.voice ?? "glados-es";
   const currentMode = systemStatus?.tts_mode ?? "normal";
@@ -33,16 +36,17 @@ export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
   const [seed, setSeed] = useState(-1);
   const [selectedPreset, setSelectedPreset] = useState("warm-female");
 
-  const isQwen = provider === "qwen3";
-  const isVoiceDesign = isQwen && variant === "voicedesign";
-  const isCustomVoice = isQwen && variant === "customvoice";
+  const isTabQwen = tab === TTS_PROVIDERS.QWEN3;
+  const isVoiceDesign = isTabQwen && variant === "voicedesign";
+  const isCustomVoice = isTabQwen && variant === "customvoice";
+  const isQwenNoModel = isTabQwen && !systemStatus?.tts_loaded;
 
   const qwenVoices = voices as unknown as QwenVoice[];
   const voiceDesignPresets = voices as unknown as VoiceDesignPreset[];
 
   const qwenVoiceIds = qwenVoices.map((v) => v.id);
   const effectiveVoice =
-    isQwen && qwenVoiceIds.length > 0 && !qwenVoiceIds.includes(currentVoice)
+    isTabQwen && qwenVoiceIds.length > 0 && !qwenVoiceIds.includes(currentVoice)
       ? "serena"
       : currentVoice;
 
@@ -50,7 +54,7 @@ export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
     window.dispatchEvent(new CustomEvent("refresh-custom-voices"));
   };
 
-  if (provider === "unavailable") {
+  if (activeProvider === TTS_PROVIDERS.UNAVAILABLE) {
     return (
       <div className="flex flex-col gap-4">
         <div className="text-xs text-err bg-err/10 rounded-md p-2">
@@ -60,6 +64,21 @@ export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
           label={t("settings.tts_enabled")}
           checked={false}
           onChange={() => { }}
+        />
+      </div>
+    );
+  }
+
+  if (isQwenNoModel) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="text-xs text-muted bg-surface-secondary rounded-md p-3">
+          {t("settings.tts_qwen_no_model")}
+        </div>
+        <ToggleField
+          label={t("settings.tts_enabled")}
+          checked={autoTts}
+          onChange={(v) => onUpdate({ auto_tts: v })}
         />
       </div>
     );
@@ -78,7 +97,7 @@ export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
           onSeedChange={setSeed}
           customVoices={customVoices}
           sttLanguage={sttLanguage}
-          ttsProvider={ttsProvider}
+          ttsProvider={tab}
           onCustomVoicesChange={refreshCustomVoices}
         />
         <ToggleField
@@ -111,7 +130,7 @@ export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
                 ))
               )}
             </select>
-            <VoicePreviewButton voiceId={effectiveVoice} sttLanguage={sttLanguage} />
+            <VoicePreviewButton voiceId={effectiveVoice} sttLanguage={sttLanguage} provider={tab} />
           </div>
         </div>
         <p className="text-[11px] text-muted/60">{t("voice.qwen3_language_auto")}</p>
@@ -147,7 +166,7 @@ export function VoiceControls({ systemStatus, voices, onUpdate }: Props) {
               })
             )}
           </select>
-          <VoicePreviewButton voiceId={currentVoice} sttLanguage={sttLanguage} mode={currentMode} />
+          <VoicePreviewButton voiceId={currentVoice} sttLanguage={sttLanguage} mode={currentMode} provider={tab} />
         </div>
       </div>
 

@@ -60,7 +60,7 @@ interface Props {
 
 export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasAutoExpandChange, uiScale, onUIScaleChange }: Props) {
   const { t, i18n } = useTranslation();
-  const { chat, tts, ptt, voices, configWarnings } = useStage();
+  const { chat, tts, ptt, configWarnings } = useStage();
   const { isMobile } = useBreakpoint();
   const api = useWorkspace({
     sessionId: chat.sessionId,
@@ -396,7 +396,6 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         systemStatus={chat.systemStatus}
-        voices={voices}
         onUpdate={chat.updateSettings}
         theme={theme}
         onThemeChange={onThemeChange}

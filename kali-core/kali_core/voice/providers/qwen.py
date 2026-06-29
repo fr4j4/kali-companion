@@ -223,7 +223,7 @@ class QwenTTSProvider:
         port: int = 8870,
         backend: str = "CPU",
         voice_design: bool = False,
-        spawn: bool = True,
+        spawn: bool = False,
     ) -> None:
         self._binary = Path(binary).expanduser().resolve()
         self._talker_models_dir = Path(talker_models_dir).expanduser().resolve()
@@ -294,18 +294,47 @@ class QwenTTSProvider:
             if language and language != "auto"
             else "auto"
         )
+        valid_voices = {v["id"] for v in PREDEFINED_VOICES}
+        if self._voice_design:
+            effective_voice = "serena"
+        elif voice in valid_voices:
+            effective_voice = voice
+        else:
+            effective_voice = "serena"
+
         payload: dict[str, Any] = {
             "input": text,
-            "voice": voice if not self._voice_design else "serena",
+            "voice": effective_voice,
             "language": normalized_lang,
             "response_format": "wav",
             "speed": 1.0,
         }
         if self._voice_design:
-            payload["instructions"] = self._instructions
-            payload["seed"] = self._seed
+            if not self._instructions.strip() and self._seed == -1:
+                preset = VOICE_DESIGN_PRESETS[0]
+                payload["instructions"] = preset["instructions"]
+                payload["seed"] = preset["seed"]
+            else:
+                payload["instructions"] = self._instructions
+                payload["seed"] = self._seed
 
+        logger.info(
+            "synthesize request: voice=%s variant=%s lang=%s chars=%d text_preview=%r",
+            effective_voice,
+            "voicedesign" if self._voice_design else "customvoice",
+            normalized_lang,
+            len(text),
+            text[:80],
+        )
+        t0 = time.perf_counter()
         resp = await self._client.post("/v1/audio/speech", json=payload, timeout=60.0)
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "synthesize response: status=%d %.3fs bytes=%d",
+            resp.status_code,
+            elapsed,
+            len(resp.content),
+        )
         resp.raise_for_status()
 
         return TTSResult(
@@ -316,8 +345,9 @@ class QwenTTSProvider:
             segment=0,
         )
 
-    async def list_voices(self) -> list[dict]:
-        if self._voice_design:
+    async def list_voices(self, variant: str | None = None) -> list[dict]:
+        effective = variant or ("voicedesign" if self._voice_design else "customvoice")
+        if effective == "voicedesign":
             return [
                 {"id": p["id"], "name": p["name"],
                  "instructions": p["instructions"], "seed": p["seed"]}
@@ -348,18 +378,46 @@ class QwenTTSProvider:
             if language and language != "auto"
             else "auto"
         )
+        valid_voices = {v["id"] for v in PREDEFINED_VOICES}
+        if self._voice_design:
+            effective_voice = "serena"
+        elif voice_id in valid_voices:
+            effective_voice = voice_id
+        else:
+            effective_voice = "serena"
+
         payload: dict[str, Any] = {
             "input": text,
-            "voice": voice_id if not self._voice_design else "serena",
+            "voice": effective_voice,
             "language": normalized_lang,
             "response_format": "wav",
             "speed": 1.0,
         }
         if self._voice_design:
-            payload["instructions"] = instructions
-            payload["seed"] = seed
+            if not (instructions and instructions.strip()):
+                preset = VOICE_DESIGN_PRESETS[0]
+                payload["instructions"] = preset["instructions"]
+                payload["seed"] = preset["seed"] if seed == -1 else seed
+            else:
+                payload["instructions"] = instructions
+                payload["seed"] = seed
 
+        logger.info(
+            "preview request: voice=%s variant=%s lang=%s chars=%d",
+            effective_voice,
+            "voicedesign" if self._voice_design else "customvoice",
+            normalized_lang,
+            len(text),
+        )
+        t0 = time.perf_counter()
         resp = await self._client.post("/v1/audio/speech", json=payload, timeout=60.0)
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "preview response: status=%d %.3fs bytes=%d",
+            resp.status_code,
+            elapsed,
+            len(resp.content),
+        )
         resp.raise_for_status()
         return resp.content
 
@@ -438,16 +496,23 @@ class QwenTTSProvider:
                 f"Talker model not found: {new_path}\n"
                 f"  Run: scripts/download-qwen-models.sh {QWEN_MODELS[model_id]['variant']}"
             )
+        old_talker_model = self._talker_model
+        old_voice_design = self._voice_design
+        old_backend = self._backend
+        old_loaded_model_id = self._loaded_model_id
         self.shutdown()
         self._talker_model = new_path
         self._voice_design = QWEN_MODELS[model_id]["variant"] == "voicedesign"
-        if device and device.upper() != "CPU":
-            self._backend = device.upper()
+        self._backend = device.upper() if device else self._backend
         self._last_error = None
         try:
             self._validate_and_spawn()
             self._loaded_model_id = model_id
         except StartupError as exc:
+            self._talker_model = old_talker_model
+            self._voice_design = old_voice_design
+            self._backend = old_backend
+            self._loaded_model_id = old_loaded_model_id
             self._last_error = str(exc)
             raise
 
@@ -550,8 +615,16 @@ class QwenTTSProvider:
                 req = urllib.request.Request(f"http://127.0.0.1:{self._port}/health")
                 with urllib.request.urlopen(req, timeout=2) as resp:
                     if resp.status == 200:
+                        if self._proc is None or self._proc.poll() is not None:
+                            raise StartupError(
+                                "qwen-tts-server health check passed but our subprocess "
+                                "is not running. A stale process may be occupying the port.\n"
+                                f"Log ({self._log_file}):\n{log_detail}"
+                            )
                         logger.info("qwen-tts-server health check passed (%.1fs)", elapsed)
                         return
+            except StartupError:
+                raise
             except Exception:
                 pass
             time.sleep(step)
@@ -591,3 +664,35 @@ class QwenTTSProvider:
                 self._proc.kill()
                 self._proc.wait()
             self._proc = None
+
+        self._kill_port_owner()
+
+    def _kill_port_owner(self) -> None:
+        """Kill any stray tts-server process listening on our port.
+
+        If a previous server instance died without cleaning up its subprocess
+        (e.g. crashed, was kill -9'd), the port may still be occupied.
+        Without this, _wait_for_health would connect to the stale process
+        and report a false-positive health check.
+        """
+        try:
+            result = subprocess.run(
+                ["fuser", f"{self._port}/tcp"],
+                capture_output=True, text=True, timeout=3,
+            )
+            pids = [int(p) for p in result.stdout.split() if p.strip().isdigit()]
+        except Exception:
+            return
+        own_pid = os.getpid()
+        for pid in pids:
+            if pid == own_pid:
+                continue
+            try:
+                os.kill(pid, 15)
+                logger.info("Killed stale process %d on port %d", pid, self._port)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                pass
+        if pids:
+            time.sleep(0.5)
