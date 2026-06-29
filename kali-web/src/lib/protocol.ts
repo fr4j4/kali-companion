@@ -37,6 +37,9 @@ export interface SettingsEvent {
   voice?: string;
   tts_mode?: string;
   auto_tts?: boolean;
+  tts_provider?: TtsProvider;
+  tts_model?: string;
+  tts_device?: string;
   llm_model?: string;
   llm_provider?: string;
   llm_api_url?: string;
@@ -153,7 +156,35 @@ export interface QwenVoice {
   gender: string;
 }
 
-export type TtsProvider = "inproc" | "http" | "qwen3" | "qwen3-voicedesign";
+export interface TtsModelVoice {
+  id: string;
+  name: string;
+  gender?: string | null;
+  source: "config" | "speaker" | "preset";
+}
+
+export interface TtsModelInfo {
+  id: string;
+  display_name: string;
+  estimated_vram_mb: number;
+  available: boolean;
+  loaded: boolean;
+  device: string | null;
+  supported_languages: string[];
+  voices: TtsModelVoice[];
+  variant: string | null;
+}
+
+export interface TtsDeviceInfo {
+  id: string;
+  name: string;
+  vram_total_mb?: number;
+  vram_free_mb?: number;
+  ram_total_mb?: number;
+  ram_free_mb?: number;
+}
+
+export type TtsProvider = "piper" | "qwen3" | "http" | "unavailable";
 export type SttProvider = "vosk" | "qwen3";
 
 export interface ReadyEvent {
@@ -373,6 +404,12 @@ export interface StatusEvent {
   voice: string;
   tts_mode: string;
   auto_tts: boolean;
+  tts_loaded?: boolean;
+  tts_model?: string;
+  tts_device?: string;
+  tts_available?: boolean;
+  tts_error?: string | null;
+  tts_variant?: string | null;
   capture_backend: string;
   profile: string;
   available_profiles?: string[];
