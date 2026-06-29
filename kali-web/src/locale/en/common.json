@@ -341,6 +341,7 @@
   "common.aria_close": "Close",
   "common.cancel": "Cancel",
   "common.close": "Close",
+  "common.apply": "Apply",
   "common.percent": "%",
   "common.scale_factor": "×{{value}}",
   "common.seconds_abbrev": "s",
@@ -534,5 +535,8 @@
   "settings.stt_vad_calibrating": "Calibrating…",
   "settings.stt_vad_calibrating_hint": "Calibrating… please stay silent",
   "settings.stt_vad_mic_level": "Mic level",
-  "settings.stt_vad_frontend_helper": "Silence detection runs locally in your browser"
+  "settings.stt_vad_frontend_helper": "Silence detection runs locally in your browser",
+  "config_warnings.title": "Some settings couldn't be restored",
+  "config_warnings.more": "more",
+  "config_warnings.open_settings": "Open settings to review"
 }

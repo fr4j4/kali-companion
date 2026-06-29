@@ -69,6 +69,7 @@ from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
 from kali_core.ear.providers import get_stt_provider
+from kali_core.user_config import UserConfig, load_or_default as load_user_config, save as save_user_config
 from kali_core.game.gsi import gsi_state
 from kali_core.gaze import GazeClient
 from kali_core.lang_map import normalize
@@ -262,6 +263,11 @@ class Server:
         self.agent.set_session_store(self.session_store)
         self._connections: list[Connection] = []
         self.connections_store = ConnectionsStore()
+        # Config warnings collected on startup replay (setting_key → message).
+        # Surfaced to the frontend via the `config_warnings` status field so
+        # the UI can show a banner about settings that couldn't be restored.
+        self._config_warnings: dict[str, str] = {}
+        self._apply_server_level_user_config()
         self._register_routes()
 
     async def broadcast(self, payload: dict[str, Any]) -> None:
@@ -333,6 +339,9 @@ class Server:
             "stt_streaming": getattr(self.stt_provider, "_streaming", True),
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
         }
+        if self._config_warnings:
+            payload["config_warnings"] = list(self._config_warnings.values())
+        return payload
 
     async def _activate_connection(self, conn: SavedConnection, model: str) -> None:
         """Hot-swap the live LLM provider to a saved connection + model."""
@@ -852,6 +861,126 @@ class Server:
         server = uvicorn.Server(config)
         await server.serve()
 
+    # ── User config replay ──────────────────────────────────
+
+    _SERVER_LEVEL_KEYS = (
+        "voice",
+        "tts_mode",
+        "auto_tts",
+        "stt_provider",
+        "stt_model",
+        "stt_device",
+        "stt_streaming",
+        "stt_models_dir",
+        "profile",
+        "artifact_diff_preview",
+    )
+
+    def _get_fallback(self, key: str):
+        """Return the env-var default for a setting key, or None."""
+        mapping = {
+            "voice": settings.tts_voice,
+            "tts_mode": settings.tts_mode,
+            "auto_tts": settings.tts_enabled,
+            "stt_provider": settings.stt_provider,
+            "stt_model": settings.stt_model,
+            "stt_device": "cpu",
+            "stt_streaming": settings.qwen_asr_streaming,
+            "stt_models_dir": settings.qwen_asr_models_dir,
+            "profile": settings.active_profile,
+            "artifact_diff_preview": settings.artifact_diff_preview,
+            "stt_language": settings.stt_language,
+            "stt_vad_enabled": settings.stt_vad_enabled,
+            "stt_vad_mode": settings.stt_vad_mode,
+            "stt_vad_silence_timeout": settings.stt_vad_silence_timeout,
+            "stt_vad_auto_calibrate": settings.stt_vad_auto_calibrate,
+            "stt_vad_rms_threshold": settings.stt_vad_rms_threshold,
+            "wake_word_enabled": settings.stt_wake_word_enabled,
+            "input_mode": settings.input_mode,
+            "feedback_mode": "minimal",
+            "plan_mode": False,
+            "voice_instructions": "",
+            "voice_seed": -1,
+        }
+        return mapping.get(key)
+
+    def _apply_server_level_user_config(self) -> None:
+        """Replay server-level user config on startup, collecting warnings.
+
+        Each setting is applied in its own try/except.  On failure, a warning
+        is recorded and the env-var fallback is applied instead (without
+        recursing on a second failure).
+        """
+        cfg = load_user_config()
+        for key in self._SERVER_LEVEL_KEYS:
+            value = getattr(cfg, key, None)
+            if value is None:
+                continue
+            self._apply_server_setting(key, value, _is_fallback=False)
+
+    def _apply_server_setting(self, key: str, value: Any, _is_fallback: bool = False) -> None:
+        """Apply a single server-level setting with try/except + fallback."""
+        try:
+            if key == "voice":
+                self.tts_pipeline.set_voice(voice=value)
+            elif key == "tts_mode":
+                self.tts_pipeline.set_voice(mode=value)
+            elif key == "auto_tts":
+                self.tts_pipeline.set_auto_tts(bool(value))
+            elif key == "stt_provider":
+                if value != self.stt_provider.provider_name:
+                    self.stt_provider = get_stt_provider(value)
+                    if value == "qwen3" and hasattr(self.stt_provider, "configure"):
+                        self.stt_provider.configure(models_dir=settings.qwen_asr_models_dir)
+            elif key == "stt_model":
+                self.stt_provider.load_model(value, "cpu")
+            elif key == "stt_device":
+                # Validate CUDA availability before applying.
+                if isinstance(value, str) and (value == "cuda" or value.startswith("cuda:")):
+                    try:
+                        import torch
+                        if not torch.cuda.is_available():
+                            raise RuntimeError(f"CUDA not available, requested device '{value}'")
+                        if ":" in value:
+                            idx = int(value.split(":")[1])
+                            if idx >= torch.cuda.device_count():
+                                raise RuntimeError(f"Device '{value}' not available (only {torch.cuda.device_count()} GPU(s))")
+                    except ImportError:
+                        pass  # no torch — skip validation
+                if self.stt_provider.is_loaded:
+                    current_model = self.stt_provider.loaded_model
+                    self.stt_provider.unload_model()
+                    self.stt_provider.load_model(current_model, value)
+            elif key == "stt_streaming":
+                self.stt_provider.set_streaming(bool(value))
+            elif key == "stt_models_dir":
+                if hasattr(self.stt_provider, "configure"):
+                    was_loaded = self.stt_provider.is_loaded
+                    current_model = self.stt_provider.loaded_model
+                    current_device = self.stt_provider.device
+                    if was_loaded:
+                        self.stt_provider.unload_model()
+                    self.stt_provider.configure(models_dir=value)
+                    if was_loaded and current_model:
+                        self.stt_provider.load_model(current_model, current_device or "cpu")
+            elif key == "profile":
+                self.executor.profile = value
+            elif key == "artifact_diff_preview":
+                settings.artifact_diff_preview = bool(value)
+            else:
+                return
+            # Success — clear any previous warning for this key.
+            self._config_warnings.pop(key, None)
+        except Exception as exc:
+            if _is_fallback:
+                logger.warning("Fallback for '%s' also failed: %s", key, exc)
+                return
+            logger.warning("User config '%s' could not be applied (%s) — using default", key, exc)
+            self._config_warnings[key] = str(exc)
+            fallback = self._get_fallback(key)
+            if fallback is not None and fallback != value:
+                self._apply_server_setting(key, fallback, _is_fallback=True)
+
 
 class Connection:
     """One frontend session. Dispatches events and streams responses."""
@@ -887,6 +1016,32 @@ class Connection:
         self._max_recording_duration: float = 180.0  # safety timeout (seconds)
         self._pending_final_text: str | None = None  # PTT: provider internal final held until audio_end
         self._recording_origin: str | None = None  # manual / wake_word / continuous
+        # Replay per-connection user config (overrides env defaults above).
+        cfg = load_user_config()
+        if cfg.stt_language is not None:
+            self._stt_language = normalize(cfg.stt_language)
+        if cfg.stt_vad_enabled is not None:
+            self._stt_vad_enabled = bool(cfg.stt_vad_enabled)
+        if cfg.stt_vad_mode is not None:
+            self._stt_vad_mode = int(cfg.stt_vad_mode)
+        if cfg.stt_vad_silence_timeout is not None:
+            self._stt_vad_silence_timeout = float(cfg.stt_vad_silence_timeout)
+        if cfg.stt_vad_auto_calibrate is not None:
+            self._stt_vad_auto_calibrate = bool(cfg.stt_vad_auto_calibrate)
+        if cfg.stt_vad_rms_threshold is not None:
+            self._stt_vad_rms_threshold = float(cfg.stt_vad_rms_threshold)
+        if cfg.wake_word_enabled is not None:
+            self._wake_word_enabled = bool(cfg.wake_word_enabled)
+        if cfg.input_mode is not None:
+            self._input_mode = str(cfg.input_mode)
+        if cfg.feedback_mode is not None:
+            self._feedback_mode = str(cfg.feedback_mode)
+        if cfg.plan_mode is not None:
+            self._plan_mode = bool(cfg.plan_mode)
+        if cfg.voice_instructions is not None:
+            self._voice_instructions = str(cfg.voice_instructions)
+        if cfg.voice_seed is not None:
+            self._voice_seed = int(cfg.voice_seed)
 
     async def run(self) -> None:
         while True:
@@ -1621,8 +1776,6 @@ class Connection:
                     await loop.run_in_executor(
                         None, self.server.stt_provider.load_model, current_model, current_device or "cpu"
                     )
-        if "stt_vad_enabled" in event:
-            self._stt_vad_enabled = bool(event["stt_vad_enabled"])
         if "stt_vad_mode" in event:
             self._stt_vad_mode = int(event["stt_vad_mode"])
             if self._vad is not None:
@@ -1679,7 +1832,48 @@ class Connection:
                 self.server.tts_provider.set_voice_design(
                     self._voice_instructions, self._voice_seed
                 )
+        # Clear resolved config warnings for any keys in this event.
+        for key in event:
+            if key == "event":
+                continue
+            self.server._config_warnings.pop(key, None)
+        # Persist full user config snapshot to disk.
+        self._save_user_config_snapshot()
         await self._emit_status()
+
+    def _save_user_config_snapshot(self) -> None:
+        """Collect all current runtime values and persist them to user_config.json."""
+        sp = self.server.stt_provider
+        cfg = UserConfig(
+            # Server-level
+            voice=self.server.tts_pipeline.voice,
+            tts_mode=self.server.tts_pipeline.mode,
+            auto_tts=self.server.tts_pipeline.auto_tts,
+            stt_provider=sp.provider_name,
+            stt_model=sp.loaded_model,
+            stt_device=sp.device,
+            stt_streaming=getattr(sp, "_streaming", True),
+            stt_models_dir=str(getattr(sp, "_models_dir", "")) or None,
+            profile=self.server.executor.profile,
+            artifact_diff_preview=settings.artifact_diff_preview,
+            # Per-connection
+            stt_language=self._stt_language,
+            stt_vad_enabled=self._stt_vad_enabled,
+            stt_vad_mode=self._stt_vad_mode,
+            stt_vad_silence_timeout=self._stt_vad_silence_timeout,
+            stt_vad_auto_calibrate=self._stt_vad_auto_calibrate,
+            stt_vad_rms_threshold=self._stt_vad_rms_threshold,
+            wake_word_enabled=self._wake_word_enabled,
+            input_mode=self._input_mode,
+            feedback_mode=self._feedback_mode,
+            plan_mode=self._plan_mode,
+            voice_instructions=self._voice_instructions or "",
+            voice_seed=self._voice_seed,
+        )
+        try:
+            save_user_config(cfg)
+        except Exception as exc:
+            logger.warning("Failed to persist user config: %s", exc)
 
     async def _emit_status(self) -> None:
         payload = self.server._build_status_payload()

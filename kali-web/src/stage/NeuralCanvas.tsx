@@ -43,6 +43,7 @@ import { MinimizeDock } from "./MinimizeDock";
 import { SessionDrawer } from "./SessionDrawer";
 import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
+import { ConfigWarningsBanner } from "../components/ConfigWarningsBanner";
 import { ConsentModal } from "../components/ConsentModal";
 import { JobsPanel } from "../components/JobsPanel";
 import { DebugPad } from "./DebugPad";
@@ -59,7 +60,7 @@ interface Props {
 
 export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasAutoExpandChange, uiScale, onUIScaleChange }: Props) {
   const { t, i18n } = useTranslation();
-  const { chat, tts, ptt, voices } = useStage();
+  const { chat, tts, ptt, voices, configWarnings } = useStage();
   const { isMobile } = useBreakpoint();
   const api = useWorkspace({
     sessionId: chat.sessionId,
@@ -365,6 +366,9 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Config warnings banner — settings that couldn't be restored */}
+      <ConfigWarningsBanner warnings={configWarnings} onOpenSettings={() => setSettingsOpen(true)} />
 
       {/* Modals — preserved from Stage */}
       <SessionDrawer

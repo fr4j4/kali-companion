@@ -1,5 +1,6 @@
 // BehaviorSection — input mode, wake word, feedback mode, plan mode, profile.
 
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sliders } from "lucide-react";
 import type { StatusEvent } from "../../lib/protocol";
@@ -38,6 +39,39 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
   const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
   const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
   const artifactDiffPreview = systemStatus?.artifact_diff_preview ?? true;
+
+  // Local state + debounce for VAD sliders (avoids WS chatter on drag).
+  const [localVadTimeout, setLocalVadTimeout] = useState(sttVadSilenceTimeout);
+  const [localVadRms, setLocalVadRms] = useState(sttVadRmsThreshold);
+  const vadTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const vadRmsRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    setLocalVadTimeout(sttVadSilenceTimeout);
+  }, [sttVadSilenceTimeout]);
+
+  useEffect(() => {
+    setLocalVadRms(sttVadRmsThreshold);
+  }, [sttVadRmsThreshold]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(vadTimeoutRef.current);
+      clearTimeout(vadRmsRef.current);
+    };
+  }, []);
+
+  const handleVadTimeoutChange = (v: number) => {
+    setLocalVadTimeout(v);
+    clearTimeout(vadTimeoutRef.current);
+    vadTimeoutRef.current = setTimeout(() => onUpdate({ stt_vad_silence_timeout: v }), 300);
+  };
+
+  const handleVadRmsChange = (v: number) => {
+    setLocalVadRms(v);
+    clearTimeout(vadRmsRef.current);
+    vadRmsRef.current = setTimeout(() => onUpdate({ stt_vad_rms_threshold: v }), 300);
+  };
 
   const handleInputModeChange = (mode: string) => {
     if (mode === "continuous") {
@@ -80,12 +114,12 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
 
           <SliderField
             label={t("settings.stt_vad_silence_timeout")}
-            value={sttVadSilenceTimeout}
+            value={localVadTimeout}
             min={0.5}
             max={3}
             step={0.1}
-            onChange={(v) => onUpdate({ stt_vad_silence_timeout: v })}
-            displayValue={`${sttVadSilenceTimeout.toFixed(1)}${t("common.seconds_abbrev")}`}
+            onChange={handleVadTimeoutChange}
+            displayValue={`${localVadTimeout.toFixed(1)}${t("common.seconds_abbrev")}`}
           />
 
           <ToggleField
@@ -103,12 +137,12 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           {!sttVadAutoCalibrate && (
             <SliderField
               label={t("settings.stt_vad_sensitivity")}
-              value={sttVadRmsThreshold}
+              value={localVadRms}
               min={0.001}
               max={0.05}
               step={0.001}
-              onChange={(v) => onUpdate({ stt_vad_rms_threshold: v })}
-              displayValue={sttVadRmsThreshold.toFixed(3)}
+              onChange={handleVadRmsChange}
+              displayValue={localVadRms.toFixed(3)}
             />
           )}
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Loader, Mic } from "lucide-react";
 import type { StatusEvent, SttProvider } from "../../lib/protocol";
-import { SelectField, TextField, ToggleField } from "./fields";
+import { SelectField, ToggleField } from "./fields";
 import { useStage } from "../../stage/StageProvider";
 
 interface Props {
@@ -86,6 +86,7 @@ export function STTSection({ systemStatus, onUpdate }: Props) {
   const [selectedDevice, setSelectedDevice] = useState(sttDevice || "cpu");
   const [modelsDir, setModelsDir] = useState(sttModelsDir || t("stt.models_dir_placeholder"));
   const [error, setError] = useState<string | null>(null);
+  const [savedModelsDir, setSavedModelsDir] = useState(sttModelsDir || t("stt.models_dir_placeholder"));
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -147,6 +148,7 @@ export function STTSection({ systemStatus, onUpdate }: Props) {
 
   useEffect(() => {
     setModelsDir(sttModelsDir || t("stt.models_dir_placeholder"));
+    setSavedModelsDir(sttModelsDir || t("stt.models_dir_placeholder"));
   }, [sttModelsDir]);
 
   const handleLoadModel = async (modelId: string) => {
@@ -191,7 +193,11 @@ export function STTSection({ systemStatus, onUpdate }: Props) {
 
   const handleModelsDirChange = (dir: string) => {
     setModelsDir(dir);
-    onUpdate({ stt_models_dir: dir });
+  };
+
+  const handleApplyModelsDir = () => {
+    setSavedModelsDir(modelsDir);
+    onUpdate({ stt_models_dir: modelsDir });
   };
 
   const requiredVram = 0; // no specific model selected for device filtering
@@ -394,13 +400,26 @@ export function STTSection({ systemStatus, onUpdate }: Props) {
           <p className="text-[10px] text-muted/60 -mt-3">{t("settings.stt_streaming_desc")}</p>
 
           {/* Models directory */}
-          <TextField
-            label={t("settings.stt_models_dir")}
-            value={modelsDir}
-            onChange={handleModelsDirChange}
-            placeholder={t("stt.models_dir_placeholder")}
-            helperText={t("settings.stt_models_dir_hint")}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted">{t("settings.stt_models_dir")}</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                value={modelsDir}
+                onChange={(e) => handleModelsDirChange(e.target.value)}
+                placeholder={t("stt.models_dir_placeholder")}
+              />
+              <button
+                onClick={handleApplyModelsDir}
+                disabled={modelsDir === savedModelsDir}
+                className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {t("common.apply")}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted/60">{t("settings.stt_models_dir_hint")}</p>
+          </div>
 
           {/* Use Qwen3 button */}
           {activeProvider !== "qwen3" && (

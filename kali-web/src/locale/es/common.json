@@ -341,6 +341,7 @@
   "common.aria_close": "Cerrar",
   "common.cancel": "Cancelar",
   "common.close": "Cerrar",
+  "common.apply": "Aplicar",
   "common.percent": "%",
   "common.scale_factor": "×{{value}}",
   "common.seconds_abbrev": "s",
@@ -534,5 +535,8 @@
   "settings.stt_vad_calibrating": "Calibrando…",
   "settings.stt_vad_calibrating_hint": "Calibrando… mantén silencio",
   "settings.stt_vad_mic_level": "Nivel de micrófono",
-  "settings.stt_vad_frontend_helper": "La detección de silencio se ejecuta localmente en tu navegador"
+  "settings.stt_vad_frontend_helper": "La detección de silencio se ejecuta localmente en tu navegador",
+  "config_warnings.title": "Algunas configuraciones no se pudieron restaurar",
+  "config_warnings.more": "más",
+  "config_warnings.open_settings": "Abrir ajustes para revisar"
 }

@@ -393,6 +393,7 @@ export interface StatusEvent {
   feedback_mode?: string;
   plan_mode?: boolean;
   artifact_diff_preview?: boolean;
+  config_warnings?: string[];
 }
 
 export interface ErrorEvent {

@@ -36,6 +36,7 @@ interface StageContextValue {
   cloudProviders: CloudProviderInfo[];
   refreshConnections: () => Promise<void>;
   activateConnection: (id: string, model: string) => Promise<void>;
+  configWarnings: string[];
 }
 
 const StageContext = createContext<StageContextValue | null>(null);
@@ -229,6 +230,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   const ttsProvider = chat.systemStatus?.tts_provider ?? "inproc";
   const sttProvider = chat.systemStatus?.stt_provider ?? "vosk";
   const activeConnectionId = chat.systemStatus?.llm_connection_id ?? null;
+  const configWarnings = chat.systemStatus?.config_warnings ?? [];
   const value: StageContextValue = {
     chat,
     tts,
@@ -243,6 +245,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
     cloudProviders,
     refreshConnections,
     activateConnection,
+    configWarnings,
   };
   return <StageContext.Provider value={value}>{children}</StageContext.Provider>;
 }
