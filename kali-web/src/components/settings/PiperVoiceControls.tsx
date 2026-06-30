@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { StatusEvent } from "../../lib/protocol";
-import { SelectField, ToggleField } from "./fields";
+import { SelectField } from "./fields";
 import { VoicePreviewButton } from "./VoicePreviewButton";
 import { useStage } from "../../stage/StageProvider";
 
@@ -23,7 +23,6 @@ export function PiperVoiceControls({ systemStatus, voices, onUpdate }: Props) {
 
   const currentVoice = systemStatus?.voice ?? "glados-es";
   const currentMode = systemStatus?.tts_mode ?? "normal";
-  const autoTts = systemStatus?.auto_tts ?? true;
 
   return (
     <div className="flex flex-col gap-4">
@@ -64,12 +63,6 @@ export function PiperVoiceControls({ systemStatus, voices, onUpdate }: Props) {
           </option>
         ))}
       </SelectField>
-
-      <ToggleField
-        label={t("settings.tts_enabled")}
-        checked={autoTts}
-        onChange={(v) => onUpdate({ auto_tts: v })}
-      />
 
       <SelectField
         label={t("settings.tts_language")}

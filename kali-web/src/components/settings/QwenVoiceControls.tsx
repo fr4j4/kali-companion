@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StatusEvent, VoiceDesignPreset, QwenVoice } from "../../lib/protocol";
-import { ToggleField } from "./fields";
 import { VoiceDesignControls } from "./VoiceDesignControls";
 import { VoicePreviewButton } from "./VoicePreviewButton";
 import { useStage } from "../../stage/StageProvider";
@@ -18,7 +17,6 @@ export function QwenVoiceControls({ systemStatus, voices, variant, onUpdate }: P
   const { customVoices, sttLanguage } = useStage();
 
   const currentVoice = systemStatus?.voice ?? "serena";
-  const autoTts = systemStatus?.auto_tts ?? true;
 
   const [instructions, setInstructions] = useState(t("voice.instructions_default"));
   const [seed, setSeed] = useState(-1);
@@ -47,11 +45,6 @@ export function QwenVoiceControls({ systemStatus, voices, variant, onUpdate }: P
         <div className="text-xs text-muted bg-surface-secondary rounded-md p-3">
           {t("settings.tts_qwen_no_model")}
         </div>
-        <ToggleField
-          label={t("settings.tts_enabled")}
-          checked={autoTts}
-          onChange={(v) => onUpdate({ auto_tts: v })}
-        />
       </div>
     );
   }
@@ -71,11 +64,6 @@ export function QwenVoiceControls({ systemStatus, voices, variant, onUpdate }: P
           sttLanguage={sttLanguage}
           ttsProvider="qwen3"
           onCustomVoicesChange={refreshCustomVoices}
-        />
-        <ToggleField
-          label={t("settings.tts_enabled")}
-          checked={autoTts}
-          onChange={(v) => onUpdate({ auto_tts: v })}
         />
       </div>
     );
@@ -106,11 +94,6 @@ export function QwenVoiceControls({ systemStatus, voices, variant, onUpdate }: P
           </div>
         </div>
         <p className="text-[11px] text-muted/60">{t("voice.qwen3_language_auto")}</p>
-        <ToggleField
-          label={t("settings.tts_enabled")}
-          checked={autoTts}
-          onChange={(v) => onUpdate({ auto_tts: v })}
-        />
       </div>
     );
   }

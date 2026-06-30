@@ -158,7 +158,7 @@ const _MIN_THRESHOLD = 0.005;
 
 export function usePTT({
   client,
-  sttEnabled = true,
+  sttEnabled = false,
   wakeWordEnabled,
   inputMode = "ptt",
   onWakeWord,

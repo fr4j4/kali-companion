@@ -1461,7 +1461,7 @@ class Connection:
         self._send_lock = asyncio.Lock()
         self._stt_session_active: bool = False
         self._wake_word: WakeWordDetector | None = None
-        self._stt_enabled: bool = True
+        self._stt_enabled: bool = False
         self._stt_language: str = normalize(settings.stt_language)
         self._wake_word_enabled: bool = settings.stt_wake_word_enabled
         self._input_mode: str = settings.input_mode

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Loader2, Plug, Unplug, Trash2 } from "lucide-react";
+import { Download, Loader, Loader2, Plug, Unplug, Trash2 } from "lucide-react";
 import { apiBase, fetchWithRetry } from "../../lib/api/http";
 import type { StatusEvent, TtsModelInfo, TtsDeviceInfo, ModelCatalogEntry } from "../../lib/protocol";
 import { TTS_PROVIDERS } from "../../lib/tts-providers";
 import type { TtsProviderId } from "../../lib/tts-providers";
+import { ToggleField } from "./fields";
 import { PiperVoiceControls } from "./PiperVoiceControls";
 import { QwenVoiceControls } from "./QwenVoiceControls";
 
@@ -234,8 +235,32 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
   const savedModelsDir = systemStatus?.tts_models_dir ?? "";
   const compatibleDevices = devices.filter((d) => tab === TTS_PROVIDERS.QWEN3 || d.id === "cpu");
 
+  const ttsLoaded = systemStatus?.tts_loaded ?? false;
+  const ttsModel = systemStatus?.tts_model ?? "";
+  const ttsDevice = systemStatus?.tts_device ?? "";
+  const autoTts = systemStatus?.auto_tts ?? false;
+
+  const ttsActiveDotClass = ttsLoaded ? "bg-ok" : "bg-muted";
+  const ttsActiveLabel = ttsLoaded
+    ? `${ttsModel} · ${ttsDevice}`
+    : `${t(`tts.engine.${activeProvider}`)} · ${t("tts.status.not_loaded")}`;
+
   return (
     <div className="space-y-4">
+      {/* Active TTS bar — always visible */}
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border">
+        <span className={`w-2 h-2 rounded-full ${ttsActiveDotClass}`} />
+        <span className="text-xs text-foreground font-medium">{ttsActiveLabel}</span>
+        {loadingAction && <Loader size={12} className="animate-spin text-muted ml-auto" />}
+      </div>
+
+      {/* TTS on/off toggle */}
+      <ToggleField
+        label={t("settings.tts_enabled")}
+        checked={autoTts}
+        onChange={(v) => onUpdate({ auto_tts: v })}
+      />
+
       <div className="flex gap-1 p-1 bg-surface rounded-lg border border-border">
         {([TTS_PROVIDERS.PIPER, TTS_PROVIDERS.QWEN3] as TtsProviderId[]).map((p) => (
           <button

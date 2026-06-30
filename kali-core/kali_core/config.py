@@ -313,7 +313,7 @@ tts_voice: str = os.getenv("KALI_TTS_VOICE", "glados-es")
 tts_mode: str = os.getenv("KALI_TTS_MODE", "normal")
 tts_max_length: int = int(os.getenv("KALI_TTS_MAX_LENGTH", "2000"))
 tts_http_url: str = os.getenv("KALI_TTS_HTTP_URL", "http://localhost:3000")
-tts_enabled: bool = _env_bool("KALI_TTS_ENABLED", True)
+tts_enabled: bool = _env_bool("KALI_TTS_ENABLED", False)
 
 # ── STT (kali-ear) ────────────────────────────────────────
 stt_provider: Literal["vosk", "qwen3"] = os.getenv("KALI_STT_PROVIDER", "vosk")

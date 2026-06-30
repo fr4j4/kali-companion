@@ -80,7 +80,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   const sttDevice = systemStatus?.stt_device ?? "";
   const sttStreaming = systemStatus?.stt_streaming ?? true;
   const sttModelsDir = systemStatus?.stt_models_dir ?? "";
-  const sttEnabled = systemStatus?.stt_enabled ?? true;
+  const sttEnabled = systemStatus?.stt_enabled ?? false;
 
   const [tab, setTab] = useState<SttProvider>(activeProvider);
   const [models, setModels] = useState<SttModelInfo[]>([]);
