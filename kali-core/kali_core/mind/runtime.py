@@ -256,16 +256,12 @@ class AgentRuntime:
         # ── No LLM configured → localized guidance ──────────────────────
         if self.llm is None:
             msg = (
-                "No hay un proveedor de LLM configurado. "
-                "Abre Settings y configura la URL de tu modelo "
-                "(por ejemplo http://localhost:11434/v1 para Ollama) "
-                "para que pueda responderte."
+                "Todavía no tengo un proveedor de IA configurado. "
+                "Ve a Ajustes → Proveedor IA para conectar uno, y así podré ayudarte."
                 if language == "es"
                 else
-                "No LLM provider is configured. "
-                "Open Settings and set your model URL "
-                "(e.g. http://localhost:11434/v1 for Ollama) "
-                "so I can respond to you."
+                "I don't have an AI provider configured yet. "
+                "Go to Settings → AI Provider to connect one, and I'll be ready to help you."
             )
             yield StreamEvent(kind="delta", text=msg)
             return

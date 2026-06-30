@@ -58,15 +58,18 @@ export function HUD({
     chat.status === "ready" ? "bg-ok" : chat.status === "error" ? "bg-err" : "bg-muted";
 
   const sttProvider = chat.systemStatus?.stt_provider ?? "vosk";
+  const sttEnabled = chat.systemStatus?.stt_enabled ?? false;
   const sttLoaded = chat.systemStatus?.stt_loaded ?? (sttProvider === "vosk");
   const sttModel = chat.systemStatus?.stt_model ?? "";
   const sttDevice = chat.systemStatus?.stt_device ?? "";
-  const sttStatusDotClass = sttLoaded ? "bg-ok" : "bg-muted";
-  const sttLabel = sttProvider === "vosk"
-    ? `vosk · ${chat.systemStatus?.stt_language ?? "es"}`
-    : sttLoaded
-      ? `${sttModel} · ${sttDevice}`
-      : `qwen3 · ${t("stt.status.not_loaded")}`;
+  const sttStatusDotClass = (sttEnabled && sttLoaded) ? "bg-ok" : "bg-muted";
+  const sttLabel = !sttEnabled
+    ? `${t(`stt.provider.${sttProvider}`)} · ${t("stt.status.disabled")}`
+    : sttProvider === "vosk"
+      ? `vosk · ${chat.systemStatus?.stt_language ?? "es"}`
+      : sttLoaded
+        ? `${sttModel} · ${sttDevice}`
+        : `${t("stt.provider.qwen3")} · ${t("stt.status.not_loaded")}`;
 
   const openArtifacts = artifactsOpenCount;
   const closedArtifacts = artifactsClosedCount;

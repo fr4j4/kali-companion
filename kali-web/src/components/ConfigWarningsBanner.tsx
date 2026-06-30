@@ -31,7 +31,7 @@ export function ConfigWarningsBanner({ warnings, onOpenSettings }: Props) {
             <ul className="mt-1 space-y-0.5">
               {warnings.slice(0, 5).map((w, i) => (
                 <li key={i} className="text-xs leading-relaxed text-amber-200/80">
-                  {w}
+                  {t(w)}
                 </li>
               ))}
               {warnings.length > 5 && (

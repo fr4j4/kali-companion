@@ -404,10 +404,7 @@ class Server:
         self.stt_available = getattr(self.stt_provider, "is_available", True)
         self.stt_error = getattr(self.stt_provider, "last_error", None)
         if self.llm_provider is None:
-            self._config_warnings["llm_provider"] = (
-                "No LLM provider configured. "
-                "Set KALI_LLM_API_URL in your .env to enable AI responses."
-            )
+            self._config_warnings["llm_provider"] = "warning.no_llm"
         self.agent = AgentRuntime(self.llm_provider)
         # For qwen3 providers, glados-es (the Piper default) is not a valid
         # voice. Fall back to "serena" (first predefined voice) so the UI and

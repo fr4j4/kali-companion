@@ -35,6 +35,7 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
   const sttVadSilenceTimeout = systemStatus?.stt_vad_silence_timeout ?? 1.0;
   const sttVadAutoCalibrate = systemStatus?.stt_vad_auto_calibrate ?? true;
   const sttVadRmsThreshold = systemStatus?.stt_vad_rms_threshold ?? 0.015;
+  const sttEnabled = systemStatus?.stt_enabled ?? false;
   const showVad = inputMode !== "continuous";
   const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
   const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
@@ -92,6 +93,8 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
         label={t("settings.input_mode")}
         value={inputMode}
         onChange={handleInputModeChange}
+        disabled={!sttEnabled}
+        helperText={!sttEnabled ? t("dock.mic_disabled") : undefined}
       >
         {INPUT_MODES.map((m) => (
           <option key={m.id} value={m.id}>
@@ -105,11 +108,12 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           label={t("settings.wake_word")}
           checked={wakeWordEnabled}
           onChange={(v) => onUpdate({ wake_word_enabled: v })}
+          disabled={!sttEnabled}
         />
       )}
 
       {showVad && (
-        <div className="flex flex-col gap-3 pt-2 border-t border-border">
+        <div className={`flex flex-col gap-3 pt-2 border-t border-border ${!sttEnabled ? "opacity-50 pointer-events-none" : ""}`}>
           <label className="text-xs text-muted font-semibold">{t("settings.stt_vad")}</label>
 
           <SliderField
@@ -120,12 +124,14 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
             step={0.1}
             onChange={handleVadTimeoutChange}
             displayValue={`${localVadTimeout.toFixed(1)}${t("common.seconds_abbrev")}`}
+            disabled={!sttEnabled}
           />
 
           <ToggleField
             label={t("settings.stt_vad_auto_calibrate")}
             checked={sttVadAutoCalibrate}
             onChange={(v) => onUpdate({ stt_vad_auto_calibrate: v })}
+            disabled={!sttEnabled}
           />
 
           <MicLevelMeter
@@ -143,14 +149,15 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
               step={0.001}
               onChange={handleVadRmsChange}
               displayValue={localVadRms.toFixed(3)}
+              disabled={!sttEnabled}
             />
           )}
 
           <button
             onClick={ptt.calibrate}
-            disabled={ptt.calibrating}
+            disabled={ptt.calibrating || !sttEnabled}
             className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
-              ptt.calibrating
+              (ptt.calibrating || !sttEnabled)
                 ? "border-border opacity-50 cursor-not-allowed"
                 : "border-accent/40 text-accent hover:bg-accent/10"
             }`}
