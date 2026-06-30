@@ -509,7 +509,7 @@ class Server:
                 continue
         return {
             "event": "status",
-            "llm_provider": self.llm_provider.provider_name,
+            "llm_provider": getattr(self.llm_provider, "provider_name", ""),
             "llm_api_url": getattr(self.llm_provider, "_api_url", settings.llm_api_url),
             "llm_api_key_set": bool(getattr(self.llm_provider, "_api_key", "")),
             "llm_model": getattr(self.llm_provider, "_model", settings.llm_model),
@@ -2391,10 +2391,10 @@ class Connection:
         if "tts_models_dir" in event:
             self.server._apply_server_setting("tts_models_dir", event["tts_models_dir"])
             await self.server.broadcast_status()
-        if "llm_model" in event:
+        if "llm_model" in event and self.server.llm_provider is not None:
             self.server.llm_provider._model = event["llm_model"]  # type: ignore[attr-defined]
             ai_cfg_changed = True
-        if "llm_max_tokens" in event:
+        if "llm_max_tokens" in event and self.server.llm_provider is not None:
             self.server.llm_provider._max_tokens = int(event["llm_max_tokens"])  # type: ignore[attr-defined]
             ai_cfg_changed = True
         if "llm_api_url" in event or "llm_api_key" in event or "llm_provider" in event:
