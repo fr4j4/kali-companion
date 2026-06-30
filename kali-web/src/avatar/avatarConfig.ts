@@ -33,6 +33,7 @@ export type AvatarEmotion =
 /** Full avatar configuration (persistable). */
 export interface AvatarConfig {
   species: AvatarSpecies;
+  breed: string;
   ears: EarType;
   pattern: string;
   colors: { base: string; spot1: string; spot2: string; ears: string };
@@ -48,6 +49,7 @@ export interface AvatarConfig {
 /** Default config — calico cat with green eyes and a bell. */
 export const DEFAULT_CONFIG: AvatarConfig = {
   species: "gato",
+  breed: "calico",
   ears: "cat",
   pattern: "pattern-calico-1",
   colors: { base: "#FFFFFF", spot1: "#E5954B", spot2: "#211E1F", ears: "#211E1F" },

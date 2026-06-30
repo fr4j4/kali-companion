@@ -110,10 +110,10 @@ export function Overlay({
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
   const panelClasses = isModal
-    ? `bg-elevated border border-border rounded-xl shadow-xl ${sizeMap[size]} h-[85vh] overflow-hidden flex flex-col`
+    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} h-[85vh] overflow-hidden flex flex-col`
     : effectiveVariant === "sheet-bottom"
       ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] overflow-auto"
-      : `bg-elevated border-border w-[80vw] max-w-sidebar h-full overflow-auto ${
+      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-full overflow-auto ${
           effectiveVariant === "sheet-left" ? "border-r" : "border-l"
         }`;
 

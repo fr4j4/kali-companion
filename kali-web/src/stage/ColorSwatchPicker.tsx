@@ -1,15 +1,15 @@
 /**
- * stage/ColorSwatchPicker.tsx — Custom color picker popover.
+ * stage/ColorSwatchPicker.tsx — Custom color picker popover with Portal.
  *
- * Replaces the native <input type="color"> to avoid the Chrome picker
- * popup going off-screen when the trigger is at the right edge of the
- * viewport. The popover is anchored to the LEFT of the swatch and
- * contains: preset palette, HEX input, HSL sliders, and a native
- * fallback trigger for full color exploration.
+ * Fixed to prevent clipping by parent overflow: auto containers.
+ * Uses React Portal to render at the body root and calculates position
+ * dynamically relative to the trigger swatch.
  */
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 const PRESETS: string[] = [
   "#000000", "#1F2937", "#4B5563", "#9CA3AF", "#D1D5DB", "#FFFFFF",
@@ -91,10 +91,13 @@ function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: n
 }
 
 export function ColorSwatchPicker({ label, value, onChange }: Props) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [hexInput, setHexInput] = useState(normalizeHex(value));
-  const [flipUp, setFlipUp] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0, flipUp: false });
+  
+  const swatchRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const nativeInputRef = useRef<HTMLInputElement>(null);
 
   const rgb = useMemo(() => hexToRgb(value), [value]);
@@ -104,43 +107,70 @@ export function ColorSwatchPicker({ label, value, onChange }: Props) {
     setHexInput(normalizeHex(value));
   }, [value]);
 
+  const updatePosition = useCallback(() => {
+    if (!swatchRef.current) return;
+    const rect = swatchRef.current.getBoundingClientRect();
+    const POPOVER_HEIGHT = 320;
+    const POPOVER_WIDTH = 230;
+    
+    let flipUp = window.innerHeight - rect.bottom < POPOVER_HEIGHT + 20;
+    
+    // Anchor to the RIGHT of the swatch if possible, or LEFT
+    let left = rect.right - POPOVER_WIDTH;
+    
+    // Clamp to screen edges
+    const margin = 16;
+    if (left < margin) left = margin;
+    if (left + POPOVER_WIDTH > window.innerWidth - margin) {
+      left = window.innerWidth - POPOVER_WIDTH - margin;
+    }
+
+    setPopoverPos({
+      top: flipUp ? rect.top - 8 : rect.bottom + 8,
+      left,
+      flipUp
+    });
+  }, []);
+
+  const handleToggle = useCallback(() => {
+    if (!open) updatePosition();
+    setOpen((prev) => !prev);
+  }, [open, updatePosition]);
+
   const handleClose = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     if (!open) return;
+
     const onMouseDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        swatchRef.current && !swatchRef.current.contains(e.target as Node)
+      ) {
         handleClose();
       }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleClose();
     };
+    const onScroll = () => {
+      // Re-position on scroll or just close it to avoid detachment
+      // For Portals, closing is often safer unless we use a robust floating library
+      handleClose();
+    };
+
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", handleClose);
+
     return () => {
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", handleClose);
     };
   }, [open, handleClose]);
-
-  const handleToggle = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      if (next && wrapRef.current) {
-        const rect = wrapRef.current.getBoundingClientRect();
-        const drawerBody = wrapRef.current.closest(".cust-body") as HTMLElement | null;
-        if (drawerBody) {
-          const bodyRect = drawerBody.getBoundingClientRect();
-          const spaceBelow = bodyRect.bottom - rect.bottom;
-          setFlipUp(spaceBelow < 280);
-        } else {
-          setFlipUp(window.innerHeight - rect.bottom < 280);
-        }
-      }
-      return next;
-    });
-  }, []);
 
   const handlePreset = useCallback((c: string) => {
     onChange(c);
@@ -183,8 +213,10 @@ export function ColorSwatchPicker({ label, value, onChange }: Props) {
   }, [onChange]);
 
   return (
-    <div className="cust-picker-wrap csp-wrap" ref={wrapRef}>
+    <div className="cust-picker-wrap csp-wrap">
+      <div className="cust-picker-label">{label}</div>
       <button
+        ref={swatchRef}
         type="button"
         className="csp-swatch"
         style={{ background: value }}
@@ -192,106 +224,119 @@ export function ColorSwatchPicker({ label, value, onChange }: Props) {
         aria-label={label}
         title={label}
       />
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className={`csp-popover ${flipUp ? "csp-flip-up" : ""}`}
-            initial={{ opacity: 0, scale: 0.95, y: flipUp ? 4 : -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: flipUp ? 4 : -4 }}
-            transition={{ duration: 0.12 }}
-            role="dialog"
-            aria-label={label}
-          >
-            <div className="csp-section-label">Presets</div>
-            <div className="csp-presets">
-              {PRESETS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={`csp-preset ${normalizeHex(value) === c ? "active" : ""}`}
-                  style={{ background: c }}
-                  onClick={() => handlePreset(c)}
-                  aria-label={c}
+      
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              ref={popoverRef}
+              className={`csp-popover portal-popover ${popoverPos.flipUp ? "csp-flip-up" : ""}`}
+              style={{
+                position: "fixed",
+                top: popoverPos.top,
+                left: popoverPos.left,
+                zIndex: 9999,
+                pointerEvents: "auto"
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: popoverPos.flipUp ? 4 : -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: popoverPos.flipUp ? 4 : -4 }}
+              transition={{ duration: 0.12 }}
+              role="dialog"
+              aria-label={label}
+              onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+            >
+              <div className="csp-section-label">{t("colorSwatchPicker.presets")}</div>
+              <div className="csp-presets">
+                {PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`csp-preset ${normalizeHex(value) === c ? "active" : ""}`}
+                    style={{ background: c }}
+                    onClick={() => handlePreset(c)}
+                    aria-label={c}
+                  />
+                ))}
+              </div>
+
+              <div className="csp-divider" />
+
+              <div className="csp-hex-row">
+                <label className="csp-section-label">{t("colorSwatchPicker.hex")}</label>
+                <input
+                  type="text"
+                  className="csp-hex-input"
+                  value={hexInput}
+                  onChange={(e) => handleHexChange(e.target.value)}
+                  onBlur={handleHexBlur}
+                  maxLength={7}
+                  spellCheck={false}
                 />
-              ))}
-            </div>
+              </div>
 
-            <div className="csp-divider" />
+              <div className="csp-divider" />
 
-            <div className="csp-hex-row">
-              <label className="csp-section-label">HEX</label>
+              <div className="csp-preview" style={{ background: value }} />
+
+              <div className="csp-sliders">
+                <div className="csp-slider-row">
+                  <span className="csp-slider-label">H</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={Math.round(hsl.h)}
+                    onChange={(e) => handleSlider("h", Number(e.target.value))}
+                    className="csp-slider csp-slider-h"
+                  />
+                  <span className="csp-slider-value">{Math.round(hsl.h)}°</span>
+                </div>
+                <div className="csp-slider-row">
+                  <span className="csp-slider-label">S</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round(hsl.s)}
+                    onChange={(e) => handleSlider("s", Number(e.target.value))}
+                    className="csp-slider"
+                  />
+                  <span className="csp-slider-value">{Math.round(hsl.s)}%</span>
+                </div>
+                <div className="csp-slider-row">
+                  <span className="csp-slider-label">L</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round(hsl.l)}
+                    onChange={(e) => handleSlider("l", Number(e.target.value))}
+                    className="csp-slider"
+                  />
+                  <span className="csp-slider-value">{Math.round(hsl.l)}%</span>
+                </div>
+              </div>
+
+              <div className="csp-divider" />
+
+              <button type="button" className="csp-native-trigger" onClick={openNative}>
+                {t("colorSwatchPicker.exploreColors")}
+              </button>
               <input
-                type="text"
-                className="csp-hex-input"
-                value={hexInput}
-                onChange={(e) => handleHexChange(e.target.value)}
-                onBlur={handleHexBlur}
-                maxLength={7}
-                spellCheck={false}
+                ref={nativeInputRef}
+                type="color"
+                value={normalizeHex(value)}
+                onChange={handleNativeChange}
+                className="csp-native-input"
+                tabIndex={-1}
+                aria-hidden="true"
               />
-            </div>
-
-            <div className="csp-divider" />
-
-            <div className="csp-preview" style={{ background: value }} />
-
-            <div className="csp-sliders">
-              <div className="csp-slider-row">
-                <span className="csp-slider-label">H</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={360}
-                  value={Math.round(hsl.h)}
-                  onChange={(e) => handleSlider("h", Number(e.target.value))}
-                  className="csp-slider csp-slider-h"
-                />
-                <span className="csp-slider-value">{Math.round(hsl.h)}°</span>
-              </div>
-              <div className="csp-slider-row">
-                <span className="csp-slider-label">S</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={Math.round(hsl.s)}
-                  onChange={(e) => handleSlider("s", Number(e.target.value))}
-                  className="csp-slider"
-                />
-                <span className="csp-slider-value">{Math.round(hsl.s)}%</span>
-              </div>
-              <div className="csp-slider-row">
-                <span className="csp-slider-label">L</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={Math.round(hsl.l)}
-                  onChange={(e) => handleSlider("l", Number(e.target.value))}
-                  className="csp-slider"
-                />
-                <span className="csp-slider-value">{Math.round(hsl.l)}%</span>
-              </div>
-            </div>
-
-            <div className="csp-divider" />
-
-            <button type="button" className="csp-native-trigger" onClick={openNative}>
-              Explorar colores
-            </button>
-            <input
-              ref={nativeInputRef}
-              type="color"
-              value={normalizeHex(value)}
-              onChange={handleNativeChange}
-              className="csp-native-input"
-              tabIndex={-1}
-              aria-hidden="true"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

@@ -48,10 +48,12 @@ export default {
       },
       minWidth: {
         sidebar: "260px",
+        "sidebar-wide": "400px",
         canvas: "420px",
       },
       maxWidth: {
         sidebar: "260px",
+        "sidebar-wide": "400px",
         canvas: "420px",
       },
       borderRadius: {
