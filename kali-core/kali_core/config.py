@@ -366,8 +366,11 @@ stt_models_dir = base_dir / "ear" / "models"
 profiles_dir = base_dir / "collar" / "profiles"
 
 # ── Qwen3-TTS (only used when KALI_TTS_PROVIDER is "qwen3" or "qwen3-voicedesign")
-_qwen_base = base_dir / "voice" / "qwen_cpp"
-_qwen_models = base_dir / "voice" / "qwen_models"
+# Neutral models dir: works natively (XDG) and inside Docker when bind-mounted.
+tts_models_dir: str = os.getenv(
+    "KALI_TTS_MODELS_DIR", str(Path.home() / ".local" / "share" / "kali" / "models")
+)
+_qwen_models = Path(tts_models_dir)
 qwen_talker_model: str = os.getenv(
     "KALI_QWEN_TALKER_MODEL",
     str(_qwen_models / "qwen-talker-0.6b-customvoice-Q4_K_M.gguf"),
@@ -408,6 +411,7 @@ class _Settings:
     tts_http_url = tts_http_url
     tts_enabled = tts_enabled
 
+    tts_models_dir = tts_models_dir
     qwen_talker_model = qwen_talker_model
     qwen_voicedesign_model = qwen_voicedesign_model
     qwen_codec_model = qwen_codec_model
@@ -449,6 +453,7 @@ class _Settings:
     voices_dir = voices_dir
     voice_configs_dir = voice_configs_dir
     stt_models_dir = stt_models_dir
+    tts_models_dir = tts_models_dir
     profiles_dir = profiles_dir
 
 

@@ -518,6 +518,33 @@ class QwenTTSProvider:
 
     # ── model management ───────────────────────────────────────────
 
+    def configure(self, *, models_dir: str | Path | None = None) -> None:
+        """Re-point the provider to a different models directory.
+
+        Used when the user changes `tts_models_dir` from the UI.  Rescans
+        available models and, if a model is currently loaded, reloads the
+        same one from the new directory so the new path takes effect
+        immediately.
+        """
+        if models_dir is None:
+            return
+        was_loaded = self.is_loaded
+        current_id = self._loaded_model_id
+        current_device = self.device
+        if was_loaded:
+            self.shutdown()
+        self._talker_models_dir = Path(models_dir).expanduser().resolve()
+        self._codec_model = self._talker_models_dir / "qwen-tokenizer-12hz-Q4_K_M.gguf"
+        self._discover_talker_models()
+        if current_id is not None and current_id in self._available_models:
+            self._talker_model = self._available_models[current_id]
+            self._loaded_model_id = current_id
+            self._voice_design = QWEN_MODELS[current_id]["variant"] == "voicedesign"
+            if was_loaded:
+                self._validate_and_spawn()
+        else:
+            self._select_initial_model(self._voice_design)
+
     def _discover_talker_models(self) -> dict[str, Path]:
         result: dict[str, Path] = {}
         for mid, cfg in QWEN_MODELS.items():

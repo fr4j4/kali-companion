@@ -27,7 +27,7 @@ set -euo pipefail
 REPO="Serveurperso/Qwen3-TTS-GGUF"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-MODEL_DIR="${KALI_QWEN_MODELS_DIR:-"$ROOT_DIR/kali-core/kali_core/voice/qwen_models"}"
+MODEL_DIR="${KALI_TTS_MODELS_DIR:-"$HOME/.local/share/kali/models"}"
 
 mkdir -p "$MODEL_DIR"
 

@@ -27,8 +27,8 @@ services:
       - "${KALI_WEB_PORT:-8080}:8080"  # nginx (kali-web frontend)
 
     volumes:
-      # Modelos (Piper .onnx, Vosk, Qwen3 .gguf) — se descargan en el primer arranque
-      - kali-models:/app/models
+      # Modelos (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host para persistencia
+      - ${HOME}/.local/share/kali/models:/app/models
 
       # Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes)
       - kali-data:/app/data
@@ -46,6 +46,7 @@ services:
       - KALI_TTS_VOICE=${KALI_TTS_VOICE:-glados-es}
       - KALI_TTS_MODE=${KALI_TTS_MODE:-normal}
       - KALI_TTS_ENABLED=${KALI_TTS_ENABLED:-true}
+      - KALI_TTS_MODELS_DIR=/app/models
 
       # ── STT Engine ──
       - KALI_STT_PROVIDER=${KALI_STT_PROVIDER:-vosk}
@@ -81,7 +82,5 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
-  kali-models:
-    name: kali-models
   kali-data:
     name: kali-data

@@ -40,6 +40,7 @@ export interface SettingsEvent {
   tts_provider?: TtsProvider;
   tts_model?: string;
   tts_device?: string;
+  tts_models_dir?: string;
   llm_model?: string;
   llm_provider?: string;
   llm_api_url?: string;
@@ -419,6 +420,7 @@ export interface StatusEvent {
   stt_loaded?: boolean;
   stt_streaming?: boolean;
   stt_models_dir?: string;
+  tts_models_dir?: string;
   stt_vad_enabled?: boolean;
   stt_vad_mode?: number;
   stt_vad_silence_timeout?: number;
@@ -527,6 +529,36 @@ export interface ClearAllSessionsEvent {
   event: "clear_all_sessions";
 }
 
+export interface DownloadTtsModelEvent {
+  event: "download_tts_model";
+  model_id: string;
+}
+
+export interface DownloadTtsModelStartedEvent {
+  event: "download_tts_model_started";
+  model_id: string;
+}
+
+export interface DownloadTtsModelProgressEvent {
+  event: "download_tts_model_progress";
+  model_id: string;
+  kind: "tokenizer" | "model";
+  progress: number;
+  downloaded: number;
+  total: number;
+}
+
+export interface DownloadTtsModelCompleteEvent {
+  event: "download_tts_model_complete";
+  model_id: string;
+}
+
+export interface DownloadTtsModelErrorEvent {
+  event: "download_tts_model_error";
+  model_id: string;
+  detail: string;
+}
+
 export type IncomingEvent =
   | InputEvent
   | StopEvent
@@ -548,7 +580,8 @@ export type IncomingEvent =
   | CreateConnectionRequest
   | UpdateConnectionRequest
   | DeleteConnectionRequest
-  | ActivateConnectionRequest;
+  | ActivateConnectionRequest
+  | DownloadTtsModelEvent;
 
 export type OutgoingEvent =
   | ReadyEvent
@@ -579,4 +612,8 @@ export type OutgoingEvent =
   | JobLogEvent
   | JobListEvent
   | ImageReadyEvent
-  | TurnStatsEvent;
+  | TurnStatsEvent
+  | DownloadTtsModelStartedEvent
+  | DownloadTtsModelProgressEvent
+  | DownloadTtsModelCompleteEvent
+  | DownloadTtsModelErrorEvent;

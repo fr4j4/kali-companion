@@ -10,9 +10,12 @@ import { QwenVoiceControls } from "./QwenVoiceControls";
 interface Props {
   systemStatus: StatusEvent | null;
   onUpdate: (patch: Record<string, unknown>) => void;
+  downloadTtsModel: (modelId: string) => void;
+  downloadProgress: Record<string, number>;
+  downloadError: string | null;
 }
 
-export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
+export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, downloadProgress, downloadError }: Props) {
   const { t } = useTranslation();
   const activeProvider = systemStatus?.tts_provider ?? TTS_PROVIDERS.PIPER;
   const [tab, setTab] = useState<TtsProviderId>(
@@ -25,9 +28,14 @@ export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
   const [loadingAction, setLoadingAction] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(systemStatus?.tts_device ?? "cpu");
   const [error, setError] = useState<string | null>(null);
+  const [modelsDir, setModelsDir] = useState(systemStatus?.tts_models_dir ?? "");
   const mountedRef = useRef(true);
 
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
+  useEffect(() => {
+    if (systemStatus?.tts_models_dir) setModelsDir(systemStatus.tts_models_dir);
+  }, [systemStatus?.tts_models_dir]);
 
   useEffect(() => {
     if (activeProvider === TTS_PROVIDERS.QWEN3 || activeProvider === TTS_PROVIDERS.PIPER) {
@@ -92,6 +100,10 @@ export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
 
   useEffect(() => { setSelectedDevice(systemStatus?.tts_device ?? "cpu"); }, [systemStatus?.tts_device]);
 
+  useEffect(() => {
+    void fetchModels(tab);
+  }, [downloadProgress]);
+
   const handleLoadModel = async (modelId: string) => {
     setLoadingAction(true);
     setError(null);
@@ -133,6 +145,17 @@ export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
       if (mountedRef.current) setLoadingAction(false);
     }
   };
+
+  const handleDownloadModel = async (modelId: string) => {
+    setError(null);
+    downloadTtsModel(modelId);
+  };
+
+  const handleApplyModelsDir = () => {
+    onUpdate({ tts_models_dir: modelsDir });
+  };
+
+  const savedModelsDir = systemStatus?.tts_models_dir ?? "";
 
   const compatibleDevices = devices.filter((d) => tab === TTS_PROVIDERS.QWEN3 || d.id === "cpu");
 
@@ -186,13 +209,24 @@ export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
               >
                 {t("tts.unload")}
               </button>
-            ) : (
+            ) : m.available ? (
               <button
                 onClick={() => handleLoadModel(m.id)}
-                disabled={loadingAction || !m.available}
+                disabled={loadingAction}
                 className="text-xs px-2.5 py-1 rounded-md bg-accent-dim text-foreground hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {m.available ? t("tts.load") : t("tts.download")}
+                {t("tts.load")}
+              </button>
+            ) : downloadProgress[m.id] !== undefined ? (
+              <span className="text-xs px-2.5 py-1 text-accent animate-pulse">
+                {t("tts.download_progress", { progress: downloadProgress[m.id] })}
+              </span>
+            ) : (
+              <button
+                onClick={() => handleDownloadModel(m.id)}
+                className="text-xs px-2.5 py-1 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors"
+              >
+                {t("tts.download")}
               </button>
             )}
           </div>
@@ -218,6 +252,29 @@ export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
         </div>
       )}
 
+      {tab === TTS_PROVIDERS.QWEN3 && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted">{t("settings.tts_models_dir")}</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+              value={modelsDir}
+              onChange={(e) => setModelsDir(e.target.value)}
+              placeholder={t("tts.models_dir_placeholder")}
+            />
+            <button
+              onClick={handleApplyModelsDir}
+              disabled={modelsDir === savedModelsDir}
+              className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {t("common.apply")}
+            </button>
+          </div>
+          <p className="text-[11px] text-muted/60">{t("settings.tts_models_dir_hint")}</p>
+        </div>
+      )}
+
       {activeProvider !== tab && (
         <button
           onClick={() => onUpdate({ tts_provider: tab })}
@@ -228,8 +285,10 @@ export function TTSEngineSection({ systemStatus, onUpdate }: Props) {
         </button>
       )}
 
-      {error && (
-        <div className="text-xs text-err bg-err/10 rounded-md p-2">{error}</div>
+      {(error || downloadError) && (
+        <div className="text-xs text-err bg-err/10 rounded-md p-2">
+          {error ?? downloadError}
+        </div>
       )}
 
       {tab === TTS_PROVIDERS.PIPER ? (

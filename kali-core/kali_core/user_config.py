@@ -37,6 +37,7 @@ class UserConfig:
     stt_device: str | None = None
     stt_streaming: bool | None = None
     stt_models_dir: str | None = None
+    tts_models_dir: str | None = None
     profile: str | None = None
     artifact_diff_preview: bool | None = None
 

@@ -42,7 +42,7 @@ def get_tts_provider(provider_id: str) -> "TTSProvider":
         from kali_core.config import settings
         from pathlib import Path
         _providers[provider_id] = QwenTTSProvider(
-            talker_models_dir=Path(settings.qwen_talker_model).parent,
+            talker_models_dir=settings.tts_models_dir,
             codec_model=settings.qwen_codec_model,
             port=settings.qwen_port,
             backend=settings.qwen_backend,

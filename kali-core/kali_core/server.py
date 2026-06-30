@@ -35,6 +35,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Any
+import urllib.request
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -476,6 +477,7 @@ class Server:
             "stt_loaded": self.stt_provider.is_loaded,
             "stt_streaming": getattr(self.stt_provider, "_streaming", True),
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
+            "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
         }
         if self._config_warnings:
             payload["config_warnings"] = list(self._config_warnings.values())
@@ -1142,6 +1144,7 @@ class Server:
         "stt_device",
         "stt_streaming",
         "stt_models_dir",
+        "tts_models_dir",
         "profile",
         "artifact_diff_preview",
     )
@@ -1167,6 +1170,7 @@ class Server:
             "stt_device": "cpu",
             "stt_streaming": settings.qwen_asr_streaming,
             "stt_models_dir": settings.qwen_asr_models_dir,
+            "tts_models_dir": settings.tts_models_dir,
             "profile": settings.active_profile,
             "artifact_diff_preview": settings.artifact_diff_preview,
             "stt_language": settings.stt_language,
@@ -1246,6 +1250,16 @@ class Server:
                 self.tts_pipeline.set_voice(mode=value)
             elif key == "auto_tts":
                 self.tts_pipeline.set_auto_tts(bool(value))
+            elif key == "tts_models_dir":
+                if hasattr(self.tts_provider, "configure"):
+                    was_loaded = getattr(self.tts_provider, "is_loaded", False)
+                    current_model = getattr(self.tts_provider, "loaded_model", None)
+                    current_device = getattr(self.tts_provider, "device", None)
+                    if was_loaded:
+                        self.tts_provider.unload_model()
+                    self.tts_provider.configure(models_dir=value)
+                    if was_loaded and current_model:
+                        self.tts_provider.load_model(current_model, current_device or "cpu")
             elif key == "stt_provider":
                 if value != self.stt_provider.provider_name:
                     self.stt_provider = get_stt_provider(value)
@@ -1512,6 +1526,9 @@ class Connection:
         elif kind == "settings":
             await self._apply_settings(event)
 
+        elif kind == "download_tts_model":
+            await self._handle_download_tts_model(event)
+
         elif kind == "create_connection":
             try:
                 self.server.connections_store.create(
@@ -1633,6 +1650,89 @@ class Connection:
 
         else:
             logger.debug("unhandled event: %s", kind)
+
+    # ── TTS model download ──────────────────────────────────
+
+    async def _handle_download_tts_model(self, event: dict[str, Any]) -> None:
+        """Download a Qwen3-TTS model on request and emit progress events."""
+        model_id = event.get("model_id", "")
+        from kali_core.voice.providers.qwen import QWEN_MODELS
+
+        if model_id not in QWEN_MODELS:
+            await self.send({
+                "event": "download_tts_model_error",
+                "model_id": model_id,
+                "detail": f"Unknown model: {model_id}",
+            })
+            return
+
+        cfg = QWEN_MODELS[model_id]
+        models_dir = Path(settings.tts_models_dir).expanduser().resolve()
+        models_dir.mkdir(parents=True, exist_ok=True)
+        target = models_dir / cfg["filename"]
+
+        tokenizer_url = "https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF/resolve/main/qwen-tokenizer-12hz-Q4_K_M.gguf"
+        tokenizer_path = models_dir / "qwen-tokenizer-12hz-Q4_K_M.gguf"
+        model_url = f"https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF/resolve/main/{cfg['filename']}"
+
+        await self.send({"event": "download_tts_model_started", "model_id": model_id})
+
+        loop = asyncio.get_event_loop()
+
+        def _download(url: str, path: Path, kind: str) -> None:
+            req = urllib.request.Request(url, headers={"User-Agent": "kali-companion/1.0"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                total = int(resp.headers.get("Content-Length", 0))
+                downloaded = 0
+                chunk_size = 256 * 1024
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with open(path, "wb") as fh:
+                    while True:
+                        chunk = resp.read(chunk_size)
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+                        downloaded += len(chunk)
+                        if total:
+                            progress = int(downloaded * 100 / total)
+                            asyncio.run_coroutine_threadsafe(
+                                self.send({
+                                    "event": "download_tts_model_progress",
+                                    "model_id": model_id,
+                                    "kind": kind,
+                                    "progress": progress,
+                                    "downloaded": downloaded,
+                                    "total": total,
+                                }),
+                                loop,
+                            )
+
+        try:
+            if not tokenizer_path.exists():
+                await loop.run_in_executor(None, _download, tokenizer_url, tokenizer_path, "tokenizer")
+
+            if not target.exists():
+                await loop.run_in_executor(None, _download, model_url, target, "model")
+
+            if hasattr(self.server.tts_provider, "configure"):
+                was_loaded = getattr(self.server.tts_provider, "is_loaded", False)
+                current = getattr(self.server.tts_provider, "loaded_model", None)
+                current_device = getattr(self.server.tts_provider, "device", None)
+                if was_loaded:
+                    self.server.tts_provider.unload_model()
+                self.server.tts_provider.configure(models_dir=str(models_dir))
+                if current:
+                    self.server.tts_provider.load_model(current, current_device or "cpu")
+
+            await self.server.broadcast_status()
+            await self.send({"event": "download_tts_model_complete", "model_id": model_id})
+        except Exception as exc:
+            logger.exception("Failed to download TTS model %s", model_id)
+            await self.send({
+                "event": "download_tts_model_error",
+                "model_id": model_id,
+                "detail": str(exc),
+            })
 
     # ── Audio / STT ────────────────────────────────────────
 
