@@ -37,6 +37,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     g++ \
     git \
+    make \
+    pkg-config \
+    nodejs \
+    npm \
     libopenblas-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -71,6 +75,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Runtime deps: nginx, audio (ALSA + PulseAudio), BLAS, download tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
+    build-essential \
     libopenblas0 \
     libasound2 \
     libpulse0 \
@@ -107,9 +112,12 @@ COPY --chown=kali:kali kali-core/ /app/kali-core/
 # Copy scripts for model downloads
 COPY --chown=kali:kali scripts/ /app/scripts/
 
+# README needed by hatchling build metadata (pyproject.toml: readme = "../README.md")
+COPY --chown=kali:kali README.md /app/README.md
+
 # Install kali-core + deps
 RUN pip install --no-cache-dir \
-    -e /app/kali-core \
+    /app/kali-core \
     piper-tts \
     numpy \
     scipy \
