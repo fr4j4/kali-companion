@@ -173,7 +173,7 @@ start_qwen_server() {
     local port="${KALI_QWEN_PORT:-8870}"
     local backend="${KALI_QWEN_BACKEND:-CPU}"
 
-    if [ "$provider" = "qwen3-voicedesign" ]; then
+    if [ "$tts_provider" = "qwen3-voicedesign" ]; then
         talker="${KALI_QWEN_VOICEDESIGN_MODEL:-/app/models/qwen-talker-1.7b-voicedesign-Q4_K_M.gguf}"
     fi
 
@@ -209,6 +209,16 @@ start_qwen_server() {
 
         export LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"
         export GGML_BACKEND="$backend"
+
+        # If nvidia-smi is not available (common in containers), try ldconfig as fallback
+        if ! command -v nvidia-smi &>/dev/null; then
+            if ldconfig -p 2>/dev/null | grep -q libcuda.so; then
+                log "CUDA driver library detected via ldconfig (nvidia-smi not in container)"
+            else
+                warn "libcuda.so not found via ldconfig — GPU may not be accessible"
+                warn "Ensure --gpus all (or nvidia-container-toolkit) is configured"
+            fi
+        fi
     fi
 
     "$binary" \

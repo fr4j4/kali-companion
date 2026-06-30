@@ -4,7 +4,13 @@
 # Kali — AI Voice Companion (GPU / CUDA)
 # =============================================================================
 # Multi-stage build with CUDA support for Qwen3-TTS and future STT/ASR.
-# Requires nvidia-container-toolkit on the host.
+# Requires nvidia-container-toolkit on the host (≥ v1.14).
+# Host NVIDIA driver ≥ 545.23 (CUDA 12.6 minimum).
+#
+# Note: nvidia-smi is NOT bundled in the runtime image — it comes from the
+# host driver. If device enumeration APIs return empty, GPU inference still
+# works; the C++ binary accesses CUDA directly via libcuda.so (mounted by
+# nvidia-container-toolkit).
 #
 # Build:
 #   docker build -f docker/Dockerfile.gpu -t kali:gpu .
@@ -127,9 +133,9 @@ COPY --chown=kali:kali kali-core/ /app/kali-core/
 # Copy scripts for model downloads
 COPY --chown=kali:kali scripts/ /app/scripts/
 
-# Install kali-core + deps
+# Install kali-core + deps (incl. qwen-stt extras for torch + HF transformers GPU STT)
 RUN pip install --no-cache-dir --break-system-packages \
-    -e /app/kali-core \
+    -e "/app/kali-core[qwen-stt]" \
     piper-tts \
     numpy \
     scipy \
