@@ -17,7 +17,7 @@
 #
 # Run:
 #   docker run -d --name kali --gpus all \
-#     -p 8900:8900 -p 8080:80 \
+#     -p 8900:8900 -p 8080:8080 \
 #     -v kali-models:/app/models \
 #     -v kali-data:/app/data \
 #     --device /dev/snd \
@@ -159,7 +159,7 @@ COPY --chown=kali:kali docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Expose ports
-EXPOSE 8900 80
+EXPOSE 8900 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

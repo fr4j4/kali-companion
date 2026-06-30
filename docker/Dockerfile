@@ -11,7 +11,7 @@
 #
 # Run (Piper TTS, default):
 #   docker run -d --name kali \
-#     -p 8900:8900 -p 8080:80 \
+#     -p 8900:8900 -p 8080:8080 \
 #     -v kali-models:/app/models \
 #     -v kali-data:/app/data \
 #     --device /dev/snd \
@@ -19,7 +19,7 @@
 #
 # Run (Qwen3 TTS):
 #   docker run -d --name kali \
-#     -p 8900:8900 -p 8080:80 \
+#     -p 8900:8900 -p 8080:8080 \
 #     -v kali-models:/app/models \
 #     -v kali-data:/app/data \
 #     --device /dev/snd \
@@ -138,8 +138,8 @@ RUN chmod +x /app/entrypoint.sh
 
 # Expose ports
 # 8900 = kali-core WebSocket + HTTP API
-# 80   = nginx (kali-web static files + WS proxy)
-EXPOSE 8900 80
+# 8080 = nginx (kali-web static files + WS proxy)
+EXPOSE 8900 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

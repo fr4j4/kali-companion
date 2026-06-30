@@ -330,7 +330,7 @@ nginx
 # Start kali-core
 log "Starting kali-core on 0.0.0.0:${KALI_PORT:-8900}..."
 cd "$KALI_CORE_DIR"
-python -m kali_core &
+python3 -m kali_core &
 CORE_PID=$!
 
 log "Kali is ready!"
