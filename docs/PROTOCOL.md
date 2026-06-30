@@ -225,13 +225,9 @@ If no widget is open for the given `artifact_id`, `logs` is `null`.
 response with a 5-second timeout; if the frontend does not respond in time
 or the artifact is not rendered, `logs` is `null`.
 
-### `capture_request` (via Tauri command, not WS)
+### `capture_request`
 
-Screen capture is done by asking kali-home directly via a Tauri command
-(`kali_capture_screen`), not through this WS protocol. kali-core's
-`gaze/client.py` invokes it through the same WS bridge by sending a
-`system_command` event that kali-home intercepts. See `system_command`
-below.
+Screen capture is initiated by the core via `kali-gaze`, which uses the `mss` library to select the best backend (Wayland/X11/Windows). No external shell command is required for the capture itself, though the Wayland portal may prompt the user for permission.
 
 ### `system_command`
 
@@ -453,20 +449,26 @@ errors are emitted as i18n keys in a future `user_error` event.
 
 ### `status`
 
-Periodic status update (LLM provider connected, capture backend available,
-etc.).
+Periodic status update (LLM provider connected, capture backend available, etc.).
 
 ```json
 {
   "event": "status",
   "llm_provider": "direct",
   "llm_model": "glm-5.1",
+  "llm_max_tokens": 4096,
+  "stt_enabled": true,
+  "stt_provider": "vosk",
+  "stt_loaded": true,
+  "stt_language": "es",
+  "tts_enabled": true,
   "tts_provider": "qwen",
   "voice": "robot-es",
-  "stt_language": "es",
   "capture_backend": "wayland",
   "profile": "dev",
-  "available_profiles": ["dev", "gaming", "files", "general"]
+  "input_mode": "ptt",
+  "available_profiles": ["dev", "gaming", "files", "general"],
+  "config_warnings": []
 }
 ```
 

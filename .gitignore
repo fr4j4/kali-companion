@@ -51,6 +51,7 @@ kali-core/kali_core/voice/qwen_cpp/build-gpu/
 .env
 .env.local
 .env.*.local
+user_config.json
 *.db
 *.db-journal
 *.log

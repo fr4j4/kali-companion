@@ -24,6 +24,25 @@ CORE_DIR="$ROOT/kali-core"
 WEB_DIR="$ROOT/kali-web"
 VENV="$CORE_DIR/.venv"
 
+# ── Load .env if present (so KALI_TTS_PROVIDER is available) ──
+if [ -f "$CORE_DIR/.env" ]; then
+  set -a
+  source "$CORE_DIR/.env"
+  set +a
+fi
+
+# ── Check Qwen3-TTS binary ──────────────────────────────────
+QWEN_BUILD_DIR="$CORE_DIR/kali_core/voice/qwen_cpp/build"
+if [ "${KALI_TTS_PROVIDER:-inproc}" = "qwen3" ] || [ "${KALI_TTS_PROVIDER:-inproc}" = "qwen3-voicedesign" ]; then
+  if [ ! -f "$QWEN_BUILD_DIR/tts-server" ]; then
+    echo "WARNING: Qwen3-TTS binary not found at $QWEN_BUILD_DIR/tts-server"
+    echo "  To compile:  ./scripts/build-qwen-cpp.sh cpu"
+    echo "  To download: ./scripts/download-qwen-models.sh"
+    echo "  Falling back to Piper (inproc). Set KALI_TTS_PROVIDER=inproc in .env to silence this warning."
+    export KALI_TTS_PROVIDER=inproc
+  fi
+fi
+
 # ── kali-core: ensure venv + deps ─────────────────────────
 if [ ! -d "$VENV" ]; then
   echo "Creating kali-core venv…"
