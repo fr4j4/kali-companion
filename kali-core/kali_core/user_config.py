@@ -42,6 +42,7 @@ class UserConfig:
     artifact_diff_preview: bool | None = None
 
     # ── Per-connection (applied on every new Connection, override env defaults) ──
+    stt_enabled: bool | None = None
     stt_language: str | None = None
     stt_vad_enabled: bool | None = None
     stt_vad_mode: int | None = None

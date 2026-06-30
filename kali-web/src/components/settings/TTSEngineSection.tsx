@@ -406,7 +406,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                     </span>
                   ) : (
                     <button
-                      onClick={() => downloadTtsModel(m.id, "qwen3")}
+                      onClick={() => handleDownloadModel(m.id)}
                       className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
                     >
                       <Download size={10} />
@@ -479,7 +479,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                       </span>
                     ) : (
                       <button
-                        onClick={() => downloadTtsModel(m.id, "piper")}
+                        onClick={() => handleDownloadModel(m.id)}
                         className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
                       >
                         <Download size={10} />

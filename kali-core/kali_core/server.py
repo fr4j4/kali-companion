@@ -1461,6 +1461,7 @@ class Connection:
         self._send_lock = asyncio.Lock()
         self._stt_session_active: bool = False
         self._wake_word: WakeWordDetector | None = None
+        self._stt_enabled: bool = True
         self._stt_language: str = normalize(settings.stt_language)
         self._wake_word_enabled: bool = settings.stt_wake_word_enabled
         self._input_mode: str = settings.input_mode
@@ -1487,6 +1488,8 @@ class Connection:
         self._recording_origin: str | None = None  # manual / wake_word / continuous
         # Replay per-connection user config (overrides env defaults above).
         cfg = load_user_config()
+        if cfg.stt_enabled is not None:
+            self._stt_enabled = bool(cfg.stt_enabled)
         if cfg.stt_language is not None:
             self._stt_language = normalize(cfg.stt_language)
         if cfg.stt_vad_enabled is not None:
@@ -2412,6 +2415,8 @@ class Connection:
                 max_tokens=getattr(self.server.llm_provider, "_max_tokens", settings.llm_max_tokens),
             )
             save_ai_config(cfg)
+        if "stt_enabled" in event:
+            self._stt_enabled = bool(event["stt_enabled"])
         if "stt_language" in event:
             self._stt_language = normalize(event["stt_language"])
         if "stt_provider" in event:
@@ -2555,6 +2560,7 @@ class Connection:
             profile=self.server.executor.profile,
             artifact_diff_preview=settings.artifact_diff_preview,
             # Per-connection
+            stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,
             stt_vad_enabled=self._stt_vad_enabled,
             stt_vad_mode=self._stt_vad_mode,
@@ -2576,6 +2582,7 @@ class Connection:
     async def _emit_status(self) -> None:
         payload = self.server._build_status_payload()
         payload.update({
+            "stt_enabled": self._stt_enabled,
             "stt_language": self._stt_language,
             "wake_word_enabled": self._wake_word_enabled,
             "input_mode": self._input_mode,

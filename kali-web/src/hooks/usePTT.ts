@@ -54,6 +54,7 @@ export interface PTTControls {
 
 interface Options {
   client: WSClient | null;
+  sttEnabled: boolean;
   wakeWordEnabled: boolean;
   inputMode?: InputMode;
   onWakeWord?: () => void;
@@ -157,6 +158,7 @@ const _MIN_THRESHOLD = 0.005;
 
 export function usePTT({
   client,
+  sttEnabled = true,
   wakeWordEnabled,
   inputMode = "ptt",
   onWakeWord,
@@ -191,6 +193,8 @@ export function usePTT({
   onWakeWordRef.current = onWakeWord;
   const inputModeRef = useRef(inputMode);
   inputModeRef.current = inputMode;
+  const sttEnabledRef = useRef(sttEnabled);
+  sttEnabledRef.current = sttEnabled;
 
   // VAD refs — high-frequency values use refs to avoid re-renders.
   const micLevelRef = useRef(0);          // RMS of the latest chunk (0-1), updated ~3fps
@@ -373,6 +377,7 @@ export function usePTT({
   // ── Audio pipeline setup / teardown ──────────────────────
 
   const startListening = useCallback(async () => {
+    if (!sttEnabledRef.current) return;
     if (listeningRef.current) return;
     if (!_micAvailable()) {
       setError(_MIC_UNAVAILABLE_MSG);
@@ -465,6 +470,7 @@ export function usePTT({
   // ── Recording session control ────────────────────────────
 
   const startRecording = useCallback(async (origin: "manual" | "wake_word" | "continuous" = "manual") => {
+    if (!sttEnabledRef.current) return;
     if (recordingRef.current) return;
     cancelledRef.current = false;
     setIsSpeaking(false);

@@ -158,6 +158,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
 
   const ptt = usePTT({
     client: chat.wsClient,
+    sttEnabled: chat.systemStatus?.stt_enabled ?? true,
     wakeWordEnabled: chat.systemStatus?.wake_word_enabled ?? false,
     inputMode: chat.systemStatus?.input_mode as "ptt" | "continuous" | undefined,
     onWakeWord,

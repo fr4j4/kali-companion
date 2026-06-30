@@ -80,6 +80,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   const sttDevice = systemStatus?.stt_device ?? "";
   const sttStreaming = systemStatus?.stt_streaming ?? true;
   const sttModelsDir = systemStatus?.stt_models_dir ?? "";
+  const sttEnabled = systemStatus?.stt_enabled ?? true;
 
   const [tab, setTab] = useState<SttProvider>(activeProvider);
   const [models, setModels] = useState<SttModelInfo[]>([]);
@@ -287,6 +288,13 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
         <span className="text-xs text-foreground font-medium">{activeLabel}</span>
         {loadingAction && <Loader size={12} className="animate-spin text-muted ml-auto" />}
       </div>
+
+      {/* STT on/off toggle */}
+      <ToggleField
+        label={t("settings.stt_enabled")}
+        checked={sttEnabled}
+        onChange={(v) => onUpdate({ stt_enabled: v })}
+      />
 
       {/* Provider selector */}
       <div className="flex flex-col gap-1.5">

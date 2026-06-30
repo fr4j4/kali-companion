@@ -30,6 +30,7 @@ export function NeuralDock({ api, onToggleDebug }: Props) {
   const isSpeaking = ptt.isSpeaking;
   const isChatActive = isStreaming || chat.isThinking;
   const isControlVisible = isRecording || isChatActive;
+  const sttEnabled = chat.systemStatus?.stt_enabled ?? true;
 
   const handleRecordClick = () => {
     if (isRecording) {
@@ -137,16 +138,19 @@ export function NeuralDock({ api, onToggleDebug }: Props) {
 
         {/* ── Central record button ─────────────────────────── */}
         <button
-          onClick={handleRecordClick}
+          onClick={sttEnabled ? handleRecordClick : undefined}
+          disabled={!sttEnabled}
           className={`flex items-center justify-center h-14 w-14 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 ${
-            isRecording
-              ? isSpeaking
-                ? "bg-red-500 text-white shadow-red-500/25 animate-rec-pulse"
-                : "bg-red-500 text-white hover:bg-red-600 shadow-red-500/25"
-              : "bg-accent text-white hover:bg-accent/90 shadow-accent/25"
+            !sttEnabled
+              ? "bg-white/10 text-muted cursor-not-allowed opacity-40"
+              : isRecording
+                ? isSpeaking
+                  ? "bg-red-500 text-white shadow-red-500/25 animate-rec-pulse"
+                  : "bg-red-500 text-white hover:bg-red-600 shadow-red-500/25"
+                : "bg-accent text-white hover:bg-accent/90 shadow-accent/25"
           }`}
-          aria-label={isRecording ? t("dock.mic_stop") : t("dock.mic_label")}
-          title={isRecording ? t("dock.mic_stop") : t("dock.mic_label")}
+          aria-label={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
+          title={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
         >
           {isRecording ? (isSpeaking ? <div className="w-5 h-5 rounded-full bg-current" /> : <Send size={24} />) : <Mic size={24} />}
         </button>

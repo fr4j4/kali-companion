@@ -48,6 +48,7 @@ export interface SettingsEvent {
   llm_max_tokens?: number;
   profile?: string;
   language?: string;
+  stt_enabled?: boolean;
   stt_language?: string;
   stt_provider?: string;
   stt_model?: string;
@@ -418,6 +419,7 @@ export interface StatusEvent {
   stt_model?: string;
   stt_device?: string;
   stt_loaded?: boolean;
+  stt_enabled?: boolean;
   stt_streaming?: boolean;
   stt_models_dir?: string;
   tts_models_dir?: string;
