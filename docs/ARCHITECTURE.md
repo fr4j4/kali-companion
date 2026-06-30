@@ -3,6 +3,90 @@
 This document describes the high-level architecture of Kali, the data flow
 between its layers, and the key technical decisions.
 
+## Big-picture flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        USER (developer / gamer / learner)            │
+│                   ┌──────────────┐    ┌──────────────┐               │
+│                   │  Text input  │    │  Voice input │               │
+│                   │  (keyboard)  │    │  (mic → PTT) │               │
+│                   └──────┬───────┘    └──────┬───────┘               │
+│                          │                   │                       │
+└──────────────────────────┼───────────────────┼───────────────────────┘
+                           │                   │
+                    ┌──────▼───────────────────▼──────┐
+                    │       kali-web  (React + Vite)   │
+                    │  ┌───────────────────────────┐   │
+                    │  │ SpotlightInput + VoiceBar  │   │
+                    │  └───────────┬───────────────┘   │
+                    │              │ WS event          │
+                    │  ┌───────────▼───────────────┐   │
+                    │  │  Kali interface:          │   │
+                    │  │  · Chat thread (text)     │   │
+                    │  │  · NeuralCanvas (artif.)  │   │
+                    │  │  · Stage (avatar, HUD)    │   │
+                    │  │  · ConsentModal           │   │
+                    │  │  · WidgetGrid (live)      │   │
+                    │  └───────────┬───────────────┘   │
+                    └──────────────┼───────────────────┘
+                                   │ WS / kali-yarn protocol
+                    ┌──────────────▼───────────────────┐
+                    │       kali-core  (Python sidecar) │
+                    │                                   │
+                    │  ┌──────────┐  ┌───────────────┐  │
+                    │  │ kali-ear │  │  kali-mind     │  │
+                    │  │ (STT)    │─►│  AgentRuntime  │──┼──► LLM provider
+                    │  └──────────┘  │  + Planner     │  │    (Direct | nanobot)
+                    │                │  + Executor    │  │
+                    │  ┌──────────┐  │  + Memory      │  │
+                    │  │kali-voice│◄─│  + Vision      │  │
+                    │  │ (TTS)    │  └───────┬───────┘  │
+                    │  └──────────┘          │           │
+                    │              ┌─────────▼────────┐ │
+                    │              │   kali-claws      │ │
+                    │              │   (Tools)         │ │
+                    │              │                   │ │
+                    │              │  fs_*  command    │ │
+                    │              │  git_*  web_*     │ │
+                    │              │  screenshot  game │ │
+                    │              │  create_artifact  │ │
+                    │              └──┬────┬────┬─────┘ │
+                    │                 │    │    │        │
+                    │  ┌──────────────▼────▼────▼─────┐ │
+                    │  │    kali-collar (Permissions)  │ │
+                    │  │    · Profile check            │ │
+                    │  │    · Consent request          │ │
+                    │  └──────────────┬────────────────┘ │
+                    │                 │                   │
+                    │  ┌──────────────▼────────────────┐  │
+                    │  │  System actions:              │  │
+                    │  │  · Filesystem  · Shell        │  │
+                    │  │  · Git        · Web           │  │
+                    │  │  · Display    · Screen cap    │  │
+                    │  │  · GPU (Qwen) · Games (API)   │  │
+                    │  └───────────────────────────────┘  │
+                    └─────────────────────────────────────┘
+```
+
+### Reading the diagram
+
+1. **User** talks or types → **kali-web** captures the input.
+2. If voice: **kali-web** → WS binary → **kali-ear** (offline Vosk STT) →
+   transcript.
+3. The transcript or text is sent via **kali-yarn** WS protocol to **kali-mind**
+   (AgentRuntime).
+4. **kali-mind** decides: answer directly, or call a **kali-claws** tool.
+5. Every tool call passes through **kali-collar** (permissions) — safe tools
+   run freely, sensitive/dangerous ones require profile whitelist or user
+   consent.
+6. Tool results flow back through **kali-claws** → **kali-mind** → second LLM
+   turn (if needed).
+7. Response text streams back to **kali-web** as deltas **and** (if enabled)
+   through **kali-voice** TTS pipeline → base64 PCM → **kali-web** plays it.
+8. If the LLM produces an artifact (HTML, diagram, diff), it is rendered live
+   on the **NeuralCanvas** in **kali-web**.
+
 ## High-level diagram
 
 ```

@@ -11,6 +11,34 @@ The cat-themed names exist for two reasons:
 2. **Portability.** Each name is a future standalone project name. If a
    module matures, it can be split into its own repo with zero rename cost.
 
+## New to the codebase? Start here.
+
+This document is a reference — you do not need to read it from top to bottom.
+
+**If you want to understand how Kali works end-to-end:**
+
+1. Read [VISION.md](./VISION.md) first (3 minutes) — what Kali is and why.
+2. Read [ARCHITECTURE.md](./ARCHITECTURE.md) (5 minutes) — the three layers and
+   the data flow diagram.
+3. Come back here only when you need to understand a specific component.
+
+**If you want to modify a specific part:**
+
+- **Agent logic, prompts, planning** → `kali-core/kali_core/mind/`
+  (especially `runtime.py`, `planner.py`, `llm/`).
+- **Tools** → `kali-core/kali_core/claws/` (each tool is one file).
+- **Permissions** → `kali-core/kali_core/collar/`.
+- **Voice (TTS)** → `kali-core/kali_core/voice/`.
+- **Speech-to-text** → `kali-core/kali_core/ear/`.
+- **Screen capture** → `kali-core/kali_core/gaze/`.
+- **Frontend components** → `kali-web/src/stage/` and `kali-web/src/components/`.
+- **Widgets** → `kali-web/src/components/widgets/`.
+- **WebSocket protocol** → `kali-core/kali_core/yarn/` (Python) and
+  `kali-web/src/lib/` (TypeScript).
+
+Any directory with a cat name (`kali-*`) is a future standalone project — if
+you need to extract it later, the rename cost is zero.
+
 ## Component map
 
 ```

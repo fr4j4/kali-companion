@@ -4,12 +4,7 @@ A cat-themed, always-on desktop companion that lives on your second
 monitor. Not a chatbot — a presence that researches, renders, and acts on
 your behalf. Voice and text are first-class equals. Local-first by default.
 
-> Status: **Phase 4 — complete.** Screen capture via Wayland portal,
-> vision provider (LLM multimodal + OCR), organize_folder, WidgetGrid,
-> Mermaid diagram rendering, Dota 2 builds via OpenDota API,
-> anti-spoiler game info search, DotaHeroCard widget, gaming profile.
-> **Phase 5 (Advanced voice) — in progress.** Wake word detection
-> implemented, UI indicators, multi-backend capture research.
+<img src="screenshots/kali_welcome_screen.png" width="700" />
 
 ## What Kali does
 
@@ -27,13 +22,44 @@ your behalf. Voice and text are first-class equals. Local-first by default.
   effects, no ffmpeg required). The LLM is configurable (local or cloud).
 - Internationalized from day one: English and Spanish, with room for more.
 
+<img src="screenshots/kali_answer_html_page_artifact.png" width="700" />
+
+*Kali can render HTML mockups, documents, diagrams, diffs, and more as
+draggable windows on a canvas — content, not just chat bubbles.*
+
+<img src="screenshots/kali_thinking_and_reasoning_window.png" width="700" />
+
+*Kali shows its reasoning in real time, with a collapsible panel that
+reveals the agent's thought process.*
+
+## What makes Kali different
+
+Kali is not trying to replace ChatGPT, Copilot, or Siri. It addresses a
+different use case — here are the trade-offs:
+
+| | ChatGPT / Claude | GitHub Copilot | Siri / Alexa | **Kali** |
+|---|---|---|---|---|
+| **Where it lives** | Browser tab | Inside the editor | Phone / speaker | Second monitor, always visible |
+| **What it does** | Converses | Completes code | Simple tasks | Executes tests, git, apps, captures screen |
+| **Voice** | Input only (app) | None | Native, limited | Full parity, offline STT + local TTS |
+| **Privacy** | Cloud | Cloud | Cloud | Local-first: STT/TTS offline, LLM optional cloud |
+| **Permissions** | Blind trust | Blind trust | Blind trust | Profiles + per-action consent modal |
+| **Renders** | Text | Inline suggestions | Text only | Visual artifacts: HTML, diagrams, diffs, widgets |
+| **Open source** | No | Partial | No | Yes (MIT) |
+
+Every row is a design decision, not a competition. Kali needs a second
+monitor and Python 3.12 — ChatGPT works in any browser. Kali's STT runs
+offline — Siri needs a network. The point is not "better", it is
+**different**: built for a specific kind of use.
+
 ## Project name
 
-Kali is named after the cat. Every module carries a cat-themed name to give
-the project personality and to make each subsystem independently
-identifiable — so that any of them can grow into its own project later with
-zero rename cost. See [docs/GLOSSARY.md](docs/GLOSSARY.md) for the full
-naming scheme.
+Kali is named after my cat — a calico named after the goddess Kālī.
+Every module carries a cat-themed name (kali-mind, kali-claws, kali-ear,
+kali-gaze) so each subsystem is independently identifiable and can grow
+into its own project later with zero rename cost.
+See [docs/GLOSSARY.md](docs/GLOSSARY.md) for the full naming scheme and
+[docs/VISION.md](docs/VISION.md) for the story behind the name.
 
 ## Repository layout
 
@@ -59,6 +85,7 @@ ai-voice-companion/
 │       ├── collar/      ← kali-collar (permissions)
 │       ├── nest/        ← kali-nest (sessions + memory)
 │       └── yarn/        ← kali-yarn (WS protocol)
+├── screenshots/         ← project screenshots
 └── scripts/
 ```
 
@@ -124,16 +151,20 @@ docker compose -f docker/docker-compose.yml up -d --build
 See [docker/README.md](docker/README.md) for GPU support, engine selection,
 microphone setup, and advanced configuration.
 
+<img src="screenshots/kali_user_typing_code_snippet_prompt.png" width="700" />
+
+*Typing a prompt — voice and text work the same way under the hood.*
+
 ## Roadmap
 
-| Phase | Scope | Delivers | Status |
-|---|---|---|---|
-| **0 — Foundations** | Tauri/Electron shell, WS, STT/TTS, DirectLLMProvider, base frontend | Functional companion | ✅ |
-| **1 — Agent + Tools** | AgentRuntime, `fs_*`, `run_command`, PermissionGateway, consent UI, themes, profiles | Agent with tools and permissions | ✅ |
-| **2 — Dev Cases** | `run_tests`, `git_*`, `launch_app`, `web_search`, `web_fetch`, multi-session, Planner, Memory | "Ask it to run tests / create a worktree" | ✅ |
-| **3 — Capture + Render** | Wayland ScreenCapture, `screenshot` tool, Canvas artifacts, vision provider, `organize_folder` | "Watch your screen and render mockups" | ✅ |
-| **4 — Gaming** | Dota builds, anti-spoiler info, per-game widgets, refined profile, LLM vision | "In-match assistance" | ✅ |
-| **5 — Advanced Voice** | Wake word, intra-segment PCM, X11/Win/macOS capture, packaging | Polished open-source release | ⬜ |
+| Phase | Scope | Status |
+|---|---|---|
+| **0 — Foundations** | Electron shell, WS, STT/TTS, DirectLLMProvider, base frontend | ✅ |
+| **1 — Agent + Tools** | AgentRuntime, `fs_*`, `run_command`, PermissionGateway, consent UI, themes, profiles | ✅ |
+| **2 — Dev Cases** | `run_tests`, `git_*`, `launch_app`, `web_search`, `web_fetch`, multi-session, Planner, Memory | ✅ |
+| **3 — Capture + Render** | ScreenCapture, `screenshot` tool, Canvas artifacts, vision provider, `organize_folder` | ✅ |
+| **4 — Gaming** | Dota builds, anti-spoiler info, per-game widgets, refined profile, LLM vision | ✅ |
+| **5 — Advanced Voice** | Wake word, intra-segment PCM, multi-platform capture, packaging | ◌ |
 
 ## Tech stack
 
@@ -149,12 +180,8 @@ microphone setup, and advanced configuration.
 | Capture | mss (Python) | Automatic platform detection (Wayland/X11/Win) |
 | Permissions | JSON profiles + consent | Declarative and secure |
 | i18n | react-i18next | Standard and browser-friendly |
-| Build | `electron-builder` + `pyinstaller` | standard packaging options |
+| Build | `electron-builder` + `pyinstaller` | Standard packaging options |
 
 ## License
 
 MIT. See `LICENSE`.
-
-## Status
-
-This is a personal project with open-source intent. All phases from 1 to 4 are complete (text + voice I/O, agent with tools, permissions + consent, themes, profile switcher, dev tools, web tools, multi-session, Planner, Memory, Screen capture, Artifact rendering, and Gaming assistance). Phase 5 (advanced voice + portability) is partially implemented with wake word support. Contributions are not yet open while the core shapes stabilize, but issues and discussions are welcome.
