@@ -21,7 +21,7 @@ No pre-compiled binaries or external models are required on the host.
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> kali
+git clone https://github.com/fr4j4/kali-companion kali
 cd kali
 
 # 2. Configure environment variables

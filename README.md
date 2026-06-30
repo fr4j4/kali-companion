@@ -1,5 +1,7 @@
 # Kali — AI Companion
 
+[![GitHub](https://img.shields.io/badge/repo-fr4j4/kali--companion-181717?logo=github)](https://github.com/fr4j4/kali-companion)
+
 A cat-themed, always-on desktop companion that lives on your second
 monitor. Not a chatbot — a presence that researches, renders, and acts on
 your behalf. Voice and text are first-class equals. Local-first by default.
@@ -200,4 +202,4 @@ microphone setup, and advanced configuration.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT — see [`LICENSE`](LICENSE). Source: [fr4j4/kali-companion](https://github.com/fr4j4/kali-companion)
