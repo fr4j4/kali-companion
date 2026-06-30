@@ -123,10 +123,26 @@ capture is not available in dev mode.
 **With Qwen3-TTS (optional, higher quality voice):**
 
 ```bash
-./scripts/build-qwen-cpp.sh cpu          # compile C++ inference binary
+./scripts/build-qwen-cpp.sh cpu          # or: gpu (CUDA), gpu-vulkan
 ./scripts/download-qwen-models.sh        # download GGUF voice models
 ./scripts/dev.sh                         # start (set KALI_TTS_PROVIDER=qwen3)
 ```
+
+Qwen3-TTS uses two GGUF models with different capabilities:
+
+- **`qwen3-tts-0.6b-customvoice`** (~605 MB) — 9 preset named voices:
+  `serena`, `vivian`, `ono_anna`, `sohee` (female), `aiden`, `dylan`,
+  `eric`, `ryan`, `uncle_fu` (male). Set `KALI_TTS_PROVIDER=qwen3`.
+- **`qwen3-tts-1.7b-voicedesign`** (~1.2 GB) — generate voices from a
+  text description (no audio sample needed). Includes 8 quick presets like
+  `warm-female`, `deep-male`, `energetic-male`, `whisper-female`, etc.,
+  or write custom instructions + seed. Set `KALI_TTS_PROVIDER=qwen3-voicedesign`.
+
+Both share a common 12 kHz audio codec tokenizer
+(`qwen-tokenizer-12hz-Q4_K_M.gguf`, ~255 MB). GPU acceleration:
+`cpu`, `cuda0`, `cuda1` (pass to `build-qwen-cpp.sh`).
+
+Voice design mode: `./scripts/dev-qwen-vd.sh` / `./scripts/prod-qwen-vd.sh`.
 
 **Production mode (Electron + screen capture):**
 
