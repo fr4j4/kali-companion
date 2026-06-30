@@ -115,6 +115,9 @@ RUN useradd --create-home --uid 1001 --shell /bin/bash kali
 RUN mkdir -p /app/kali-core /app/kali-web /app/models /app/data \
     && chown -R kali:kali /app
 
+# Nginx tmp dir (logs go to stdout/stderr, pid+temps to /tmp/nginx)
+RUN mkdir -p /tmp/nginx && chown kali:kali /tmp/nginx
+
 # Set HOME so Path.home() resolves to /home/kali.
 # The entrypoint symlinks ~/.local/share/kali → /app/data for persistence.
 ENV HOME=/home/kali
