@@ -341,7 +341,18 @@ class DirectLLMProvider:
             yield StreamEvent(kind="done")
         except Exception as exc:
             logger.error("LLM error: %s", exc)
-            yield StreamEvent(kind="delta", text=f"[LLM error: {exc}]")
+            # Provide a user-friendly message instead of raw exception text.
+            if "connection" in str(exc).lower() or "timeout" in str(exc).lower():
+                msg = (
+                    "No pude conectar con el modelo de IA. "
+                    "Verifica que el endpoint esté activo y accesible."
+                    if self._api_url and not self._api_url.startswith("http://localhost")
+                    else "No pude conectar con el modelo de IA. "
+                    "Verifica que el servidor local esté corriendo."
+                )
+            else:
+                msg = f"Error del modelo de IA: {exc}"
+            yield StreamEvent(kind="delta", text=msg)
             yield StreamEvent(kind="done")
 
     def _maybe_stream_artifact_tool(
@@ -462,4 +473,6 @@ class DirectLLMProvider:
             }
         except Exception as exc:
             logger.error("LLM error: %s", exc)
-            return {"text": f"[LLM error: {exc}]"}
+            if "connection" in str(exc).lower() or "timeout" in str(exc).lower():
+                return {"text": "No pude conectar con el modelo de IA. Verifica que el endpoint esté activo."}
+            return {"text": f"Error del modelo de IA: {exc}"}

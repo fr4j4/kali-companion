@@ -530,11 +530,14 @@ class QwenTTSProvider:
             return
         was_loaded = self.is_loaded
         current_id = self._loaded_model_id
-        current_device = self.device
         if was_loaded:
             self.shutdown()
         self._talker_models_dir = Path(models_dir).expanduser().resolve()
-        self._codec_model = self._talker_models_dir / "qwen-tokenizer-12hz-Q4_K_M.gguf"
+        # Discover the codec/tokenizer file in the new dir instead of
+        # hardcoding the quantization suffix.
+        codec_files = list(self._talker_models_dir.glob("qwen-tokenizer-12hz-*.gguf"))
+        if codec_files:
+            self._codec_model = codec_files[0]
         self._discover_talker_models()
         if current_id is not None and current_id in self._available_models:
             self._talker_model = self._available_models[current_id]

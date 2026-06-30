@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Download, Loader2, Plug, Unplug } from "lucide-react";
 import { apiBase, fetchWithRetry } from "../../lib/api/http";
 import type { StatusEvent, TtsModelInfo, TtsDeviceInfo } from "../../lib/protocol";
 import { TTS_PROVIDERS } from "../../lib/tts-providers";
@@ -211,27 +212,31 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
               <button
                 onClick={() => handleUnloadModel(m.id)}
                 disabled={loadingAction}
-                className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
+                <Unplug size={13} />
                 {t("tts.unload")}
               </button>
             ) : m.available ? (
               <button
                 onClick={() => handleLoadModel(m.id)}
                 disabled={loadingAction}
-                className="text-xs px-2.5 py-1 rounded-md bg-accent-dim text-foreground hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-accent-dim text-foreground hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
+                <Plug size={13} />
                 {t("tts.load")}
               </button>
             ) : downloadProgress[m.id] !== undefined ? (
-              <span className="text-xs px-2.5 py-1 text-accent animate-pulse">
+              <span className="flex items-center gap-1 text-xs px-2.5 py-1 text-accent">
+                <Loader2 size={13} className="animate-spin" />
                 {t("tts.download_progress", { progress: downloadProgress[m.id] })}
               </span>
             ) : (
               <button
                 onClick={() => handleDownloadModel(m.id)}
-                className="text-xs px-2.5 py-1 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors"
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors"
               >
+                <Download size={13} />
                 {t("tts.download")}
               </button>
             )}

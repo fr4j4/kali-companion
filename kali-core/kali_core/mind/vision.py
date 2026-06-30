@@ -88,7 +88,7 @@ class VisionProcessor:
             ]
             result = await self._llm.complete(messages)
             text = result.get("text", "")
-            if text and not text.startswith("[LLM error"):
+            if text and not text.startswith("[LLM error") and "Error del modelo de IA" not in text and "No pude conectar" not in text:
                 return text
             # Model rejected the image — cache so we skip next time.
             self._failed_models.add(self._model_name)

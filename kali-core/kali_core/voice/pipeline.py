@@ -70,10 +70,29 @@ class TTSPipeline:
         if not segments:
             return
 
+        # Defensive voice validation: if the current voice is not valid for
+        # this provider (e.g. after switching providers), try to fall back
+        # to the first available voice instead of failing every segment.
+        effective_voice = self.voice
+        try:
+            name = getattr(self.provider, "provider_name", "")
+            if name == "piper":
+                from kali_core.voice.voice_config import VoiceConfigManager
+                vm = VoiceConfigManager(self.provider.voices_dir)
+                valid = {v["id"] for v in vm.list_voices()}
+                if effective_voice not in valid and valid:
+                    effective_voice = sorted(valid)[0]
+                    logger.warning(
+                        "Voice '%s' not found for piper — falling back to '%s'",
+                        self.voice, effective_voice,
+                    )
+        except Exception:
+            pass  # Can't validate — let the synthesizer try and report
+
         logger.info(
             "synthesize_stream start: provider=%s voice=%s mode=%s lang=%s segments=%d",
             getattr(self.provider, "provider_name", "?"),
-            self.voice,
+            effective_voice,
             self.mode,
             self.language,
             len(segments),
@@ -84,11 +103,11 @@ class TTSPipeline:
                 t0 = time.perf_counter()
                 logger.info(
                     "synthesize segment %d: chars=%d voice=%s text_preview=%r",
-                    i, len(segment), self.voice, segment[:80],
+                    i, len(segment), effective_voice, segment[:80],
                 )
                 result = await self.provider.synthesize(
                     segment,
-                    voice=self.voice,
+                    voice=effective_voice,
                     mode=self.mode,
                     language=self.language,
                 )

@@ -104,11 +104,10 @@ logger = logging.getLogger("kali_core.server")
 
 
 def _validate_voice_for_provider(voice: str, provider) -> str:
-    """Return *voice* if valid for *provider*, else a safe default.
+    """Return *voice* if valid for *provider*, else raise ValueError.
 
-    Raises ValueError if the provider is qwen3 and the voice is not a known
-    qwen voice id — used by _apply_server_setting to trigger the warning
-    + fallback path.
+    The caller is expected to catch ValueError and use
+    _first_available_voice(provider) as the fallback.
     """
     name = getattr(provider, "provider_name", "")
     if name == "qwen3":
@@ -116,11 +115,48 @@ def _validate_voice_for_provider(voice: str, provider) -> str:
         valid = {v["id"] for v in PREDEFINED_VOICES} | {p["id"] for p in VOICE_DESIGN_PRESETS}
         if voice in valid:
             return voice
-        raise ValueError(
-            f"Voice '{voice}' is not valid for qwen3 provider. "
-            f"Valid voices: {sorted(valid)}. Falling back to 'serena'."
-        )
+        raise ValueError(f"Voice '{voice}' is not valid for qwen3 provider.")
+    if name == "piper":
+        # Piper voices are discovered from .onnx files in the voices dir.
+        # list_voices is async, but the underlying VoiceConfigManager
+        # has a sync list_voices we can use.
+        try:
+            from kali_core.voice.voice_config import VoiceConfigManager
+            vm = VoiceConfigManager(provider.voices_dir)
+            valid = {v["id"] for v in vm.list_voices()}
+            if voice in valid:
+                return voice
+            raise ValueError(f"Voice '{voice}' is not valid for piper provider. Available: {sorted(valid)}.")
+        except ValueError:
+            raise
+        except Exception:
+            # Can't enumerate — let it pass; the synthesizer will report the error.
+            return voice
     return voice
+
+
+def _first_available_voice(provider) -> str | None:
+    """Return the first available voice id for *provider*, or None."""
+    name = getattr(provider, "provider_name", "")
+    if name == "qwen3":
+        from kali_core.voice.providers.qwen import PREDEFINED_VOICES, VOICE_DESIGN_PRESETS
+        variant = getattr(provider, "tts_variant", "customvoice")
+        if variant == "voicedesign" and VOICE_DESIGN_PRESETS:
+            return VOICE_DESIGN_PRESETS[0]["id"]
+        if PREDEFINED_VOICES:
+            return PREDEFINED_VOICES[0]["id"]
+        return None
+    if name == "piper":
+        try:
+            from kali_core.voice.voice_config import VoiceConfigManager
+            vm = VoiceConfigManager(provider.voices_dir)
+            voices = vm.list_voices()
+            if voices:
+                return voices[0]["id"]
+            return None
+        except Exception:
+            return None
+    return None
 
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -1152,12 +1188,9 @@ class Server:
     def _get_fallback(self, key: str):
         """Return the env-var default for a setting key, or None."""
         if key == "voice":
-            provider_name = getattr(self.tts_provider, "provider_name", "")
-            if provider_name == "qwen3":
-                variant = getattr(self.tts_provider, "tts_variant", None)
-                if variant == "voicedesign":
-                    return "warm-female"
-                return "serena"
+            fallback = _first_available_voice(self.tts_provider)
+            if fallback:
+                return fallback
             return settings.tts_voice
         mapping = {
             "tts_provider": settings.tts_provider,
@@ -1221,10 +1254,7 @@ class Server:
                     try:
                         sanitized_voice = _validate_voice_for_provider(self.tts_pipeline.voice, new_provider)
                     except ValueError:
-                        if getattr(new_provider, "tts_variant", None) == "voicedesign":
-                            sanitized_voice = "warm-female"
-                        else:
-                            sanitized_voice = "serena"
+                        sanitized_voice = _first_available_voice(new_provider) or self.tts_pipeline.voice
                     self.tts_pipeline = TTSPipeline(
                         self.tts_provider,
                         voice=sanitized_voice,
@@ -1671,8 +1701,14 @@ class Connection:
         models_dir.mkdir(parents=True, exist_ok=True)
         target = models_dir / cfg["filename"]
 
-        tokenizer_url = "https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF/resolve/main/qwen-tokenizer-12hz-Q4_K_M.gguf"
-        tokenizer_path = models_dir / "qwen-tokenizer-12hz-Q4_K_M.gguf"
+        # Derive tokenizer filename from the talker's quantization suffix
+        # (e.g. qwen-talker-0.6b-customvoice-Q4_K_M.gguf → qwen-tokenizer-12hz-Q4_K_M.gguf)
+        import re as _re
+        quant_match = _re.search(r"-(Q4_K_M|Q8_0|BF16|F32)\.gguf$", cfg["filename"])
+        quant_suffix = quant_match.group(1) if quant_match else "Q4_K_M"
+        tokenizer_filename = f"qwen-tokenizer-12hz-{quant_suffix}.gguf"
+        tokenizer_url = f"https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF/resolve/main/{tokenizer_filename}"
+        tokenizer_path = models_dir / tokenizer_filename
         model_url = f"https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF/resolve/main/{cfg['filename']}"
 
         await self.send({"event": "download_tts_model_started", "model_id": model_id})
@@ -1714,15 +1750,9 @@ class Connection:
             if not target.exists():
                 await loop.run_in_executor(None, _download, model_url, target, "model")
 
+            # Rescan available models in the directory without auto-mounting.
             if hasattr(self.server.tts_provider, "configure"):
-                was_loaded = getattr(self.server.tts_provider, "is_loaded", False)
-                current = getattr(self.server.tts_provider, "loaded_model", None)
-                current_device = getattr(self.server.tts_provider, "device", None)
-                if was_loaded:
-                    self.server.tts_provider.unload_model()
                 self.server.tts_provider.configure(models_dir=str(models_dir))
-                if current:
-                    self.server.tts_provider.load_model(current, current_device or "cpu")
 
             await self.server.broadcast_status()
             await self.send({"event": "download_tts_model_complete", "model_id": model_id})
@@ -2134,10 +2164,7 @@ class Connection:
                     try:
                         sanitized_voice = _validate_voice_for_provider(self.server.tts_pipeline.voice, new_provider)
                     except ValueError:
-                        if getattr(new_provider, "tts_variant", None) == "voicedesign":
-                            sanitized_voice = "warm-female"
-                        else:
-                            sanitized_voice = "serena"
+                        sanitized_voice = _first_available_voice(new_provider) or self.server.tts_pipeline.voice
                     self.server.tts_pipeline = TTSPipeline(
                         new_provider,
                         voice=sanitized_voice,
@@ -2180,6 +2207,9 @@ class Connection:
             self.server.tts_pipeline.set_voice(mode=event["tts_mode"])
         if "auto_tts" in event:
             self.server.tts_pipeline.set_auto_tts(bool(event["auto_tts"]))
+        if "tts_models_dir" in event:
+            self.server._apply_server_setting("tts_models_dir", event["tts_models_dir"])
+            await self.server.broadcast_status()
         if "llm_model" in event:
             self.server.llm_provider._model = event["llm_model"]  # type: ignore[attr-defined]
             ai_cfg_changed = True
@@ -2343,6 +2373,7 @@ class Connection:
             stt_device=sp.device,
             stt_streaming=getattr(sp, "_streaming", True),
             stt_models_dir=str(getattr(sp, "_models_dir", "")) or None,
+            tts_models_dir=str(getattr(self.server.tts_provider, "_talker_models_dir", "")) or None,
             profile=self.server.executor.profile,
             artifact_diff_preview=settings.artifact_diff_preview,
             # Per-connection

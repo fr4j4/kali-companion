@@ -135,7 +135,6 @@ download_qwen_models() {
 setup_model_symlinks() {
     mkdir -p "$KALI_CORE_DIR/kali_core/voice/voices"
     mkdir -p "$KALI_CORE_DIR/kali_core/ear/models"
-    mkdir -p "$KALI_CORE_DIR/kali_core/voice/qwen_models"
 
     # Piper voices
     local piper_src="$MODELS_DIR/piper-voices"
@@ -154,12 +153,8 @@ setup_model_symlinks() {
         fi
     done
 
-    # Qwen3 models
-    for f in "$MODELS_DIR"/qwen-*.gguf; do
-        if [ -f "$f" ]; then
-            ln -sf "$f" "$KALI_CORE_DIR/kali_core/voice/qwen_models/$(basename "$f")"
-        fi
-    done
+    # Qwen3-TTS models: no symlinks needed — the provider reads directly
+    # from KALI_TTS_MODELS_DIR (= $MODELS_DIR in Docker).
 }
 
 # ── Qwen3 C++ server lifecycle ───────────────────────────────────────────────
