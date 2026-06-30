@@ -15,8 +15,6 @@ code, docs, or issues, use these names exactly.
 | **kali-shell** | The cat's home | Shell (Electron / TypeScript) | Native window, system access, loads the frontend, spawns and supervises the sidecar. |
 | **kali-web** | The cat's face | Frontend (React + Vite) | UI rendered in the webview: dashboard, chat, widgets, canvas. |
 | **kali-core** | The cat's body | Orchestration (Python) | The sidecar that ties every module together. |
-| **kali-web** | The cat's face | Frontend (React + Vite) | UI rendered in the webview: dashboard, chat, widgets, canvas. |
-| **kali-core** | The cat's body | Orchestration (Python) | The sidecar that ties every module together. |
 | **kali-voice** | The cat's voice | TTS (Python, in kali-core) | Text → audio. Piper in-process, numpy effects, Qwen3-TTS C++ server, `robot-es` default. |
 | **kali-ear** | The cat's ears | STT (Python, in kali-core) | Voice → text. Vosk offline, multi-language, optional wake word, language normalization. |
 | **kali-mind** | The cat's mind | Agent runtime (Python, in kali-core) | Plans, decides, iterates. Houses LLM providers. Artifact streaming + console retrieval. |
@@ -60,7 +58,6 @@ make sense on their own:
 - Planner, executor, formatter — submodules of `kali-mind`.
 - Consent manager — part of `kali-collar`.
 - Config — internal to `kali-core`.
-- Rust capture backends — implementations of `kali-gaze`'s trait.
 
 If a future internal grows into something reusable on its own, it earns a
 cat name at that point. Naming is cheap; renaming is expensive.

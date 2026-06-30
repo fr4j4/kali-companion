@@ -19,6 +19,7 @@
   "status.disconnected": "Desconectado",
   "chat.placeholder": "Escribe un mensaje…",
   "chat.send": "Enviar",
+  "chat.newline": "Nueva línea",
   "chat.cancel": "Cancelar",
   "voice.ptt.hint": "Mantén Espacio o el botón del micrófono para hablar",
   "consent.allow": "Permitir",
