@@ -1,0 +1,487 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  TwentyFortyEightGame,
+  type BoardData,
+  type BoardSize,
+  type Direction,
+} from "../../games/twenty-forty-eight/twenty-forty-eight-game";
+import { GameStatus } from "../../games/core/constants/game-status";
+import type { GameStatusValue } from "../../games/core/constants/game-status";
+import { ActionType, GameCommand } from "../../games/core/constants/action-types";
+
+interface Props {
+  game: TwentyFortyEightGame;
+}
+
+const PALETTE: Record<number, { bg: string; glow: string; text: string }> = {
+  2:    { bg: "#0b1220", glow: "rgba(6,182,212,0.25)", text: "#a5f3fc" },
+  4:    { bg: "#0c1f2d", glow: "rgba(34,211,238,0.35)", text: "#67e8f9" },
+  8:    { bg: "#0f2b3a", glow: "rgba(56,189,248,0.4)",  text: "#38bdf8" },
+  16:   { bg: "#142744", glow: "rgba(59,130,246,0.45)", text: "#60a5fa" },
+  32:   { bg: "#1a2754", glow: "rgba(99,102,241,0.5)",  text: "#818cf8" },
+  64:   { bg: "#211b4d", glow: "rgba(139,92,246,0.55)", text: "#a78bfa" },
+  128:  { bg: "#2d1a4d", glow: "rgba(168,85,247,0.6)", text: "#c084fc" },
+  256:  { bg: "#3a174c", glow: "rgba(192,38,211,0.65)", text: "#e879f9" },
+  512:  { bg: "#4a154a", glow: "rgba(217,70,239,0.7)",  text: "#f0abfc" },
+  1024: { bg: "#581143", glow: "rgba(236,72,153,0.75)", text: "#f9a8d4" },
+  2048: { bg: "#6d0f31", glow: "rgba(244,63,94,0.85)",  text: "#fda4af" },
+};
+
+function tilePalette(value: number) {
+  return PALETTE[value] ?? { bg: "#2a0a2a", glow: "rgba(250,204,21,0.9)", text: "#fef08a" };
+}
+
+const BOARD_BG = "#05070f";
+const BOARD_BORDER = "#1e3a8a";
+const BOARD_BORDER_GLOW = "rgba(56, 189, 248, 0.25)";
+const EMPTY_CELL = "rgba(15, 23, 42, 0.75)";
+const GRID_AREA_SIZE = 320;
+const GRID_GAP = 8;
+
+const SIZES: { value: BoardSize; label: string }[] = [
+  { value: 3, label: "3×3" },
+  { value: 4, label: "4×4" },
+  { value: 5, label: "5×5" },
+  { value: 6, label: "6×6" },
+];
+
+function send(game: TwentyFortyEightGame, command: string) {
+  game.handleAction({ type: ActionType.COMMAND, data: command }, "player");
+}
+
+function move(game: TwentyFortyEightGame, direction: Direction) {
+  game.handleAction({ type: ActionType.MOVE, data: direction }, "player");
+}
+
+export function TwentyFortyEightView({ game }: Props) {
+  const [statusVersion, setStatusVersion] = useState(0);
+  void statusVersion;
+  const statusRef = useRef<GameStatusValue>(game.getStatus());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [pendingSize, setPendingSize] = useState<BoardSize>(game.size);
+
+  const refresh = useCallback(() => {
+    statusRef.current = game.getStatus();
+    setStatusVersion((v) => v + 1);
+  }, [game]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const startNewGame = useCallback((selectedSize: BoardSize) => {
+    game.restart(selectedSize);
+    refresh();
+  }, [game, refresh]);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const status = game.getStatus();
+      const dirMap: Record<string, Direction> = {
+        ArrowUp: "UP",
+        ArrowDown: "DOWN",
+        ArrowLeft: "LEFT",
+        ArrowRight: "RIGHT",
+        w: "UP",
+        W: "UP",
+        s: "DOWN",
+        S: "DOWN",
+        a: "LEFT",
+        A: "LEFT",
+        d: "RIGHT",
+        D: "RIGHT",
+      };
+
+      if (status === GameStatus.WAITING) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          startNewGame(pendingSize);
+        }
+        return;
+      }
+
+      if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        if (status === GameStatus.PLAYING) {
+          send(game, GameCommand.PAUSE);
+        } else if (status === GameStatus.PAUSED) {
+          send(game, GameCommand.RESUME);
+        }
+        refresh();
+        return;
+      }
+
+      if (status === GameStatus.WON || status === GameStatus.LOST) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          send(game, GameCommand.PLAY_AGAIN);
+          refresh();
+        }
+        return;
+      }
+
+      if (status === GameStatus.PAUSED) return;
+
+      const dir = dirMap[e.key];
+      if (dir) {
+        e.preventDefault();
+        move(game, dir);
+        refresh();
+      }
+    }
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [game, refresh, pendingSize, startNewGame]);
+
+  const data = game.getState().data as BoardData | null;
+  const cells = data?.cells ?? [];
+  const size = data?.size ?? 4;
+  const score = game.getScore();
+  const moves = game.getMoves();
+
+  const estimatedCellSize = (GRID_AREA_SIZE - (size - 1) * GRID_GAP) / size;
+  const fontSize = estimatedCellSize <= 46 ? 16 : estimatedCellSize <= 55 ? 18 : estimatedCellSize <= 65 ? 22 : estimatedCellSize <= 80 ? 28 : 34;
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex flex-col items-center justify-center flex-1 bg-[#02040a] relative py-4 select-none"
+      tabIndex={-1}
+    >
+      <div
+        className="p-3 rounded-2xl border-2 relative inline-flex flex-col items-center"
+        style={{
+          backgroundColor: BOARD_BG,
+          borderColor: BOARD_BORDER,
+          boxShadow: `0 0 24px ${BOARD_BORDER_GLOW}, inset 0 0 18px rgba(56, 189, 248, 0.05)`,
+          flex: "0 0 auto",
+          boxSizing: "border-box",
+          width: 364,
+          minWidth: 364,
+          maxWidth: 364,
+        }}
+      >
+        <div
+          className="flex items-end justify-between px-1 pb-3"
+          style={{ width: GRID_AREA_SIZE, height: 46, flex: "0 0 auto", gap: 12 }}
+        >
+          <span
+            className="text-sm tracking-widest font-bold"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee", lineHeight: 1 }}
+          >
+            2048
+          </span>
+          <div className="flex gap-3">
+            <div
+              className="flex flex-col items-center justify-center px-2 py-1 rounded-md"
+              style={{
+                backgroundColor: "#0f172a",
+                boxShadow: "0 0 8px rgba(34,211,238,0.25)",
+                minWidth: 76,
+                boxSizing: "border-box",
+              }}
+            >
+              <span
+                className="text-[8px]"
+                style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee", lineHeight: 1.2 }}
+              >
+                SCORE
+              </span>
+              <span
+                className="text-xs"
+                style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9", lineHeight: 1.2 }}
+              >
+                {score}
+              </span>
+            </div>
+            <div
+              className="flex flex-col items-center justify-center px-2 py-1 rounded-md"
+              style={{
+                backgroundColor: "#0f172a",
+                boxShadow: "0 0 8px rgba(139,92,246,0.25)",
+                minWidth: 66,
+                boxSizing: "border-box",
+              }}
+            >
+              <span
+                className="text-[8px]"
+                style={{ fontFamily: "'Press Start 2P', monospace", color: "#a78bfa", lineHeight: 1.2 }}
+              >
+                MOVES
+              </span>
+              <span
+                className="text-xs"
+                style={{ fontFamily: "'Press Start 2P', monospace", color: "#c4b5fd", lineHeight: 1.2 }}
+              >
+                {moves}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="grid rounded-xl p-2"
+          style={{
+            gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${size}, minmax(0, 1fr))`,
+            gap: `${GRID_GAP}px`,
+            width: GRID_AREA_SIZE,
+            height: GRID_AREA_SIZE,
+            minWidth: GRID_AREA_SIZE,
+            minHeight: GRID_AREA_SIZE,
+            backgroundColor: "rgba(30, 58, 138, 0.25)",
+            boxShadow: "inset 0 0 20px rgba(56,189,248,0.1)",
+            boxSizing: "border-box",
+            flex: "0 0 auto",
+          }}
+        >
+          {cells.flat().map((tile, idx) => {
+            const row = Math.floor(idx / size);
+            const col = idx % size;
+            const value = tile?.value ?? 0;
+            const palette = value ? tilePalette(value) : null;
+            const isNew = data?.lastSpawned?.row === row && data?.lastSpawned?.col === col;
+            const merged = tile ? data?.mergedIds.includes(tile.id) : false;
+
+            return (
+              <div
+                key={tile ? tile.id : `${row}-${col}`}
+                className="relative flex items-center justify-center rounded-lg font-bold overflow-hidden"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  minWidth: 0,
+                  minHeight: 0,
+                  backgroundColor: palette ? palette.bg : EMPTY_CELL,
+                  color: palette ? palette.text : "transparent",
+                  fontSize,
+                  boxShadow: palette
+                    ? `0 0 18px ${palette.glow}, inset 0 0 8px rgba(255,255,255,0.06)`
+                    : "none",
+                  textShadow: palette ? `0 0 10px ${palette.glow}` : "none",
+                  border: palette ? `1px solid ${palette.glow}` : "1px solid rgba(56,189,248,0.08)",
+                }}
+              >
+                <span
+                  className="transition-transform duration-200"
+                  style={{
+                    transform: isNew ? "scale(1.12)" : merged ? "scale(1.06)" : "scale(1)",
+                    animation: isNew ? "neon-pop 220ms ease-out" : undefined,
+                    lineHeight: 1,
+                  }}
+                >
+                  {value || ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {statusRef.current === GameStatus.WAITING && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
+          <span
+            className="text-5xl mb-3"
+            style={{ filter: "drop-shadow(0 0 14px rgba(34,211,238,0.8))" }}
+          >
+            {"\u{1F9EE}"}
+          </span>
+          <h2
+            className="text-xl mb-1 tracking-wider"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee" }}
+          >
+            2048
+          </h2>
+          <p
+            className="text-xs mb-6"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#38bdf8" }}
+          >
+            Merge. Glow. Win.
+          </p>
+
+          <div className="flex flex-col items-center gap-3 mb-6">
+            <p
+              className="text-[10px]"
+              style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}
+            >
+              BOARD SIZE
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              {SIZES.map((s) => {
+                const active = pendingSize === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    onClick={() => setPendingSize(s.value)}
+                    className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
+                    style={{
+                      fontFamily: "'Press Start 2P', monospace",
+                      backgroundColor: active ? "#22d3ee" : "#0f172a",
+                      color: active ? "#020617" : "#94a3b8",
+                      boxShadow: active ? "0 0 12px rgba(34,211,238,0.55)" : "none",
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={() => startNewGame(pendingSize)}
+            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              backgroundColor: "#22d3ee",
+              color: "#020617",
+              boxShadow: "0 0 14px rgba(34,211,238,0.55)",
+            }}
+          >
+            START
+          </button>
+          <p
+            className="text-[9px] mt-4"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
+          >
+            ENTER to start
+          </p>
+        </div>
+      )}
+
+      {statusRef.current === GameStatus.PAUSED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/85 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2
+            className="text-base mb-6 tracking-wider"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee" }}
+          >
+            PAUSED
+          </h2>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                send(game, GameCommand.RESUME);
+                refresh();
+              }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{
+                fontFamily: "'Press Start 2P', monospace",
+                backgroundColor: "#22d3ee",
+                color: "#020617",
+                boxShadow: "0 0 14px rgba(34,211,238,0.55)",
+              }}
+            >
+              RESUME
+            </button>
+            <button
+              onClick={() => {
+                send(game, GameCommand.RESTART);
+                refresh();
+              }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{
+                fontFamily: "'Press Start 2P', monospace",
+                backgroundColor: "#1e3a8a",
+                color: "#e0f2fe",
+                border: "1px solid #38bdf8",
+              }}
+            >
+              RESTART
+            </button>
+            <button
+              onClick={() => {
+                send(game, GameCommand.GIVE_UP);
+                refresh();
+              }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{
+                fontFamily: "'Press Start 2P', monospace",
+                color: "#e0f2fe",
+                backgroundColor: "#7f1d1d",
+                border: "1px solid #f87171",
+              }}
+            >
+              QUIT
+            </button>
+          </div>
+          <p
+            className="text-[9px] mt-4"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
+          >
+            ESC to resume
+          </p>
+        </div>
+      )}
+
+      {(statusRef.current === GameStatus.WON || statusRef.current === GameStatus.LOST) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2
+            className="text-lg mb-1 tracking-wider"
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              color: statusRef.current === GameStatus.WON ? "#22d3ee" : "#f43f5e",
+              textShadow: statusRef.current === GameStatus.WON
+                ? "0 0 16px rgba(34,211,238,0.7)"
+                : "0 0 16px rgba(244,63,94,0.7)",
+            }}
+          >
+            {statusRef.current === GameStatus.WON ? "YOU WIN" : "GAME OVER"}
+          </h2>
+          <p
+            className="text-xs mb-4"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9" }}
+          >
+            SCORE: {score}
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                send(game, GameCommand.PLAY_AGAIN);
+                refresh();
+              }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{
+                fontFamily: "'Press Start 2P', monospace",
+                backgroundColor: "#22d3ee",
+                color: "#020617",
+                boxShadow: "0 0 14px rgba(34,211,238,0.55)",
+              }}
+            >
+              PLAY AGAIN
+            </button>
+            <button
+              onClick={() => {
+                send(game, GameCommand.GIVE_UP);
+                refresh();
+              }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{
+                fontFamily: "'Press Start 2P', monospace",
+                backgroundColor: "#1e3a8a",
+                color: "#e0f2fe",
+                border: "1px solid #38bdf8",
+              }}
+            >
+              QUIT
+            </button>
+          </div>
+          <p
+            className="text-[9px] mt-4"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
+          >
+            ENTER to retry
+          </p>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes neon-pop {
+          0% { transform: scale(0.5); opacity: 0; }
+          70% { transform: scale(1.15); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}

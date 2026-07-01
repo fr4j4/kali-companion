@@ -10,7 +10,7 @@
 | # | ID | Juego | Descripción | Render | Prioridad | Estado |
 |---|-----|-------|-------------|--------|-----------|--------|
 | 1 | `snake` | Snake | Comer sin chocarte contra las paredes o ti mismo. Niveles progresivos, interpolación suave y aumento logarítmico de velocidad. | Canvas | - | Implementado |
-| 2 | `2048` | 2048 | Deslizar fichas y combinar números hasta llegar a 2048 | Grid | - | Pendiente |
+| 2 | `2048` | 2048 | Deslizar fichas y combinar números hasta llegar a 2048 | Grid | - | Implementado |
 | 3 | `minesweeper` | Minesweeper | Descubrir minas sin explotar, usando lógica | Grid | - | Pendiente |
 | 4 | `memory` | Memory | Encontrar parejas de cartas ocultas | Grid | - | Pendiente |
 | 5 | `breakout` | Breakout | Romper ladrillos con una pelota rebotando | Canvas | - | Pendiente |
