@@ -12,21 +12,30 @@ const CANVAS_W = BOARD_W * CELL;
 const CANVAS_H = BOARD_H * CELL;
 
 const PALETTE = {
-  bg: "#0f380f",
-  grid: "#1a4a1a",
-  head: "#4ade80",
-  headDark: "#22c55e",
-  body: "#2ecc71",
-  bodyDark: "#27ae60",
-  bodyInner: "#22a854",
+  bg: "#02040a",
+  grid: "#0f1c38",
+  gridGlow: "rgba(56, 189, 248, 0.08)",
+  head: "#22d3ee",
+  headDark: "#0ea5e9",
+  headGlow: "rgba(34, 211, 238, 0.45)",
+  body: "#d946ef",
+  bodyDark: "#c026d3",
+  bodyInner: "#701a75",
+  bodyGlow: "rgba(217, 70, 239, 0.45)",
   apple: "#ef4444",
   appleLight: "#f87171",
-  appleStem: "#65a30d",
-  appleLeaf: "#4d7c0f",
-  eyeWhite: "#f0fdf4",
-  pupil: "#0f380f",
-  border: "#166534",
-  borderLight: "#22c55e",
+  appleStem: "#a3e635",
+  appleLeaf: "#84cc16",
+  appleGlow: "rgba(239, 68, 68, 0.55)",
+  eyeWhite: "#ffffff",
+  pupil: "#020617",
+  border: "#2563eb",
+  borderLight: "#38bdf8",
+  silhouette: "rgba(0, 0, 0, 0.45)",
+  platform: "#050a14",
+  platformBorder: "#1e3a8a",
+  buttonText: "#020617",
+  buttonAltText: "#f0f9ff",
 };
 
 interface Props {
@@ -37,14 +46,44 @@ function send(game: SnakeGame, command: string) {
   game.handleAction({ type: ActionType.COMMAND, data: command }, "player");
 }
 
+function withGlow(ctx: CanvasRenderingContext2D, color: string, blur: number, fn: () => void) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  fn();
+  ctx.restore();
+}
+
+function drawSilhouette(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  ctx.save();
+  ctx.fillStyle = PALETTE.silhouette;
+  ctx.shadowColor = "rgba(0,0,0,0.9)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 3;
+  ctx.beginPath();
+  ctx.roundRect(x + 1, y + 1, w - 2, h - 2, r);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawPixelApple(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
   const s = CELL;
   const r = 9;
 
-  ctx.fillStyle = PALETTE.apple;
-  ctx.beginPath();
-  ctx.arc(cx + s / 2, cy + s / 2 + 1, r, 0, Math.PI * 2);
-  ctx.fill();
+  withGlow(ctx, PALETTE.appleGlow, 22, () => {
+    ctx.fillStyle = PALETTE.apple;
+    ctx.beginPath();
+    ctx.arc(cx + s / 2, cy + s / 2 + 1, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
 
   ctx.fillStyle = PALETTE.appleLight;
   ctx.beginPath();
@@ -61,15 +100,19 @@ function drawPixelApple(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
 function drawSnakeHead(ctx: CanvasRenderingContext2D, x: number, y: number, dir: string) {
   const r = 6;
 
-  ctx.fillStyle = PALETTE.headDark;
-  ctx.beginPath();
-  ctx.roundRect(x, y, CELL, CELL, r);
-  ctx.fill();
+  drawSilhouette(ctx, x, y, CELL, CELL, r);
 
-  ctx.fillStyle = PALETTE.head;
-  ctx.beginPath();
-  ctx.roundRect(x + 2, y + 2, CELL - 4, CELL - 4, r - 2);
-  ctx.fill();
+  withGlow(ctx, PALETTE.headGlow, 20, () => {
+    ctx.fillStyle = PALETTE.headDark;
+    ctx.beginPath();
+    ctx.roundRect(x, y, CELL, CELL, r);
+    ctx.fill();
+
+    ctx.fillStyle = PALETTE.head;
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + 2, CELL - 4, CELL - 4, r - 2);
+    ctx.fill();
+  });
 
   const ex = x + (dir === "LEFT" ? 4 : dir === "RIGHT" ? 14 : 6);
   const ey = y + (dir === "UP" ? 4 : dir === "DOWN" ? 14 : 6);
@@ -93,15 +136,18 @@ function drawSnakeHead(ctx: CanvasRenderingContext2D, x: number, y: number, dir:
 
 function drawSnakeBody(ctx: CanvasRenderingContext2D, x: number, y: number, idx: number) {
   const r = 5;
-  ctx.fillStyle = idx % 2 === 0 ? PALETTE.body : PALETTE.bodyDark;
-  ctx.beginPath();
-  ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, r);
-  ctx.fill();
+  drawSilhouette(ctx, x + 1, y + 1, CELL - 2, CELL - 2, r);
+  withGlow(ctx, PALETTE.bodyGlow, 16, () => {
+    ctx.fillStyle = idx % 2 === 0 ? PALETTE.body : PALETTE.bodyDark;
+    ctx.beginPath();
+    ctx.roundRect(x + 1, y + 1, CELL - 2, CELL - 2, r);
+    ctx.fill();
 
-  ctx.fillStyle = PALETTE.bodyInner;
-  ctx.beginPath();
-  ctx.roundRect(x + 5, y + 5, CELL - 10, CELL - 10, r - 2);
-  ctx.fill();
+    ctx.fillStyle = PALETTE.bodyInner;
+    ctx.beginPath();
+    ctx.roundRect(x + 5, y + 5, CELL - 10, CELL - 10, r - 2);
+    ctx.fill();
+  });
 }
 
 interface Point {
@@ -145,12 +191,22 @@ export function SnakeView({ game }: Props) {
       const data = state.data as DrawState | null;
       const prevData = game.prevData as DrawState | null;
 
-      ctx.fillStyle = PALETTE.bg;
+      const gradient = ctx.createRadialGradient(
+        CANVAS_W / 2, CANVAS_H / 2, 0,
+        CANVAS_W / 2, CANVAS_H / 2, CANVAS_W * 0.75,
+      );
+      gradient.addColorStop(0, "#081026");
+      gradient.addColorStop(1, PALETTE.bg);
+      ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
       ctx.strokeStyle = PALETTE.borderLight;
       ctx.lineWidth = 3;
+      ctx.shadowColor = PALETTE.headGlow;
+      ctx.shadowBlur = 14;
       ctx.strokeRect(1, 1, CANVAS_W - 2, CANVAS_H - 2);
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
 
       ctx.strokeStyle = PALETTE.border;
       ctx.lineWidth = 1;
@@ -158,6 +214,8 @@ export function SnakeView({ game }: Props) {
 
       ctx.strokeStyle = PALETTE.grid;
       ctx.lineWidth = 1;
+      ctx.shadowColor = PALETTE.gridGlow;
+      ctx.shadowBlur = 10;
       for (let x = 0; x <= BOARD_W; x++) {
         ctx.beginPath();
         ctx.moveTo(x * CELL + 0.5, 0);
@@ -170,6 +228,8 @@ export function SnakeView({ game }: Props) {
         ctx.lineTo(CANVAS_W, y * CELL + 0.5);
         ctx.stroke();
       }
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
 
       if (data) {
         const eased = smoothstep(interp);
@@ -274,8 +334,15 @@ export function SnakeView({ game }: Props) {
   const pixelFont = { fontFamily: "'Press Start 2P', monospace" };
 
   return (
-    <div className="flex flex-col items-center justify-center flex-1 bg-[#0a0a0a] relative py-4">
-      <div className="p-2 bg-[#0f380f] rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.15)]">
+    <div className="flex flex-col items-center justify-center flex-1 bg-[#020617] relative py-4">
+        <div
+          className="p-2 rounded-xl border-2 relative"
+          style={{
+            backgroundColor: PALETTE.platform,
+            borderColor: PALETTE.platformBorder,
+            boxShadow: `0 0 18px ${PALETTE.gridGlow}, inset 0 0 14px rgba(56, 189, 248, 0.04)`,
+          }}
+        >
         <canvas
           ref={canvasRef}
           className="rounded-lg block"
@@ -299,63 +366,63 @@ export function SnakeView({ game }: Props) {
       </div>
 
       {status === GameStatus.WAITING && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0f380f]/85 rounded-xl z-10 backdrop-blur-[2px]">
-          <span className="text-5xl mb-3 filter drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">{'\u{1F40D}'}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
+          <span className="text-5xl mb-3" style={{ filter: "drop-shadow(0 0 12px rgba(0,240,255,0.7))" }}>{'\u{1F40D}'}</span>
           <h2 className="text-xl mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.head }}>
             SNAKE
           </h2>
-          <p className="text-xs mb-6" style={{ ...pixelFont, color: PALETTE.grid }}>
+          <p className="text-xs mb-6" style={{ ...pixelFont, color: PALETTE.borderLight }}>
             Eat. Grow. Survive.
           </p>
           <button
             onClick={() => send(game, GameCommand.START)}
-            className="px-5 py-2 rounded-lg transition-colors text-xs tracking-wider hover:brightness-110"
-            style={{ ...pixelFont, backgroundColor: PALETTE.headDark, color: PALETTE.bg }}
+            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+            style={{ ...pixelFont, backgroundColor: PALETTE.head, color: PALETTE.buttonText, boxShadow: `0 0 10px ${PALETTE.headGlow}` }}
           >
             START
           </button>
-          <p className="text-[9px] mt-3" style={{ ...pixelFont, color: PALETTE.grid }}>
+          <p className="text-[9px] mt-3" style={{ ...pixelFont, color: PALETTE.border }}>
             or press ENTER
           </p>
         </div>
       )}
 
       {status === GameStatus.PAUSED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-xl z-10 backdrop-blur-[2px]">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#020617]/80 rounded-xl z-10 backdrop-blur-[2px]">
           <h2 className="text-base mb-6 tracking-wider" style={{ ...pixelFont, color: PALETTE.head }}>
             PAUSED
           </h2>
           <div className="flex flex-col gap-3">
             <button
               onClick={() => send(game, GameCommand.RESUME)}
-              className="px-5 py-2 rounded-lg transition-colors text-xs tracking-wider hover:brightness-110"
-              style={{ ...pixelFont, backgroundColor: PALETTE.headDark, color: PALETTE.bg }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{ ...pixelFont, backgroundColor: PALETTE.head, color: PALETTE.buttonText, boxShadow: `0 0 10px ${PALETTE.headGlow}` }}
             >
               RESUME
             </button>
             <button
               onClick={() => send(game, GameCommand.RESTART)}
-              className="px-5 py-2 rounded-lg transition-colors text-xs tracking-wider hover:brightness-110"
-              style={{ ...pixelFont, backgroundColor: "#1a4a1a", color: PALETTE.head }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{ ...pixelFont, backgroundColor: PALETTE.platformBorder, color: PALETTE.buttonAltText, border: `1px solid ${PALETTE.borderLight}` }}
             >
               RESTART
             </button>
             <button
               onClick={() => send(game, GameCommand.GIVE_UP)}
-              className="px-5 py-2 rounded-lg transition-colors text-xs tracking-wider hover:brightness-110"
-              style={{ ...pixelFont, color: PALETTE.appleLight, backgroundColor: "#3a1a1a" }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{ ...pixelFont, color: PALETTE.buttonAltText, backgroundColor: "#7f1d1d", border: `1px solid ${PALETTE.apple}` }}
             >
               QUIT
             </button>
           </div>
-          <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.grid }}>
+          <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>
             ESC to resume
           </p>
         </div>
       )}
 
       {status === GameStatus.LOST && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0f380f]/85 rounded-xl z-10 backdrop-blur-[2px]">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
           <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
             GAME OVER
           </h2>
@@ -365,20 +432,20 @@ export function SnakeView({ game }: Props) {
           <div className="flex flex-col gap-3">
             <button
               onClick={() => send(game, GameCommand.PLAY_AGAIN)}
-              className="px-5 py-2 rounded-lg transition-colors text-xs tracking-wider hover:brightness-110"
-              style={{ ...pixelFont, backgroundColor: PALETTE.headDark, color: PALETTE.bg }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{ ...pixelFont, backgroundColor: PALETTE.head, color: PALETTE.buttonText, boxShadow: `0 0 10px ${PALETTE.headGlow}` }}
             >
               PLAY AGAIN
             </button>
             <button
               onClick={() => send(game, GameCommand.GIVE_UP)}
-              className="px-5 py-2 rounded-lg transition-colors text-xs tracking-wider hover:brightness-110"
-              style={{ ...pixelFont, color: PALETTE.head, backgroundColor: "#1a4a1a" }}
+              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
+              style={{ ...pixelFont, color: PALETTE.buttonAltText, backgroundColor: PALETTE.platformBorder, border: `1px solid ${PALETTE.borderLight}` }}
             >
               QUIT
             </button>
           </div>
-          <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.grid }}>
+          <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>
             ENTER to retry
           </p>
         </div>
