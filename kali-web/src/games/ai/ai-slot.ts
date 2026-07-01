@@ -15,7 +15,9 @@ export class AISlot {
     private _slotId: SlotIdValue,
     private _wsClient: WSClient | null = null,
     private _gameSessionId: string = "",
-  ) {}
+  ) {
+    gameAILogger.startSession(this._gameSessionId);
+  }
 
   get slotId(): SlotIdValue {
     return this._slotId;
@@ -23,6 +25,7 @@ export class AISlot {
 
   setSessionId(id: string) {
     this._gameSessionId = id;
+    gameAILogger.startSession(id);
   }
 
   async decide(context: GameState): Promise<GameAction> {

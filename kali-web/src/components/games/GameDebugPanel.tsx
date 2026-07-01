@@ -15,21 +15,26 @@ function formatTime(ts: number): string {
 }
 
 interface Props {
+  getSessionId?: () => string;
   sessionId?: string;
 }
 
-export function GameDebugPanel({ sessionId: _sessionId }: Props) {
+export function GameDebugPanel({ getSessionId, sessionId: staticSessionId }: Props) {
   const [entries, setEntries] = useState<GameAILogEntry[]>([]);
 
   useEffect(() => {
-    return gameAILogger.subscribe((newEntries) => {
-      setEntries([...newEntries]);
+    return gameAILogger.subscribe((allEntries) => {
+      const currentSessionId = getSessionId?.() ?? staticSessionId ?? "";
+      const filtered = currentSessionId ? allEntries.filter((e) => e.sessionId === currentSessionId) : [];
+      setEntries(filtered);
     });
-  }, []);
+  }, [getSessionId, staticSessionId]);
 
   const handleClear = () => {
-    gameAILogger.clear();
-    setEntries([]);
+    const currentSessionId = getSessionId?.() ?? staticSessionId;
+    if (currentSessionId) {
+      gameAILogger.clearSession(currentSessionId);
+    }
   };
 
   const handleCopy = () => {

@@ -44,19 +44,37 @@ export const gameAILogger = {
     this._notify();
   },
 
+  clearSession(sessionId: string) {
+    this._entries.delete(sessionId);
+    this._notify();
+  },
+
   getCurrentEntries(): GameAILogEntry[] {
     return this._entries.get(this._currentSessionId) ?? [];
   },
 
+  getEntriesForSession(sessionId: string): GameAILogEntry[] {
+    return this._entries.get(sessionId) ?? [];
+  },
+
+  getAllEntries(): GameAILogEntry[] {
+    const all: GameAILogEntry[] = [];
+    for (const entries of this._entries.values()) {
+      all.push(...entries);
+    }
+    return all;
+  },
+
   subscribe(fn: Subscriber): () => void {
     this._subscribers.add(fn);
+    fn(this.getAllEntries());
     return () => {
       this._subscribers.delete(fn);
     };
   },
 
   _notify() {
-    const entries = this.getCurrentEntries();
+    const entries = this.getAllEntries();
     this._subscribers.forEach((fn) => fn([...entries]));
   },
 };

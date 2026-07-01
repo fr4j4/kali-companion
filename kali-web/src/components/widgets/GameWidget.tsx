@@ -8,7 +8,6 @@ import { GameType, type GameTypeValue } from "../../games/core/constants/game-ty
 import type { BaseGame } from "../../games/core/base-game";
 import { registerGames } from "../../games/register-games";
 import { GameDebugPanel } from "../games/GameDebugPanel";
-import { gameAILogger } from "../../games/core/game-ai-logger";
 import { useSidePanel } from "../../stage/SidePanelContext";
 import { Gamepad2 } from "lucide-react";
 
@@ -54,8 +53,8 @@ export function GameWidget({ content, api, windowId }: Props) {
     setSidePanelContent({
       icon: <Gamepad2 size={14} />,
       title: "Game Log",
-      onClear: () => gameAILogger.clear(),
-      content: <GameDebugPanel sessionId={game.sessionId} />,
+      onClear: () => game.aiLog.clearSession(game.sessionId),
+      content: <GameDebugPanel getSessionId={() => game.sessionId} />,
     });
 
     return () => {
@@ -63,7 +62,8 @@ export function GameWidget({ content, api, windowId }: Props) {
       setReady(false);
       setSidePanelContent(null);
     };
-  }, [mode, gameType, setSidePanelContent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, gameType]);
 
   const prevFocusedRef = useRef(false);
   const [, forceRender] = useState(0);

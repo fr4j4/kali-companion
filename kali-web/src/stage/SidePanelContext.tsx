@@ -5,6 +5,7 @@ export interface SidePanelContent {
   title: string;
   onClear?: () => void;
   content?: ReactNode;
+  badge?: number;
 }
 
 interface SidePanelContextValue {

@@ -4,6 +4,7 @@ import type { GameConfig } from "./types/game-config";
 import type { GameAction } from "./types/game-action";
 import type { GameState } from "./types/game-state";
 import type { GameStatusValue } from "./constants/game-status";
+import { gameAILogger } from "./game-ai-logger";
 
 export abstract class BaseGame {
   abstract readonly type: GameTypeValue;
@@ -15,6 +16,8 @@ export abstract class BaseGame {
   pause(): void {}
   resume(): void {}
   tick(): void {}
+
+  readonly aiLog = gameAILogger;
 
   private _state: GameState = {
     status: "waiting",
@@ -69,6 +72,7 @@ export abstract class BaseGame {
 
   newGame(): string {
     this._sessionId = crypto.randomUUID();
+    this.aiLog.startSession(this._sessionId);
     return this._sessionId;
   }
 }

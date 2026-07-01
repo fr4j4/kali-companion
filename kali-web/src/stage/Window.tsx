@@ -90,6 +90,12 @@ function WindowImpl({
   const [sidePanelOpen, setSidePanelOpen] = useState(
     panelConfig?.defaultOpen ?? false
   );
+  const [sidePanelWidth, setSidePanelWidth] = useState(
+    panelConfig?.defaultWidth ?? 320
+  );
+  const [sidePanelHeight, setSidePanelHeight] = useState(
+    panelConfig?.defaultHeight ?? 400
+  );
   const [sidePanelContent, setSidePanelContentState] = useState<SidePanelContent | null>(null);
 
   const toggleSidePanel = useCallback(() => {
@@ -154,6 +160,45 @@ function WindowImpl({
     });
   }, [isMobile, w.id, w.size, w.position, onFocus, onResize, minW, minH]);
 
+  const handlePanelResizeStart = useCallback((e: React.PointerEvent, direction: "e" | "s") => {
+    if (isMobile) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const startMouse = { x: e.clientX, y: e.clientY };
+    const startWidth = sidePanelWidth;
+    const startHeight = sidePanelHeight;
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startMouse.x;
+      const dy = ev.clientY - startMouse.y;
+      if (direction === "e") {
+        const newWidth = Math.max(panelConfig?.minWidth ?? 120, startWidth + dx);
+        setSidePanelWidth(newWidth);
+      } else {
+        const newHeight = Math.max(panelConfig?.minHeight ?? 80, startHeight + dy);
+        setSidePanelHeight(newHeight);
+      }
+    };
+
+    const onPointerUp = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerCancel);
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    };
+
+    const onPointerCancel = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerCancel);
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    };
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerCancel);
+  }, [isMobile, sidePanelWidth, sidePanelHeight, panelConfig?.minWidth, panelConfig?.minHeight]);
+
   const panelPosition = panelConfig?.position ?? "right";
 
   const sidePanelContextValue = useMemo(() => ({
@@ -178,6 +223,7 @@ function WindowImpl({
           sidePanelOpen={sidePanelOpen}
           onToggleSidePanel={toggleSidePanel}
           panelIcon={panelConfig?.toggleIcon}
+          panelBadge={sidePanelContent?.badge}
         />
         <div className="kw-body flex-1 flex flex-col min-h-0">{content}</div>
         {RESIZE_HANDLES.map(({ edge, className, label }) => (
@@ -210,11 +256,10 @@ function WindowImpl({
           {sidePanelOpen && sidePanelContent && (
             <div
               className={`kw-side-panel kw-side-panel-${panelPosition}`}
-              style={
-                panelPosition === "right"
-                  ? { "--panel-width": `${panelConfig?.defaultSize ?? 320}px` } as React.CSSProperties
-                  : { "--panel-height": `${panelConfig?.defaultSize ?? 320}px` } as React.CSSProperties
-              }
+              style={{
+                "--panel-width": `${sidePanelWidth}px`,
+                "--panel-height": `${sidePanelHeight}px`,
+              } as React.CSSProperties}
             >
               <div className="kw-side-panel-header">
                 <div className="flex items-center gap-2">
@@ -241,6 +286,38 @@ function WindowImpl({
                 </div>
               </div>
               <SidePanelContentRenderer />
+              {panelPosition === "right" && (
+                <>
+                  <div
+                    className="kw-side-panel-resize kw-side-panel-resize-right"
+                    onPointerDown={(e) => handlePanelResizeStart(e, "e")}
+                  />
+                  <div
+                    className="kw-side-panel-resize kw-side-panel-resize-top"
+                    onPointerDown={(e) => handlePanelResizeStart(e, "s")}
+                  />
+                  <div
+                    className="kw-side-panel-resize kw-side-panel-resize-bottom"
+                    onPointerDown={(e) => handlePanelResizeStart(e, "s")}
+                  />
+                </>
+              )}
+              {panelPosition === "bottom" && (
+                <>
+                  <div
+                    className="kw-side-panel-resize kw-side-panel-resize-bottom"
+                    onPointerDown={(e) => handlePanelResizeStart(e, "s")}
+                  />
+                  <div
+                    className="kw-side-panel-resize kw-side-panel-resize-left"
+                    onPointerDown={(e) => handlePanelResizeStart(e, "e")}
+                  />
+                  <div
+                    className="kw-side-panel-resize kw-side-panel-resize-right"
+                    onPointerDown={(e) => handlePanelResizeStart(e, "e")}
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
@@ -278,11 +355,10 @@ function WindowImpl({
         {sidePanelOpen && sidePanelContent && (
           <div
             className={`kw-side-panel kw-side-panel-${panelPosition}`}
-            style={
-              panelPosition === "right"
-                ? { "--panel-width": `${panelConfig?.defaultSize ?? 320}px` } as React.CSSProperties
-                : { "--panel-height": `${panelConfig?.defaultSize ?? 320}px` } as React.CSSProperties
-            }
+            style={{
+              "--panel-width": `${sidePanelWidth}px`,
+              "--panel-height": `${sidePanelHeight}px`,
+            } as React.CSSProperties}
           >
             <div className="kw-side-panel-header">
               <div className="flex items-center gap-2">
@@ -309,6 +385,38 @@ function WindowImpl({
               </div>
             </div>
             <SidePanelContentRenderer />
+            {panelPosition === "right" && (
+              <>
+                <div
+                  className="kw-side-panel-resize kw-side-panel-resize-right"
+                  onPointerDown={(e) => handlePanelResizeStart(e, "e")}
+                />
+                <div
+                  className="kw-side-panel-resize kw-side-panel-resize-top"
+                  onPointerDown={(e) => handlePanelResizeStart(e, "s")}
+                />
+                <div
+                  className="kw-side-panel-resize kw-side-panel-resize-bottom"
+                  onPointerDown={(e) => handlePanelResizeStart(e, "s")}
+                />
+              </>
+            )}
+            {panelPosition === "bottom" && (
+              <>
+                <div
+                  className="kw-side-panel-resize kw-side-panel-resize-bottom"
+                  onPointerDown={(e) => handlePanelResizeStart(e, "s")}
+                />
+                <div
+                  className="kw-side-panel-resize kw-side-panel-resize-left"
+                  onPointerDown={(e) => handlePanelResizeStart(e, "e")}
+                />
+                <div
+                  className="kw-side-panel-resize kw-side-panel-resize-right"
+                  onPointerDown={(e) => handlePanelResizeStart(e, "e")}
+                />
+              </>
+            )}
           </div>
         )}
       </div>
@@ -337,6 +445,7 @@ function WindowHeader({
   sidePanelOpen,
   onToggleSidePanel,
   panelIcon,
+  panelBadge,
 }: {
   w: WindowData;
   onClose: () => void;
@@ -350,6 +459,7 @@ function WindowHeader({
   sidePanelOpen?: boolean;
   onToggleSidePanel?: () => void;
   panelIcon?: React.ReactNode;
+  panelBadge?: number;
 }) {
   const { t } = useTranslation();
   const content = w.content as ArtifactEvent | undefined;
@@ -377,10 +487,15 @@ function WindowHeader({
         {hasSidePanel && onToggleSidePanel && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSidePanel(); }}
-            className={`p-1 rounded transition flex items-center justify-center ${sidePanelOpen ? "bg-accent/20 text-accent" : "hover:bg-white/10 text-muted hover:text-fg"}`}
+            className={`p-1 rounded transition flex items-center justify-center relative ${sidePanelOpen ? "bg-accent/20 text-accent" : "hover:bg-white/10 text-muted hover:text-fg"}`}
             title="Toggle debug panel"
           >
             {panelIcon ?? <span className="text-xs">&#9776;</span>}
+            {!!panelBadge && !sidePanelOpen && (
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[8px] font-bold text-white flex items-center justify-center">
+                {panelBadge > 9 ? "9+" : panelBadge}
+              </span>
+            )}
           </button>
         )}
         {onMaximize && (

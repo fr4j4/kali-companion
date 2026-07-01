@@ -9,34 +9,16 @@ import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { useStage } from "../../stage/StageProvider";
 import type { ArtifactEvent } from "../../lib/protocol";
 
-interface Props {
-  content?: unknown;
-}
-
-interface ConsoleEntry {
-  level: "log" | "warn" | "error" | "info" | "debug";
-  message: string;
-  timestamp: number;
-}
+import { useSidePanel } from "../../stage/SidePanelContext";
+import { HtmlConsolePanel, type ConsoleEntry } from "./HtmlConsolePanel";
+import { Terminal } from "lucide-react";
 
 const AUTO_SWITCH_DELAY_MS = 400;
 const MAX_CONSOLE_LOGS = 500;
 
-const LEVEL_COLORS: Record<string, string> = {
-  log: "text-white/80",
-  info: "text-blue-300",
-  warn: "text-yellow-300",
-  error: "text-red-300",
-  debug: "text-white/40",
-};
-
-const LEVEL_BADGES: Record<string, string> = {
-  log: "bg-white/10",
-  info: "bg-blue-500/20",
-  warn: "bg-yellow-500/20",
-  error: "bg-red-500/20",
-  debug: "bg-white/5",
-};
+interface Props {
+  content?: unknown;
+}
 
 export function HtmlWidget({ content }: Props) {
   const { t } = useTranslation();
@@ -60,9 +42,9 @@ export function HtmlWidget({ content }: Props) {
   const userSwitchedRef = useRef(false);
   const codeRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const consoleEndRef = useRef<HTMLDivElement>(null);
 
-  const [consoleOpen, setConsoleOpen] = useState(false);
+  const { setSidePanelContent, clearSidePanel } = useSidePanel();
+
   const [consoleLogs, setConsoleLogs] = useState<ConsoleEntry[]>([]);
   const [renderKey, setRenderKey] = useState(0);
   const [errorCount, setErrorCount] = useState(0);
@@ -92,6 +74,24 @@ export function HtmlWidget({ content }: Props) {
     setErrorCount(0);
   }, []);
 
+  // Register the console in the window's side panel.
+  useEffect(() => {
+    setSidePanelContent({
+      icon: <Terminal size={14} />,
+      title: "Console",
+      onClear: handleConsoleClear,
+      badge: errorCount,
+      content: <HtmlConsolePanel logs={consoleLogs} onClear={handleConsoleClear} />,
+    });
+  }, [consoleLogs, handleConsoleClear, setSidePanelContent, errorCount]);
+
+  // Clear side panel on widget unmount only.
+  useEffect(() => {
+    return () => {
+      clearSidePanel();
+    };
+  }, [clearSidePanel]);
+
   const actions: HeaderAction[] = useMemo(
     () => [
       { type: "copy", getContent: () => html, tip: t("widget.html.copy_source") },
@@ -119,12 +119,6 @@ export function HtmlWidget({ content }: Props) {
       codeRef.current.scrollTop = codeRef.current.scrollHeight;
     }
   }, [html, tab, isStreaming]);
-
-  useEffect(() => {
-    if (consoleEndRef.current) {
-      consoleEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [consoleLogs]);
 
   useEffect(() => {
     const handler = (msg: MessageEvent) => {
@@ -180,24 +174,6 @@ export function HtmlWidget({ content }: Props) {
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
               </svg>
             </button>
-            <button
-              onClick={() => setConsoleOpen((o) => !o)}
-              className={`w-6 h-6 rounded hover:bg-white/10 transition flex items-center justify-center relative ${
-                consoleOpen ? "text-accent bg-white/[0.06]" : "text-muted hover:text-fg"
-              }`}
-              aria-label={t("widget.html.toggle_console") ?? "Console"}
-              title={t("widget.html.toggle_console") ?? "Console"}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="4 17 10 11 4 5" />
-                <line x1="12" y1="19" x2="20" y2="19" />
-              </svg>
-              {errorCount > 0 && !consoleOpen && (
-                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[8px] font-bold text-white flex items-center justify-center">
-                  {errorCount > 9 ? "9+" : errorCount}
-                </span>
-              )}
-            </button>
             {headerActions}
           </div>
         </div>
@@ -218,41 +194,9 @@ export function HtmlWidget({ content }: Props) {
               ref={iframeRef}
               srcDoc={srcDoc}
               sandbox="allow-scripts allow-popups allow-forms allow-modals"
-              className={`w-full border-none bg-white ${consoleOpen ? "flex-1 min-h-0" : "flex-1 min-h-0"}`}
+              className="w-full border-none bg-white flex-1 min-h-0"
               title={t("widget.html.title")}
             />
-            {consoleOpen && (
-              <div className="shrink-0 border-t border-white/10 bg-[#0d0d0d] flex flex-col" style={{ height: "160px" }}>
-                <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/8 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">Console</span>
-                    <span className="text-[10px] text-muted">{consoleLogs.length} entries</span>
-                  </div>
-                  <button
-                    onClick={handleConsoleClear}
-                    className="text-[10px] text-muted hover:text-fg transition px-2 py-0.5 rounded hover:bg-white/10"
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto font-mono text-[11px] p-2 space-y-0.5 scrollbar-thin">
-                  {consoleLogs.length === 0 && (
-                    <div className="text-white/20 italic text-center pt-6">No console output</div>
-                  )}
-                  {consoleLogs.map((entry, i) => (
-                    <div key={i} className={`flex items-start gap-2 ${LEVEL_COLORS[entry.level] ?? "text-white/80"}`}>
-                      <span
-                        className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase leading-none ${LEVEL_BADGES[entry.level] ?? "bg-white/10"}`}
-                      >
-                        {entry.level}
-                      </span>
-                      <span className="whitespace-pre-wrap break-all leading-[1.4]">{entry.message}</span>
-                    </div>
-                  ))}
-                  <div ref={consoleEndRef} />
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

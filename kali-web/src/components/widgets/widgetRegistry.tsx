@@ -5,9 +5,11 @@ import { DEFAULT_SIZES, WINDOW_ICONS } from "../../workspace/types";
 
 export interface SidePanelConfig {
   position: "left" | "right" | "bottom";
-  defaultSize: number;
+  defaultWidth: number;
+  defaultHeight: number;
   defaultOpen: boolean;
-  minSize: number;
+  minWidth: number;
+  minHeight: number;
   toggleIcon: React.ReactNode;
 }
 
@@ -240,9 +242,11 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
     minH: 300,
     sidePanel: {
       position: "right",
-      defaultSize: 320,
+      defaultWidth: 320,
+      defaultHeight: 400,
       defaultOpen: false,
-      minSize: 200,
+      minWidth: 160,
+      minHeight: 120,
       toggleIcon: <Gamepad2 size={14} />,
     },
   },
@@ -256,9 +260,11 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
     minH: 200,
     sidePanel: {
       position: "bottom",
-      defaultSize: 200,
+      defaultWidth: 400,
+      defaultHeight: 200,
       defaultOpen: false,
-      minSize: 100,
+      minWidth: 240,
+      minHeight: 100,
       toggleIcon: <Terminal size={14} />,
     },
   },

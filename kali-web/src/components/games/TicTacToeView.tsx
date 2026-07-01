@@ -12,7 +12,7 @@ import { ActionType, GameCommand } from "../../games/core/constants/action-types
 import { SlotId } from "../../games/core/constants/player-types";
 import { GameType } from "../../games/core/constants/game-types";
 import { KaliStatus, GameMode, KALI_MAX_RETRIES, type KaliStatusValue, type GameModeValue } from "../../games/core/constants/game-ai";
-import { gameAILogger } from "../../games/core/game-ai-logger";
+
 
 interface Props {
   game: TicTacToeGame;
@@ -76,8 +76,6 @@ export function TicTacToeView({ game }: Props) {
       slots: game.slots,
       rules: { starter, difficulty, mode },
     });
-
-    gameAILogger.startSession(game.sessionId);
 
     if (mode === GameMode.CPU) {
       aiSlotFiller.fill(GameType.TIC_TAC_TOE, SlotId.OPPONENT, new TicTacToeCPUPlayer(difficulty));
