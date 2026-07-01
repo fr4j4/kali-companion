@@ -1,11 +1,12 @@
 import React from "react";
-import type { ArtifactWindowData } from "../workspace/types";
+import type { ArtifactWindowData, WorkspaceAPI } from "../workspace/types";
 import type { ArtifactEvent } from "../lib/protocol";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 
 interface Props {
   window: ArtifactWindowData;
   onHeaderActions?: (actions: React.ReactNode) => void;
+  api?: WorkspaceAPI;
 }
 
 /**
@@ -35,7 +36,7 @@ function extractVariant(w: ArtifactWindowData): string | undefined {
   return undefined;
 }
 
-export function WindowContentRouter({ window: w }: Props) {
+export function WindowContentRouter({ window: w, api }: Props) {
   // Content not yet loaded (closed artifact reopened, or reattach of an open
   // artifact whose content is fetched on demand). Only applies to backend
   // artifacts (those with an artifactId); local windows like "reasoning"
@@ -60,7 +61,7 @@ export function WindowContentRouter({ window: w }: Props) {
 
   return (
     <React.Suspense fallback={<LoadingPlaceholder />}>
-      <Component content={w.content} variant={variant} />
+      <Component content={w.content} variant={variant} api={api} />
     </React.Suspense>
   );
 }

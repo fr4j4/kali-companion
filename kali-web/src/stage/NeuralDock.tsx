@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Bug, Mic, MoreHorizontal, Send, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
+import { Bug, Gamepad2, Mic, MoreHorizontal, Send, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStage } from "./StageProvider";
 import type { WorkspaceAPI } from "../workspace/types";
@@ -171,6 +171,30 @@ export function NeuralDock({ api, onToggleDebug }: Props) {
         >
           {isRecording ? <X size={16} /> : <Square size={16} />}
         </button>
+
+        {/* ── Toys button ──────────────────────────────────── */}
+        <button
+          onClick={() => api.createWindow("game", {
+            title: t("dock.toys"),
+            icon: "\u{1F3AE}",
+            content: { mode: "launchpad" },
+            resizable: true,
+            minW: 360,
+            minH: 400,
+          })}
+          disabled={isChatActive || isRecording}
+          className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+            isChatActive || isRecording
+              ? "opacity-30 cursor-not-allowed"
+              : "hover:bg-accent/20 text-muted hover:text-accent"
+          }`}
+          title={t("dock.toys")}
+          aria-label={t("dock.toys")}
+        >
+          <Gamepad2 size={16} />
+        </button>
+
+        <div className="w-px h-5 bg-white/10 mx-0.5" />
 
         {/* ── Overflow menu ───────────────────────────────── */}
         <div className="relative" ref={overflowRef}>

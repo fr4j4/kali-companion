@@ -46,7 +46,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
               minH={entry?.minH}
               winScale={winScale}
             >
-              <WindowContentRouter window={w} />
+              <WindowContentRouter window={w} api={api} />
             </ArtifactWindow>
           );
         })}
@@ -75,7 +75,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
             minH={entry?.minH}
             winScale={winScale}
           >
-            <WindowContentRouter window={w} />
+            <WindowContentRouter window={w} api={api} />
           </ArtifactWindow>
         );
       })}

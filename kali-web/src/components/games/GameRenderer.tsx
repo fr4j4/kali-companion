@@ -1,12 +1,10 @@
-import type { GameTypeValue } from "../../games/core/constants/game-types";
-import type { GameState } from "../../games/core/types/game-state";
+import type { BaseGame } from "../../games/core/base-game";
 import { GameWindow } from "./GameWindow";
 
 interface Props {
-  type: GameTypeValue;
-  state: GameState;
+  game: BaseGame;
 }
 
-export function GameRenderer({ type, state }: Props) {
-  return <GameWindow type={type} state={state} />;
+export function GameRenderer({ game }: Props) {
+  return <GameWindow game={game} />;
 }

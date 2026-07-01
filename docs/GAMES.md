@@ -53,11 +53,11 @@
 
 ---
 
-## Tipos de Render
+## Universal Game Rules (all games)
 
-- **Canvas**: Juegos que requieren gráficos en tiempo real (Snake, Breakout). Se renderizan en un `<canvas>` dentro del artifact.
-- **Grid**: Juegos basados en cuadrícula (2048, Minesweeper, Tic-Tac-Toe). Se renderizan con CSS Grid.
-- **Widget**: Juegos basados en texto/UI (Trivia, Story Builder). Se renderizan como widgets de Kali.
+Every game must implement title screen, pause menu, ESC pause toggle, and game
+over screen. See `docs/superpowers/specs/2026-06-30-kali-toys-design.md` §
+"Universal Game Rules" for the full spec.
 
 ## Estadísticas
 

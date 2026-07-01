@@ -19,12 +19,15 @@ export abstract class BaseGame {
     winner: null,
   };
 
+  private _version = 0;
+
   protected get state(): GameState {
     return this._state;
   }
 
   protected set state(s: GameState) {
     this._state = s;
+    this._version++;
   }
 
   getState(): GameState {
@@ -35,9 +38,7 @@ export abstract class BaseGame {
     return this._state.status;
   }
 
-  protected emitState(): void {
-    this.onStateChange?.(this.type, this._state);
+  get version(): number {
+    return this._version;
   }
-
-  onStateChange?: (type: GameTypeValue, state: GameState) => void;
 }
