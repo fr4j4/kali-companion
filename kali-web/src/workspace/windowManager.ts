@@ -130,6 +130,11 @@ export function toggleMaximizeInArray(windows: ArtifactWindowData[], id: number)
   });
 }
 
+/** Unfocus all windows (set focused: false on every window). */
+export function unfocusAllInArray(windows: ArtifactWindowData[]): ArtifactWindowData[] {
+  return windows.map((w) => ({ ...w, focused: false }));
+}
+
 /** Clear all windows (mark all as closed). */
 export function clearAllInArray(windows: ArtifactWindowData[]): ArtifactWindowData[] {
   return windows.map((w) => ({ ...w, closed: true, focused: false }));

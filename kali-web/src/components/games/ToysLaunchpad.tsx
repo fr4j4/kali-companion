@@ -1,7 +1,17 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { GAME_CATALOG, CATEGORIES, type GameEntry } from "../../games/game-catalog";
+import { GameRegistry } from "../../games/core/game-registry";
+import { registerGames } from "../../games/register-games";
+
+let registered = false;
+function ensureRegistered() {
+  if (!registered) {
+    registerGames();
+    registered = true;
+  }
+}
 
 interface Props {
   api?: WorkspaceAPI;
@@ -10,11 +20,17 @@ interface Props {
 function GameCard({ game, onPlay }: { game: GameEntry; onPlay: (g: GameEntry) => void }) {
   const { i18n } = useTranslation();
   const isEs = i18n.language?.startsWith("es");
+  const available = GameRegistry.isRegistered(game.id);
 
   return (
     <button
-      onClick={() => onPlay(game)}
-      className="flex flex-col items-start gap-1 p-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors text-left border border-transparent hover:border-white/10 group"
+      onClick={() => available && onPlay(game)}
+      disabled={!available}
+      className={`flex flex-col items-start gap-1 p-3 rounded-xl transition-colors text-left border ${
+        available
+          ? "bg-white/5 hover:bg-white/10 active:bg-white/15 border-transparent hover:border-white/10 group cursor-pointer"
+          : "bg-white/[0.02] border-white/5 opacity-30 grayscale cursor-not-allowed"
+      }`}
     >
       <span className="text-xl">{game.icon}</span>
       <span className="text-sm font-medium text-fg group-hover:text-accent transition-colors">
@@ -31,6 +47,12 @@ function GameCard({ game, onPlay }: { game: GameEntry; onPlay: (g: GameEntry) =>
 export function ToysLaunchpad({ api }: Props) {
   const { t, i18n } = useTranslation();
   const isEs = i18n.language?.startsWith("es");
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    ensureRegistered();
+    setTick((v) => v + 1);
+  }, []);
 
   const handlePlay = useCallback((game: GameEntry) => {
     if (!api) return;

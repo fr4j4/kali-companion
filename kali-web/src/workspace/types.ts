@@ -107,6 +107,7 @@ export interface WorkspaceAPI {
   restoreWindow: (id: number) => void;
   duplicateWindow: (id: number) => void;
   focusWindow: (id: number) => void;
+  unfocusAll: () => void;
   focusLast: () => void;
   clearAll: () => void;
   toggleGrid: () => void;

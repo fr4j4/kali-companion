@@ -22,6 +22,7 @@ import { usePersistence } from "./usePersistence";
 import {
   createWindowData,
   focusInArray,
+  unfocusAllInArray,
   closeInArray,
   restoreInArray,
   duplicateInArray,
@@ -173,6 +174,11 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   // Focus a window
   const focusWindow = useCallback((id: number) => {
     setWindows((prev) => focusInArray(prev, id));
+  }, []);
+
+  // Unfocus all windows
+  const unfocusAll = useCallback(() => {
+    setWindows((prev) => unfocusAllInArray(prev));
   }, []);
 
   // Focus last visible window
@@ -442,6 +448,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     restoreWindow,
     duplicateWindow,
     focusWindow,
+    unfocusAll,
     focusLast,
     clearAll,
     toggleGrid,
@@ -463,7 +470,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   }), [
     windows, gridMode, selection.selectedIds, audioEnabled,
     createWindow, closeWindow, restoreWindow, duplicateWindow,
-    focusWindow, focusLast, clearAll, toggleGrid, arrangeOrbit,
+    focusWindow, unfocusAll, focusLast, clearAll, toggleGrid, arrangeOrbit,
     networkPulse, toggleAudio, undo, redo, saveWorkspace, resetWorkspace,
     moveWindow, resizeWindow, selection.toggleSelect, selection.clearSelection,
     syncArtifact, toggleMinimize, toggleMaximize, reopenArtifact,

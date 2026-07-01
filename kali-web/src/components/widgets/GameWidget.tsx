@@ -4,6 +4,8 @@ import { ToysLaunchpad } from "../games/ToysLaunchpad";
 import { GameRenderer } from "../games/GameRenderer";
 import type { GameTypeValue } from "../../games/core/constants/game-types";
 import { GameRegistry } from "../../games/core/game-registry";
+import { GameStatus } from "../../games/core/constants/game-status";
+import type { BaseGame } from "../../games/core/base-game";
 import { registerGames } from "../../games/register-games";
 
 interface GameContent {
@@ -14,6 +16,7 @@ interface GameContent {
 interface Props {
   content?: unknown;
   api?: WorkspaceAPI;
+  windowId?: number;
 }
 
 let registered = false;
@@ -24,12 +27,12 @@ function ensureRegistered() {
   }
 }
 
-export function GameWidget({ content, api }: Props) {
+export function GameWidget({ content, api, windowId }: Props) {
   const parsed = (content ?? {}) as GameContent;
   const mode = parsed.mode ?? "launchpad";
   const gameType = parsed.gameType;
 
-  const gameRef = useRef<ReturnType<typeof GameRegistry.create> | null>(null);
+  const gameRef = useRef<BaseGame | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -44,6 +47,21 @@ export function GameWidget({ content, api }: Props) {
       setReady(false);
     };
   }, [mode, gameType]);
+
+  const prevFocusedRef = useRef(false);
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    const isFocused = (api?.windows ?? []).some((w) => w.id === windowId && w.focused && !w.closed);
+    const game = gameRef.current;
+
+    if (prevFocusedRef.current && !isFocused && game?.getStatus() === GameStatus.PLAYING) {
+      game.pause();
+      forceRender((v) => v + 1);
+    }
+
+    prevFocusedRef.current = isFocused;
+  });
 
   if (mode === "game" && gameType && ready && gameRef.current) {
     return <GameRenderer game={gameRef.current} />;

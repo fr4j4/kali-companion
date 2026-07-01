@@ -61,7 +61,7 @@ export function WindowContentRouter({ window: w, api }: Props) {
 
   return (
     <React.Suspense fallback={<LoadingPlaceholder />}>
-      <Component content={w.content} variant={variant} api={api} />
+      <Component content={w.content} variant={variant} api={api} windowId={w.id} />
     </React.Suspense>
   );
 }

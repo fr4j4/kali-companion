@@ -109,7 +109,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       if (typing) return;
       if (chat.isTurnActive) return;
       if (customizerOpen) return;
-      if (apiRef.current.windows.some((w) => w.type === "game" && !w.closed)) return;
+      if (apiRef.current.windows.some((w) => w.type === "game" && w.focused)) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -231,8 +231,21 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     setOverrideEmotion({ emotion: "ronroneando", until: Date.now() + 3000 });
   }, []);
 
+  // Unfocus all windows when clicking the canvas background
+  const canvasRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement)?.closest("[data-window-id]")) return;
+      api.unfocusAll();
+    };
+    el.addEventListener("pointerdown", onPointerDown);
+    return () => el.removeEventListener("pointerdown", onPointerDown);
+  }, [api]);
+
   return (
-    <div className="relative h-full w-full overflow-hidden stage-surface stage-grain">
+    <div ref={canvasRef} className="relative h-full w-full overflow-hidden stage-surface stage-grain">
       {/* Avatar zone — centered, moves up when typing or customizer opens */}
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500"

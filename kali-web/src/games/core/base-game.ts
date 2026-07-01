@@ -12,6 +12,9 @@ export abstract class BaseGame {
   abstract start(config?: GameConfig): GameState;
   abstract handleAction(action: GameAction, fromSlotId: string): GameState;
 
+  pause(): void {}
+  resume(): void {}
+
   private _state: GameState = {
     status: "waiting",
     score: 0,
