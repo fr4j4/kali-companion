@@ -228,19 +228,21 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
 
   return (
     <div className="relative h-full w-full overflow-hidden stage-surface stage-grain">
-      {/* Avatar zone — centered, grows when customizer opens */}
+      {/* Avatar zone — centered, moves up when typing or customizer opens */}
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500"
         style={{
-          zIndex: customizerOpen ? 60 : 10,
+          zIndex: customizerOpen || typing ? 60 : 10,
           paddingRight: customizerOpen && !isMobile ? "calc(360px * var(--mul-density))" : "0",
         }}
       >
-        {/* Avatar & Rings container */}
-        <div className="relative flex items-center justify-center transition-all duration-500" style={{
-          width: avPx,
-          height: avPx,
-        }}>
+          {/* Avatar & Rings container */}
+          <div className="relative flex items-center justify-center" style={{
+            width: avPx,
+            height: avPx,
+            transform: typing ? "translateY(-22vh)" : "translateY(0)",
+            transition: "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}>
           <div className="absolute rounded-full border border-accent/10 transition-all duration-500" style={{
             width: ring1Px,
             height: ring1Px,
@@ -256,7 +258,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
             zIndex: customizerOpen ? 61 : 20,
             width: innerPx,
             height: innerPx,
-            filter: customizerOpen ? "drop-shadow(0 0 40px rgba(124,92,255,0.35))" : undefined,
+            filter: customizerOpen || typing ? "drop-shadow(0 0 40px rgba(124,92,255,0.35))" : undefined,
           }}>
             <AvatarSVG
               state={avatarState}
@@ -264,6 +266,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
               analyser={tts.analyser}
               config={avatarConfig}
               onClick={onAvatarClick}
+              typing={typing}
               className="avatar-mount"
             />
           </div>

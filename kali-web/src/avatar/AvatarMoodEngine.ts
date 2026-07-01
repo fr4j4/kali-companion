@@ -127,9 +127,9 @@ export function useAvatarMoodEngine(
       return;
     }
 
-    // User typing → attentive (sorprendido)
+    // User typing → normal (eyes look at textbox, no pupil shrink)
     if (typing) {
-      setEmotion("sorprendido");
+      setEmotion("normal");
       return;
     }
 
