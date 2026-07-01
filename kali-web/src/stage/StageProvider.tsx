@@ -38,6 +38,7 @@ interface StageContextValue {
   cloudProviders: CloudProviderInfo[];
   refreshConnections: () => Promise<void>;
   activateConnection: (id: string, model: string) => Promise<void>;
+  deactivateConnection: () => void;
   configWarnings: string[];
 }
 
@@ -129,6 +130,10 @@ export function StageProvider({ children }: { children: ReactNode }) {
     },
     [chat],
   );
+
+  const deactivateConnection = useCallback(() => {
+    chat.sendEvent({ event: "deactivate_connection" });
+  }, [chat]);
 
   // URL -> state: attach to the session in the URL once ready.
   const lastAttachedRef = useRef<string | null>(null);
@@ -238,6 +243,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
     cloudProviders,
     refreshConnections,
     activateConnection,
+    deactivateConnection,
     configWarnings,
   };
   return <StageContext.Provider value={value}>{children}</StageContext.Provider>;

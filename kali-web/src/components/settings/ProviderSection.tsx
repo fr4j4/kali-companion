@@ -31,7 +31,7 @@ const EMPTY_FORM: FormState = { open: false, mode: "create", kind: "local", exis
 
 export function ProviderSection() {
   const { t } = useTranslation();
-  const { connections, activeConnectionId, cloudProviders, activateConnection, refreshConnections } = useStage();
+  const { connections, activeConnectionId, cloudProviders, activateConnection, deactivateConnection, refreshConnections } = useStage();
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [activateConn, setActivateConn] = useState<ConnectionSummary | null>(null);
@@ -69,6 +69,10 @@ export function ProviderSection() {
     const conn = connections.find((c) => c.id === id);
     if (!conn) return;
     setModelsConn(conn);
+  };
+
+  const handleDisconnect = (_id: string) => {
+    deactivateConnection();
   };
 
   const handleDelete = async (id: string) => {
@@ -115,9 +119,10 @@ export function ProviderSection() {
           onAdd={handleAdd}
           onEdit={handleEdit}
           onModels={handleModels}
-          onActivate={handleActivate}
+           onActivate={handleActivate}
           onChangeModel={handleActivate}
           onDelete={handleDelete}
+          onDisconnect={handleDisconnect}
         />
       )}
 

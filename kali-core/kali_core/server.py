@@ -30,6 +30,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import re
 import subprocess
 import time
@@ -506,11 +507,11 @@ class Server:
                 continue
         return {
             "event": "status",
-            "llm_provider": getattr(self.llm_provider, "provider_name", ""),
-            "llm_api_url": getattr(self.llm_provider, "_api_url", settings.llm_api_url),
-            "llm_api_key_set": bool(getattr(self.llm_provider, "_api_key", "")),
-            "llm_model": getattr(self.llm_provider, "_model", settings.llm_model),
-            "llm_max_tokens": getattr(self.llm_provider, "_max_tokens", settings.llm_max_tokens),
+            "llm_provider": getattr(self.llm_provider, "provider_name", "") if self.llm_provider else "",
+            "llm_api_url": getattr(self.llm_provider, "_api_url", settings.llm_api_url) if self.llm_provider else settings.llm_api_url,
+            "llm_api_key_set": bool(getattr(self.llm_provider, "_api_key", "")) if self.llm_provider else False,
+            "llm_model": getattr(self.llm_provider, "_model", settings.llm_model) if self.llm_provider else settings.llm_model,
+            "llm_max_tokens": getattr(self.llm_provider, "_max_tokens", settings.llm_max_tokens) if self.llm_provider else settings.llm_max_tokens,
             "llm_connection_id": cfg.connection_id,
             "llm_connection_name": next(
                 (c.name for c in conns if c.id == cfg.connection_id), None
@@ -574,6 +575,19 @@ class Server:
         logger.info(
             "Connection activated: id=%s name=%s model=%s", conn.id, conn.name, model
         )
+
+    async def _deactivate_connection(self) -> None:
+        """Clear the active LLM connection and set the provider to None."""
+        cfg = load_ai_config()
+        cfg.connection_id = None
+        cfg.api_url = ""
+        cfg.api_key = ""
+        cfg.model = ""
+        save_ai_config(cfg)
+        self.llm_provider = None
+        self.agent.llm = None
+        self._config_warnings["llm_provider"] = "warning.no_llm"
+        logger.info("Connection deactivated — no provider active")
 
     def _register_routes(self) -> None:
         # Static file serving for cached images.
@@ -1708,8 +1722,7 @@ class Connection:
                 return
             cfg = load_ai_config()
             if cfg.connection_id == cid:
-                cfg.connection_id = None
-                save_ai_config(cfg)
+                await self.server._deactivate_connection()
             await self.server.broadcast_status()
 
         elif kind == "activate_connection":
@@ -1728,6 +1741,10 @@ class Connection:
                 logger.exception("activate_connection failed")
                 await self.send({"event": "error", "detail": str(exc)})
                 return
+            await self.server.broadcast_status()
+
+        elif kind == "deactivate_connection":
+            await self.server._deactivate_connection()
             await self.server.broadcast_status()
 
         elif kind == "audio_start":
@@ -2610,3 +2627,12 @@ class Connection:
                 await self.ws.send_json(payload)
             except Exception:
                 logger.exception("send failed")
+
+
+def create_app() -> FastAPI:
+    """Factory for uvicorn --reload."""
+    from .config import settings
+    host = os.environ.get("KALI_HOST", settings.host)
+    port = int(os.environ.get("KALI_WS_PORT", settings.port))
+    server = Server(host=host, port=port)
+    return server.app

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Edit2, ListChecks, Star, Trash2, Server, Cloud, Pencil } from "lucide-react";
+import { Edit2, ListChecks, Star, Trash2, Server, Cloud, Pencil, X } from "lucide-react";
 import type { ConnectionSummary } from "../../../lib/protocol";
 
 interface Props {
@@ -8,10 +8,11 @@ interface Props {
   onModels: (id: string) => void;
   onActivate: (id: string) => void;
   onDelete: (id: string) => void;
+  onDisconnect?: (id: string) => void;
   onChangeModel?: (id: string) => void;
 }
 
-export function ConnectionCard({ conn, onEdit, onModels, onActivate, onDelete, onChangeModel }: Props) {
+export function ConnectionCard({ conn, onEdit, onModels, onActivate, onDelete, onDisconnect, onChangeModel }: Props) {
   const { t } = useTranslation();
   const Icon = conn.kind === "local" ? Server : Cloud;
   return (
@@ -85,18 +86,23 @@ export function ConnectionCard({ conn, onEdit, onModels, onActivate, onDelete, o
         >
           <Trash2 size={13} />
         </button>
-        <button
-          onClick={() => onActivate(conn.id)}
-          disabled={conn.is_active}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-            conn.is_active
-              ? "bg-ok/10 text-ok cursor-default"
-              : "bg-accent/15 text-accent hover:bg-accent/25"
-          }`}
-        >
-          <Star size={12} />
-          {conn.is_active ? t("connections.principal") : t("connections.set_active")}
-        </button>
+        {conn.is_active ? (
+          <button
+            onClick={() => onDisconnect?.(conn.id)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium text-err hover:bg-err/10 transition-colors"
+          >
+            <X size={12} />
+            {t("connections.disconnect")}
+          </button>
+        ) : (
+          <button
+            onClick={() => onActivate(conn.id)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors"
+          >
+            <Star size={12} />
+            {t("connections.set_active")}
+          </button>
+        )}
       </div>
     </div>
   );

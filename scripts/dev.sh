@@ -12,12 +12,20 @@
 #     scripts/prod.sh
 #
 #
-# Usage: scripts/dev.sh
+# Usage: scripts/dev.sh [--reload]
 #
 # Requires:
 #   - Python 3.12+ (kali-core venv is auto-created on first run)
 #   - Node 20+ (kali-web deps are auto-installed on first run)
 set -euo pipefail
+
+RELOAD=0
+for arg in "$@"; do
+  if [ "$arg" = "--reload" ]; then
+    RELOAD=1
+  fi
+done
+export KALI_DEV_RELOAD=$RELOAD
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CORE_DIR="$ROOT/kali-core"
@@ -62,7 +70,11 @@ if [ ! -d "$WEB_DIR/node_modules" ]; then
 fi
 
 # ── Launch ────────────────────────────────────────────────
-echo "Starting kali-core on 0.0.0.0:8900…"
+if [ "$RELOAD" = "1" ]; then
+  echo "Starting kali-core on 0.0.0.0:8900 (reload on)…"
+else
+  echo "Starting kali-core on 0.0.0.0:8900…"
+fi
 "$VENV/bin/python" -m kali_core &
 CORE_PID=$!
 

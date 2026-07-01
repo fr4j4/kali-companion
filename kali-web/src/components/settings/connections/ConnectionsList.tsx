@@ -18,6 +18,7 @@ interface Props {
   onModels: (id: string) => void;
   onActivate: (id: string) => void;
   onDelete: (id: string) => void;
+  onDisconnect: (id: string) => void;
   onChangeModel?: (id: string) => void;
 }
 
@@ -29,6 +30,7 @@ export function ConnectionsList({
   onModels,
   onActivate,
   onDelete,
+  onDisconnect,
   onChangeModel,
 }: Props) {
   const { t } = useTranslation();
@@ -61,6 +63,7 @@ export function ConnectionsList({
             onModels={onModels}
             onActivate={onActivate}
             onDelete={onDelete}
+            onDisconnect={onDisconnect}
             onChangeModel={onChangeModel}
           />
         ))}
@@ -81,6 +84,7 @@ export function ConnectionsList({
             onModels={onModels}
             onActivate={onActivate}
             onDelete={onDelete}
+            onDisconnect={onDisconnect}
             onChangeModel={onChangeModel}
           />
         ))}

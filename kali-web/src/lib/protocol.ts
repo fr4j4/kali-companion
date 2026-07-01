@@ -385,6 +385,10 @@ export interface ActivateConnectionRequest {
   model: string;
 }
 
+export interface DeactivateConnectionRequest {
+  event: "deactivate_connection";
+}
+
 // Backend → frontend: full connections snapshot
 export interface ConnectionsListEvent {
   event: "connections_list";
@@ -625,6 +629,7 @@ export type IncomingEvent =
   | UpdateConnectionRequest
   | DeleteConnectionRequest
   | ActivateConnectionRequest
+  | DeactivateConnectionRequest
   | DownloadTtsModelEvent
   | DownloadSttModelEvent;
 
