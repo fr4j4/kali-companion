@@ -30,7 +30,8 @@ export type WindowType =
   | "media"
   | "document"
   | "image"
-  | "reasoning";
+  | "reasoning"
+  | "game";
 
 /** Position on the canvas (px). */
 export interface Position {
@@ -106,6 +107,7 @@ export interface WorkspaceAPI {
   restoreWindow: (id: number) => void;
   duplicateWindow: (id: number) => void;
   focusWindow: (id: number) => void;
+  unfocusAll: () => void;
   focusLast: () => void;
   clearAll: () => void;
   toggleGrid: () => void;
@@ -118,6 +120,8 @@ export interface WorkspaceAPI {
   resetWorkspace: () => void;
   moveWindow: (id: number, pos: Position) => void;
   resizeWindow: (id: number, size: Size) => void;
+  /** Persist a window's layout state (debounced). Called on drag/resize end. */
+  persistWindow: (id: number) => void;
   toggleSelect: (id: number) => void;
   clearSelection: () => void;
   syncArtifact: (event: ArtifactEvent) => void;
@@ -168,6 +172,7 @@ export const TETHER_COLORS: Record<string, string> = {
   html: "#22d3ee",
   widget: "#22d3ee",
   reasoning: "#7c5cff",
+  game: "#f59e0b",
 };
 
 /** Default window dimensions by type. */
@@ -193,6 +198,7 @@ export const DEFAULT_SIZES: Record<WindowType, { width: number; height: number |
   document: { width: 420, height: 500 },
   image: { width: 260, height: null },
   reasoning: { width: 420, height: 350 },
+  game: { width: 440, height: 440 },
 };
 
 /** Icons (emoji) by window type. */
@@ -218,4 +224,5 @@ export const WINDOW_ICONS: Record<WindowType, string> = {
   document: "\u{1F4DD}",
   image: "\u{1F5BC}\uFE0F",
   reasoning: "\u{1F9E0}",
+  game: "\u{1F3AE}",
 };

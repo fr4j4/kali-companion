@@ -501,6 +501,7 @@
   "dock.mic_stop": "Stop",
   "dock.mic_cancel": "Discard recording",
   "dock.mic_disabled": "Speech to Text is disabled",
+  "dock.toys": "Toys",
   "dock.debug": "Debug",
   "jobs.title": "Jobs",
   "jobs.active": "{{count}} active",

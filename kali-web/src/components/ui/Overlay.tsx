@@ -112,8 +112,8 @@ export function Overlay({
   const panelClasses = isModal
     ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} h-[85vh] overflow-hidden flex flex-col`
     : effectiveVariant === "sheet-bottom"
-      ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] overflow-auto"
-      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-full overflow-auto ${
+      ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] overflow-auto scrollbar-thin"
+      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-full overflow-auto scrollbar-thin ${
           effectiveVariant === "sheet-left" ? "border-r" : "border-l"
         }`;
 
@@ -178,7 +178,7 @@ export function Overlay({
                   </button>
                 </div>
               )}
-              <div className={bare ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-5"}>
+              <div className={bare ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-5 scrollbar-thin"}>
                 {children}
               </div>
             </div>

@@ -171,16 +171,23 @@ export abstract class BaseGame {
 
   abstract start(config?: GameConfig): GameState;
   abstract handleAction(action: GameAction, fromSlotId: SlotIdValue): GameState;
+
+  pause(): void {}
+  resume(): void {}
+  tick(): void {}
+
   getState(): GameState { return this._state; }
   getStatus(): GameStatusValue { return this._state.status; }
-
-  protected emitState(): void {
-    this.onStateChange?.(this.type, this._state);
-  }
+  get version(): number { return this._version; }
+  get prevData(): unknown { return this._prevData; }
 
   readonly onStateChange?: (type: GameTypeValue, state: GameState) => void;
 }
 ```
+
+`tick()` is optional (default no-op) and used by real-time games such as Snake or Breakout. `prevData` exposes a deep clone of the previous state's `data` so that renderers can interpolate smoothly between the last tick and the current one.
+
+> **Important:** Games that use interpolation must **not mutate their serialized data in-place**. For example, a Snake game must create a new snake array on every tick rather than `unshift`/`pop` on the same array. If the previous `state.data` points to a mutated array, `prevData` becomes identical to the current data and interpolation will not work.
 
 ## Game Engine
 
@@ -297,16 +304,181 @@ Games are implemented incrementally; the catalog is the "eventually all" list.
 
 ## Rendering
 
-Three rendering strategies, each implemented as a React component:
+### Architecture: Ref-based game state (no game state in React)
 
-| Renderer | Used by | Implementation |
-|----------|---------|----------------|
-| `CanvasRenderer` | Real-time games (Snake, Breakout) | HTML5 `<canvas>` inside artifact |
-| `GridRenderer` | Grid-based games (2048, TicTacToe, Chess) | CSS Grid in artifact |
-| `WidgetRenderer` | Text/UI games (Trivia, Story, Wordle) | Kali widget components |
+All game state lives in a **mutable ref** (`useRef`). React is never the source
+of truth for game positions, board state, or animation data. This decouples the
+game loop from React's render cycle and ensures smooth 60fps updates for
+real-time games without impacting the rest of the app.
+
+```
+gameRef (mutable, in useRef)
+  ├── game.tick()             ← real-time games only (rAF)
+  ├── game.handleAction()     ← both real-time and turn-based (input → state change)
+  ├── game.getState()         ← read by draw loop directly (no setState)
+  └── game.version            ← monotomically increasing counter (triggers HUD re-render only)
+
+View:
+  ├── draw loop (rAF or sync):
+  │     reads gameRef.getState() → paints canvas / grid / UI
+  │     NEVER passes through React setState
+  └── React HUD (score, buttons, labels):
+        receives a signal via game.version → setState(version)
+        renders text/botones reading gameRef.getState()
+        minimal React surface area
+```
+
+Rendering strategies:
+
+| Renderer | Used by | Implementation | Loop |
+|----------|---------|----------------|------|
+| `CanvasRenderer` | Real-time games (Snake, Breakout) | HTML5 `<canvas>`, rAF loop reads game ref | rAF (`requestAnimationFrame`) |
+| `GridRenderer` | Grid-based games (2048, TicTacToe, Chess) | CSS Grid, sync draw from game ref after handleAction | Sync (no rAF) |
+| `WidgetRenderer` | Text/UI games (Trivia, Story, Wordle) | Kali widget components, read game ref after handleAction | Sync (no rAF) |
+
+No matter the strategy: game state always lives in the ref, never in `useState`.
 
 Each game artifact is a draggable window on the NeuralCanvas, consistent with
 other Kali artifacts.
+
+## Real-Time Game Loop
+
+Real-time games share a single `useGameLoop` hook that encapsulates the rAF
+cycle, tick scheduling, and interpolation timing:
+
+```typescript
+// hooks/useGameLoop.ts
+useGameLoop(
+  game,               // BaseGame instance (must implement tick())
+  tickMs,           // current tick interval (can change dynamically, e.g. per level)
+  onFrame,          // (interp: number) => void — draw the current frame
+  onStatusChange,   // (status) => void — React HUD update
+);
+```
+
+The hook:
+- Reads `game.tick()` at fixed intervals defined by `tickMs`
+- Calls `onFrame(interp)` every frame with `interp` in `[0, 1]`, where `0` is
+  immediately after a tick and `1` is just before the next tick
+- Stores `tickMs` in a ref so that the loop does **not** restart when speed
+  changes (e.g. on level up)
+- Resets its internal timer when the game transitions to `PLAYING` to avoid an
+  immediate unexpected tick on start/resume
+
+### Smooth movement with interpolation
+
+For grid-based real-time games, never redraw only on state changes. Instead,
+redraw every frame and interpolate object positions between `game.prevData`
+and `game.getState().data`.
+
+```typescript
+const eased = smoothstep(interp);   // or any easing curve
+const px = lerp(prev.x, curr.x, eased) * CELL;
+const py = lerp(prev.y, curr.y, eased) * CELL;
+```
+
+Recommended refinements learned from Snake:
+- Use an easing curve (e.g. `smoothstep`) instead of linear interpolation: the
+  movement feels more organic when it accelerates and decelerates between cells.
+- Use rounded corners (`roundRect`) for moving objects: hard rectangles
+  accentuate the discrete grid and make sub-pixel movement look jittery.
+- Keep game logic grid-based but render at sub-pixel positions.
+
+### Dynamic speed and levels
+
+Real-time games may change speed as the player progresses. The recommended
+pattern is:
+
+- Store a `level` and derive `tickMs` from it.
+- Expose `getLevel()` and `getTickMs()` on the game class.
+- Serialize `level`, `foodsEaten`, and `speed` inside `state.data` so the HUD can
+  display them without extra React state.
+- Pass `game.getTickMs()` to `useGameLoop`; the ref-based implementation will
+  pick up the new speed on the next frame without restarting the loop.
+
+Example progression curve used by Snake:
+
+```typescript
+const BASE_TICK_MS = 150;   // starting speed (level 1)
+const MIN_TICK_MS = 70;     // speed floor
+const FOODS_PER_LEVEL = 4;  // how many foods to level up
+
+getTickMs(level) {
+  const decrease = Math.pow(level - 1, 1.5) * 5;
+  return Math.max(MIN_TICK_MS, Math.round(BASE_TICK_MS - decrease));
+}
+```
+
+This produces slow speed increases early on and steeper increases as the player
+advances, keeping the early game approachable while creating tension later.
+
+## Universal Game Rules
+
+Every game — regardless of genre — must implement these behaviours.
+
+### 1. Title screen
+
+Each game starts on a title/presentation screen with:
+- The game name and icon.
+- Optionally, a brief instruction or tagline.
+- An explicit **start trigger** (button or "Press ENTER to start").
+- The game must NOT start automatically on mount. The player must actively
+  choose to begin.
+
+### 2. Pause menu
+
+The game must have a pause overlay accessible at any time during active play:
+- Pause freezes all game loops (ticks, timers, rAF, AI turns).
+- The overlay shows:
+  - Current score / progress (so the player knows where they stand).
+  - **Resume** button to continue.
+  - **Restart** button to start over from the beginning (resets all state).
+  - **Give up / Quit** button to exit the game and return to the launchpad.
+- While paused, the background is dimmed but still visible (the last frame is
+  kept on screen).
+
+### 3. Universal pause button
+
+| Key | Action |
+|-----|--------|
+| `Escape` / `ESC` | Toggle pause (if playing → pause, if paused → resume). |
+| `P` | Toggle pause (same as ESC). |
+
+These keys must work regardless of where focus is in the window. The pause
+action must be handled at the top view level and must not conflict with other
+global shortcuts (e.g. Kali's push-to-talk).
+
+### 4. Game over
+
+When the game ends (win, loss, draw, or player quits):
+- A **game over screen** is shown over the final board/canvas state.
+- It displays: result (won/lost/draw), final score, and any relevant stats.
+- Two buttons: **Play again** (restart) and **Quit** (return to launchpad).
+- If the game is single-player with a high-score concept, a "New high score!"
+  callout is shown.
+
+### 5. State machine
+
+Every game follows this lifecycle:
+
+```
+TITLE ──[start]──> PLAYING ──[pause]──> PAUSED ──[resume]──> PLAYING
+                     │                    │
+                     ├──[win/loss/draw]──> GAME_OVER ──[play again]──> PLAYING
+                     │                                              └──> TITLE
+                     └──[quit]──> LAUNCHPAD (window closes)
+```
+
+The BaseGame `GameStatus` enum already covers these states:
+
+```
+WAITING    (title screen state — game created, not yet started)
+PLAYING    (active play)
+PAUSED     (paused by player)
+WON        (player wins)
+LOST       (player loses)
+DRAW       (draw)
+```
 
 ## Success criteria
 

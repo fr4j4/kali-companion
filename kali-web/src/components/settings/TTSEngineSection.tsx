@@ -407,7 +407,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
       {/* Qwen voice download catalog */}
       {tab === TTS_PROVIDERS.QWEN3 && subTab === "catalog" && (
         <div className="flex flex-col gap-2">
-          <div className="max-h-64 overflow-y-auto flex flex-col gap-1 rounded-md border border-border">
+          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
             {loadingQwenCatalog && (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                 <Loader2 size={12} className="animate-spin" />
@@ -472,7 +472,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
               </select>
             )}
           </div>
-          <div className="max-h-64 overflow-y-auto flex flex-col gap-1 rounded-md border border-border">
+          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
             {loadingPiperCatalog && (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                 <Loader2 size={12} className="animate-spin" />

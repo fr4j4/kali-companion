@@ -501,6 +501,7 @@
   "dock.mic_stop": "Detener",
   "dock.mic_cancel": "Descartar grabación",
   "dock.mic_disabled": "Reconocimiento de voz desactivado",
+  "dock.toys": "Juegos",
   "dock.debug": "Debug",
   "jobs.title": "Tareas",
   "jobs.active": "{{count}} activas",

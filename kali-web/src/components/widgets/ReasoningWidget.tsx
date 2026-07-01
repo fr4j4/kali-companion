@@ -28,7 +28,7 @@ export function ReasoningWidget() {
           {headerActions}
         </div>
       )}
-      <div className="flex-1 p-4 overflow-y-auto">
+      <div className="flex-1 p-4 overflow-y-auto scrollbar-thin">
         <pre className="text-sm text-fg leading-relaxed whitespace-pre-wrap font-sans" style={{ fontStyle: "italic" }}>
           {text}
         </pre>

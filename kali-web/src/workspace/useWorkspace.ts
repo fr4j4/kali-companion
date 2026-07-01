@@ -22,6 +22,7 @@ import { usePersistence } from "./usePersistence";
 import {
   createWindowData,
   focusInArray,
+  unfocusAllInArray,
   closeInArray,
   restoreInArray,
   duplicateInArray,
@@ -175,6 +176,11 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     setWindows((prev) => focusInArray(prev, id));
   }, []);
 
+  // Unfocus all windows
+  const unfocusAll = useCallback(() => {
+    setWindows((prev) => unfocusAllInArray(prev));
+  }, []);
+
   // Focus last visible window
   const focusLast = useCallback(() => {
     const visible = windows.filter((w) => !w.closed);
@@ -290,24 +296,14 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     handleRedoAction(action);
   }, [undoRedo, handleRedoAction]);
 
-    // Move + resize
+    // Move + resize — persistence is debounced (no localStorage on hot path)
   const moveWindow = useCallback((id: number, pos: Position) => {
-    setWindows((prev) => {
-      const next = moveInArray(prev, id, pos);
-      const moved = next.find((w) => w.id === id);
-      if (moved) persistence.saveWindowState(moved);
-      return next;
-    });
-  }, [persistence]);
+    setWindows((prev) => moveInArray(prev, id, pos));
+  }, []);
 
   const resizeWindow = useCallback((id: number, size: Size) => {
-    setWindows((prev) => {
-      const next = resizeInArray(prev, id, size);
-      const resized = next.find((w) => w.id === id);
-      if (resized) persistence.saveWindowState(resized);
-      return next;
-    });
-  }, [persistence]);
+    setWindows((prev) => resizeInArray(prev, id, size));
+  }, []);
 
   // Toggle minimize
   const toggleMinimize = useCallback((id: number) => {
@@ -327,6 +323,12 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
       if (toggled) persistence.saveWindowState(toggled);
       return next;
     });
+  }, [persistence]);
+
+  // Persist a single window's layout (debounced). Called on drag/resize end.
+  const persistWindow = useCallback((id: number) => {
+    const w = windowsRef.current.find((x) => x.id === id);
+    if (w) persistence.saveWindowState(w);
   }, [persistence]);
 
   // Reset workspace — clear all windows and undo/redo stacks
@@ -442,6 +444,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     restoreWindow,
     duplicateWindow,
     focusWindow,
+    unfocusAll,
     focusLast,
     clearAll,
     toggleGrid,
@@ -454,6 +457,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     resetWorkspace,
     moveWindow,
     resizeWindow,
+    persistWindow,
     toggleSelect: selection.toggleSelect,
     clearSelection: selection.clearSelection,
     syncArtifact,
@@ -463,9 +467,10 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   }), [
     windows, gridMode, selection.selectedIds, audioEnabled,
     createWindow, closeWindow, restoreWindow, duplicateWindow,
-    focusWindow, focusLast, clearAll, toggleGrid, arrangeOrbit,
+    focusWindow, unfocusAll, focusLast, clearAll, toggleGrid, arrangeOrbit,
     networkPulse, toggleAudio, undo, redo, saveWorkspace, resetWorkspace,
-    moveWindow, resizeWindow, selection.toggleSelect, selection.clearSelection,
+    moveWindow, resizeWindow, persistWindow,
+    selection.toggleSelect, selection.clearSelection,
     syncArtifact, toggleMinimize, toggleMaximize, reopenArtifact,
   ]);
 }

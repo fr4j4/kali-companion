@@ -163,7 +163,7 @@ export function DebugPad({ onClose, client }: Props) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="p-3 space-y-2">
             <Section title="Chat">
               <Button onClick={() => debug.simulateUserMessage("Mensaje de prueba del usuario")}>Msg Usuario</Button>

@@ -1,11 +1,12 @@
-import React from "react";
-import type { ArtifactWindowData } from "../workspace/types";
+import React, { memo, useMemo } from "react";
+import type { ArtifactWindowData, WorkspaceAPI } from "../workspace/types";
 import type { ArtifactEvent } from "../lib/protocol";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 
 interface Props {
   window: ArtifactWindowData;
   onHeaderActions?: (actions: React.ReactNode) => void;
+  api?: WorkspaceAPI;
 }
 
 /**
@@ -18,11 +19,11 @@ interface Props {
  *  2. artifact event type (e.g. "markdown" → "markdown")
  *  3. undefined (widget uses its own default)
  */
-function extractVariant(w: ArtifactWindowData): string | undefined {
-  const content = w.content as ArtifactEvent | null;
-  if (!content || content.content == null) return undefined;
+function extractVariant(content: unknown): string | undefined {
+  const ev = content as ArtifactEvent | null;
+  if (!ev || ev.content == null) return undefined;
   try {
-    const parsed = JSON.parse(content.content);
+    const parsed = JSON.parse(ev.content);
     const items = parsed.items ?? [];
     const data = items[0]?.data ?? parsed;
     if (data && typeof data === "object" && "type" in data) {
@@ -31,11 +32,15 @@ function extractVariant(w: ArtifactWindowData): string | undefined {
   } catch {
     // content is not JSON — fall through
   }
-  if (content.type === "markdown") return "markdown";
+  if (ev.type === "markdown") return "markdown";
   return undefined;
 }
 
-export function WindowContentRouter({ window: w }: Props) {
+function WindowContentRouterImpl({ window: w, api }: Props) {
+  // All hooks must be called before any early return — React requires
+  // hooks to be called in the same order on every render.
+  const variant = useMemo(() => extractVariant(w.content), [w.content]);
+
   // Content not yet loaded (closed artifact reopened, or reattach of an open
   // artifact whose content is fetched on demand). Only applies to backend
   // artifacts (those with an artifactId); local windows like "reasoning"
@@ -56,11 +61,10 @@ export function WindowContentRouter({ window: w }: Props) {
   }
 
   const Component = entry.component;
-  const variant = extractVariant(w);
 
   return (
     <React.Suspense fallback={<LoadingPlaceholder />}>
-      <Component content={w.content} variant={variant} />
+      <Component content={w.content} variant={variant} api={api} windowId={w.id} />
     </React.Suspense>
   );
 }
@@ -72,3 +76,16 @@ function LoadingPlaceholder() {
     </div>
   );
 }
+
+/**
+ * Memoized so that when a parent (ArtifactWindow) re-renders due to
+ * position/size changes (e.g. during drag), the widget content itself
+ * doesn't re-render unless its `window.content` or `api` reference changed.
+ */
+export const WindowContentRouter = memo(WindowContentRouterImpl, (prev, next) => {
+  if (prev.window.content !== next.window.content) return false;
+  if (prev.window.type !== next.window.type) return false;
+  if (prev.window.id !== next.window.id) return false;
+  if (prev.api !== next.api) return false;
+  return true;
+});

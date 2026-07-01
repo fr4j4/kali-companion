@@ -33,6 +33,7 @@ const LazyQr = React.lazy(() => import("./QrWidget").then((m) => ({ default: m.Q
 const LazyPlaceholder = React.lazy(() => import("./PlaceholderWidget").then((m) => ({ default: m.PlaceholderWidget })));
 const LazyHtml = React.lazy(() => import("./HtmlWidget").then((m) => ({ default: m.HtmlWidget })));
 const LazyReasoning = React.lazy(() => import("./ReasoningWidget").then((m) => ({ default: m.ReasoningWidget })));
+const LazyGame = React.lazy(() => import("./GameWidget").then((m) => ({ default: m.GameWidget })));
 
 function sz(type: WindowType) {
   return DEFAULT_SIZES[type] || { width: 340, height: null };
@@ -227,5 +228,14 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
     resizable: true,
     minW: 280,
     minH: 200,
+  },
+  game: {
+    component: LazyGame,
+    width: sz("game").width,
+    height: sz("game").height,
+    icon: WINDOW_ICONS.game,
+    resizable: true,
+    minW: 320,
+    minH: 300,
   },
 };

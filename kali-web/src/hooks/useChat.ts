@@ -4,7 +4,7 @@
 // list, and exposes helpers for sending input, starting new sessions,
 // and toggling settings.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WSClient } from "../lib/wsClient";
 import type {
   ArtifactEvent,
@@ -186,6 +186,61 @@ export function useChat(): ChatState {
   // the current ConsoleLogEntry[] from the widget's React state.
   const consoleProvidersRef = useRef<Map<string, () => ConsoleLogEntry[]>>(new Map());
 
+  // ── Streaming delta batcher ───────────────────────────────
+  // Deltas arrive token-by-token (potentially hundreds per second).
+  // Instead of setMessages per delta, we accumulate text + reasoning
+  // into mutable refs and flush once per animation frame. This reduces
+  // React re-renders from ~500/stream to ~60/s (one per rAF).
+  const deltaBufferRef = useRef<{ content: string; reasoning: string; hasContent: boolean; hasReasoning: boolean }>({
+    content: "",
+    reasoning: "",
+    hasContent: false,
+    hasReasoning: false,
+  });
+  const deltaRafRef = useRef<number | null>(null);
+
+  const flushDeltas = useCallback(() => {
+    deltaRafRef.current = null;
+    const buf = deltaBufferRef.current;
+    if (!buf.hasContent && !buf.hasReasoning) return;
+    const contentDelta = buf.content;
+    const reasoningDelta = buf.reasoning;
+    const hasContent = buf.hasContent;
+    const hasReasoning = buf.hasReasoning;
+    buf.content = "";
+    buf.reasoning = "";
+    buf.hasContent = false;
+    buf.hasReasoning = false;
+
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.role === "assistant" && last.streaming) {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...last,
+          ...(hasContent ? { content: last.content + contentDelta } : {}),
+          ...(hasReasoning ? { reasoning: (last.reasoning ?? "") + reasoningDelta } : {}),
+        };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          id: nextId(),
+          role: "assistant" as const,
+          content: hasContent ? contentDelta : "",
+          streaming: true,
+          ...(hasReasoning ? { reasoning: reasoningDelta } : {}),
+        },
+      ];
+    });
+  }, []);
+
+  const scheduleDeltaFlush = useCallback(() => {
+    if (deltaRafRef.current !== null) return;
+    deltaRafRef.current = requestAnimationFrame(flushDeltas);
+  }, [flushDeltas]);
+
   useEffect(() => {
     let client: WSClient | null = null;
     let cancelled = false;
@@ -277,44 +332,27 @@ export function useChat(): ChatState {
       client.on("delta", (p) => {
         setIsThinking(false);
         const ev = p as DeltaEvent;
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === "assistant" && last.streaming) {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...last,
-              content: last.content + ev.text,
-            };
-            return updated;
-          }
-          return [
-            ...prev,
-            { id: nextId(), role: "assistant", content: ev.text, streaming: true },
-          ];
-        });
+        deltaBufferRef.current.content += ev.text;
+        deltaBufferRef.current.hasContent = true;
+        scheduleDeltaFlush();
       });
 
       client.on("reasoning_delta", (p) => {
         setIsThinking(false);
         const ev = p as ReasoningDeltaEvent;
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === "assistant" && last.streaming) {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...last,
-              reasoning: (last.reasoning ?? "") + ev.text,
-            };
-            return updated;
-          }
-          return [
-            ...prev,
-            { id: nextId(), role: "assistant", content: "", streaming: true, reasoning: ev.text },
-          ];
-        });
+        deltaBufferRef.current.reasoning += ev.text;
+        deltaBufferRef.current.hasReasoning = true;
+        scheduleDeltaFlush();
       });
 
       client.on("turn_end", () => {
+        // Flush any pending buffered deltas before marking the message
+        // as non-streaming, so no tokens are lost.
+        if (deltaRafRef.current !== null) {
+          cancelAnimationFrame(deltaRafRef.current);
+          deltaRafRef.current = null;
+        }
+        flushDeltas();
         setIsThinking(false);
         setIsTurnActive(false);
         setCurrentStep(0);
@@ -612,6 +650,10 @@ export function useChat(): ChatState {
     return () => {
       cancelled = true;
       client?.disconnect();
+      if (deltaRafRef.current !== null) {
+        cancelAnimationFrame(deltaRafRef.current);
+        deltaRafRef.current = null;
+      }
     };
   }, []);
 
@@ -640,6 +682,12 @@ export function useChat(): ChatState {
 
   const stop = useCallback(() => {
     clientRef.current?.send({ event: "stop" });
+    // Flush pending deltas before marking as non-streaming.
+    if (deltaRafRef.current !== null) {
+      cancelAnimationFrame(deltaRafRef.current);
+      deltaRafRef.current = null;
+    }
+    flushDeltas();
     setStopped(true);
     setMessages((prev) => {
       const updated = [...prev];
@@ -649,7 +697,7 @@ export function useChat(): ChatState {
       }
       return updated;
     });
-  }, []);
+  }, [flushDeltas]);
 
   const newSession = useCallback(() => {
     setMessages([]);
@@ -769,7 +817,7 @@ export function useChat(): ChatState {
     };
   }, []);
 
-  return {
+  return useMemo(() => ({
     status,
     messages,
     sessionId,
@@ -816,5 +864,15 @@ export function useChat(): ChatState {
     markArtifactClosed,
     setArtifactContent,
     registerConsoleProvider,
-  };
+  }), [
+    status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
+    ttsPlaying, ttsSegment, ttsTotal, ttsFilteredRaw, ttsFilteredOut,
+    error, systemStatus, consentRequest, toolEvents, isThinking, isTurnActive,
+    currentStep, turnStats, stopped, downloadProgress, downloadError,
+    send, sendEvent, setSelectedArtifactsProvider, stop, newSession,
+    listSessions, attachSession, deleteSession, clearAllSessions, updateSettings,
+    respondConsent, subscribeTts, onTtsEnded, listJobs, cancelJob, getJobLogs,
+    requestImage, downloadTtsModel, downloadSttModel,
+    markArtifactClosed, setArtifactContent, registerConsoleProvider,
+  ]);
 }

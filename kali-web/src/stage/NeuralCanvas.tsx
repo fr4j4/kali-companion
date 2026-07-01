@@ -100,12 +100,16 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
 
   // Auto-adaptive input: any printable keypress reveals the text field.
   // Captures the first character in a ref so SpotlightInput can inject it.
+  // Suppressed when a game window has focus (games own their keyboard).
   const firstCharRef = useRef("");
+  const apiRef = useRef(api);
+  useEffect(() => { apiRef.current = api; }, [api]);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (typing) return;
       if (chat.isTurnActive) return;
       if (customizerOpen) return;
+      if (apiRef.current.windows.some((w) => w.type === "game" && w.focused)) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -227,8 +231,21 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     setOverrideEmotion({ emotion: "ronroneando", until: Date.now() + 3000 });
   }, []);
 
+  // Unfocus all windows when clicking the canvas background
+  const canvasRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement)?.closest("[data-window-id]")) return;
+      api.unfocusAll();
+    };
+    el.addEventListener("pointerdown", onPointerDown);
+    return () => el.removeEventListener("pointerdown", onPointerDown);
+  }, [api]);
+
   return (
-    <div className="relative h-full w-full overflow-hidden stage-surface stage-grain">
+    <div ref={canvasRef} className="relative h-full w-full overflow-hidden stage-surface stage-grain">
       {/* Avatar zone — centered, moves up when typing or customizer opens */}
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500"
@@ -457,11 +474,19 @@ function WelcomeText({ messages }: { messages: import("../hooks/useChat").ChatMe
   );
 }
 
-/** Floating transcript — overlay above the dock, narrow, border-left accent. */
+/** Floating transcript — overlay above the dock, narrow, border-left accent.
+ *
+ * Performance: while the assistant is streaming, we render the raw text
+ * (no markdown parsing) updated via a rAF-throttled state. When streaming
+ * ends, we parse the final markdown once with marked. This avoids the
+ * O(n²) parse-per-token that previously caused UI freezes on long
+ * responses.
+ */
 function FloatingTranscript({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
 
+  // Find the last assistant message with content.
   let text = "";
   let isStreaming = false;
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -473,14 +498,59 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     }
   }
 
+  // Throttle the visible text during streaming to one update per frame.
+  // During streaming, `text` changes every rAF flush (from useChat's
+  // batcher), which is already ~60fps. But marked.parse on every frame
+  // is still expensive. Instead:
+  //   - Streaming: render escaped raw text (no marked), updated per frame.
+  //   - Not streaming: parse markdown once via useMemo.
+  const [streamingText, setStreamingText] = useState("");
+  const streamingRafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      // Ensure any pending rAF is cancelled when streaming stops.
+      if (streamingRafRef.current !== null) {
+        cancelAnimationFrame(streamingRafRef.current);
+        streamingRafRef.current = null;
+      }
+      setStreamingText("");
+      return;
+    }
+    // Schedule a single rAF to update the visible streaming text.
+    if (streamingRafRef.current === null) {
+      streamingRafRef.current = requestAnimationFrame(() => {
+        streamingRafRef.current = null;
+        setStreamingText(text);
+      });
+    }
+    return () => {
+      if (streamingRafRef.current !== null) {
+        cancelAnimationFrame(streamingRafRef.current);
+        streamingRafRef.current = null;
+      }
+    };
+  }, [text, isStreaming]);
+
+  // Parse markdown only when NOT streaming (final render).
   const html = useMemo(() => {
-    if (!text) return null;
+    if (isStreaming || !text) return null;
     try {
       return marked.parse(text, { async: false }) as string;
     } catch {
       return `<p>${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
     }
-  }, [text]);
+  }, [text, isStreaming]);
+
+  // Escaped raw text for streaming display (no markdown, just safe text).
+  const escapedStreaming = useMemo(() => {
+    if (!streamingText) return "";
+    return streamingText
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br/>");
+  }, [streamingText]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -488,7 +558,7 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     if (atBottom) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [html, isStreaming, atBottom]);
+  }, [html, isStreaming, escapedStreaming, atBottom]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -521,6 +591,13 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
               className="leading-relaxed text-sm"
               style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
               dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )}
+          {isStreaming && escapedStreaming && (
+            <div
+              className="leading-relaxed text-sm whitespace-pre-wrap"
+              style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
+              dangerouslySetInnerHTML={{ __html: escapedStreaming }}
             />
           )}
           {isStreaming && (

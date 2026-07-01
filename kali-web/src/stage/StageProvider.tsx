@@ -6,7 +6,7 @@
 //   - PTT final transcript -> chat.send
 //   - wake-word barge-in (stop TTS + chat)
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useChat, getSidecarPort, type ChatState } from "../hooks/useChat";
 import { useTTS, type TtsPlaybackState } from "../hooks/useTTS";
@@ -226,7 +226,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
 
   const activeConnectionId = chat.systemStatus?.llm_connection_id ?? null;
   const configWarnings = chat.systemStatus?.config_warnings ?? [];
-  const value: StageContextValue = {
+  const value = useMemo<StageContextValue>(() => ({
     chat,
     tts,
     ptt,
@@ -245,7 +245,12 @@ export function StageProvider({ children }: { children: ReactNode }) {
     activateConnection,
     deactivateConnection,
     configWarnings,
-  };
+  }), [
+    chat, tts, ptt, customVoices, sttLanguage, ttsProvider, ttsModel,
+    ttsLoaded, ttsAvailable, ttsVariant, sttProvider, connections,
+    activeConnectionId, cloudProviders, refreshConnections,
+    activateConnection, deactivateConnection, configWarnings,
+  ]);
   return <StageContext.Provider value={value}>{children}</StageContext.Provider>;
 }
 

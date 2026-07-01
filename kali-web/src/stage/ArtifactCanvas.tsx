@@ -4,6 +4,7 @@ import type { WorkspaceAPI } from "../workspace/types";
 import { ArtifactWindow } from "./ArtifactWindow";
 import { WindowContentRouter } from "./WindowContentRouter";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
+import type { Position, Size } from "../workspace/types";
 
 interface Props {
   api: WorkspaceAPI;
@@ -12,15 +13,13 @@ interface Props {
 
 export function ArtifactCanvas({ api, winScale = 1 }: Props) {
   const { t } = useTranslation();
-  const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize, toggleMaximize } = api;
+  const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize, toggleMaximize, persistWindow } = api;
 
-  const handleMoveEnd = useCallback((id: number, prevPos: { x: number; y: number }) => {
-    const w = windows.find((x) => x.id === id);
-    if (!w) return;
-    void prevPos;
-  }, [windows]);
+  const handleMoveEnd = useCallback((id: number, _prevPos: Position) => {
+    persistWindow(id);
+  }, [persistWindow]);
 
-  const handleResize = useCallback((id: number, size: { width: number; height: number | null }, pos?: { x: number; y: number }) => {
+  const handleResize = useCallback((id: number, size: Size, pos?: Position) => {
     resizeWindow(id, size);
     if (pos) moveWindow(id, pos);
   }, [resizeWindow, moveWindow]);
@@ -46,7 +45,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
               minH={entry?.minH}
               winScale={winScale}
             >
-              <WindowContentRouter window={w} />
+              <WindowContentRouter window={w} api={api} />
             </ArtifactWindow>
           );
         })}
@@ -75,7 +74,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
             minH={entry?.minH}
             winScale={winScale}
           >
-            <WindowContentRouter window={w} />
+            <WindowContentRouter window={w} api={api} />
           </ArtifactWindow>
         );
       })}
