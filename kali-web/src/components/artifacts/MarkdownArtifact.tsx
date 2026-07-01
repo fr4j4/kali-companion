@@ -51,7 +51,7 @@ export function MarkdownArtifact({ content }: Props) {
   return (
     <div
       ref={containerRef}
-      className="p-4 overflow-x-auto markdown"
+      className="p-4 overflow-x-auto scrollbar-thin markdown"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

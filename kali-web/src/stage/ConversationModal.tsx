@@ -97,7 +97,7 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
             )}
           </div>
           {displayOutput && (
-            <pre className="text-muted/70 bg-muted/10 px-2 py-1.5 rounded overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+            <pre className="text-muted/70 bg-muted/10 px-2 py-1.5 rounded overflow-x-auto scrollbar-thin max-h-32 whitespace-pre-wrap break-all">
               {displayOutput.slice(0, 2000)}
             </pre>
           )}

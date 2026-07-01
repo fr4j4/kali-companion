@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { ToysLaunchpad } from "../games/ToysLaunchpad";
 import { GameRenderer } from "../games/GameRenderer";
-import type { GameTypeValue } from "../../games/core/constants/game-types";
 import { GameRegistry } from "../../games/core/game-registry";
 import { GameStatus } from "../../games/core/constants/game-status";
+import { GameType, type GameTypeValue } from "../../games/core/constants/game-types";
 import type { BaseGame } from "../../games/core/base-game";
 import { registerGames } from "../../games/register-games";
 
@@ -19,11 +19,9 @@ interface Props {
   windowId?: number;
 }
 
-let registered = false;
 function ensureRegistered() {
-  if (!registered) {
+  if (!GameRegistry.isRegistered(GameType.SNAKE)) {
     registerGames();
-    registered = true;
   }
 }
 

@@ -166,7 +166,7 @@ export function ScanPanel({ onPick }: Props) {
                       </div>
                     </button>
                     {isExpanded && (
-                      <div className="ml-4 mt-1 px-2 py-2 rounded-md bg-surface/40 border border-border/50 max-h-[220px] overflow-y-auto flex flex-col gap-1">
+                      <div className="ml-4 mt-1 px-2 py-2 rounded-md bg-surface/40 border border-border/50 max-h-[220px] overflow-y-auto scrollbar-thin flex flex-col gap-1">
                         {r.models.length > 10 && (
                           <input
                             type="text"

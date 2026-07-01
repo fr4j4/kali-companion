@@ -8,9 +8,7 @@ export class GameRegistry {
   private static _games = new Map<GameTypeValue, GameConstructor>();
 
   static register(type: GameTypeValue, ctor: GameConstructor): void {
-    if (GameRegistry._games.has(type)) {
-      throw new Error(`Game type "${type}" is already registered`);
-    }
+    if (GameRegistry._games.has(type)) return;
     GameRegistry._games.set(type, ctor);
   }
 

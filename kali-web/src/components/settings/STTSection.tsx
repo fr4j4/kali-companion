@@ -476,7 +476,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
               )}
             </div>
           )}
-          <div className="max-h-64 overflow-y-auto flex flex-col gap-1 rounded-md border border-border">
+          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
             {loadingCatalog && (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                 <Loader2 size={12} className="animate-spin" />

@@ -206,7 +206,7 @@ function WindowHeader({
     <div
       ref={headerRef}
       onPointerDown={onDragStart}
-      className="aw-header flex items-center justify-between px-3.5 py-2.5 bg-white/[0.03] border-b border-white/8 shrink-0"
+      className="aw-header flex items-center justify-between px-3.5 py-2.5 shrink-0"
       style={{ cursor: onDragStart ? "grab" : "default", userSelect: "none" }}
     >
       <div className="flex items-center gap-2 min-w-0">
@@ -225,7 +225,7 @@ function WindowHeader({
         {onMaximize && (
           <button
             onClick={(e) => { e.stopPropagation(); onMaximize(); }}
-            className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"
+            className="w-6 h-6 rounded hover:bg-accent/10 text-muted hover:text-fg transition flex items-center justify-center"
             aria-label={t("window.maximize")}
             title={t("window.maximize")}
           >
@@ -236,7 +236,7 @@ function WindowHeader({
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onMinimize(); }}
-          className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"
+          className="w-6 h-6 rounded hover:bg-accent/10 text-muted hover:text-fg transition flex items-center justify-center"
           aria-label={t("window.minimize")}
           title={t("window.minimize")}
         >
@@ -246,7 +246,7 @@ function WindowHeader({
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="w-6 h-6 rounded hover:bg-red-500/20 text-muted hover:text-red-300 transition flex items-center justify-center"
+          className="w-6 h-6 rounded hover:bg-err/20 text-muted hover:text-err transition flex items-center justify-center"
           aria-label={t("window.close")}
           title={t("window.close")}
         >

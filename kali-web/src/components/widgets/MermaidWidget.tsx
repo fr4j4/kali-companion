@@ -131,7 +131,7 @@ export function MermaidWidget({ content }: Props) {
 
         {tab === "code" ? (
           <>
-            <div className="flex flex-1 min-h-0 overflow-y-auto">
+            <div className="flex flex-1 min-h-0 overflow-y-auto scrollbar-thin">
               <div className="text-right px-2 py-3 text-xs text-muted/40 select-none font-mono leading-5 shrink-0 border-r border-white/5">
                 {lines.map((_, i) => (
                   <div key={i}>{i + 1}</div>
@@ -139,7 +139,7 @@ export function MermaidWidget({ content }: Props) {
               </div>
               <pre
                 ref={codeRef}
-                className="flex-1 p-3 text-xs font-mono leading-5 overflow-x-auto m-0 text-[#d4d4d4]"
+                className="flex-1 p-3 text-xs font-mono leading-5 overflow-x-auto scrollbar-thin m-0 text-[#d4d4d4]"
                 style={{ whiteSpace: "pre" }}
               >
                 {source}

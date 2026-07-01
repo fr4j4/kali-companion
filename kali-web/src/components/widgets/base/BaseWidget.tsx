@@ -22,7 +22,7 @@ export function BaseWidget({ children, className = "" }: Props) {
   return (
     <div
       ref={elRef}
-      className={`widget-body flex flex-1 flex-col min-h-0 overflow-y-auto ${className}`}
+      className={`widget-body flex flex-1 flex-col min-h-0 overflow-y-auto scrollbar-thin ${className}`}
     >
       {children}
     </div>

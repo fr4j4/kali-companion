@@ -69,7 +69,7 @@ export function TableWidget({ content }: Props) {
       {isStreamingContent(content) ? (
         <StreamingSpinner content={content} windowType="table" />
       ) : (
-        <div className="p-0 overflow-x-auto">
+        <div className="p-0 overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-white/5">

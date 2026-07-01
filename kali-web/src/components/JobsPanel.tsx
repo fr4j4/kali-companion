@@ -105,7 +105,7 @@ export function JobsPanel({ open, onClose, jobs, onCancelJob, onGetLogs }: Props
                   <p className="text-err text-xs mb-1">{job.error}</p>
                 )}
                 {job.logs && job.logs.length > 0 ? (
-                  <pre className="text-xs text-muted font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  <pre className="text-xs text-muted font-mono whitespace-pre-wrap max-h-40 overflow-y-auto scrollbar-thin">
                     {job.logs.join("\n")}
                   </pre>
                 ) : (

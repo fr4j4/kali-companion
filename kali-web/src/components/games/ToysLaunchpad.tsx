@@ -26,11 +26,7 @@ function GameCard({ game, onPlay }: { game: GameEntry; onPlay: (g: GameEntry) =>
     <button
       onClick={() => available && onPlay(game)}
       disabled={!available}
-      className={`flex flex-col items-start gap-1 p-3 rounded-xl transition-colors text-left border ${
-        available
-          ? "bg-white/5 hover:bg-white/10 active:bg-white/15 border-transparent hover:border-white/10 group cursor-pointer"
-          : "bg-white/[0.02] border-white/5 opacity-30 grayscale cursor-not-allowed"
-      }`}
+      className={`game-card flex flex-col items-start gap-1 p-3 rounded-xl text-left ${available ? "group cursor-pointer" : "game-card-disabled"}`}
     >
       <span className="text-xl">{game.icon}</span>
       <span className="text-sm font-medium text-fg group-hover:text-accent transition-colors">
@@ -69,7 +65,7 @@ export function ToysLaunchpad({ api }: Props) {
   }, [api, isEs]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto">
+    <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto scrollbar-thin">
       <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
         <span>{'\u{1F3AE}'}</span>
         {t("game_launchpad.title", "Juegos")}
