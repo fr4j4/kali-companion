@@ -64,6 +64,7 @@ from kali_core.claws.manage_artifacts import (
 from kali_core.claws.organize import OrganizeFolderTool
 from kali_core.claws.screenshot import ScreenshotTool
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
+from kali_core.claws.games import GameStartTool, GameActionTool, GameEndTool
 from kali_core.claws.tests import RunTestsTool
 from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
@@ -352,6 +353,10 @@ def _register_tools() -> None:
     register(GetArtifactConsoleTool())
     # Phase 5 — Dota 2 live match state via GSI.
     register(DotaLiveStateTool())
+    # Phase 6 — kali-toys game lifecycle tools.
+    register(GameStartTool())
+    register(GameActionTool())
+    register(GameEndTool())
     # STT post-processing (applied automatically, not user-visible).
     register(SttCorrectorTool())
 

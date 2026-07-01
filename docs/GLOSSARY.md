@@ -24,6 +24,7 @@ code, docs, or issues, use these names exactly.
 | **kali-collar** | The cat's collar | Permissions & consent (Python, in kali-core) | Profile-based allow-lists + per-action approval. |
 | **kali-nest** | The cat's nest | Sessions & memory (Python, in kali-core) | Stores conversations and memory. SQLite-based. |
 | **kali-yarn** | The cat's yarn ball | IO protocol (Python, in kali-core) | The WebSocket event contract between web and core. |
+| **kali-toys** | The cat's toys | Games engine (TypeScript + Python) | Interactive games on the NeuralCanvas. Engine core in kali-web, agent tools in kali-core. |
 
 ## How to use these names
 
