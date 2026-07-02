@@ -6,7 +6,7 @@ import { startDrag, startResize } from "../workspace/useDragResize";
 import type { ResizeEdge } from "../workspace/useDragResize";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
-import { SidePanelProvider, useSidePanel, type SidePanelContent } from "./SidePanelContext";
+import { SidePanelProvider, type SidePanelContent } from "./SidePanelContext";
 import { X } from "lucide-react";
 
 const STREAMING_LABEL_KEYS: Record<string, string> = {
@@ -85,8 +85,10 @@ function WindowImpl({
   const { isMobile } = useBreakpoint();
 
   const panelConfig = widgetRegistry[w.type]?.sidePanel;
-  const hasSidePanel = !!panelConfig;
+  const leftPanelConfig = widgetRegistry[w.type]?.leftSidePanel;
+  const hasSidePanel = !!panelConfig || !!leftPanelConfig;
 
+  // Right panel state
   const [sidePanelOpen, setSidePanelOpen] = useState(
     panelConfig?.defaultOpen ?? false
   );
@@ -97,6 +99,18 @@ function WindowImpl({
     panelConfig?.defaultHeight ?? 400
   );
   const [sidePanelContent, setSidePanelContentState] = useState<SidePanelContent | null>(null);
+
+  // Left panel state
+  const [leftPanelOpen, setLeftPanelOpen] = useState(
+    leftPanelConfig?.defaultOpen ?? false
+  );
+  const [leftPanelWidth, setLeftPanelWidth] = useState(
+    leftPanelConfig?.defaultWidth ?? 320
+  );
+  const [leftPanelHeight, setLeftPanelHeight] = useState(
+    leftPanelConfig?.defaultHeight ?? 400
+  );
+  const [leftPanelContent, setLeftPanelContentState] = useState<SidePanelContent | null>(null);
 
   const toggleSidePanel = useCallback(() => {
     if (!sidePanelOpen && sidePanelContent === null) {
@@ -116,6 +130,26 @@ function WindowImpl({
   const handleClearSidePanel = useCallback(() => {
     setSidePanelContentState(null);
     setSidePanelOpen(false);
+  }, []);
+
+  const toggleLeftPanel = useCallback(() => {
+    if (!leftPanelOpen && leftPanelContent === null) {
+      setLeftPanelOpen(true);
+    } else {
+      setLeftPanelOpen((o) => !o);
+    }
+  }, [leftPanelOpen, leftPanelContent]);
+
+  const handleSetLeftPanelContent = useCallback((content: SidePanelContent | null) => {
+    setLeftPanelContentState(content);
+    if (content !== null) {
+      setLeftPanelOpen(true);
+    }
+  }, []);
+
+  const handleClearLeftPanel = useCallback(() => {
+    setLeftPanelContentState(null);
+    setLeftPanelOpen(false);
   }, []);
 
   const handleDragStart = useCallback((e: React.PointerEvent) => {
@@ -160,23 +194,33 @@ function WindowImpl({
     });
   }, [isMobile, w.id, w.size, w.position, onFocus, onResize, minW, minH]);
 
-  const handlePanelResizeStart = useCallback((e: React.PointerEvent, direction: "e" | "s") => {
+  const handlePanelResizeStart = useCallback((e: React.PointerEvent, direction: "e" | "s", isLeft: boolean) => {
     if (isMobile) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const startMouse = { x: e.clientX, y: e.clientY };
-    const startWidth = sidePanelWidth;
-    const startHeight = sidePanelHeight;
+    const startWidth = isLeft ? leftPanelWidth : sidePanelWidth;
+    const startHeight = isLeft ? leftPanelHeight : sidePanelHeight;
+    const minW = (isLeft ? leftPanelConfig?.minWidth : panelConfig?.minWidth) ?? 120;
+    const minH = (isLeft ? leftPanelConfig?.minHeight : panelConfig?.minHeight) ?? 80;
 
     const onPointerMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startMouse.x;
       const dy = ev.clientY - startMouse.y;
       if (direction === "e") {
-        const newWidth = Math.max(panelConfig?.minWidth ?? 120, startWidth + dx);
-        setSidePanelWidth(newWidth);
+        const newWidth = Math.max(minW, startWidth + dx);
+        if (isLeft) {
+          setLeftPanelWidth(newWidth);
+        } else {
+          setSidePanelWidth(newWidth);
+        }
       } else {
-        const newHeight = Math.max(panelConfig?.minHeight ?? 80, startHeight + dy);
-        setSidePanelHeight(newHeight);
+        const newHeight = Math.max(minH, startHeight + dy);
+        if (isLeft) {
+          setLeftPanelHeight(newHeight);
+        } else {
+          setSidePanelHeight(newHeight);
+        }
       }
     };
 
@@ -197,7 +241,7 @@ function WindowImpl({
     document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", onPointerUp);
     document.addEventListener("pointercancel", onPointerCancel);
-  }, [isMobile, sidePanelWidth, sidePanelHeight, panelConfig?.minWidth, panelConfig?.minHeight]);
+  }, [isMobile, sidePanelWidth, sidePanelHeight, leftPanelWidth, leftPanelHeight, panelConfig?.minWidth, panelConfig?.minHeight, leftPanelConfig?.minWidth, leftPanelConfig?.minHeight]);
 
   const panelPosition = panelConfig?.position ?? "right";
 
@@ -205,7 +249,10 @@ function WindowImpl({
     setSidePanelContent: handleSetSidePanelContent,
     clearSidePanel: handleClearSidePanel,
     sidePanelContent: sidePanelContent,
-  }), [handleSetSidePanelContent, handleClearSidePanel, sidePanelContent]);
+    setLeftSidePanelContent: handleSetLeftPanelContent,
+    clearLeftSidePanel: handleClearLeftPanel,
+    leftSidePanelContent: leftPanelContent,
+  }), [handleSetSidePanelContent, handleClearSidePanel, sidePanelContent, handleSetLeftPanelContent, handleClearLeftPanel, leftPanelContent]);
 
   const renderWindowContent = (content: React.ReactNode) => {
     return (
@@ -220,10 +267,16 @@ function WindowImpl({
           headerRef={headerRef}
           headerActions={headerActions}
           hasSidePanel={hasSidePanel}
+          // Right panel
           sidePanelOpen={sidePanelOpen}
           onToggleSidePanel={toggleSidePanel}
           panelIcon={panelConfig?.toggleIcon}
           panelBadge={sidePanelContent?.badge}
+          // Left panel
+          leftPanelOpen={leftPanelOpen}
+          onToggleLeftPanel={toggleLeftPanel}
+          leftPanelIcon={leftPanelConfig?.toggleIcon}
+          leftPanelBadge={leftPanelContent?.badge}
         />
         <div className="kw-body flex-1 flex flex-col min-h-0">{content}</div>
         {RESIZE_HANDLES.map(({ edge, className, label }) => (
@@ -238,10 +291,92 @@ function WindowImpl({
     );
   };
 
+  function renderPanel(
+    open: boolean,
+    content: SidePanelContent | null,
+    position: "left" | "right" | "bottom",
+    width: number,
+    height: number,
+    onClose: () => void,
+    isLeft: boolean,
+  ) {
+    if (!open || !content) return null;
+    return (
+      <div
+        className={`kw-side-panel kw-side-panel-${position}`}
+        style={{
+          "--panel-width": `${width}px`,
+          "--panel-height": `${height}px`,
+        } as React.CSSProperties}
+      >
+        <div className="kw-side-panel-header">
+          <div className="flex items-center gap-2">
+            {content.icon}
+            <span className="text-xs font-medium text-fg/80">{content.title}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {content.onClear && (
+              <button
+                onClick={content.onClear}
+                className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
+                title="Clear"
+              >
+                <X size={12} />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
+              title="Close panel"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">{content.content}</div>
+        {(position === "right" || position === "left") && (
+          <>
+            <div
+              className={`kw-side-panel-resize kw-side-panel-resize-${position === "left" ? "left" : "right"}`}
+              onPointerDown={(e) => handlePanelResizeStart(e, "e", isLeft)}
+            />
+            <div
+              className="kw-side-panel-resize kw-side-panel-resize-top"
+              onPointerDown={(e) => handlePanelResizeStart(e, "s", isLeft)}
+            />
+            <div
+              className="kw-side-panel-resize kw-side-panel-resize-bottom"
+              onPointerDown={(e) => handlePanelResizeStart(e, "s", isLeft)}
+            />
+          </>
+        )}
+        {position === "bottom" && (
+          <>
+            <div
+              className="kw-side-panel-resize kw-side-panel-resize-bottom"
+              onPointerDown={(e) => handlePanelResizeStart(e, "s", isLeft)}
+            />
+            <div
+              className="kw-side-panel-resize kw-side-panel-resize-left"
+              onPointerDown={(e) => handlePanelResizeStart(e, "e", isLeft)}
+            />
+            <div
+              className="kw-side-panel-resize kw-side-panel-resize-right"
+              onPointerDown={(e) => handlePanelResizeStart(e, "e", isLeft)}
+            />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  const leftPos = leftPanelConfig?.position ?? "left";
+
   if (isMobile || (typeof window !== "undefined" && document.body.classList.contains("grid-mode"))) {
     return (
       <SidePanelProvider value={sidePanelContextValue}>
         <div className="kw-wrapper">
+          {renderPanel(leftPanelOpen, leftPanelContent, leftPos, leftPanelWidth, leftPanelHeight, toggleLeftPanel, true)}
           <div
             ref={elRef}
             data-window-id={w.id}
@@ -253,73 +388,7 @@ function WindowImpl({
           >
             {renderWindowContent(children)}
           </div>
-          {sidePanelOpen && sidePanelContent && (
-            <div
-              className={`kw-side-panel kw-side-panel-${panelPosition}`}
-              style={{
-                "--panel-width": `${sidePanelWidth}px`,
-                "--panel-height": `${sidePanelHeight}px`,
-              } as React.CSSProperties}
-            >
-              <div className="kw-side-panel-header">
-                <div className="flex items-center gap-2">
-                  {sidePanelContent.icon}
-                  <span className="text-xs font-medium text-fg/80">{sidePanelContent.title}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {sidePanelContent.onClear && (
-                    <button
-                      onClick={sidePanelContent.onClear}
-                      className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
-                      title="Clear"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                  <button
-                    onClick={toggleSidePanel}
-                    className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
-                    title="Close panel"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              </div>
-              <SidePanelContentRenderer />
-              {panelPosition === "right" && (
-                <>
-                  <div
-                    className="kw-side-panel-resize kw-side-panel-resize-right"
-                    onPointerDown={(e) => handlePanelResizeStart(e, "e")}
-                  />
-                  <div
-                    className="kw-side-panel-resize kw-side-panel-resize-top"
-                    onPointerDown={(e) => handlePanelResizeStart(e, "s")}
-                  />
-                  <div
-                    className="kw-side-panel-resize kw-side-panel-resize-bottom"
-                    onPointerDown={(e) => handlePanelResizeStart(e, "s")}
-                  />
-                </>
-              )}
-              {panelPosition === "bottom" && (
-                <>
-                  <div
-                    className="kw-side-panel-resize kw-side-panel-resize-bottom"
-                    onPointerDown={(e) => handlePanelResizeStart(e, "s")}
-                  />
-                  <div
-                    className="kw-side-panel-resize kw-side-panel-resize-left"
-                    onPointerDown={(e) => handlePanelResizeStart(e, "e")}
-                  />
-                  <div
-                    className="kw-side-panel-resize kw-side-panel-resize-right"
-                    onPointerDown={(e) => handlePanelResizeStart(e, "e")}
-                  />
-                </>
-              )}
-            </div>
-          )}
+          {renderPanel(sidePanelOpen, sidePanelContent, panelPosition, sidePanelWidth, sidePanelHeight, toggleSidePanel, false)}
         </div>
       </SidePanelProvider>
     );
@@ -337,6 +406,7 @@ function WindowImpl({
           zIndex: w.zIndex,
         }}
       >
+        {renderPanel(leftPanelOpen, leftPanelContent, leftPos, leftPanelWidth, leftPanelHeight, toggleLeftPanel, true)}
         <div
           ref={elRef}
           data-window-id={w.id}
@@ -352,82 +422,10 @@ function WindowImpl({
         >
           {renderWindowContent(children)}
         </div>
-        {sidePanelOpen && sidePanelContent && (
-          <div
-            className={`kw-side-panel kw-side-panel-${panelPosition}`}
-            style={{
-              "--panel-width": `${sidePanelWidth}px`,
-              "--panel-height": `${sidePanelHeight}px`,
-            } as React.CSSProperties}
-          >
-            <div className="kw-side-panel-header">
-              <div className="flex items-center gap-2">
-                {sidePanelContent.icon}
-                <span className="text-xs font-medium text-fg/80">{sidePanelContent.title}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {sidePanelContent.onClear && (
-                  <button
-                    onClick={sidePanelContent.onClear}
-                    className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
-                    title="Clear"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-                <button
-                  onClick={toggleSidePanel}
-                  className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
-                  title="Close panel"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            </div>
-            <SidePanelContentRenderer />
-            {panelPosition === "right" && (
-              <>
-                <div
-                  className="kw-side-panel-resize kw-side-panel-resize-right"
-                  onPointerDown={(e) => handlePanelResizeStart(e, "e")}
-                />
-                <div
-                  className="kw-side-panel-resize kw-side-panel-resize-top"
-                  onPointerDown={(e) => handlePanelResizeStart(e, "s")}
-                />
-                <div
-                  className="kw-side-panel-resize kw-side-panel-resize-bottom"
-                  onPointerDown={(e) => handlePanelResizeStart(e, "s")}
-                />
-              </>
-            )}
-            {panelPosition === "bottom" && (
-              <>
-                <div
-                  className="kw-side-panel-resize kw-side-panel-resize-bottom"
-                  onPointerDown={(e) => handlePanelResizeStart(e, "s")}
-                />
-                <div
-                  className="kw-side-panel-resize kw-side-panel-resize-left"
-                  onPointerDown={(e) => handlePanelResizeStart(e, "e")}
-                />
-                <div
-                  className="kw-side-panel-resize kw-side-panel-resize-right"
-                  onPointerDown={(e) => handlePanelResizeStart(e, "e")}
-                />
-              </>
-            )}
-          </div>
-        )}
+        {renderPanel(sidePanelOpen, sidePanelContent, panelPosition, sidePanelWidth, sidePanelHeight, toggleSidePanel, false)}
       </div>
     </SidePanelProvider>
   );
-}
-
-function SidePanelContentRenderer() {
-  const { sidePanelContent } = useSidePanel();
-  if (!sidePanelContent) return null;
-  return <div className="flex-1 overflow-y-auto">{sidePanelContent.content}</div>;
 }
 
 export const KaliWindow = WindowImpl;
@@ -442,10 +440,16 @@ function WindowHeader({
   headerRef,
   headerActions,
   hasSidePanel,
+  // Right panel
   sidePanelOpen,
   onToggleSidePanel,
   panelIcon,
   panelBadge,
+  // Left panel
+  leftPanelOpen,
+  onToggleLeftPanel,
+  leftPanelIcon,
+  leftPanelBadge,
 }: {
   w: WindowData;
   onClose: () => void;
@@ -460,6 +464,10 @@ function WindowHeader({
   onToggleSidePanel?: () => void;
   panelIcon?: React.ReactNode;
   panelBadge?: number;
+  leftPanelOpen?: boolean;
+  onToggleLeftPanel?: () => void;
+  leftPanelIcon?: React.ReactNode;
+  leftPanelBadge?: number;
 }) {
   const { t } = useTranslation();
   const content = w.content as ArtifactEvent | undefined;
@@ -484,6 +492,22 @@ function WindowHeader({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {headerActions && <div className="flex items-center gap-0.5 mr-1">{headerActions}</div>}
+        {/* Left panel toggle */}
+        {hasSidePanel && onToggleLeftPanel && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleLeftPanel(); }}
+            className={`p-1 rounded transition flex items-center justify-center relative ${leftPanelOpen ? "bg-accent/20 text-accent" : "hover:bg-white/10 text-muted hover:text-fg"}`}
+            title="Toggle reasoning panel"
+          >
+            {leftPanelIcon ?? <span className="text-xs">&#9776;</span>}
+            {!!leftPanelBadge && !leftPanelOpen && (
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[8px] font-bold text-white flex items-center justify-center">
+                {leftPanelBadge > 9 ? "9+" : leftPanelBadge}
+              </span>
+            )}
+          </button>
+        )}
+        {/* Right panel toggle */}
         {hasSidePanel && onToggleSidePanel && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSidePanel(); }}

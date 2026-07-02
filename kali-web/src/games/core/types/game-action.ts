@@ -6,4 +6,5 @@ export interface GameAction {
   readonly command?: GameCommandValue;
   readonly data: unknown;
   readonly fromSlotId?: SlotIdValue;
+  readonly reasoning?: string;
 }

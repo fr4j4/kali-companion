@@ -1,5 +1,5 @@
 import React from "react";
-import { Gamepad2, Terminal } from "lucide-react";
+import { Brain, Gamepad2, Terminal } from "lucide-react";
 import type { WindowType } from "../../workspace/types";
 import { DEFAULT_SIZES, WINDOW_ICONS } from "../../workspace/types";
 
@@ -22,6 +22,7 @@ export interface WidgetEntry {
   minW: number;
   minH: number;
   sidePanel?: SidePanelConfig;
+  leftSidePanel?: SidePanelConfig;
 }
 
 const LazyEntityCard = React.lazy(() => import("./EntityCardWidget").then((m) => ({ default: m.EntityCardWidget })));
@@ -248,6 +249,15 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
       minWidth: 160,
       minHeight: 120,
       toggleIcon: <Gamepad2 size={14} />,
+    },
+    leftSidePanel: {
+      position: "left",
+      defaultWidth: 320,
+      defaultHeight: 400,
+      defaultOpen: false,
+      minWidth: 160,
+      minHeight: 120,
+      toggleIcon: <Brain size={14} />,
     },
   },
   html: {

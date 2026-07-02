@@ -2,7 +2,7 @@ export interface GameAILogEntry {
   id: string;
   sessionId: string;
   timestamp: number;
-  direction: "→" | "←";
+  direction: "→" | "←" | "🧠";
   event: string;
   payload: unknown;
 }
@@ -21,7 +21,7 @@ export const gameAILogger = {
     }
   },
 
-  log(direction: "→" | "←", event: string, payload: unknown) {
+  log(direction: "→" | "←" | "🧠", event: string, payload: unknown) {
     let entries = this._entries.get(this._currentSessionId);
     if (!entries) {
       entries = [];

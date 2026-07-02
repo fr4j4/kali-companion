@@ -620,6 +620,7 @@ export interface GameMoveEvent {
   event: "game_move";
   game_type: string;
   session_id?: string;
+  game_session_id?: string;
   rules: GameRules;
   game_state: Record<string, unknown>;
   player_role: string;
@@ -642,12 +643,19 @@ export interface GameMoveError {
   fallback_action?: GameAction;
 }
 
+export interface GameMoveReasoningEvent {
+  event: string; // "game_move_reasoning:<game_session_id>"
+  chunk?: string;
+  done?: boolean;
+}
+
 export interface GameMoveResponseEvent {
   event: "game_move_response";
   game_type: string;
   session_id?: string;
   action: GameAction | null;
   error: GameMoveError | null;
+  reasoning?: string;
 }
 
 export type IncomingEvent =
@@ -715,4 +723,5 @@ export type OutgoingEvent =
   | DownloadSttModelProgressEvent
   | DownloadSttModelCompleteEvent
   | DownloadSttModelErrorEvent
-  | GameMoveResponseEvent;
+  | GameMoveResponseEvent
+  | GameMoveReasoningEvent;

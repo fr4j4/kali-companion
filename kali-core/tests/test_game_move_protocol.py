@@ -20,7 +20,7 @@ from kali_core.collar.consent import ConsentManager
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.mind.executor import Executor
-from kali_core.mind.llm.provider import ToolDef
+from kali_core.mind.llm.provider import StreamEvent, ToolDef
 from kali_core.mind.console_requester import ConsoleRequester
 from kali_core.mind.connections_store import ConnectionsStore
 from kali_core.mind.runtime import AgentRuntime
@@ -32,7 +32,7 @@ from kali_core.voice.voice_config import VoiceConfigManager
 
 
 class FakeLLMProvider:
-    """LLM that returns a canned complete() response for game_move tests."""
+    """LLM that returns a canned response for game_move tests."""
 
     provider_name = "fake"
 
@@ -45,7 +45,13 @@ class FakeLLMProvider:
         messages: list[dict],
         tools: list[ToolDef] | None = None,
     ):
-        yield type("StreamEvent", (), {"kind": "done"})()
+        text = self._response.get("text", "")
+        reasoning = self._response.get("reasoning", "")
+        if reasoning:
+            yield StreamEvent(kind="reasoning", text=reasoning)
+        if text:
+            yield StreamEvent(kind="delta", text=text)
+        yield StreamEvent(kind="done")
 
     async def complete(
         self,
@@ -203,6 +209,7 @@ class TestHandleGameMove:
         assert resp["action"]["data"]["row"] == 1
         assert resp["action"]["data"]["col"] == 1
         assert resp["error"] is None
+        assert resp.get("reasoning") == ""
 
     async def test_returns_parse_error_with_fallback(self):
         conn = ConnectionTestHelper({"text": "not json at all"})
@@ -234,16 +241,47 @@ class TestHandleGameMove:
         assert resp["error"]["code"] == "INVALID_MOVE"
         assert resp["error"]["fallback_action"] is not None
 
+    async def test_streams_reasoning_before_response(self):
+        """Reasoning chunks are emitted before the final response."""
+        llm_response = {
+            "text": '{"row": 0, "col": 0, "reasoning": "I see the center is open. Taking it."}',
+            "reasoning": "I see the center is open. Taking it.",
+        }
+        conn = ConnectionTestHelper(llm_response)
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "reasoning-test-session",
+            "game_session_id": "game-123",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None] * 3 for _ in range(3)]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+
+        # Should have sent: reasoning chunk + game_move_response
+        assert len(conn._sent) == 2
+        reasoning_ev = conn._sent[0]
+        assert reasoning_ev["event"] == "game_move_reasoning:game-123"
+        assert reasoning_ev["chunk"] == "I see the center is open. Taking it."
+
+        resp = conn._sent[1]
+        assert resp["event"] == "game_move_response"
+        assert resp["action"]["data"]["row"] == 0
+        assert resp["action"]["data"]["col"] == 0
+        assert resp["reasoning"] == "I see the center is open. Taking it."
+
     async def test_returns_model_error_on_llm_failure(self):
         class FailingLLM:
             provider_name = "failing"
             _model = "fail"
 
+            async def stream(self, messages, tools=None):
+                raise RuntimeError("Connection refused")
+                yield  # pragma: no cover — makes this an async generator
+
             async def complete(self, messages, tools=None):
                 raise RuntimeError("Connection refused")
-
-            async def stream(self, messages, tools=None):
-                yield type("SE", (), {"kind": "done"})()
 
         conn = ConnectionTestHelper()
         conn.server.llm_provider = FailingLLM()

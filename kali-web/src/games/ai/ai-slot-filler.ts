@@ -5,7 +5,10 @@ import type { GameAction } from "../core/types/game-action";
 
 export interface MoveProvider {
   /** Decide the next action for the occupied slot. */
-  decide(state: GameState): Promise<GameAction>;
+  decide(
+    state: GameState,
+    onReasoning?: (chunk: string) => void,
+  ): Promise<GameAction>;
 }
 
 /**

@@ -28,7 +28,7 @@ export class AISlot {
     gameAILogger.startSession(id);
   }
 
-  async decide(context: GameState): Promise<GameAction> {
+  async decide(context: GameState, onReasoning?: (chunk: string) => void): Promise<GameAction> {
     if (this._abortController) {
       this._abortController.abort();
     }
@@ -63,6 +63,19 @@ export class AISlot {
 
     for (let attempt = 0; attempt < timeouts.length; attempt++) {
       const timeoutMs = timeouts[attempt]!;
+      const reasoningChunks: string[] = [];
+
+      // Register a dynamic listener for reasoning chunks during this attempt
+      const reasoningPrefix = `game_move_reasoning:${this._gameSessionId}`;
+      const unsubReasoning = this._wsClient.onDynamic(reasoningPrefix, (payload) => {
+        const ev = payload as { chunk?: string; done?: boolean };
+        if (ev.chunk) {
+          reasoningChunks.push(ev.chunk);
+          gameAILogger.log("🧠", "reasoning_chunk", ev.chunk);
+          onReasoning?.(ev.chunk);
+        }
+      });
+
       try {
         gameAILogger.log("→", "game_move", payload);
 
@@ -73,7 +86,11 @@ export class AISlot {
           this._abortController.signal,
         );
 
-        gameAILogger.log("←", "game_move_response", response);
+        unsubReasoning();
+
+        const reasoning = response.reasoning ?? reasoningChunks.join("");
+
+        gameAILogger.log("←", "game_move_response", { ...response, reasoning });
 
         if (response.error) {
           throw fromGameMoveError(
@@ -85,12 +102,14 @@ export class AISlot {
 
         if (response.action) {
           console.info(
-            `[AISlot] move decided | attempt=${attempt + 1} | action=%o`,
+            `[AISlot] move decided | attempt=${attempt + 1} | action=%o | reasoning=%s`,
             response.action,
+            reasoning.slice(0, 100),
           );
           return {
             type: response.action.type as (typeof ActionType)[keyof typeof ActionType],
             data: response.action.data,
+            reasoning,
           };
         }
 
@@ -99,6 +118,7 @@ export class AISlot {
           "No hay movimientos disponibles. El tablero esta lleno.",
         );
       } catch (err) {
+        unsubReasoning();
         lastError = err;
 
         if (err instanceof KaliError && err.code === KaliErrorCode.WS_ERROR && err.message.includes("aborted")) {
@@ -162,8 +182,9 @@ export class AISlot {
       instruction,
       `Current board (row 0-2, col 0-2):`,
       boardStr,
-      "Output ONLY valid JSON with the row (0-2) and column (0-2) of your move.",
-      '{"row": <number>, "col": <number>}',
+      "Think step by step. Explain your reasoning in a 'reasoning' field, then output your move.",
+      "Output ONLY valid JSON with reasoning, row (0-2), and column (0-2).",
+      '{"reasoning": "...", "row": <number>, "col": <number>}',
     ].join("\n");
   }
 }

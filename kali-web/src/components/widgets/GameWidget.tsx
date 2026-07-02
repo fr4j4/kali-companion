@@ -8,8 +8,10 @@ import { GameType, type GameTypeValue } from "../../games/core/constants/game-ty
 import type { BaseGame } from "../../games/core/base-game";
 import { registerGames } from "../../games/register-games";
 import { GameDebugPanel } from "../games/GameDebugPanel";
+import { GameReasoningPanel } from "../games/GameReasoningPanel";
 import { useSidePanel } from "../../stage/SidePanelContext";
-import { Gamepad2 } from "lucide-react";
+import { useChat } from "../../hooks/useChat";
+import { Brain, Gamepad2 } from "lucide-react";
 
 interface GameContent {
   mode?: "launchpad" | "game";
@@ -36,11 +38,13 @@ export function GameWidget({ content, api, windowId }: Props) {
   const gameRef = useRef<BaseGame | null>(null);
   const [ready, setReady] = useState(false);
 
-  const { setSidePanelContent } = useSidePanel();
+  const { setSidePanelContent, setLeftSidePanelContent } = useSidePanel();
+  const { wsClient } = useChat();
 
   useEffect(() => {
     if (mode !== "game" || !gameType) {
       setSidePanelContent(null);
+      setLeftSidePanelContent(null);
       return;
     }
 
@@ -57,13 +61,21 @@ export function GameWidget({ content, api, windowId }: Props) {
       content: <GameDebugPanel getSessionId={() => game.sessionId} />,
     });
 
+    setLeftSidePanelContent({
+      icon: <Brain size={14} />,
+      title: "Reasoning",
+      onClear: () => game.aiLog.clearSession(game.sessionId),
+      content: <GameReasoningPanel sessionId={game.sessionId} wsClient={wsClient} />,
+    });
+
     return () => {
       gameRef.current = null;
       setReady(false);
       setSidePanelContent(null);
+      setLeftSidePanelContent(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, gameType]);
+  }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent]);
 
   const prevFocusedRef = useRef(false);
   const [, forceRender] = useState(0);

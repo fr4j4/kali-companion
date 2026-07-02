@@ -1289,6 +1289,7 @@ html.kali-perf-low .kw {
 .kw-wrapper { position: relative; }
 .kw-side-panel { position: absolute; z-index: 1; pointer-events: auto; background: var(--glass-ide-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--border); overflow: clip; display: flex; flex-direction: column; }
 .kw-side-panel-right { left: 100%; top: 0; width: var(--panel-width, 320px); height: var(--panel-height, 400px); border-left: none; border-radius: 0 12px 12px 0; margin-left: 4px; }
+.kw-side-panel-left { right: 100%; top: 0; width: var(--panel-width, 320px); height: var(--panel-height, 400px); border-right: none; border-radius: 12px 0 0 12px; margin-right: 4px; }
 .kw-side-panel-bottom { top: 100%; left: 0; width: var(--panel-width, 400px); height: var(--panel-height, 200px); border-top: none; border-radius: 0 0 12px 12px; margin-top: 4px; }
 .kw-side-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); background: rgba(var(--accent-rgb), 0.04); flex-shrink: 0; pointer-events: auto; }
 .kw-side-panel-resize { position: absolute; background: transparent; z-index: 10; }

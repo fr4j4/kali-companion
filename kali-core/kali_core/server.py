@@ -87,7 +87,7 @@ from kali_core.mind.executor import Executor
 from kali_core.mind.jobs import JobManager
 from kali_core.mind.llm.direct import DirectLLMProvider
 from kali_core.mind.llm.nanobot import NanobotLLMProvider
-from kali_core.mind.llm.provider import LLMProvider, ToolDef
+from kali_core.mind.llm.provider import LLMProvider, StreamEvent, ToolDef
 from kali_core.mind.llm.scanner import probe_endpoint, verify_api_key
 from kali_core.mind.runtime import AgentRuntime
 from kali_core.nest.job_store import JobStore
@@ -1829,9 +1829,11 @@ class Connection:
     # ── Game AI (WebSocket) ───────────────────────────────────
 
     async def _handle_game_move(self, event: dict[str, Any]) -> None:
-        """Handle game_move: call LLM with game state and return an action."""
+        """Handle game_move: stream LLM with game state, emit reasoning chunks,
+        and return the final action."""
         game_type = event.get("game_type", "unknown")
         session_id = event.get("session_id") or "no-session"
+        game_session_id = event.get("game_session_id") or session_id
         rules = event.get("rules", {})
         game_state = event.get("game_state", {})
         player_role = event.get("player_role", "opponent")
@@ -1847,12 +1849,51 @@ class Connection:
             llm = self.server.llm_provider
             if llm is None:
                 raise RuntimeError("No LLM provider configured")
-            logger.info("[game_move] → LLM | game=%s session=%s", game_type, session_id)
-            response = await llm.complete(messages)
+            logger.info("[game_move] → LLM stream | game=%s session=%s", game_type, session_id)
+
+            reasoning_parts: list[str] = []
+            text_parts: list[str] = []
+
+            async for event in llm.stream(messages):
+                if event.kind == "reasoning" and event.text:
+                    reasoning_parts.append(event.text)
+                    if game_session_id:
+                        await self.send({
+                            "event": f"game_move_reasoning:{game_session_id}",
+                            "chunk": event.text,
+                        })
+                elif event.kind == "delta" and event.text:
+                    text_parts.append(event.text)
+                elif event.kind == "done":
+                    break
+
+            full_reasoning = "".join(reasoning_parts)
+            full_text = "".join(text_parts)
+
             logger.info(
-                "[game_move] ← LLM response | game=%s session=%s | text=%r",
-                game_type, session_id, response.get("text", "")[:200],
+                "[game_move] ← LLM stream done | game=%s session=%s | text=%r | reasoning_len=%d",
+                game_type, session_id, full_text[:200], len(full_reasoning),
             )
+
+            action, error = self._parse_game_action({"text": full_text}, game_state, rules)
+
+            # Attach reasoning to action if present
+            if action and full_reasoning:
+                action["reasoning"] = full_reasoning
+
+            logger.info(
+                "[game_move] → WS response | game=%s session=%s | action=%s error=%s",
+                game_type, session_id, action, error,
+            )
+            await self.send({
+                "event": "game_move_response",
+                "game_type": game_type,
+                "session_id": session_id,
+                "action": action,
+                "error": error,
+                "reasoning": full_reasoning,
+            })
+
         except Exception as ex:
             logger.exception("[game_move] LLM error | game=%s session=%s", game_type, session_id)
             await self.send({
@@ -1866,20 +1907,6 @@ class Connection:
                     "fallback_action": None,
                 },
             })
-            return
-
-        action, error = self._parse_game_action(response, game_state, rules)
-        logger.info(
-            "[game_move] → WS response | game=%s session=%s | action=%s error=%s",
-            game_type, session_id, action, error,
-        )
-        await self.send({
-            "event": "game_move_response",
-            "game_type": game_type,
-            "session_id": session_id,
-            "action": action,
-            "error": error,
-        })
 
     def _build_game_messages(self, rules: dict, game_state: dict) -> list[dict]:
         """Build a fresh user-only messages list. The provider's own system prompt is
@@ -1905,6 +1932,7 @@ class Connection:
             data = json.loads(text)
             row = data.get("row")
             col = data.get("col")
+            reasoning = data.get("reasoning", "")
 
             if not self._is_legal_move(game_state, row, col):
                 fallback = self._get_fallback_move(game_state)
@@ -1914,7 +1942,10 @@ class Connection:
                     "fallback_action": fallback,
                 }
 
-            return {"type": "move", "data": {"row": row, "col": col}}, None
+            action = {"type": "move", "data": {"row": row, "col": col}}
+            if reasoning:
+                action["reasoning"] = reasoning
+            return action, None
 
         except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
             logger.warning(

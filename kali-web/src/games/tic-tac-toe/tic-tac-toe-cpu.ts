@@ -15,10 +15,11 @@ export class TicTacToeCPUPlayer implements MoveProvider {
     const opponentMark = data.opponentMark;
     const playerMark = data.playerMark;
 
-    const move = this._pickMove(board, opponentMark, playerMark);
+    const result = this._pickMove(board, opponentMark, playerMark);
     return {
       type: ActionType.MOVE,
-      data: move,
+      data: { row: result.move.row, col: result.move.col },
+      reasoning: result.reasoning,
     };
   }
 
@@ -26,20 +27,41 @@ export class TicTacToeCPUPlayer implements MoveProvider {
     board: (string | null)[][],
     cpuMark: string,
     playerMark: string,
-  ): { row: number; col: number } {
+  ): { move: { row: number; col: number }; reasoning: string } {
     const empties = this._empties(board);
+    const totalMoves = empties.length;
 
     switch (this._difficulty) {
-      case "hard":
-        return this._minimax(board, cpuMark, playerMark, cpuMark).move ?? empties[0];
+      case "hard": {
+        const mm = this._minimax(board, cpuMark, playerMark, cpuMark);
+        const move = mm.move ?? empties[0];
+        return {
+          move,
+          reasoning: `Evaluated ${totalMoves} moves via minimax. Best score: ${mm.score}. Chose (${move.row},${move.col}).`,
+        };
+      }
       case "medium": {
-        const best = this._minimax(board, cpuMark, playerMark, cpuMark).move;
-        if (best && Math.random() < 0.6) return best;
-        return empties[Math.floor(Math.random() * empties.length)];
+        const mm = this._minimax(board, cpuMark, playerMark, cpuMark);
+        if (mm.move && Math.random() < 0.6) {
+          return {
+            move: mm.move,
+            reasoning: `Evaluated ${totalMoves} moves. Best score: ${mm.score}. Chose optimal (${mm.move.row},${mm.move.col}) with 60% probability.`,
+          };
+        }
+        const random = empties[Math.floor(Math.random() * empties.length)];
+        return {
+          move: random,
+          reasoning: `Evaluated ${totalMoves} moves. Best score: ${mm.score}. Random roll failed 40% — chose (${random.row},${random.col}) randomly.`,
+        };
       }
       case "easy":
-      default:
-        return empties[Math.floor(Math.random() * empties.length)];
+      default: {
+        const random = empties[Math.floor(Math.random() * empties.length)];
+        return {
+          move: random,
+          reasoning: `Selected random move from ${totalMoves} available: (${random.row},${random.col}).`,
+        };
+      }
     }
   }
 

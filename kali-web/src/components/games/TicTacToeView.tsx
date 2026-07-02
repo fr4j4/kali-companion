@@ -53,6 +53,9 @@ export function TicTacToeView({ game }: Props) {
   const [kaliStatus, setKaliStatus] = useState<KaliStatusValue>(KaliStatus.IDLE);
   const [kaliError, setKaliError] = useState<KaliError | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [reasoningText, setReasoningText] = useState("");
+  const [isReasoningStreaming, setIsReasoningStreaming] = useState(false);
+  const reasoningRef = useRef("");
   const kaliStatusRef = useRef<KaliStatusValue>(KaliStatus.IDLE);
 
   const refresh = useCallback(() => {
@@ -102,17 +105,29 @@ export function TicTacToeView({ game }: Props) {
     setKaliStatus(KaliStatus.THINKING);
     kaliStatusRef.current = KaliStatus.THINKING;
     setKaliError(null);
+    setReasoningText("");
+    reasoningRef.current = "";
+    setIsReasoningStreaming(true);
 
     let cancelled = false;
 
-    filler.decide(game.getState()).then((action) => {
+    filler.decide(game.getState(), (chunk) => {
       if (cancelled) return;
+      reasoningRef.current += chunk;
+      setReasoningText(reasoningRef.current);
+    }).then((action) => {
+      if (cancelled) return;
+      setIsReasoningStreaming(false);
+      if (action.reasoning && reasoningRef.current.length === 0) {
+        setReasoningText(action.reasoning);
+      }
       kaliStatusRef.current = KaliStatus.IDLE;
       setKaliStatus(KaliStatus.IDLE);
       game.handleAction(action, SlotId.OPPONENT);
       refresh();
     }).catch((err: unknown) => {
       if (cancelled) return;
+      setIsReasoningStreaming(false);
       const error = err instanceof KaliError ? err : new KaliError(
         "WS_ERROR",
         err instanceof Error ? err.message : String(err),
@@ -124,6 +139,7 @@ export function TicTacToeView({ game }: Props) {
 
     return () => {
       cancelled = true;
+      setIsReasoningStreaming(false);
       kaliStatusRef.current = KaliStatus.IDLE;
       setKaliStatus(KaliStatus.IDLE);
     };
@@ -137,17 +153,28 @@ export function TicTacToeView({ game }: Props) {
     setRetryCount((c) => c + 1);
     setKaliStatus(KaliStatus.THINKING);
     setKaliError(null);
+    setReasoningText("");
+    reasoningRef.current = "";
+    setIsReasoningStreaming(true);
     kaliStatusRef.current = KaliStatus.THINKING;
 
     const filler = aiSlotFiller.get(GameType.TIC_TAC_TOE, SlotId.OPPONENT);
     if (!filler) return;
 
-    filler.decide(game.getState()).then((action) => {
+    filler.decide(game.getState(), (chunk) => {
+      reasoningRef.current += chunk;
+      setReasoningText(reasoningRef.current);
+    }).then((action) => {
+      setIsReasoningStreaming(false);
+      if (action.reasoning && reasoningRef.current.length === 0) {
+        setReasoningText(action.reasoning);
+      }
       kaliStatusRef.current = KaliStatus.IDLE;
       setKaliStatus(KaliStatus.IDLE);
       game.handleAction(action, SlotId.OPPONENT);
       refresh();
     }).catch((err: unknown) => {
+      setIsReasoningStreaming(false);
       const error = err instanceof KaliError ? err : new KaliError(
         "WS_ERROR",
         err instanceof Error ? err.message : String(err),
@@ -321,6 +348,42 @@ export function TicTacToeView({ game }: Props) {
           }),
         )}
       </div>
+
+      {/* Reasoning panel */}
+      {(reasoningText || isReasoningStreaming) && (
+        <div
+          className="mx-auto mt-3 rounded-lg p-2 transition-all duration-300"
+          style={{
+            width: 288,
+            maxHeight: 96,
+            overflowY: "auto",
+            backgroundColor: "rgba(15, 23, 42, 0.75)",
+            border: "1px solid rgba(56, 189, 248, 0.2)",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            className="text-[9px] mb-1 tracking-wider"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#38bdf8" }}
+          >
+            KALI PIENSA
+          </div>
+          <div
+            className="text-[10px] leading-relaxed whitespace-pre-wrap break-words"
+            style={{ color: "#94a3b8", lineHeight: 1.5 }}
+          >
+            {reasoningText}
+            {isReasoningStreaming && (
+              <span
+                className="inline-block ml-0.5 animate-pulse"
+                style={{ color: "#22d3ee" }}
+              >
+                ▌
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Waiting overlay */}
       {status === GameStatus.WAITING && (

@@ -15,6 +15,7 @@ export class WSClient {
   private sessionId?: string;
   private ws: WebSocket | null = null;
   private listeners = new Map<IncomingEventName, Set<Listener>>();
+  private dynamicListeners: { prefix: string; fn: Listener }[] = [];
   private reconnectDelay = 1000;
   private shouldReconnect = true;
 
@@ -74,6 +75,16 @@ export class WSClient {
 
   off(event: IncomingEventName, listener: Listener): void {
     this.listeners.get(event)?.delete(listener);
+  }
+
+  /** Listen for events whose event name starts with a given prefix (e.g. "game_move_reasoning:"). */
+  onDynamic(prefix: string, fn: Listener): () => void {
+    const entry = { prefix, fn };
+    this.dynamicListeners.push(entry);
+    return () => {
+      const idx = this.dynamicListeners.indexOf(entry);
+      if (idx !== -1) this.dynamicListeners.splice(idx, 1);
+    };
   }
 
   send(payload: Record<string, unknown>): void {
@@ -143,6 +154,11 @@ export class WSClient {
 
   private dispatch(event: IncomingEventName, payload: OutgoingEvent): void {
     this.listeners.get(event)?.forEach((l) => l(payload));
+    for (const { prefix, fn } of this.dynamicListeners) {
+      if (event.startsWith(prefix)) {
+        fn(payload);
+      }
+    }
   }
 
   simulate(payload: OutgoingEvent): void {
