@@ -102,26 +102,64 @@ export class WSClient {
     responseEventName: string,
     timeoutMs: number = DEFAULT_SEND_TIMEOUT_MS,
     abortSignal?: AbortSignal,
-  ): Promise<T> {
+    options?: {
+      onProgress?: () => void;
+      globalTimeoutMs?: number;
+    },
+  ): Promise<T> & { __notifyProgress?: () => void } {
     if (abortSignal?.aborted) {
-      return Promise.reject(new Error("sendAndWait aborted before send"));
+      return Object.assign(
+        Promise.reject(new Error("sendAndWait aborted before send")),
+        { __notifyProgress: () => {} },
+      );
     }
 
-    return new Promise((resolve, reject) => {
+    let notifyProgress: (() => void) | null = null;
+
+    const promise = new Promise<T>((resolve, reject) => {
       let rejected = false;
+      const startedAt = performance.now();
+      const globalTimeoutMs = options?.globalTimeoutMs ?? timeoutMs;
 
-      const timer = setTimeout(() => {
-        rejected = true;
-        this.off(responseEventName as IncomingEventName, handler as Listener);
-        reject(new Error(`sendAndWait timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      const abortHandler = () => {
+      const fail = (reason: string) => {
         if (rejected) return;
         rejected = true;
         clearTimeout(timer);
         this.off(responseEventName as IncomingEventName, handler as Listener);
-        reject(new Error("sendAndWait aborted"));
+        if (abortSignal) {
+          abortSignal.removeEventListener("abort", abortHandler);
+        }
+        reject(new Error(reason));
+      };
+
+      let timer: ReturnType<typeof setTimeout>;
+      let lastProgressAt = startedAt;
+
+      const resetAttemptTimer = () => {
+        if (rejected) return;
+        clearTimeout(timer);
+        lastProgressAt = performance.now();
+        const elapsed = performance.now() - startedAt;
+        const remainingGlobal = Math.max(0, globalTimeoutMs - elapsed);
+        const nextTick = Math.min(timeoutMs, remainingGlobal);
+        if (nextTick <= 0) {
+          fail(`sendAndWait timed out after ${Math.round(elapsed)}ms (global)`);
+          return;
+        }
+        timer = setTimeout(() => {
+          const timeSinceProgress = performance.now() - lastProgressAt;
+          const finalElapsed = performance.now() - startedAt;
+          if (timeSinceProgress >= timeoutMs || finalElapsed >= globalTimeoutMs) {
+            fail(`sendAndWait timed out after ${Math.round(finalElapsed)}ms (global)`);
+          } else {
+            fail(`sendAndWait timed out after ${timeoutMs}ms`);
+          }
+        }, nextTick);
+      };
+      resetAttemptTimer();
+
+      const abortHandler = () => {
+        fail("sendAndWait aborted");
       };
 
       if (abortSignal) {
@@ -132,16 +170,36 @@ export class WSClient {
         if (rejected) return;
         rejected = true;
         clearTimeout(timer);
+        this.off(responseEventName as IncomingEventName, handler as Listener);
         if (abortSignal) {
           abortSignal.removeEventListener("abort", abortHandler);
         }
-        this.off(responseEventName as IncomingEventName, handler as Listener);
         console.log(`[WS ← ${responseEventName}]`, response);
         resolve(response as T);
       };
+
+      const progressHandler = () => {
+        resetAttemptTimer();
+      };
+
       this.on(responseEventName as IncomingEventName, handler as Listener);
+
+      if (options?.onProgress) {
+        const progressName = `__progress:${responseEventName}`;
+        this.on(progressName as IncomingEventName, progressHandler as Listener);
+        const originalProgress = options.onProgress;
+        notifyProgress = () => {
+          this.dispatch(progressName as IncomingEventName, { event: progressName } as OutgoingEvent);
+          originalProgress();
+        };
+      }
+
       console.log(`[WS → ${responseEventName}]`, payload);
       this.send(payload);
+    });
+
+    return Object.assign(promise, {
+      __notifyProgress: notifyProgress ?? (() => {}),
     });
   }
 

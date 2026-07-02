@@ -68,6 +68,8 @@
   "settings.artifact_diff_preview": "Show patch diffs on canvas",
   "settings.game_session_path": "Game sessions path",
   "settings.game_session_path_hint": "Folder for saved games (empty = ~/.kali/game-sessions)",
+  "settings.game_ai_global_timeout_ms": "AI thinking timeout",
+  "settings.game_ai_global_timeout_ms_hint": "Maximum seconds the AI can spend reasoning per move (includes retries)",
   "settings.profile": "Profile",
   "settings.theme": "Theme",
   "theme.amberwave": "Amberwave",

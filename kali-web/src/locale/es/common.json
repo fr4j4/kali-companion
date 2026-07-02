@@ -68,6 +68,8 @@
   "settings.artifact_diff_preview": "Mostrar diffs de parches en el canvas",
   "settings.game_session_path": "Ruta de sesiones de juego",
   "settings.game_session_path_hint": "Carpeta donde se guardan las partidas (vacío = ~/.kali/game-sessions)",
+  "settings.game_ai_global_timeout_ms": "Tiempo máximo de razonamiento IA",
+  "settings.game_ai_global_timeout_ms_hint": "Máximo de segundos que la IA puede razonar por jugada (incluye reintentos)",
   "settings.profile": "Perfil",
   "settings.theme": "Tema",
   "theme.amberwave": "Amberwave",

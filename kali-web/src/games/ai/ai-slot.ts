@@ -5,11 +5,19 @@ import { ActionType } from "../core/constants/action-types";
 import type { WSClient } from "../../lib/wsClient";
 import type { GameMoveResponseEvent } from "../../lib/protocol";
 import { KaliError, fromGameMoveError } from "./kali-error";
-import { KaliErrorCode, TttField, GAME_AI_TIMEOUT_MS, GAME_AI_TIMEOUT_2_MS, GAME_AI_TIMEOUT_3_MS } from "../core/constants/game-ai";
+import {
+  KaliErrorCode,
+  TttField,
+  GAME_AI_TIMEOUT_MS,
+  GAME_AI_TIMEOUT_2_MS,
+  GAME_AI_TIMEOUT_3_MS,
+  GAME_AI_GLOBAL_TIMEOUT_MS,
+} from "../core/constants/game-ai";
 import type { MoveProvider } from "./ai-slot-filler";
 
 export class AISlot implements MoveProvider {
   private _abortController: AbortController | null = null;
+  private _getGlobalTimeout: () => number = () => GAME_AI_GLOBAL_TIMEOUT_MS;
 
   constructor(
     private _slotId: SlotIdValue,
@@ -27,6 +35,10 @@ export class AISlot implements MoveProvider {
 
   setSessionId(id: string) {
     this._getSessionId = () => id;
+  }
+
+  setGlobalTimeout(getter: () => number) {
+    this._getGlobalTimeout = getter;
   }
 
   abort(): void {
@@ -69,11 +81,13 @@ export class AISlot implements MoveProvider {
     };
 
     const timeouts = [GAME_AI_TIMEOUT_MS, GAME_AI_TIMEOUT_2_MS, GAME_AI_TIMEOUT_3_MS];
+    const globalTimeoutMs = this._getGlobalTimeout();
     let lastError: unknown;
 
     for (let attempt = 0; attempt < timeouts.length; attempt++) {
       const timeoutMs = timeouts[attempt]!;
       const reasoningChunks: string[] = [];
+      let lastChunkAt = 0;
 
       // Register a dynamic listener for reasoning chunks during this attempt
       const reasoningPrefix = `game_move_reasoning:${gameSessionId}`;
@@ -82,6 +96,7 @@ export class AISlot implements MoveProvider {
         if (ev.chunk) {
           reasoningChunks.push(ev.chunk);
           onReasoning?.(ev.chunk);
+          lastChunkAt = performance.now();
         }
       });
 
@@ -91,6 +106,15 @@ export class AISlot implements MoveProvider {
           "game_move_response",
           timeoutMs,
           this._abortController.signal,
+          {
+            onProgress: () => {
+              // noop: actual progress is driven by reasoning chunks above.
+              // This callback exists so WSClient can reset its attempt timer
+              // whenever reasoning activity is detected.
+              void lastChunkAt;
+            },
+            globalTimeoutMs,
+          },
         );
 
         unsubReasoning();

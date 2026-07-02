@@ -70,6 +70,7 @@ export interface SettingsEvent {
   // Qwen3 VoiceDesign fields
   voice_instructions?: string;
   voice_seed?: number;
+  game_ai_global_timeout_ms?: number;
 }
 
 export interface ConsentResponseEvent {
@@ -441,6 +442,7 @@ export interface StatusEvent {
   plan_mode?: boolean;
   artifact_diff_preview?: boolean;
   game_session_path?: string;
+  game_ai_global_timeout_ms?: number;
   config_warnings?: string[];
 }
 

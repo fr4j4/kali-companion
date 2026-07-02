@@ -552,6 +552,7 @@ class Server:
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
             "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
             "game_session_path": settings.game_session_path,
+            "game_ai_global_timeout_ms": settings.game_ai_global_timeout_ms,
         }
         if self._config_warnings:
             payload["config_warnings"] = list(self._config_warnings.values())
@@ -2903,6 +2904,15 @@ class Connection:
                 settings.game_session_path = Path(new_path).expanduser()
             else:
                 settings.game_session_path = Path.home() / ".kali" / "game-sessions"
+        if "game_ai_global_timeout_ms" in event:
+            try:
+                value = int(event["game_ai_global_timeout_ms"])
+                if value >= 5000:
+                    settings.game_ai_global_timeout_ms = value
+                else:
+                    await self.send({"event": "error", "detail": "game_ai_global_timeout_ms must be at least 5000"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_ai_global_timeout_ms"})
         if "artifact_diff_preview" in event:
             settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         # Qwen3 VoiceDesign settings
@@ -2944,6 +2954,8 @@ class Connection:
             tts_models_dir=str(getattr(self.server.tts_provider, "_talker_models_dir", "")) or None,
             profile=self.server.executor.profile,
             artifact_diff_preview=settings.artifact_diff_preview,
+            game_session_path=str(settings.game_session_path) if settings.game_session_path else None,
+            game_ai_global_timeout_ms=settings.game_ai_global_timeout_ms,
             # Per-connection
             stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,

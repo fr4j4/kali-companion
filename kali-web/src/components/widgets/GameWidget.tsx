@@ -74,7 +74,9 @@ export function GameWidget({ content, api, windowId }: Props) {
     const providers = new Map();
     for (const slot of game.slots) {
       if (slot.type === PlayerType.AI) {
-        providers.set(slot.id, new AISlot(slot.id, wsClient, () => game.sessionId));
+        const aiSlot = new AISlot(slot.id, wsClient, () => game.sessionId);
+        aiSlot.setGlobalTimeout(() => systemStatus?.game_ai_global_timeout_ms ?? 20_000);
+        providers.set(slot.id, aiSlot);
       }
     }
 
@@ -109,7 +111,7 @@ export function GameWidget({ content, api, windowId }: Props) {
       setLeftSidePanelContent(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent]);
+  }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent, systemStatus?.game_ai_global_timeout_ms]);
 
   const prevFocusedRef = useRef(false);
 

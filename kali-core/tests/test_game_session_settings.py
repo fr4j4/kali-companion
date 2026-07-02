@@ -124,3 +124,32 @@ async def test_build_status_payload_includes_game_session_path(settings_helper, 
     await settings_helper._emit_status()
     payload = settings_helper._sent[0]
     assert str(payload["game_session_path"]) == "/tmp/test-game-sessions"
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_ai_global_timeout_ms(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_ai_global_timeout_ms", 20_000)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_ai_global_timeout_ms": 45_000,
+    })
+    assert settings.game_ai_global_timeout_ms == 45_000
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_ai_global_timeout_ms_rejects_too_low(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_ai_global_timeout_ms", 20_000)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_ai_global_timeout_ms": 1_000,
+    })
+    assert settings.game_ai_global_timeout_ms == 20_000
+    assert any(msg.get("event") == "error" for msg in settings_helper._sent)
+
+
+@pytest.mark.asyncio
+async def test_build_status_payload_includes_game_ai_global_timeout_ms(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_ai_global_timeout_ms", 30_000)
+    await settings_helper._emit_status()
+    payload = settings_helper._sent[0]
+    assert payload["game_ai_global_timeout_ms"] == 30_000

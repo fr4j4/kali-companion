@@ -22,7 +22,9 @@ export type KaliErrorCodeValue = (typeof KaliErrorCode)[keyof typeof KaliErrorCo
 export const GAME_AI_TIMEOUT_MS = 12_000;
 export const GAME_AI_TIMEOUT_2_MS = 3_000;
 export const GAME_AI_TIMEOUT_3_MS = 2_000;
+export const GAME_AI_GLOBAL_TIMEOUT_MS = 20_000; // tope global, configurable desde settings
 export const KALI_MAX_RETRIES = 2;
+export const GAME_AI_MIN_GLOBAL_TIMEOUT_MS = 5_000;
 
 // ── Game Mode ──────────────────────────────────────────────────────────────
 export const GameMode = {

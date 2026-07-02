@@ -28,6 +28,10 @@ game_session_path: str = os.getenv(
     "KALI_GAME_SESSION_PATH", ""
 )  # vacío = default ~/.kali/game-sessions/
 
+game_ai_global_timeout_ms: int = int(
+    os.getenv("KALI_GAME_AI_GLOBAL_TIMEOUT_MS", "20000")
+)  # tope global para razonamiento del modelo en juegos
+
 # ── LLM (kali-mind) ───────────────────────────────────────
 llm_provider: Literal["direct", "nanobot"] = os.getenv(
     "KALI_LLM_PROVIDER", "direct"
@@ -455,6 +459,7 @@ class _Settings:
     profiles_dir = profiles_dir
 
     game_session_path = game_session_path
+    game_ai_global_timeout_ms = game_ai_global_timeout_ms
 
 
 settings = _Settings()
