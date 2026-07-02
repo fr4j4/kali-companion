@@ -39,6 +39,7 @@ const WIN_LINES: [number, number][][] = [
 
 export class TicTacToeGame extends BaseGame {
   readonly type = GameType.TIC_TAC_TOE;
+  readonly paradigm = "turn-based" as const;
   readonly slots = [
     { id: SlotId.PLAYER, type: PlayerType.HUMAN, name: "Tú" },
     { id: SlotId.OPPONENT, type: PlayerType.AI, name: "Oponente" },

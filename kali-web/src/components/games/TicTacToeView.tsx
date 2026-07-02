@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TicTacToeGame, type TicTacToeData, type Difficulty } from "../../games/tic-tac-toe/tic-tac-toe-game";
 import { TicTacToeCPUPlayer } from "../../games/tic-tac-toe/tic-tac-toe-cpu";
-import { aiSlotFiller } from "../../games/ai/ai-slot-filler";
-import { AISlot } from "../../games/ai/ai-slot";
-import { KaliError } from "../../games/ai/kali-error";
-import { hasLLMIntegration } from "../../games/ai/game-llm-provider";
-import { useChat } from "../../hooks/useChat";
+import type { GameSessionManager } from "../../games/core/game-session-manager";
 import { GameStatus } from "../../games/core/constants/game-status";
-import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { SlotId } from "../../games/core/constants/player-types";
-import { GameType } from "../../games/core/constants/game-types";
-import { KaliStatus, GameMode, KALI_MAX_RETRIES, type KaliStatusValue, type GameModeValue } from "../../games/core/constants/game-ai";
-
+import { KaliStatus, GameMode, type KaliStatusValue, type GameModeValue } from "../../games/core/constants/game-ai";
 
 interface Props {
   game: TicTacToeGame;
+  manager: GameSessionManager;
+  hasKali: boolean;
 }
 
 const PALETTE = {
@@ -33,175 +28,63 @@ const PALETTE = {
 
 type Starter = typeof SlotId.PLAYER | typeof SlotId.OPPONENT;
 
-function send(game: TicTacToeGame, command: string) {
-  game.handleAction({ type: ActionType.COMMAND, data: command }, SlotId.PLAYER);
-}
+export function TicTacToeView({ game, manager, hasKali }: Props) {
+  const [tick, setTick] = useState(0);
 
-export function TicTacToeView({ game }: Props) {
-  const chat = useChat();
-  const systemStatus = chat.systemStatus;
-  const hasKali = hasLLMIntegration(systemStatus);
-
-  const [statusVersion, setStatusVersion] = useState(0);
-  void statusVersion;
-  const statusRef = useRef<GameStatusValue>(game.getStatus());
+  useEffect(() => {
+    const unsub = manager.subscribe(() => setTick((v) => v + 1));
+    return unsub;
+  }, [manager]);
 
   const [mode, setMode] = useState<GameModeValue>(GameMode.CPU);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [starter, setStarter] = useState<Starter>(SlotId.PLAYER);
 
-  const [kaliStatus, setKaliStatus] = useState<KaliStatusValue>(KaliStatus.IDLE);
-  const [kaliError, setKaliError] = useState<KaliError | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [reasoningText, setReasoningText] = useState("");
-  const [isReasoningStreaming, setIsReasoningStreaming] = useState(false);
-  const reasoningRef = useRef("");
-  const kaliStatusRef = useRef<KaliStatusValue>(KaliStatus.IDLE);
-
-  const refresh = useCallback(() => {
-    statusRef.current = game.getStatus();
-    setStatusVersion((v) => v + 1);
-  }, [game]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const kaliStatus: KaliStatusValue = manager.kaliStatus;
+  const kaliError = manager.kaliError;
+  const retryCount = manager.retryCount;
 
   const startGame = useCallback(() => {
-    setRetryCount(0);
-    setKaliStatus(KaliStatus.IDLE);
-    setKaliError(null);
-    kaliStatusRef.current = KaliStatus.IDLE;
-
-    aiSlotFiller.clear(GameType.TIC_TAC_TOE, SlotId.OPPONENT);
-
     game.restart({
       slots: game.slots,
       rules: { starter, difficulty, mode },
     });
 
     if (mode === GameMode.CPU) {
-      aiSlotFiller.fill(GameType.TIC_TAC_TOE, SlotId.OPPONENT, new TicTacToeCPUPlayer(difficulty));
-    } else if (mode === GameMode.KALI) {
-      if (chat.wsClient) {
-        const kaliSlot = new AISlot(SlotId.OPPONENT, chat.wsClient);
-        kaliSlot.setSessionId(game.sessionId);
-        aiSlotFiller.fill(GameType.TIC_TAC_TOE, SlotId.OPPONENT, kaliSlot);
-      }
+      manager.fallbackToCPU(new TicTacToeCPUPlayer(difficulty));
     }
 
-    refresh();
-  }, [game, starter, difficulty, mode, systemStatus, chat, refresh]);
+    manager.start();
+  }, [game, manager, starter, difficulty, mode]);
 
-  useEffect(() => {
-    if (statusRef.current !== GameStatus.PLAYING) return;
-    const data = game.getState().data as TicTacToeData;
-    if (data.currentSlot !== SlotId.OPPONENT) return;
-    if (data.mode !== GameMode.KALI) return;
+  const handleCellClick = (row: number, col: number) => {
+    if (game.getStatus() !== GameStatus.PLAYING) return;
+    if (kaliStatus === KaliStatus.THINKING) return;
+    const data = game.getState().data as TicTacToeData | null;
+    if (data?.currentSlot !== SlotId.PLAYER) return;
 
-    const filler = aiSlotFiller.get(GameType.TIC_TAC_TOE, SlotId.OPPONENT);
-    if (!filler) return;
+    manager.submitPlayerAction({ type: ActionType.MOVE, data: { row, col } });
+  };
 
-    setKaliStatus(KaliStatus.THINKING);
-    kaliStatusRef.current = KaliStatus.THINKING;
-    setKaliError(null);
-    setReasoningText("");
-    reasoningRef.current = "";
-    setIsReasoningStreaming(true);
-
-    let cancelled = false;
-
-    filler.decide(game.getState(), (chunk) => {
-      if (cancelled) return;
-      reasoningRef.current += chunk;
-      setReasoningText(reasoningRef.current);
-    }).then((action) => {
-      if (cancelled) return;
-      setIsReasoningStreaming(false);
-      if (action.reasoning && reasoningRef.current.length === 0) {
-        setReasoningText(action.reasoning);
-      }
-      kaliStatusRef.current = KaliStatus.IDLE;
-      setKaliStatus(KaliStatus.IDLE);
-      game.handleAction(action, SlotId.OPPONENT);
-      refresh();
-    }).catch((err: unknown) => {
-      if (cancelled) return;
-      setIsReasoningStreaming(false);
-      const error = err instanceof KaliError ? err : new KaliError(
-        "WS_ERROR",
-        err instanceof Error ? err.message : String(err),
-      );
-      kaliStatusRef.current = KaliStatus.ERROR;
-      setKaliStatus(KaliStatus.ERROR);
-      setKaliError(error);
-    });
-
-    return () => {
-      cancelled = true;
-      setIsReasoningStreaming(false);
-      kaliStatusRef.current = KaliStatus.IDLE;
-      setKaliStatus(KaliStatus.IDLE);
-    };
-  }, [statusVersion, game, refresh, chat]);
+  const sendCommand = useCallback(
+    (command: string) => {
+      manager.sendCommand(command as (typeof GameCommand)[keyof typeof GameCommand]);
+    },
+    [manager],
+  );
 
   const handleKaliRetry = useCallback(() => {
-    if (retryCount >= KALI_MAX_RETRIES) {
-      handleFallbackToCPU();
-      return;
-    }
-    setRetryCount((c) => c + 1);
-    setKaliStatus(KaliStatus.THINKING);
-    setKaliError(null);
-    setReasoningText("");
-    reasoningRef.current = "";
-    setIsReasoningStreaming(true);
-    kaliStatusRef.current = KaliStatus.THINKING;
-
-    const filler = aiSlotFiller.get(GameType.TIC_TAC_TOE, SlotId.OPPONENT);
-    if (!filler) return;
-
-    filler.decide(game.getState(), (chunk) => {
-      reasoningRef.current += chunk;
-      setReasoningText(reasoningRef.current);
-    }).then((action) => {
-      setIsReasoningStreaming(false);
-      if (action.reasoning && reasoningRef.current.length === 0) {
-        setReasoningText(action.reasoning);
-      }
-      kaliStatusRef.current = KaliStatus.IDLE;
-      setKaliStatus(KaliStatus.IDLE);
-      game.handleAction(action, SlotId.OPPONENT);
-      refresh();
-    }).catch((err: unknown) => {
-      setIsReasoningStreaming(false);
-      const error = err instanceof KaliError ? err : new KaliError(
-        "WS_ERROR",
-        err instanceof Error ? err.message : String(err),
-      );
-      kaliStatusRef.current = KaliStatus.ERROR;
-      setKaliStatus(KaliStatus.ERROR);
-      setKaliError(error);
-    });
-  }, [game, refresh, retryCount]);
+    manager.retryAI();
+  }, [manager]);
 
   const handleFallbackToCPU = useCallback(() => {
-    const cpuPlayer = new TicTacToeCPUPlayer(difficulty);
-    aiSlotFiller.fill(GameType.TIC_TAC_TOE, SlotId.OPPONENT, cpuPlayer);
-    setMode(GameMode.CPU);
-    setKaliStatus(KaliStatus.IDLE);
-    setKaliError(null);
-    kaliStatusRef.current = KaliStatus.IDLE;
-    refresh();
-  }, [difficulty, game, refresh]);
+    manager.fallbackToCPU(new TicTacToeCPUPlayer(difficulty));
+    manager.start();
+  }, [manager, difficulty]);
 
   const handleGiveUp = useCallback(() => {
-    send(game, GameCommand.GIVE_UP);
-    setKaliStatus(KaliStatus.IDLE);
-    setKaliError(null);
-    kaliStatusRef.current = KaliStatus.IDLE;
-    refresh();
-  }, [game, refresh]);
+    manager.giveUp();
+  }, [manager]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -218,19 +101,17 @@ export function TicTacToeView({ game }: Props) {
       if (e.key === "Escape" || e.key === "p" || e.key === "P") {
         e.preventDefault();
         if (status === GameStatus.PLAYING) {
-          send(game, GameCommand.PAUSE);
+          sendCommand(GameCommand.PAUSE);
         } else if (status === GameStatus.PAUSED) {
-          send(game, GameCommand.RESUME);
+          sendCommand(GameCommand.RESUME);
         }
-        refresh();
         return;
       }
 
       if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) {
         if (e.key === "Enter") {
           e.preventDefault();
-          send(game, GameCommand.PLAY_AGAIN);
-          refresh();
+          sendCommand(GameCommand.PLAY_AGAIN);
         }
         return;
       }
@@ -238,27 +119,21 @@ export function TicTacToeView({ game }: Props) {
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [game, refresh, startGame]);
+  }, [game, startGame, sendCommand]);
+
+  // Trigger a render tick whenever the component re-renders from subscription.
+  void tick;
 
   const state = game.getState();
   const data = state.data as TicTacToeData | null;
   const board = data?.board ?? Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => null));
   const currentSlot = data?.currentSlot ?? SlotId.PLAYER;
   const winningLine = data?.winningLine;
+  const status = game.getStatus();
 
   const isWinningCell = (row: number, col: number) => {
     return winningLine?.some(([r, c]) => r === row && c === col) ?? false;
   };
-
-  const handleCellClick = (row: number, col: number) => {
-    if (game.getStatus() !== GameStatus.PLAYING) return;
-    if (kaliStatusRef.current === KaliStatus.THINKING) return;
-    if (currentSlot !== SlotId.PLAYER) return;
-    game.handleAction({ type: ActionType.MOVE, data: { row, col } }, SlotId.PLAYER);
-    refresh();
-  };
-
-  const status = statusRef.current;
 
   return (
     <div
@@ -348,42 +223,6 @@ export function TicTacToeView({ game }: Props) {
           }),
         )}
       </div>
-
-      {/* Reasoning panel */}
-      {(reasoningText || isReasoningStreaming) && (
-        <div
-          className="mx-auto mt-3 rounded-lg p-2 transition-all duration-300"
-          style={{
-            width: 288,
-            maxHeight: 96,
-            overflowY: "auto",
-            backgroundColor: "rgba(15, 23, 42, 0.75)",
-            border: "1px solid rgba(56, 189, 248, 0.2)",
-            boxSizing: "border-box",
-          }}
-        >
-          <div
-            className="text-[9px] mb-1 tracking-wider"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#38bdf8" }}
-          >
-            KALI PIENSA
-          </div>
-          <div
-            className="text-[10px] leading-relaxed whitespace-pre-wrap break-words"
-            style={{ color: "#94a3b8", lineHeight: 1.5 }}
-          >
-            {reasoningText}
-            {isReasoningStreaming && (
-              <span
-                className="inline-block ml-0.5 animate-pulse"
-                style={{ color: "#22d3ee" }}
-              >
-                ▌
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Waiting overlay */}
       {status === GameStatus.WAITING && (
@@ -507,21 +346,21 @@ export function TicTacToeView({ game }: Props) {
           </h2>
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => { send(game, GameCommand.RESUME); refresh(); }}
+              onClick={() => sendCommand(GameCommand.RESUME)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: PALETTE.x, color: "#020617", boxShadow: `0 0 14px ${PALETTE.xGlow}` }}
             >
               RESUME
             </button>
             <button
-              onClick={() => { send(game, GameCommand.RESTART); refresh(); }}
+              onClick={() => sendCommand(GameCommand.RESTART)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
             >
               RESTART
             </button>
             <button
-              onClick={() => { send(game, GameCommand.GIVE_UP); refresh(); }}
+              onClick={() => sendCommand(GameCommand.GIVE_UP)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", color: "#e0f2fe", backgroundColor: "#7f1d1d", border: "1px solid #f87171" }}
             >
@@ -594,14 +433,14 @@ export function TicTacToeView({ game }: Props) {
           </h2>
           <div className="flex flex-col gap-3 mt-4">
             <button
-              onClick={() => { send(game, GameCommand.PLAY_AGAIN); refresh(); }}
+              onClick={() => sendCommand(GameCommand.PLAY_AGAIN)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: PALETTE.x, color: "#020617", boxShadow: `0 0 14px ${PALETTE.xGlow}` }}
             >
               PLAY AGAIN
             </button>
             <button
-              onClick={() => { send(game, GameCommand.GIVE_UP); refresh(); }}
+              onClick={() => sendCommand(GameCommand.GIVE_UP)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
             >

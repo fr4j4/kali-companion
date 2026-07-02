@@ -53,6 +53,7 @@ function nextTileId(): number {
 
 export class TwentyFortyEightGame extends BaseGame {
   readonly type = GameType.TWENTY_FORTY_EIGHT;
+  readonly paradigm = "turn-based" as const;
   readonly slots = [
     { id: SlotId.PLAYER, type: PlayerType.HUMAN, name: "Tú" },
   ] as const;

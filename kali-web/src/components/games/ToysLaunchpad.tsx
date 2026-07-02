@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Save } from "lucide-react";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { GAME_CATALOG, CATEGORIES, type GameEntry } from "../../games/game-catalog";
 import { GameRegistry } from "../../games/core/game-registry";
@@ -64,12 +65,36 @@ export function ToysLaunchpad({ api }: Props) {
     });
   }, [api, isEs]);
 
+  const handleSavedGames = useCallback(() => {
+    if (!api) return;
+    api.createWindow("game", {
+      title: isEs ? "Partidas Guardadas" : "Saved Games",
+      icon: "\u{1F4CB}",
+      content: { mode: "saved-games" },
+      width: 480,
+      height: 520,
+      resizable: true,
+      minW: 320,
+      minH: 360,
+    });
+  }, [api, isEs]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto scrollbar-thin">
-      <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
-        <span>{'\u{1F3AE}'}</span>
-        {t("game_launchpad.title", "Juegos")}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
+          <span>{'\u{1F3AE}'}</span>
+          {t("game_launchpad.title", "Juegos")}
+        </h2>
+        <button
+          onClick={handleSavedGames}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-fg hover:bg-surface transition-colors"
+          style={{ border: "1px solid rgba(56, 189, 248, 0.2)" }}
+        >
+          <Save size={14} />
+          {isEs ? "Partidas Guardadas" : "Saved Games"}
+        </button>
+      </div>
       <p className="text-sm text-muted/80 -mt-2">
         {t("game_launchpad.subtitle", "Seleccioná un juego. Kali puede ocupar cualquier rol.")}
       </p>

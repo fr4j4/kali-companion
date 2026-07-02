@@ -84,6 +84,15 @@ from kali_core.mind.console_requester import ConsoleRequester
 from kali_core.mind.connections_store import Connection as SavedConnection
 from kali_core.mind.connections_store import ConnectionsStore
 from kali_core.mind.executor import Executor
+from kali_core.mind.game_session_service import (
+    GameSessionRecord,
+    GameSessionService,
+)
+from kali_core.mind.game_session_constants import (
+    GameParadigm,
+    GameSessionStatus,
+    GameSessionWSEvent,
+)
 from kali_core.mind.jobs import JobManager
 from kali_core.mind.llm.direct import DirectLLMProvider
 from kali_core.mind.llm.nanobot import NanobotLLMProvider
@@ -459,6 +468,7 @@ class Server:
         self.agent.set_session_store(self.session_store)
         self._connections: list[Connection] = []
         self.connections_store = ConnectionsStore()
+        self.game_session_service = GameSessionService()
         # Config warnings collected on startup replay (setting_key → message).
         # Surfaced to the frontend via the `config_warnings` status field so
         # the UI can show a banner about settings that couldn't be restored.
@@ -541,6 +551,7 @@ class Server:
             "stt_streaming": getattr(self.stt_provider, "_streaming", True),
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
             "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
+            "game_session_path": settings.game_session_path,
         }
         if self._config_warnings:
             payload["config_warnings"] = list(self._config_warnings.values())
@@ -1820,6 +1831,21 @@ class Connection:
             if text and self.session_id:
                 await self._synthesize_tts(text, self.session_id)
 
+        elif kind == GameSessionWSEvent.START:
+            await self._handle_game_session_start(event)
+        elif kind == GameSessionWSEvent.TURN:
+            await self._handle_game_turn(event)
+        elif kind == GameSessionWSEvent.EVENT:
+            await self._handle_game_event(event)
+        elif kind == GameSessionWSEvent.END:
+            await self._handle_game_session_end(event)
+        elif kind == GameSessionWSEvent.LIST:
+            await self._handle_list_game_sessions(event)
+        elif kind == GameSessionWSEvent.LOAD:
+            await self._handle_load_game_session(event)
+        elif kind == GameSessionWSEvent.DELETE:
+            await self._handle_delete_game_session(event)
+
         elif kind == "game_move":
             await self._handle_game_move(event)
 
@@ -1853,6 +1879,8 @@ class Connection:
 
             reasoning_parts: list[str] = []
             text_parts: list[str] = []
+            pre_marker_buf: list[str] = []
+            seen_move_marker = False
 
             async for event in llm.stream(messages):
                 if event.kind == "reasoning" and event.text:
@@ -1863,9 +1891,32 @@ class Connection:
                             "chunk": event.text,
                         })
                 elif event.kind == "delta" and event.text:
-                    text_parts.append(event.text)
+                    if not seen_move_marker:
+                        pre_marker_buf.append(event.text)
+                        combined = "".join(pre_marker_buf)
+                        marker_idx = combined.find("---MOVE---")
+                        if marker_idx >= 0:
+                            seen_move_marker = True
+                            reasoning_text = combined[:marker_idx]
+                            json_text = combined[marker_idx + len("---MOVE---"):]
+                            if reasoning_text.strip():
+                                reasoning_parts.append(reasoning_text.strip())
+                                if game_session_id:
+                                    await self.send({
+                                        "event": f"game_move_reasoning:{game_session_id}",
+                                        "chunk": reasoning_text.strip(),
+                                    })
+                            if json_text.strip():
+                                text_parts.append(json_text)
+                            pre_marker_buf = []
+                    else:
+                        text_parts.append(event.text)
                 elif event.kind == "done":
                     break
+
+            # If marker was never seen, pre-marker buffer was JSON text all along
+            if not seen_move_marker:
+                text_parts = pre_marker_buf + text_parts
 
             full_reasoning = "".join(reasoning_parts)
             full_text = "".join(text_parts)
@@ -1876,6 +1927,17 @@ class Connection:
             )
 
             action, error = self._parse_game_action({"text": full_text}, game_state, rules)
+
+            # Fallback: if no reasoning was streamed (non-CoT model) but the JSON
+            # has a reasoning field, extract it and emit as a single event.
+            if not full_reasoning and action and action.get("reasoning"):
+                full_reasoning = action["reasoning"]
+                if game_session_id and full_reasoning:
+                    await self.send({
+                        "event": f"game_move_reasoning:{game_session_id}",
+                        "chunk": full_reasoning,
+                        "done": True,
+                    })
 
             # Attach reasoning to action if present
             if action and full_reasoning:
@@ -1991,6 +2053,85 @@ class Connection:
         r, c = random.choice(legal)
         return {"type": "move", "data": {"row": r, "col": c}}
 
+    # ── Game sessions (WebSocket) ─────────────────────────────
+
+    async def _handle_game_session_start(self, event: dict[str, Any]) -> None:
+        """Frontend avisa que empezó una partida."""
+        session_id = event.get("sessionId", "")
+        game_id = event.get("gameId", "")
+        paradigm = event.get("paradigm", GameParadigm.TURN_BASED)
+        logger.info("[game_session] start | id=%s game=%s paradigm=%s",
+                    session_id, game_id, paradigm)
+        # No persistimos hasta que termine o haya al menos un turno.
+
+    async def _handle_game_turn(self, event: dict[str, Any]) -> None:
+        """Frontend envía un turno completo (jugador o IA)."""
+        session_id = event.get("sessionId", "")
+        turn_data = event.get("turnData", {})
+        logger.info("[game_session] turn | id=%s turn=%s",
+                    session_id, turn_data.get("turnNumber"))
+        # Acumulamos en memoria; persistimos al final.
+
+    async def _handle_game_event(self, event: dict[str, Any]) -> None:
+        """Frontend envía un evento (juegos realtime)."""
+        session_id = event.get("sessionId", "")
+        event_data = event.get("eventData", {})
+        logger.info("[game_session] event | id=%s type=%s",
+                    session_id, event_data.get("type"))
+
+    async def _handle_game_session_end(self, event: dict[str, Any]) -> None:
+        """Frontend avisa que la partida terminó — persistir."""
+        session_id = event.get("sessionId", "")
+        game_id = event.get("gameId", "")
+        paradigm = event.get("paradigm", GameParadigm.TURN_BASED)
+        status = event.get("status", GameSessionStatus.ABANDONED)
+        started_at = event.get("startedAt", 0)
+        ended_at = event.get("endedAt", 0)
+        turns = event.get("turns", [])
+        events_data = event.get("events", [])
+
+        record = GameSessionRecord(
+            session_id=session_id,
+            game_id=game_id,
+            paradigm=paradigm,
+            status=status,
+            started_at=started_at,
+            ended_at=ended_at,
+            turns=turns,
+            events=events_data,
+        )
+        path = self.server.game_session_service.save(record)
+        await self.send({
+            "event": GameSessionWSEvent.PERSISTED,
+            "sessionId": session_id,
+            "path": path,
+        })
+
+    async def _handle_list_game_sessions(self, event: dict[str, Any]) -> None:
+        game_id = event.get("gameId")
+        sessions = self.server.game_session_service.list_sessions(game_id)
+        await self.send({
+            "event": GameSessionWSEvent.LIST,
+            "sessions": sessions,
+        })
+
+    async def _handle_load_game_session(self, event: dict[str, Any]) -> None:
+        session_id = event.get("sessionId", "")
+        data = self.server.game_session_service.load(session_id)
+        await self.send({
+            "event": GameSessionWSEvent.LOADED,
+            "session": data,
+        })
+
+    async def _handle_delete_game_session(self, event: dict[str, Any]) -> None:
+        session_id = event.get("sessionId", "")
+        deleted = self.server.game_session_service.delete(session_id)
+        await self.send({
+            "event": GameSessionWSEvent.DELETED,
+            "sessionId": session_id,
+            "deleted": deleted,
+        })
+
     # ── Model download ─────────────────────────────────────
 
     async def _handle_download_tts_model(self, event: dict[str, Any]) -> None:
@@ -2073,9 +2214,47 @@ class Connection:
             await self.send({"event": "download_tts_model_error", "model_id": voice_key, "detail": str(exc)})
 
     async def _handle_download_stt_model(self, event: dict[str, Any]) -> None:
-        """Download a Vosk STT model (zip) and extract it."""
+        """Download an STT model (Vosk zip or Qwen3-ASR from HuggingFace)."""
         model_id = event.get("model_id", "")
+        provider = event.get("provider", "vosk")
 
+        if provider == "qwen3-asr":
+            await self._download_qwen3_asr_model(model_id)
+        else:
+            await self._download_vosk_model(model_id)
+
+    async def _download_qwen3_asr_model(self, model_id: str) -> None:
+        from kali_core.model_catalog import QWEN3_ASR_MODELS
+
+        model_entry = next((m for m in QWEN3_ASR_MODELS if m["id"] == model_id), None)
+        if not model_entry:
+            await self.send({"event": "download_stt_model_error", "model_id": model_id, "detail": f"Unknown Qwen3-ASR model: {model_id}"})
+            return
+
+        await self.send({"event": "download_stt_model_started", "model_id": model_id})
+        loop = asyncio.get_event_loop()
+
+        try:
+            from huggingface_hub import snapshot_download
+
+            hf_id = model_entry["hf_id"]
+            models_dir = Path(settings.qwen_asr_models_dir).expanduser().resolve()
+            models_dir.mkdir(parents=True, exist_ok=True)
+
+            await loop.run_in_executor(None, lambda: snapshot_download(
+                repo_id=hf_id,
+                cache_dir=str(models_dir),
+                resume_download=True,
+            ))
+
+            await self.server.broadcast_status()
+            await self.send({"event": "download_stt_model_complete", "model_id": model_id})
+        except Exception as exc:
+            logger.exception("Failed to download Qwen3-ASR model %s", model_id)
+            await self.send({"event": "download_stt_model_error", "model_id": model_id, "detail": str(exc)})
+
+    async def _download_vosk_model(self, model_id: str) -> None:
+        """Download a Vosk STT model (zip) and extract it."""
         from kali_core.model_catalog import VOSK_MODELS, VOSK_URL_BASE
 
         model_entry = next((m for m in VOSK_MODELS if m["id"] == model_id), None)
@@ -2718,6 +2897,12 @@ class Connection:
             self._feedback_mode = event["feedback_mode"]
         if "plan_mode" in event:
             self._plan_mode = bool(event["plan_mode"])
+        if "game_session_path" in event:
+            new_path = event["game_session_path"]
+            if new_path:
+                settings.game_session_path = Path(new_path).expanduser()
+            else:
+                settings.game_session_path = Path.home() / ".kali" / "game-sessions"
         if "artifact_diff_preview" in event:
             settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         # Qwen3 VoiceDesign settings

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Download, Loader, Loader2, Mic, Trash2 } from "lucide-react";
 import type { StatusEvent, SttProvider, ModelCatalogEntry } from "../../lib/protocol";
+import { STT_PROVIDERS } from "../../lib/stt-providers";
 import { SelectField, ToggleField } from "./fields";
 import { useStage } from "../../stage/StageProvider";
 
 interface Props {
   systemStatus: StatusEvent | null;
   onUpdate: (patch: Record<string, unknown>) => void;
-  downloadSttModel: (modelId: string) => void;
+  downloadSttModel: (modelId: string, provider?: "vosk" | "qwen3-asr") => void;
   downloadProgress: Record<string, number>;
   downloadError: string | null;
 }
@@ -104,10 +105,6 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
     return () => { mountedRef.current = false; };
   }, []);
 
-  useEffect(() => {
-    setTab(activeProvider);
-  }, [activeProvider]);
-
   const apiBase = useCallback(async () => {
     const port = await getSidecarPort();
     const host = window.location.hostname;
@@ -148,8 +145,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
 
   useEffect(() => {
     setError(null);
-    void fetchModels(tab);
-    void fetchDevices();
+    void Promise.all([fetchModels(tab), fetchDevices()]);
   }, [fetchModels, fetchDevices, tab]);
 
   // Fetch catalog when on specific tab.
@@ -180,8 +176,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   useEffect(() => {
     const count = Object.keys(downloadProgress).length;
     if (prevDlCount.current > 0 && count === 0) {
-      void fetchModels(tab);
-      void fetchCatalog();
+      void Promise.all([fetchModels(tab), fetchCatalog()]);
     }
     prevDlCount.current = count;
   }, [downloadProgress, fetchCatalog, fetchModels, tab]);
@@ -492,7 +487,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                 return matchSearch && matchLang;
               })
               .map((m) => {
-                const isDownloaded = m.downloaded || models.some(im => im.id === m.id && im.available);
+                const isDownloaded = m.downloaded;
                 return (
                   <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
                     <div className="flex flex-col min-w-0">
@@ -508,7 +503,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                       </span>
                     ) : (
                       <button
-                        onClick={() => downloadSttModel(m.id)}
+                        onClick={() => downloadSttModel(m.id, tab === "qwen3" ? STT_PROVIDERS.QWEN3 : STT_PROVIDERS.VOSK)}
                         className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
                       >
                         <Download size={10} />

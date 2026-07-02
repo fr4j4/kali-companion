@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceAPI } from "../../workspace/types";
+import { SavedGamesPanel } from "../games/SavedGamesPanel";
+import { SavedGameReplay } from "../games/SavedGameReplay";
 import { ToysLaunchpad } from "../games/ToysLaunchpad";
 import { GameRenderer } from "../games/GameRenderer";
 import { GameRegistry } from "../../games/core/game-registry";
@@ -10,12 +12,19 @@ import { registerGames } from "../../games/register-games";
 import { GameDebugPanel } from "../games/GameDebugPanel";
 import { GameReasoningPanel } from "../games/GameReasoningPanel";
 import { useSidePanel } from "../../stage/SidePanelContext";
+import { useGameWS } from "../../lib/gameWSClient";
 import { useChat } from "../../hooks/useChat";
+import { hasLLMIntegration } from "../../games/ai/game-llm-provider";
+import { gameSessionStore } from "../../games/core/game-session-store";
+import { createGameSessionManager, type GameSessionManager } from "../../games/core/game-session-manager";
+import { AISlot } from "../../games/ai/ai-slot";
+import { PlayerType } from "../../games/core/constants/player-types";
 import { Brain, Gamepad2 } from "lucide-react";
 
 interface GameContent {
-  mode?: "launchpad" | "game";
+  mode?: "launchpad" | "game" | "saved-games" | "saved-game-replay";
   gameType?: GameTypeValue;
+  sessionId?: string;
 }
 
 interface Props {
@@ -36,10 +45,20 @@ export function GameWidget({ content, api, windowId }: Props) {
   const gameType = parsed.gameType;
 
   const gameRef = useRef<BaseGame | null>(null);
+  const managerRef = useRef<GameSessionManager | null>(null);
   const [ready, setReady] = useState(false);
 
   const { setSidePanelContent, setLeftSidePanelContent } = useSidePanel();
-  const { wsClient } = useChat();
+  const wsClient = useGameWS();
+  const { systemStatus } = useChat();
+  const hasKali = hasLLMIntegration(systemStatus);
+  const replaySessionId = parsed.sessionId;
+
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    gameSessionStore.setWSClient(wsClient);
+  }, [wsClient]);
 
   useEffect(() => {
     if (mode !== "game" || !gameType) {
@@ -50,25 +69,40 @@ export function GameWidget({ content, api, windowId }: Props) {
 
     ensureRegistered();
     const game = GameRegistry.create(gameType as any, { slots: [] });
-    game.start();
     gameRef.current = game;
+
+    const providers = new Map();
+    for (const slot of game.slots) {
+      if (slot.type === PlayerType.AI) {
+        providers.set(slot.id, new AISlot(slot.id, wsClient, () => game.sessionId));
+      }
+    }
+
+    const manager = createGameSessionManager(game, providers, {
+      onStateChange: () => forceRender((v) => v + 1),
+      onAIStatusChange: () => forceRender((v) => v + 1),
+    });
+    managerRef.current = manager;
     setReady(true);
 
     setSidePanelContent({
       icon: <Gamepad2 size={14} />,
       title: "Game Log",
-      onClear: () => game.aiLog.clearSession(game.sessionId),
+      onClear: () => gameSessionStore.clearSession(game.sessionId),
       content: <GameDebugPanel getSessionId={() => game.sessionId} />,
     });
 
     setLeftSidePanelContent({
       icon: <Brain size={14} />,
       title: "Reasoning",
-      onClear: () => game.aiLog.clearSession(game.sessionId),
-      content: <GameReasoningPanel sessionId={game.sessionId} wsClient={wsClient} />,
+      onClear: () => gameSessionStore.clearSession(game.sessionId),
+      content: <GameReasoningPanel getSessionId={() => game.sessionId} />,
     });
 
     return () => {
+      managerRef.current?.destroy();
+      managerRef.current = null;
+      gameRef.current?.stop();
       gameRef.current = null;
       setReady(false);
       setSidePanelContent(null);
@@ -78,7 +112,6 @@ export function GameWidget({ content, api, windowId }: Props) {
   }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent]);
 
   const prevFocusedRef = useRef(false);
-  const [, forceRender] = useState(0);
 
   useEffect(() => {
     const isFocused = (api?.windows ?? []).some((w) => w.id === windowId && w.focused && !w.closed);
@@ -94,8 +127,16 @@ export function GameWidget({ content, api, windowId }: Props) {
     prevFocusedRef.current = isFocused;
   });
 
-  if (mode === "game" && gameType && ready && gameRef.current) {
-    return <GameRenderer game={gameRef.current} />;
+  if (mode === "game" && gameType && ready && gameRef.current && managerRef.current) {
+    return <GameRenderer game={gameRef.current} manager={managerRef.current} hasKali={hasKali} />;
+  }
+
+  if (mode === "saved-games") {
+    return <SavedGamesPanel api={api} />;
+  }
+
+  if (mode === "saved-game-replay" && replaySessionId) {
+    return <SavedGameReplay sessionId={replaySessionId} />;
   }
 
   return <ToysLaunchpad api={api} />;

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sliders } from "lucide-react";
 import type { StatusEvent } from "../../lib/protocol";
-import { SelectField, SliderField, ToggleField } from "./fields";
+import { SelectField, SliderField, ToggleField, TextField } from "./fields";
 import { MicLevelMeter } from "./MicLevelMeter";
 import { useStage } from "../../stage/StageProvider";
 
@@ -40,6 +40,7 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
   const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
   const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
   const artifactDiffPreview = systemStatus?.artifact_diff_preview ?? true;
+  const gameSessionPath = systemStatus?.game_session_path ?? "";
 
   // Local state + debounce for VAD sliders (avoids WS chatter on drag).
   const [localVadTimeout, setLocalVadTimeout] = useState(sttVadSilenceTimeout);
@@ -205,6 +206,14 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
         label={t("settings.artifact_diff_preview")}
         checked={artifactDiffPreview}
         onChange={(v) => onUpdate({ artifact_diff_preview: v })}
+      />
+
+      <TextField
+        label={t("settings.game_session_path")}
+        value={gameSessionPath}
+        onChange={(v) => onUpdate({ game_session_path: v })}
+        placeholder="~/.kali/game-sessions"
+        helperText={t("settings.game_session_path_hint")}
       />
     </div>
   );

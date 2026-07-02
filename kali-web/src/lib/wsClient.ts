@@ -64,6 +64,10 @@ export class WSClient {
     this.ws?.close();
   }
 
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
   on(event: IncomingEventName, listener: Listener): void {
     let set = this.listeners.get(event);
     if (!set) {

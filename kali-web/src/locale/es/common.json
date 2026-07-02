@@ -66,6 +66,8 @@
   "settings.feedback_plan": "Planificar Antes de Actuar",
   "settings.plan_mode": "Requerir confirmación explícita",
   "settings.artifact_diff_preview": "Mostrar diffs de parches en el canvas",
+  "settings.game_session_path": "Ruta de sesiones de juego",
+  "settings.game_session_path_hint": "Carpeta donde se guardan las partidas (vacío = ~/.kali/game-sessions)",
   "settings.profile": "Perfil",
   "settings.theme": "Tema",
   "theme.amberwave": "Amberwave",

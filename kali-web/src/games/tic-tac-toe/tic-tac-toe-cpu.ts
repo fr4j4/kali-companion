@@ -9,7 +9,7 @@ export type Difficulty = "easy" | "medium" | "hard";
 export class TicTacToeCPUPlayer implements MoveProvider {
   constructor(private _difficulty: Difficulty = "medium") {}
 
-  async decide(state: GameState): Promise<GameAction> {
+  async decide(state: GameState, _turnNumber?: number): Promise<GameAction> {
     const data = state.data as TicTacToeData;
     const board = data.board;
     const opponentMark = data.opponentMark;
@@ -21,6 +21,10 @@ export class TicTacToeCPUPlayer implements MoveProvider {
       data: { row: result.move.row, col: result.move.col },
       reasoning: result.reasoning,
     };
+  }
+
+  abort(): void {
+    // CPU decisions are synchronous and cannot be aborted.
   }
 
   private _pickMove(

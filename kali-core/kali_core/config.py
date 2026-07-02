@@ -23,6 +23,11 @@ def _env_bool(key: str, default: bool) -> bool:
 port: int = int(os.getenv("KALI_PORT", "8900"))
 host: str = os.getenv("KALI_HOST", "0.0.0.0")
 
+# ── Game sessions ────────────────────────────────────────
+game_session_path: str = os.getenv(
+    "KALI_GAME_SESSION_PATH", ""
+)  # vacío = default ~/.kali/game-sessions/
+
 # ── LLM (kali-mind) ───────────────────────────────────────
 llm_provider: Literal["direct", "nanobot"] = os.getenv(
     "KALI_LLM_PROVIDER", "direct"
@@ -448,6 +453,8 @@ class _Settings:
     stt_models_dir = stt_models_dir
     tts_models_dir = tts_models_dir
     profiles_dir = profiles_dir
+
+    game_session_path = game_session_path
 
 
 settings = _Settings()

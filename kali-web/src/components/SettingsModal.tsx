@@ -31,7 +31,7 @@ interface Props {
   currentLanguage: string;
   onLanguageChange: (lang: string) => void;
   downloadTtsModel: (modelId: string, provider?: "qwen3" | "piper") => void;
-  downloadSttModel: (modelId: string) => void;
+  downloadSttModel: (modelId: string, provider?: "vosk" | "qwen3-asr") => void;
   downloadProgress: Record<string, number>;
   downloadError: string | null;
 }

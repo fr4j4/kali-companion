@@ -1,55 +1,45 @@
 import { useState, useEffect, useRef } from "react";
 import { Brain, Trash2 } from "lucide-react";
-import type { WSClient } from "../../lib/wsClient";
-
-interface ReasoningEntry {
-  id: string;
-  timestamp: number;
-  text: string;
-}
+import { gameSessionStore } from "../../games/core/game-session-store";
+import type { GameTurnData } from "../../games/core/game-session-types";
 
 interface Props {
-  sessionId: string;
-  wsClient: WSClient | null;
+  getSessionId: () => string;
 }
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(ts).toLocaleTimeString("en-GB", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
-export function GameReasoningPanel({ sessionId, wsClient }: Props) {
-  const [entries, setEntries] = useState<ReasoningEntry[]>([]);
+export function GameReasoningPanel({ getSessionId }: Props) {
+  const [aiTurns, setAITurns] = useState<GameTurnData[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const entryIdRef = useRef(0);
 
   useEffect(() => {
-    if (!wsClient || !sessionId) return;
-
-    const prefix = `game_move_reasoning:${sessionId}`;
-    const unsub = wsClient.onDynamic(prefix, (payload) => {
-      const ev = payload as { chunk?: string; done?: boolean };
-      if (ev.chunk) {
-        entryIdRef.current += 1;
-        const entry: ReasoningEntry = {
-          id: `r-${entryIdRef.current}`,
-          timestamp: Date.now(),
-          text: ev.chunk,
-        };
-        setEntries((prev) => [...prev, entry]);
-      }
-    });
-
-    return unsub;
-  }, [wsClient, sessionId]);
+    const update = () => {
+      const sid = getSessionId();
+      setAITurns(sid ? gameSessionStore.getAITurns(sid) : []);
+    };
+    update();
+    return gameSessionStore.subscribe(update);
+  }, [getSessionId]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [entries]);
+  }, [aiTurns]);
 
   const handleClear = () => {
-    setEntries([]);
+    const sid = getSessionId();
+    if (sid) {
+      gameSessionStore.clearSession(sid);
+    }
   };
 
   return (
@@ -70,14 +60,14 @@ export function GameReasoningPanel({ sessionId, wsClient }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleClear}
+            disabled={aiTurns.length === 0}
             className="flex items-center gap-1 px-2 py-1 rounded text-[9px] transition-all hover:brightness-110 disabled:opacity-30"
-            disabled={entries.length === 0}
             style={{
               fontFamily: "'Press Start 2P', monospace",
               backgroundColor: "transparent",
               border: "1px solid rgba(56, 189, 248, 0.2)",
               color: "#64748b",
-              cursor: entries.length === 0 ? "not-allowed" : "pointer",
+              cursor: aiTurns.length === 0 ? "not-allowed" : "pointer",
             }}
             title="Clear reasoning log"
           >
@@ -89,10 +79,10 @@ export function GameReasoningPanel({ sessionId, wsClient }: Props) {
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-2 space-y-1"
+        className="flex-1 overflow-y-auto p-2 space-y-2"
         style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(56, 189, 248, 0.2) transparent" }}
       >
-        {entries.length === 0 && (
+        {aiTurns.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <span
               className="text-[8px] text-center px-4"
@@ -102,29 +92,40 @@ export function GameReasoningPanel({ sessionId, wsClient }: Props) {
             </span>
           </div>
         )}
-        {entries.map((entry) => (
-          <div key={entry.id} className="flex flex-col gap-0.5">
+        {aiTurns.map((turn) => (
+          <div key={turn.turnId} className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22d3ee" }}>🧠</span>
               <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22d3ee" }}>
-                reasoning
+                🧠 Turno {turn.turnNumber}
               </span>
-              <span style={{ fontFamily: "monospace", fontSize: 7, color: "#64748b", marginLeft: "auto" }}>
-                {formatTime(entry.timestamp)}
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 7,
+                  color: "#64748b",
+                  marginLeft: "auto",
+                }}
+              >
+                {formatTime(turn.timestamp)}
               </span>
             </div>
             <div
-              className="whitespace-pre-wrap break-all rounded p-1 ml-4"
+              className="whitespace-pre-wrap break-all rounded p-2 ml-4"
               style={{
                 fontFamily: "'JetBrains Mono', 'Courier New', monospace",
                 fontSize: 9,
-                lineHeight: 1.4,
+                lineHeight: 1.5,
                 color: "rgba(148, 163, 184, 0.9)",
                 backgroundColor: "rgba(56, 189, 248, 0.04)",
                 border: "1px solid rgba(56, 189, 248, 0.1)",
               }}
             >
-              {entry.text}
+              {turn.reasoning?.text}
+              {turn.reasoning && !turn.reasoning.done && (
+                <span className="inline-block ml-0.5 animate-pulse" style={{ color: "#22d3ee" }}>
+                  ▌
+                </span>
+              )}
             </div>
           </div>
         ))}

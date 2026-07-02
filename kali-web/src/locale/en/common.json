@@ -66,6 +66,8 @@
   "settings.feedback_plan": "Plan Before Acting",
   "settings.plan_mode": "Require explicit confirmation",
   "settings.artifact_diff_preview": "Show patch diffs on canvas",
+  "settings.game_session_path": "Game sessions path",
+  "settings.game_session_path_hint": "Folder for saved games (empty = ~/.kali/game-sessions)",
   "settings.profile": "Profile",
   "settings.theme": "Theme",
   "theme.amberwave": "Amberwave",

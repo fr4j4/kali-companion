@@ -6,29 +6,38 @@ import type { WSClient } from "../../lib/wsClient";
 import type { GameMoveResponseEvent } from "../../lib/protocol";
 import { KaliError, fromGameMoveError } from "./kali-error";
 import { KaliErrorCode, TttField, GAME_AI_TIMEOUT_MS, GAME_AI_TIMEOUT_2_MS, GAME_AI_TIMEOUT_3_MS } from "../core/constants/game-ai";
-import { gameAILogger } from "../core/game-ai-logger";
+import type { MoveProvider } from "./ai-slot-filler";
 
-export class AISlot {
+export class AISlot implements MoveProvider {
   private _abortController: AbortController | null = null;
 
   constructor(
     private _slotId: SlotIdValue,
     private _wsClient: WSClient | null = null,
-    private _gameSessionId: string = "",
-  ) {
-    gameAILogger.startSession(this._gameSessionId);
-  }
+    private _getSessionId: () => string = () => "",
+  ) {}
 
   get slotId(): SlotIdValue {
     return this._slotId;
   }
 
-  setSessionId(id: string) {
-    this._gameSessionId = id;
-    gameAILogger.startSession(id);
+  get sessionId(): string {
+    return this._getSessionId();
   }
 
-  async decide(context: GameState, onReasoning?: (chunk: string) => void): Promise<GameAction> {
+  setSessionId(id: string) {
+    this._getSessionId = () => id;
+  }
+
+  abort(): void {
+    this._abortController?.abort();
+  }
+
+  async decide(
+    context: GameState,
+    _turnNumber: number = 0,
+    onReasoning?: (chunk: string) => void,
+  ): Promise<GameAction> {
     if (this._abortController) {
       this._abortController.abort();
     }
@@ -41,11 +50,12 @@ export class AISlot {
       );
     }
 
+    const gameSessionId = this._getSessionId();
     const data = context.data as Record<string, unknown>;
     const payload = {
       event: "game_move",
       game_type: "tictactoe",
-      game_session_id: this._gameSessionId,
+      game_session_id: gameSessionId,
       rules: {
         system_prompt: this._buildSystemPrompt(data),
         response_format: "json",
@@ -66,19 +76,16 @@ export class AISlot {
       const reasoningChunks: string[] = [];
 
       // Register a dynamic listener for reasoning chunks during this attempt
-      const reasoningPrefix = `game_move_reasoning:${this._gameSessionId}`;
+      const reasoningPrefix = `game_move_reasoning:${gameSessionId}`;
       const unsubReasoning = this._wsClient.onDynamic(reasoningPrefix, (payload) => {
         const ev = payload as { chunk?: string; done?: boolean };
         if (ev.chunk) {
           reasoningChunks.push(ev.chunk);
-          gameAILogger.log("🧠", "reasoning_chunk", ev.chunk);
           onReasoning?.(ev.chunk);
         }
       });
 
       try {
-        gameAILogger.log("→", "game_move", payload);
-
         const response = await this._wsClient.sendAndWait<GameMoveResponseEvent>(
           payload,
           "game_move_response",
@@ -90,8 +97,6 @@ export class AISlot {
 
         const reasoning = response.reasoning ?? reasoningChunks.join("");
 
-        gameAILogger.log("←", "game_move_response", { ...response, reasoning });
-
         if (response.error) {
           throw fromGameMoveError(
             response.error.code,
@@ -101,11 +106,6 @@ export class AISlot {
         }
 
         if (response.action) {
-          console.info(
-            `[AISlot] move decided | attempt=${attempt + 1} | action=%o | reasoning=%s`,
-            response.action,
-            reasoning.slice(0, 100),
-          );
           return {
             type: response.action.type as (typeof ActionType)[keyof typeof ActionType],
             data: response.action.data,
@@ -122,7 +122,6 @@ export class AISlot {
         lastError = err;
 
         if (err instanceof KaliError && err.code === KaliErrorCode.WS_ERROR && err.message.includes("aborted")) {
-          console.info("[AISlot] request aborted — new game started");
           throw err;
         }
 
@@ -130,19 +129,16 @@ export class AISlot {
         const isLastAttempt = attempt === timeouts.length - 1;
 
         if (isTimeout && !isLastAttempt) {
-          console.warn(`[AISlot] timeout, retrying | attempt=${attempt + 1}/${timeouts.length}`);
           continue;
         }
 
         if (isTimeout && isLastAttempt) {
-          console.error(`[AISlot] all retries exhausted after ${timeouts.length} attempts`);
           throw new KaliError(
             KaliErrorCode.WS_TIMEOUT,
             "Kali no pudo responder a tiempo. La conexion se perdio o el servidor no respondio.",
           );
         }
 
-        console.error("[AISlot] sendAndWait error:", err);
         throw new KaliError(
           KaliErrorCode.WS_ERROR,
           err instanceof Error ? err.message : String(err),
@@ -182,9 +178,12 @@ export class AISlot {
       instruction,
       `Current board (row 0-2, col 0-2):`,
       boardStr,
-      "Think step by step. Explain your reasoning in a 'reasoning' field, then output your move.",
-      "Output ONLY valid JSON with reasoning, row (0-2), and column (0-2).",
-      '{"reasoning": "...", "row": <number>, "col": <number>}',
+      "Think step by step. First, explain your reasoning in natural language.",
+      "Then output ---MOVE--- on its own line.",
+      "Then output ONLY valid JSON with row (0-2) and column (0-2).",
+      "",
+      "---MOVE---",
+      '{"row": <number>, "col": <number>}',
     ].join("\n");
   }
 }

@@ -4,11 +4,12 @@ import type { GameConfig } from "./types/game-config";
 import type { GameAction } from "./types/game-action";
 import type { GameState } from "./types/game-state";
 import type { GameStatusValue } from "./constants/game-status";
-import { gameAILogger } from "./game-ai-logger";
+import { gameSessionStore } from "./game-session-store";
 
 export abstract class BaseGame {
   abstract readonly type: GameTypeValue;
   abstract readonly slots: readonly PlayerSlot[];
+  abstract readonly paradigm: "turn-based" | "realtime";
 
   abstract start(config?: GameConfig): GameState;
   abstract handleAction(action: GameAction, fromSlotId: string): GameState;
@@ -16,8 +17,6 @@ export abstract class BaseGame {
   pause(): void {}
   resume(): void {}
   tick(): void {}
-
-  readonly aiLog = gameAILogger;
 
   private _state: GameState = {
     status: "waiting",
@@ -72,7 +71,17 @@ export abstract class BaseGame {
 
   newGame(): string {
     this._sessionId = crypto.randomUUID();
-    this.aiLog.startSession(this._sessionId);
+    gameSessionStore.startSession(this._sessionId, this.type, this.paradigm);
     return this._sessionId;
+  }
+
+  stop(): void {
+    if (this._sessionId) {
+      const status = this.getStatus();
+      if (status !== "playing" && status !== "paused" && status !== "waiting") {
+        gameSessionStore.endSession(this._sessionId, status);
+      }
+      gameSessionStore.clearSession(this._sessionId);
+    }
   }
 }

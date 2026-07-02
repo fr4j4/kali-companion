@@ -40,6 +40,7 @@ class UserConfig:
     tts_models_dir: str | None = None
     profile: str | None = None
     artifact_diff_preview: bool | None = None
+    game_session_path: str | None = None
 
     # ── Per-connection (applied on every new Connection, override env defaults) ──
     stt_enabled: bool | None = None

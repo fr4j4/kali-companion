@@ -47,12 +47,6 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
     if (systemStatus?.tts_models_dir) setModelsDir(systemStatus.tts_models_dir);
   }, [systemStatus?.tts_models_dir]);
 
-  useEffect(() => {
-    if (activeProvider === TTS_PROVIDERS.QWEN3 || activeProvider === TTS_PROVIDERS.PIPER) {
-      setTab(activeProvider);
-    }
-  }, [activeProvider]);
-
   const fetchModels = useCallback(async (forProvider?: string) => {
     setLoadingModels(true);
     try {
@@ -115,9 +109,10 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
   useEffect(() => {
     const count = Object.keys(downloadProgress).length;
     if (prevDownloadCount.current > 0 && count === 0) {
-      void fetchModels(tab);
-      if (tab === TTS_PROVIDERS.PIPER) void fetchPiperCatalog();
-      if (tab === TTS_PROVIDERS.QWEN3) void fetchQwenCatalog();
+      const refetches: Promise<void>[] = [fetchModels(tab)];
+      if (tab === TTS_PROVIDERS.PIPER) refetches.push(fetchPiperCatalog());
+      if (tab === TTS_PROVIDERS.QWEN3) refetches.push(fetchQwenCatalog());
+      void Promise.all(refetches);
     }
     prevDownloadCount.current = count;
   }, [downloadProgress, fetchModels, tab]);
@@ -415,7 +410,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
               </div>
             )}
             {!loadingQwenCatalog && qwenCatalog.map((m) => {
-              const isDownloaded = m.downloaded || models.some(im => im.id === m.id && im.available);
+              const isDownloaded = m.downloaded;
               return (
                 <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
                   <div className="flex flex-col min-w-0">
@@ -488,7 +483,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                 return matchSearch && matchLang;
               })
               .map((m) => {
-                const isDownloaded = m.downloaded || models.some(im => im.id === m.id && im.available);
+                const isDownloaded = m.downloaded;
                 return (
                   <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
                     <div className="flex flex-col min-w-0">

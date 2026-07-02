@@ -23,6 +23,7 @@ const SPEED_LEVEL_FACTOR = 5;
 const SPEED_LEVEL_EXPONENT = 1.5;
 
 export class SnakeGame extends BaseGame {
+  readonly paradigm = "realtime" as const;
   readonly type = GameType.SNAKE;
   readonly slots = [
     { id: SlotId.PLAYER, type: PlayerType.HUMAN, name: "Tú" },

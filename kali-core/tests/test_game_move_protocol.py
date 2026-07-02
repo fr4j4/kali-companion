@@ -271,6 +271,65 @@ class TestHandleGameMove:
         assert resp["action"]["data"]["col"] == 0
         assert resp["reasoning"] == "I see the center is open. Taking it."
 
+    async def test_reasoning_from_json_fallback(self):
+        """Non-CoT model: reasoning embedded in JSON, not streamed natively."""
+        llm_response = {
+            "text": '{"row": 0, "col": 0, "reasoning": "Taking center."}',
+        }
+        conn = ConnectionTestHelper(llm_response)
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "test-session",
+            "game_session_id": "g-789",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None] * 3 for _ in range(3)]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+
+        # Should have: game_move_reasoning (1 event, done=true) + game_move_response
+        assert len(conn._sent) == 2
+        reason_ev = conn._sent[0]
+        assert reason_ev["event"] == "game_move_reasoning:g-789"
+        assert reason_ev["chunk"] == "Taking center."
+        assert reason_ev.get("done") is True
+
+        resp = conn._sent[1]
+        assert resp["event"] == "game_move_response"
+        assert resp["action"]["data"]["row"] == 0
+        assert resp["action"]["data"]["col"] == 0
+        assert resp["reasoning"] == "Taking center."
+
+    async def test_reasoning_from_move_marker(self):
+        """Model outputs reasoning text then ---MOVE--- then JSON."""
+        llm_response = {
+            "text": "Center is open.\n---MOVE---\n{\"row\": 1, \"col\": 1}",
+        }
+        conn = ConnectionTestHelper(llm_response)
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "test-session",
+            "game_session_id": "g-101",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None] * 3 for _ in range(3)]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+
+        # Should have: game_move_reasoning (1 event) + game_move_response
+        assert len(conn._sent) == 2
+        reason_ev = conn._sent[0]
+        assert reason_ev["event"] == "game_move_reasoning:g-101"
+        assert "Center is open." in reason_ev["chunk"]
+
+        resp = conn._sent[1]
+        assert resp["event"] == "game_move_response"
+        assert resp["action"]["data"]["row"] == 1
+        assert resp["action"]["data"]["col"] == 1
+        assert resp["reasoning"] == "Center is open."
+
     async def test_returns_model_error_on_llm_failure(self):
         class FailingLLM:
             provider_name = "failing"

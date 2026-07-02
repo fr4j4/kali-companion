@@ -7,8 +7,12 @@ export interface MoveProvider {
   /** Decide the next action for the occupied slot. */
   decide(
     state: GameState,
+    turnNumber?: number,
     onReasoning?: (chunk: string) => void,
   ): Promise<GameAction>;
+
+  /** Abort any in-flight decide() call immediately. */
+  abort(): void;
 }
 
 /**
