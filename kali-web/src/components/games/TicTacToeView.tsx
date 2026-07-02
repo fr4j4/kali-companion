@@ -45,16 +45,13 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
   const retryCount = manager.retryCount;
 
   const startGame = useCallback(() => {
-    game.restart({
-      slots: game.slots,
-      rules: { starter, difficulty, mode },
-    });
-
     if (mode === GameMode.CPU) {
       manager.fallbackToCPU(new TicTacToeCPUPlayer(difficulty));
     }
-
-    manager.start();
+    manager.restart({
+      slots: game.slots,
+      rules: { starter, difficulty, mode },
+    });
   }, [game, manager, starter, difficulty, mode]);
 
   const handleCellClick = (row: number, col: number) => {
@@ -79,8 +76,11 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
 
   const handleFallbackToCPU = useCallback(() => {
     manager.fallbackToCPU(new TicTacToeCPUPlayer(difficulty));
-    manager.start();
-  }, [manager, difficulty]);
+    manager.restart({
+      slots: game.slots,
+      rules: { starter, difficulty, mode: GameMode.CPU },
+    });
+  }, [manager, game, difficulty, starter]);
 
   const handleGiveUp = useCallback(() => {
     manager.giveUp();

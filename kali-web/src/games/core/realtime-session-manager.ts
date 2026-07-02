@@ -7,6 +7,7 @@ import type { GameSessionManager, GameSessionManagerCallbacks } from "./game-ses
 import { KaliStatus } from "./constants/game-ai";
 import { GameCommand } from "./constants/action-types";
 import type { GameCommandValue } from "./constants/action-types";
+import type { GameConfig } from "./types/game-config";
 
 /**
  * RealtimeSessionManager — placeholder for realtime games.
@@ -43,6 +44,11 @@ export class RealtimeSessionManager implements GameSessionManager {
 
   start(): void {
     // no-op for realtime stub
+  }
+
+  restart(config?: GameConfig): void {
+    this._game.restart(config);
+    this._callbacks.onStateChange();
   }
 
   destroy(): void {

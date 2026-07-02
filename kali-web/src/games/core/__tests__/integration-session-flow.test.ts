@@ -7,10 +7,12 @@ import type { SlotIdValue } from "../constants/player-types";
 import type { GameSessionManagerCallbacks } from "../game-session-manager";
 
 import { TurnBasedSessionManager } from "../turn-based-session-manager";
+import type { GameConfig } from "../types/game-config";
 import { gameSessionStore } from "../game-session-store";
 import { GAME_PARADIGM, GAME_ACTOR } from "../game-session-constants";
 import { PlayerType, SlotId } from "../constants/player-types";
 import { ActionType } from "../constants/action-types";
+import { GameStatus } from "../constants/game-status";
 
 /**
  * Integration test: verifies the full session flow across a game.restart(),
@@ -18,12 +20,12 @@ import { ActionType } from "../constants/action-types";
  * (not the stale one) and that a panel using getSessionId() would see data.
  */
 describe("Integration: session flow across restart", () => {
-  vi.useFakeTimers();
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
 
   afterEach(() => {
-    gameSessionStore.clearSession("session-initial");
-    gameSessionStore.clearSession("session-restarted");
-    gameSessionStore.clearSession("session-destroy-test");
+    vi.useRealTimers();
   });
 
   function createMockGameWithMutableSessionId(): {
@@ -77,6 +79,23 @@ describe("Integration: session flow across restart", () => {
       resume: () => {
         status = "playing";
       },
+      start: (config?: GameConfig) => {
+        sessionId = crypto.randomUUID();
+        gameSessionStore.startSession(sessionId, "tictactoe", GAME_PARADIGM.TURN_BASED);
+        const rules = (config?.rules ?? {}) as Record<string, unknown>;
+        currentSlot = (rules.starter as SlotIdValue) ?? SlotId.PLAYER;
+        status = GameStatus.WAITING;
+        data = {
+          currentSlot,
+          board: [[null, null, null], [null, null, null], [null, null, null]],
+          ...rules,
+        };
+        return game.getState();
+      },
+      restart: (config?: GameConfig) => {
+        game.start(config);
+        status = GameStatus.PLAYING;
+      },
     } as unknown as BaseGame;
 
     return {
@@ -120,9 +139,8 @@ describe("Integration: session flow across restart", () => {
     return new TurnBasedSessionManager(game, providers, callbacks);
   }
 
-  it("registers AI turn reasoning in the new sessionId after restart, not the old one", async () => {
-    const { game, setSessionId, setStatus, setCurrentSlot } =
-      createMockGameWithMutableSessionId();
+  it("registers AI turn reasoning in the new sessionId after manager.restart(), not the old one", async () => {
+    const { game } = createMockGameWithMutableSessionId();
 
     const aiAction: GameAction = { type: ActionType.MOVE, data: { row: 1, col: 1 } };
     const provider = createStreamingProvider(
@@ -130,17 +148,20 @@ describe("Integration: session flow across restart", () => {
       aiAction,
     );
 
-    // Simulate initial game.start() → session-initial
-    gameSessionStore.startSession("session-initial", "tictactoe", GAME_PARADIGM.TURN_BASED);
-
-    // Simulate game.restart() → session-restarted
-    setSessionId("session-restarted");
-    setStatus("playing");
-    setCurrentSlot(SlotId.PLAYER);
-    gameSessionStore.startSession("session-restarted", "tictactoe", GAME_PARADIGM.TURN_BASED);
-
-    // Create manager with the game (session is already "session-restarted")
+    // Create manager
     const manager = createManager(game, provider);
+
+    // Use manager.restart() — this generates a new sessionId internally via game.start()
+    manager.restart({
+      slots: [],
+      rules: { starter: SlotId.PLAYER, difficulty: "medium", mode: "kali" },
+    });
+
+    // The game should now be PLAYING with the new sessionId
+    expect(game.getStatus()).toBe(GameStatus.PLAYING);
+    const newSid = game.sessionId;
+    expect(newSid).not.toBe("session-initial");
+    expect(gameSessionStore.getSession(newSid)).toBeDefined();
 
     // Player makes a move
     manager.submitPlayerAction({ type: ActionType.MOVE, data: { row: 0, col: 0 } });
@@ -149,13 +170,13 @@ describe("Integration: session flow across restart", () => {
     await vi.runAllTimersAsync();
 
     // The new session should have both turns
-    const newTurns = gameSessionStore.getTurns("session-restarted");
+    const newTurns = gameSessionStore.getTurns(newSid);
     expect(newTurns).toHaveLength(2);
     expect(newTurns[0].actor).toBe(GAME_ACTOR.PLAYER);
     expect(newTurns[1].actor).toBe(GAME_ACTOR.AI);
 
     // The AI turn should have reasoning accumulated and finalized
-    const aiTurns = gameSessionStore.getAITurns("session-restarted");
+    const aiTurns = gameSessionStore.getAITurns(newSid);
     expect(aiTurns).toHaveLength(1);
     expect(aiTurns[0].reasoning?.text).toBe("I should take the center.");
     expect(aiTurns[0].reasoning?.done).toBe(true);
@@ -165,23 +186,37 @@ describe("Integration: session flow across restart", () => {
     const stateAfter = aiTurns[0].stateAfter as { board: (string | null)[][] };
     expect(stateAfter.board[1][1]).toBe("O");
 
-    // The old session should be empty (no turns registered there)
-    const oldTurns = gameSessionStore.getTurns("session-initial");
-    expect(oldTurns).toHaveLength(0);
+    // A panel using getSessionId() (dynamic) would see data
+    expect(gameSessionStore.getAITurns(game.sessionId)).toHaveLength(1);
 
-    // A panel using getSessionId() (dynamic) would see data — simulating what
-    // GameReasoningPanel and GameDebugPanel do after the fix.
-    const dynamicSid = game.sessionId;
-    expect(dynamicSid).toBe("session-restarted");
-    expect(gameSessionStore.getAITurns(dynamicSid)).toHaveLength(1);
-
-    // A panel using a STALE sessionId would NOT see data — this was the original bug.
+    // The initial session (if any was created) should not have turns from this game
     expect(gameSessionStore.getAITurns("session-initial")).toHaveLength(0);
   });
 
+  it("manager.restart() notifies subscribers so the UI re-renders", async () => {
+    const { game } = createMockGameWithMutableSessionId();
+    const provider = createStreamingProvider([], { type: ActionType.MOVE, data: { row: 0, col: 0 } });
+    const manager = createManager(game, provider);
+
+    const subscriber = vi.fn();
+    manager.subscribe(subscriber);
+
+    subscriber.mockClear();
+
+    manager.restart({
+      slots: [],
+      rules: { starter: SlotId.PLAYER, difficulty: "medium", mode: "cpu" },
+    });
+
+    // _stateChanged() should have called the subscriber
+    expect(subscriber).toHaveBeenCalled();
+
+    // Game should be playing
+    expect(game.getStatus()).toBe(GameStatus.PLAYING);
+  });
+
   it("destroy() aborts the active provider and prevents action application", async () => {
-    const { game, setSessionId, setStatus, setCurrentSlot } =
-      createMockGameWithMutableSessionId();
+    const { game } = createMockGameWithMutableSessionId();
 
     let resolveDecide: ((action: GameAction) => void) | null = null;
     const pendingPromise = new Promise<GameAction>((r) => {
@@ -195,12 +230,11 @@ describe("Integration: session flow across restart", () => {
       abort: vi.fn(),
     };
 
-    setSessionId("session-destroy-test");
-    setStatus("playing");
-    setCurrentSlot(SlotId.PLAYER);
-    gameSessionStore.startSession("session-destroy-test", "tictactoe", GAME_PARADIGM.TURN_BASED);
-
     const manager = createManager(game, provider);
+    manager.restart({
+      slots: [],
+      rules: { starter: SlotId.PLAYER, difficulty: "medium", mode: "kali" },
+    });
 
     // Player moves → triggers AI turn
     manager.submitPlayerAction({ type: ActionType.MOVE, data: { row: 0, col: 0 } });
@@ -221,7 +255,8 @@ describe("Integration: session flow across restart", () => {
     await vi.runAllTimersAsync();
 
     // The AI turn placeholder should exist but action should NOT have been completed
-    const turns = gameSessionStore.getTurns("session-destroy-test");
+    const sid = game.sessionId;
+    const turns = gameSessionStore.getTurns(sid);
     const aiTurn = turns.find((t) => t.actor === GAME_ACTOR.AI);
     expect(aiTurn).toBeDefined();
     // The action is still the placeholder (not the resolved action)

@@ -5,6 +5,7 @@ import type { GameAction } from "./types/game-action";
 import type { GameState } from "./types/game-state";
 import type { GameStatusValue } from "./constants/game-status";
 import { gameSessionStore } from "./game-session-store";
+import { GameStatus } from "./constants/game-status";
 
 export abstract class BaseGame {
   abstract readonly type: GameTypeValue;
@@ -17,6 +18,12 @@ export abstract class BaseGame {
   pause(): void {}
   resume(): void {}
   tick(): void {}
+
+  /** Reset the game and immediately set it to PLAYING. */
+  restart(config?: GameConfig): void {
+    this.start(config);
+    this.state = { ...this.state, status: GameStatus.PLAYING };
+  }
 
   private _state: GameState = {
     status: "waiting",

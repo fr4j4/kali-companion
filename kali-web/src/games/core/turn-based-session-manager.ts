@@ -7,6 +7,7 @@ import type { GameSessionManager, GameSessionManagerCallbacks } from "./game-ses
 import { PlayerType, SlotId } from "./constants/player-types";
 import { ActionType, GameCommand } from "./constants/action-types";
 import type { GameCommandValue } from "./constants/action-types";
+import type { GameConfig } from "./types/game-config";
 import { KaliStatus, KaliErrorCode, KALI_MAX_RETRIES } from "./constants/game-ai";
 import { KaliError } from "../ai/kali-error";
 import { gameSessionStore } from "./game-session-store";
@@ -60,6 +61,17 @@ export class TurnBasedSessionManager implements GameSessionManager {
   // ── Common lifecycle ───────────────────────────────────────────────────────
 
   start(): void {
+    void this._maybeTriggerAITurn();
+  }
+
+  restart(config?: GameConfig): void {
+    this._cancelled = false;
+    this._activeProvider?.abort();
+    this._activeProvider = null;
+    this._retryCount = 0;
+    this._kaliError = null;
+    this._game.restart(config);
+    this._stateChanged();
     void this._maybeTriggerAITurn();
   }
 

@@ -99,11 +99,6 @@ export class TicTacToeGame extends BaseGame {
     };
   }
 
-  restart(config?: GameConfig): void {
-    this.start(config);
-    this.begin();
-  }
-
   giveUp(): void {
     this.state = {
       status: GameStatus.LOST,

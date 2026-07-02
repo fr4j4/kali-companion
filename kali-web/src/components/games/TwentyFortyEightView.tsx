@@ -185,7 +185,7 @@ export function TwentyFortyEightView({ game }: Props) {
   }, [refresh]);
 
   const startNewGame = useCallback((selectedSize: BoardSize) => {
-    game.restart(selectedSize);
+    game.restart({ slots: game.slots, rules: { size: selectedSize } });
     refresh();
   }, [game, refresh]);
 

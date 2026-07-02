@@ -15,11 +15,13 @@ export interface GameSessionManagerCallbacks {
 }
 
 import type { GameCommandValue } from "./constants/action-types";
+import type { GameConfig } from "./types/game-config";
 
 /** Public contract for any game session manager, regardless of paradigm. */
 export interface GameSessionManager {
   // ── Common lifecycle ──
   start(): void;
+  restart(config?: GameConfig): void;
   destroy(): void;
   pause(): void;
   resume(): void;

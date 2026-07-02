@@ -122,14 +122,6 @@ export class TwentyFortyEightGame extends BaseGame {
     };
   }
 
-  restart(size?: BoardSize): void {
-    const config: GameConfig | undefined = size
-      ? { slots: this.slots as unknown as readonly import("../core/types/player").PlayerSlot[], rules: { size } }
-      : undefined;
-    this.start(config);
-    this.begin();
-  }
-
   giveUp(): void {
     this._over = true;
     this.state = {
@@ -148,7 +140,7 @@ export class TwentyFortyEightGame extends BaseGame {
           return this.state;
         case GameCommand.PLAY_AGAIN:
         case GameCommand.RESTART:
-          this.restart(this._size);
+          this.restart({ slots: this.slots as unknown as readonly import("../core/types/player").PlayerSlot[], rules: { size: this._size } });
           return this.state;
         case GameCommand.PAUSE:
           this.pause();

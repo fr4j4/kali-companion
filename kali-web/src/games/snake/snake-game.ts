@@ -83,11 +83,6 @@ export class SnakeGame extends BaseGame {
     };
   }
 
-  restart(): void {
-    this.start();
-    this.begin();
-  }
-
   giveUp(): void {
     this.state = {
       status: GameStatus.LOST,
