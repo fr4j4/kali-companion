@@ -88,7 +88,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
       size="md"
       title={isChangeModel ? t("connections.change_model_title") : t("connections.activate_title")}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto stage-scroll pr-1">
         <div
           className={`flex flex-col rounded-xl border transition-all overflow-hidden ${
             health === "offline" ? "border-err/30 bg-err/5" : "border-border bg-surface"
@@ -137,10 +137,10 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
         )}
 
         {health === "checking" && (
-          <p className="text-[11px] text-muted flex items-center gap-1.5">
+          <div className="text-[11px] text-muted flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full border border-muted border-t-accent animate-spin" />
             {t("ai.loading_models")}
-          </p>
+          </div>
         )}
 
         {health === "online" && models.length > 0 && (
