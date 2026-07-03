@@ -145,7 +145,7 @@ export function GameConnectionPicker({
           activeConnName={activeConnName}
         />
 
-        <div className="h-px bg-border" />
+        <div className="h-px bg-border/40" />
 
         <div className="flex flex-col gap-1.5">
           {local.map((conn) => (
@@ -182,7 +182,7 @@ export function GameConnectionPicker({
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4 mt-3 border-t border-border">
+      <div className="flex items-center justify-between pt-4 mt-3 border-t border-border/30">
         <button
           onClick={checkAllConnections}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-muted hover:text-foreground hover:bg-white/5 transition-colors"
@@ -252,11 +252,11 @@ function ActiveConnectionCard({
           : "border-border bg-surface hover:border-accent/30"
       }`}
     >
-      <div
-        className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-          selected ? "border-accent bg-accent" : "border-muted group-hover:border-muted/70"
-        }`}
-      >
+        <div
+          className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+            selected ? "border-accent bg-accent" : "border-muted/30 group-hover:border-muted/50"
+          }`}
+        >
         {selected && (
           <CheckCircle size={10} className="text-foreground" />
         )}
@@ -362,18 +362,18 @@ function ConnectionCard({
         disabled={isDisabled}
         className={`flex items-center gap-3 px-3 py-3 text-left w-full ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
       >
-        <div
-          className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-            selected
-              ? "border-accent bg-accent"
-              : isDisabled
-              ? "border-muted/40"
-              : "border-muted group-hover:border-muted/70"
-          }`}
-          style={!selected && !isDisabled ? { borderColor: "var(--color-muted)" } : undefined}
-        >
-          {selected && <CheckCircle size={10} className="text-foreground" />}
-        </div>
+          <div
+            className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+              selected
+                ? "border-accent bg-accent"
+                : isDisabled
+                ? "border-muted/20"
+                : "border-muted/30 group-hover:border-muted/50"
+            }`}
+            style={!selected && !isDisabled ? { borderColor: "var(--color-muted)" } : undefined}
+          >
+            {selected && <CheckCircle size={10} className="text-foreground" />}
+          </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -420,8 +420,8 @@ function ConnectionCard({
         </div>
       </button>
 
-      {expanded && canExpand && health && (
-        <div className="flex flex-col gap-2 px-3 pb-3 border-t border-border/50">
+        {expanded && canExpand && health && (
+        <div className="flex flex-col gap-2 px-3 pb-3 border-t border-border/30">
           <div className="pt-2">
             <div className="text-[10px] text-muted uppercase tracking-wide mb-1.5">
               {t("settings.game_ai_select_model")}
@@ -458,12 +458,12 @@ function ConnectionCard({
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     isSelected
                       ? "border-accent/50 bg-accent/10"
-                      : "border-border/50 bg-surface/50 hover:border-accent/30"
+                      : "border-muted/20 bg-surface/50 hover:border-accent/40"
                   }`}
                 >
                   <div
                     className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                      isSelected ? "border-accent bg-accent" : "border-muted/40"
+                      isSelected ? "border-accent bg-accent" : "border-muted/25"
                     }`}
                   >
                     {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-foreground" />}
