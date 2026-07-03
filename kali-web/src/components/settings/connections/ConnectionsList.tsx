@@ -10,10 +10,12 @@ import { Plus, AlertCircle } from "lucide-react";
 import type { ConnectionSummary } from "../../../lib/protocol";
 import { ConnectionCard } from "./ConnectionCard";
 
+type HealthStatus = "checking" | "online" | "offline";
+
 interface Props {
   connections: ConnectionSummary[];
   hasActiveProvider: boolean;
-  gameConnectionId?: string;
+  health?: Record<string, HealthStatus>;
   onAdd: (kind: "local" | "cloud") => void;
   onEdit: (id: string) => void;
   onModels: (id: string) => void;
@@ -21,11 +23,13 @@ interface Props {
   onDelete: (id: string) => void;
   onDisconnect: (id: string) => void;
   onChangeModel?: (id: string) => void;
+  gameConnectionId?: string;
 }
 
 export function ConnectionsList({
   connections,
   hasActiveProvider,
+  health,
   gameConnectionId,
   onAdd,
   onEdit,
@@ -61,6 +65,7 @@ export function ConnectionsList({
           <ConnectionCard
             key={c.id}
             conn={c}
+            health={health?.[c.id]}
             gameConnectionId={gameConnectionId}
             onEdit={onEdit}
             onModels={onModels}
@@ -83,6 +88,7 @@ export function ConnectionsList({
           <ConnectionCard
             key={c.id}
             conn={c}
+            health={health?.[c.id]}
             gameConnectionId={gameConnectionId}
             onEdit={onEdit}
             onModels={onModels}
