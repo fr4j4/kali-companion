@@ -553,6 +553,14 @@ class Server:
             "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
             "game_session_path": settings.game_session_path,
             "game_ai_global_timeout_ms": settings.game_ai_global_timeout_ms,
+            "game_connection_id": settings.game_connection_id,
+            "game_model": settings.game_model,
+            "game_temperature": settings.game_temperature,
+            "game_max_tokens": settings.game_max_tokens,
+            "game_retry_timeout_1_ms": settings.game_retry_timeouts[0] if len(settings.game_retry_timeouts) > 0 else 12000,
+            "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
+            "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
+            "game_max_retries": settings.game_max_retries,
         }
         if self._config_warnings:
             payload["config_warnings"] = list(self._config_warnings.values())
@@ -1324,6 +1332,16 @@ class Server:
         "tts_models_dir",
         "profile",
         "artifact_diff_preview",
+        "game_session_path",
+        "game_ai_global_timeout_ms",
+        "game_connection_id",
+        "game_model",
+        "game_temperature",
+        "game_max_tokens",
+        "game_retry_timeout_1_ms",
+        "game_retry_timeout_2_ms",
+        "game_retry_timeout_3_ms",
+        "game_max_retries",
     )
 
     def _get_fallback(self, key: str):
@@ -1359,6 +1377,16 @@ class Server:
             "plan_mode": False,
             "voice_instructions": "",
             "voice_seed": -1,
+            "game_session_path": None,
+            "game_ai_global_timeout_ms": settings.game_ai_global_timeout_ms,
+            "game_connection_id": settings.game_connection_id,
+            "game_model": settings.game_model,
+            "game_temperature": settings.game_temperature,
+            "game_max_tokens": settings.game_max_tokens,
+            "game_retry_timeout_1_ms": settings.game_retry_timeouts[0] if len(settings.game_retry_timeouts) > 0 else 12000,
+            "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
+            "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
+            "game_max_retries": settings.game_max_retries,
         }
         return mapping.get(key)
 
@@ -1471,6 +1499,32 @@ class Server:
                 self.executor.profile = value
             elif key == "artifact_diff_preview":
                 settings.artifact_diff_preview = bool(value)
+            elif key == "game_session_path":
+                if value:
+                    settings.game_session_path = Path(value).expanduser()
+                else:
+                    settings.game_session_path = Path.home() / ".kali" / "game-sessions"
+            elif key == "game_ai_global_timeout_ms":
+                settings.game_ai_global_timeout_ms = int(value)
+            elif key == "game_connection_id":
+                settings.game_connection_id = str(value)
+            elif key == "game_model":
+                settings.game_model = str(value)
+            elif key == "game_temperature":
+                settings.game_temperature = float(value)
+            elif key == "game_max_tokens":
+                settings.game_max_tokens = int(value)
+            elif key == "game_retry_timeout_1_ms":
+                if len(settings.game_retry_timeouts) > 0:
+                    settings.game_retry_timeouts[0] = int(value)
+            elif key == "game_retry_timeout_2_ms":
+                if len(settings.game_retry_timeouts) > 1:
+                    settings.game_retry_timeouts[1] = int(value)
+            elif key == "game_retry_timeout_3_ms":
+                if len(settings.game_retry_timeouts) > 2:
+                    settings.game_retry_timeouts[2] = int(value)
+            elif key == "game_max_retries":
+                settings.game_max_retries = int(value)
             else:
                 return
             # Success — clear any previous warning for this key.
@@ -1855,6 +1909,35 @@ class Connection:
 
     # ── Game AI (WebSocket) ───────────────────────────────────
 
+    async def _resolve_game_llm_provider(self) -> LLMProvider | None:
+        """Return an LLM provider for game moves.
+
+        If game_connection_id is unset or 'active', reuse the server's active LLM.
+        Otherwise build a temporary DirectLLMProvider from a saved connection,
+        resolving the reference internally — never exposing connection properties
+        in StatusEvent.
+        """
+        gid = settings.game_connection_id
+        if not gid or gid == "active":
+            return self.server.llm_provider
+
+        conn = self.server.connections_store.get(gid)
+        if not conn:
+            logger.warning("[game_move] game_connection_id=%s not found, falling back to active", gid)
+            return self.server.llm_provider
+
+        model = settings.game_model or (conn.models[0] if conn.models else "")
+        if not model:
+            logger.warning("[game_move] no model available for connection %s, falling back to active", gid)
+            return self.server.llm_provider
+
+        return DirectLLMProvider(
+            api_url=conn.api_url,
+            api_key=conn.api_key,
+            model=model,
+            max_tokens=settings.game_max_tokens,
+        )
+
     async def _handle_game_move(self, event: dict[str, Any]) -> None:
         """Handle game_move: stream LLM with game state, emit reasoning chunks,
         and return the final action."""
@@ -1873,7 +1956,7 @@ class Connection:
         messages = self._build_game_messages(rules, game_state)
 
         try:
-            llm = self.server.llm_provider
+            llm = await self._resolve_game_llm_provider()
             if llm is None:
                 raise RuntimeError("No LLM provider configured")
             logger.info("[game_move] → LLM stream | game=%s session=%s", game_type, session_id)
@@ -1883,7 +1966,11 @@ class Connection:
             pre_marker_buf: list[str] = []
             seen_move_marker = False
 
-            async for event in llm.stream(messages):
+            async for event in llm.stream(
+                messages,
+                temperature=settings.game_temperature,
+                max_tokens=settings.game_max_tokens,
+            ):
                 if event.kind == "reasoning" and event.text:
                     reasoning_parts.append(event.text)
                     if game_session_id:
@@ -2913,6 +3000,64 @@ class Connection:
                     await self.send({"event": "error", "detail": "game_ai_global_timeout_ms must be at least 5000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_ai_global_timeout_ms"})
+        if "game_connection_id" in event:
+            settings.game_connection_id = str(event["game_connection_id"])
+        if "game_model" in event:
+            settings.game_model = str(event["game_model"])
+        if "game_temperature" in event:
+            try:
+                value = float(event["game_temperature"])
+                if 0.0 <= value <= 2.0:
+                    settings.game_temperature = value
+                else:
+                    await self.send({"event": "error", "detail": "game_temperature must be between 0.0 and 2.0"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_temperature"})
+        if "game_max_tokens" in event:
+            try:
+                value = int(event["game_max_tokens"])
+                if value >= 16:
+                    settings.game_max_tokens = value
+                else:
+                    await self.send({"event": "error", "detail": "game_max_tokens must be at least 16"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_max_tokens"})
+        if "game_retry_timeout_1_ms" in event:
+            try:
+                v = int(event["game_retry_timeout_1_ms"])
+                if v >= 1000:
+                    settings.game_retry_timeouts[0] = v
+                else:
+                    await self.send({"event": "error", "detail": "game_retry_timeout_1_ms must be at least 1000"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_retry_timeout_1_ms"})
+        if "game_retry_timeout_2_ms" in event:
+            try:
+                v = int(event["game_retry_timeout_2_ms"])
+                if v >= 1000:
+                    settings.game_retry_timeouts[1] = v
+                else:
+                    await self.send({"event": "error", "detail": "game_retry_timeout_2_ms must be at least 1000"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_retry_timeout_2_ms"})
+        if "game_retry_timeout_3_ms" in event:
+            try:
+                v = int(event["game_retry_timeout_3_ms"])
+                if v >= 1000:
+                    settings.game_retry_timeouts[2] = v
+                else:
+                    await self.send({"event": "error", "detail": "game_retry_timeout_3_ms must be at least 1000"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_retry_timeout_3_ms"})
+        if "game_max_retries" in event:
+            try:
+                value = int(event["game_max_retries"])
+                if 1 <= value <= 5:
+                    settings.game_max_retries = value
+                else:
+                    await self.send({"event": "error", "detail": "game_max_retries must be between 1 and 5"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_max_retries"})
         if "artifact_diff_preview" in event:
             settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         # Qwen3 VoiceDesign settings
@@ -2956,6 +3101,14 @@ class Connection:
             artifact_diff_preview=settings.artifact_diff_preview,
             game_session_path=str(settings.game_session_path) if settings.game_session_path else None,
             game_ai_global_timeout_ms=settings.game_ai_global_timeout_ms,
+            game_connection_id=settings.game_connection_id or None,
+            game_model=settings.game_model or None,
+            game_temperature=settings.game_temperature,
+            game_max_tokens=settings.game_max_tokens,
+            game_retry_timeout_1_ms=settings.game_retry_timeouts[0] if len(settings.game_retry_timeouts) > 0 else None,
+            game_retry_timeout_2_ms=settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else None,
+            game_retry_timeout_3_ms=settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else None,
+            game_max_retries=settings.game_max_retries,
             # Per-connection
             stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,

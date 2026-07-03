@@ -42,6 +42,14 @@ class UserConfig:
     artifact_diff_preview: bool | None = None
     game_session_path: str | None = None
     game_ai_global_timeout_ms: int | None = None
+    game_connection_id: str | None = None
+    game_model: str | None = None
+    game_temperature: float | None = None
+    game_max_tokens: int | None = None
+    game_retry_timeout_1_ms: int | None = None
+    game_retry_timeout_2_ms: int | None = None
+    game_retry_timeout_3_ms: int | None = None
+    game_max_retries: int | None = None
 
     # ── Per-connection (applied on every new Connection, override env defaults) ──
     stt_enabled: bool | None = None

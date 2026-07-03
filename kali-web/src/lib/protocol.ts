@@ -71,6 +71,14 @@ export interface SettingsEvent {
   voice_instructions?: string;
   voice_seed?: number;
   game_ai_global_timeout_ms?: number;
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
+  game_retry_timeout_1_ms?: number;
+  game_retry_timeout_2_ms?: number;
+  game_retry_timeout_3_ms?: number;
+  game_max_retries?: number;
 }
 
 export interface ConsentResponseEvent {
@@ -443,6 +451,14 @@ export interface StatusEvent {
   artifact_diff_preview?: boolean;
   game_session_path?: string;
   game_ai_global_timeout_ms?: number;
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
+  game_retry_timeout_1_ms?: number;
+  game_retry_timeout_2_ms?: number;
+  game_retry_timeout_3_ms?: number;
+  game_max_retries?: number;
   config_warnings?: string[];
 }
 

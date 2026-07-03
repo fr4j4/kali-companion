@@ -153,3 +153,123 @@ async def test_build_status_payload_includes_game_ai_global_timeout_ms(settings_
     await settings_helper._emit_status()
     payload = settings_helper._sent[0]
     assert payload["game_ai_global_timeout_ms"] == 30_000
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_temperature(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_temperature", 0.7)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_temperature": 0.3,
+    })
+    assert settings.game_temperature == 0.3
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_temperature_rejects_out_of_range(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_temperature", 0.7)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_temperature": 3.0,
+    })
+    assert settings.game_temperature == 0.7
+    assert any(msg.get("event") == "error" for msg in settings_helper._sent)
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_temperature_accepts_boundary(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_temperature", 0.7)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_temperature": 0.0,
+    })
+    assert settings.game_temperature == 0.0
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_temperature": 2.0,
+    })
+    assert settings.game_temperature == 2.0
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_max_tokens(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_max_tokens", 256)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_max_tokens": 512,
+    })
+    assert settings.game_max_tokens == 512
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_max_tokens_rejects_too_low(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_max_tokens", 256)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_max_tokens": 8,
+    })
+    assert settings.game_max_tokens == 256
+    assert any(msg.get("event") == "error" for msg in settings_helper._sent)
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_max_retries(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_max_retries", 2)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_max_retries": 3,
+    })
+    assert settings.game_max_retries == 3
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_max_retries_rejects_out_of_range(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_max_retries", 2)
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_max_retries": 10,
+    })
+    assert settings.game_max_retries == 2
+    assert any(msg.get("event") == "error" for msg in settings_helper._sent)
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_connection_id(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_connection_id", "")
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_connection_id": "conn-abc-123",
+    })
+    assert settings.game_connection_id == "conn-abc-123"
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_game_retry_timeouts(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_retry_timeouts", [12_000, 3_000, 2_000])
+    await settings_helper._apply_settings({
+        "event": "settings",
+        "game_retry_timeout_1_ms": 8_000,
+        "game_retry_timeout_2_ms": 4_000,
+        "game_retry_timeout_3_ms": 1_500,
+    })
+    assert settings.game_retry_timeouts == [8_000, 4_000, 1_500]
+
+
+@pytest.mark.asyncio
+async def test_build_status_payload_includes_game_ai_params(settings_helper, monkeypatch):
+    monkeypatch.setattr(settings, "game_connection_id", "conn-xyz")
+    monkeypatch.setattr(settings, "game_model", "deepseek-v4-flash")
+    monkeypatch.setattr(settings, "game_temperature", 0.5)
+    monkeypatch.setattr(settings, "game_max_tokens", 128)
+    monkeypatch.setattr(settings, "game_retry_timeouts", [10_000, 4_000, 1_000])
+    monkeypatch.setattr(settings, "game_max_retries", 3)
+    await settings_helper._emit_status()
+    payload = settings_helper._sent[0]
+    assert payload["game_connection_id"] == "conn-xyz"
+    assert payload["game_model"] == "deepseek-v4-flash"
+    assert payload["game_temperature"] == 0.5
+    assert payload["game_max_tokens"] == 128
+    assert payload["game_retry_timeout_1_ms"] == 10_000
+    assert payload["game_retry_timeout_2_ms"] == 4_000
+    assert payload["game_retry_timeout_3_ms"] == 1_000
+    assert payload["game_max_retries"] == 3
