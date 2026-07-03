@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Bug, Gamepad2, Mic, MoreHorizontal, Send, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
+import { Bug, Gamepad2, MessageSquare, Mic, MoreHorizontal, Send, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStage } from "./StageProvider";
 import type { WorkspaceAPI } from "../workspace/types";
@@ -17,9 +17,10 @@ import type { WorkspaceAPI } from "../workspace/types";
 interface Props {
   api: WorkspaceAPI;
   onToggleDebug?: () => void;
+  onOpenTextInput: () => void;
 }
 
-export function NeuralDock({ api, onToggleDebug }: Props) {
+export function NeuralDock({ api, onToggleDebug, onOpenTextInput }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -132,6 +133,20 @@ export function NeuralDock({ api, onToggleDebug }: Props) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
+        </button>
+
+        <button
+          onClick={onOpenTextInput}
+          disabled={isChatActive || isRecording}
+          className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+            isChatActive || isRecording
+              ? "opacity-30 cursor-not-allowed"
+              : "hover:bg-accent/20 text-muted hover:text-accent"
+          }`}
+          title={t("dock.text_input")}
+          aria-label={t("dock.text_input")}
+        >
+          <MessageSquare size={16} />
         </button>
 
         <div className="w-px h-5 bg-white/10 mx-0.5" />

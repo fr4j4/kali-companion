@@ -16,6 +16,7 @@ interface Props {
   size?: "sm" | "md" | "lg" | "xl";
   bare?: boolean;
   showHandle?: boolean;
+  panelClassName?: string;
 }
 
 const BACKDROP = "fixed inset-0 z-50";
@@ -58,6 +59,7 @@ export function Overlay({
   size = "md",
   bare = false,
   showHandle = false,
+  panelClassName,
 }: Props) {
   const { t } = useTranslation();
   const { isMobile } = useBreakpoint();
@@ -110,12 +112,12 @@ export function Overlay({
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
   const panelClasses = isModal
-    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} h-[85vh] overflow-hidden flex flex-col`
+    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
     : effectiveVariant === "sheet-bottom"
-      ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] overflow-auto scrollbar-thin"
-      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-full overflow-auto scrollbar-thin ${
+      ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] h-auto overflow-auto scrollbar-thin"
+      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-auto max-h-[85vh] overflow-auto scrollbar-thin ${
           effectiveVariant === "sheet-left" ? "border-r" : "border-l"
-        }`;
+        } ${panelClassName ?? ""}`;
 
   const anim =
     isModal
@@ -178,7 +180,7 @@ export function Overlay({
                   </button>
                 </div>
               )}
-              <div className={bare ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-5 scrollbar-thin"}>
+              <div className={bare ? "flex-1 overflow-hidden min-h-0" : "flex-1 overflow-y-auto p-5 scrollbar-thin"}>
                 {children}
               </div>
             </div>

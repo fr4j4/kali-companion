@@ -46,7 +46,7 @@ export interface Size {
 }
 
 /** A single window on the canvas. */
-export interface ArtifactWindowData {
+export interface WindowData {
   /** Unique workspace id (auto-incremented). */
   id: number;
   /** Reference to the backend ArtifactEvent id, if applicable. */
@@ -94,11 +94,11 @@ export type UndoAction =
   | { type: "close"; windowId: number }
   | { type: "move"; windowId: number; prevPos: Position; newPos: Position }
   | { type: "resize"; windowId: number; prevSize: Size; newSize: Size }
-  | { type: "clear-all"; windows: ArtifactWindowData[] };
+  | { type: "clear-all"; windows: WindowData[] };
 
 /** The full API surface returned by `useWorkspace`. */
 export interface WorkspaceAPI {
-  windows: ArtifactWindowData[];
+  windows: WindowData[];
   gridMode: boolean;
   selectedIds: Set<number>;
   audioEnabled: boolean;

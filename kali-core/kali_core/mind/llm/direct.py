@@ -169,6 +169,9 @@ class DirectLLMProvider:
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncIterator[StreamEvent]:
         system_content = self._system_prompt
         if tools:
@@ -181,8 +184,8 @@ class DirectLLMProvider:
                 "model": self._model,
                 "messages": full,
                 "stream": True,
-                "temperature": 0.7,
-                "max_tokens": self._max_tokens,
+                "temperature": temperature if temperature is not None else 0.7,
+                "max_tokens": max_tokens if max_tokens is not None else self._max_tokens,
             }
             if tools_param:
                 kwargs["tools"] = tools_param

@@ -5,6 +5,8 @@
 
 import type { OutgoingEvent, EventName } from "./protocol";
 
+const DEFAULT_SEND_TIMEOUT_MS = 10_000;
+
 type Listener = (payload: OutgoingEvent) => void;
 type IncomingEventName = EventName;
 
@@ -13,6 +15,7 @@ export class WSClient {
   private sessionId?: string;
   private ws: WebSocket | null = null;
   private listeners = new Map<IncomingEventName, Set<Listener>>();
+  private dynamicListeners: { prefix: string; fn: Listener }[] = [];
   private reconnectDelay = 1000;
   private shouldReconnect = true;
 
@@ -61,6 +64,10 @@ export class WSClient {
     this.ws?.close();
   }
 
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
   on(event: IncomingEventName, listener: Listener): void {
     let set = this.listeners.get(event);
     if (!set) {
@@ -74,10 +81,126 @@ export class WSClient {
     this.listeners.get(event)?.delete(listener);
   }
 
+  /** Listen for events whose event name starts with a given prefix (e.g. "game_move_reasoning:"). */
+  onDynamic(prefix: string, fn: Listener): () => void {
+    const entry = { prefix, fn };
+    this.dynamicListeners.push(entry);
+    return () => {
+      const idx = this.dynamicListeners.indexOf(entry);
+      if (idx !== -1) this.dynamicListeners.splice(idx, 1);
+    };
+  }
+
   send(payload: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload));
     }
+  }
+
+  sendAndWait<T>(
+    payload: Record<string, unknown>,
+    responseEventName: string,
+    timeoutMs: number = DEFAULT_SEND_TIMEOUT_MS,
+    abortSignal?: AbortSignal,
+    options?: {
+      onProgress?: () => void;
+      globalTimeoutMs?: number;
+    },
+  ): Promise<T> & { __notifyProgress?: () => void } {
+    if (abortSignal?.aborted) {
+      return Object.assign(
+        Promise.reject(new Error("sendAndWait aborted before send")),
+        { __notifyProgress: () => {} },
+      );
+    }
+
+    let notifyProgress: (() => void) | null = null;
+
+    const promise = new Promise<T>((resolve, reject) => {
+      let rejected = false;
+      const startedAt = performance.now();
+      const globalTimeoutMs = options?.globalTimeoutMs ?? timeoutMs;
+
+      const fail = (reason: string) => {
+        if (rejected) return;
+        rejected = true;
+        clearTimeout(timer);
+        this.off(responseEventName as IncomingEventName, handler as Listener);
+        if (abortSignal) {
+          abortSignal.removeEventListener("abort", abortHandler);
+        }
+        reject(new Error(reason));
+      };
+
+      let timer: ReturnType<typeof setTimeout>;
+      let lastProgressAt = startedAt;
+
+      const resetAttemptTimer = () => {
+        if (rejected) return;
+        clearTimeout(timer);
+        lastProgressAt = performance.now();
+        const elapsed = performance.now() - startedAt;
+        const remainingGlobal = Math.max(0, globalTimeoutMs - elapsed);
+        const nextTick = Math.min(timeoutMs, remainingGlobal);
+        if (nextTick <= 0) {
+          fail(`sendAndWait timed out after ${Math.round(elapsed)}ms (global)`);
+          return;
+        }
+        timer = setTimeout(() => {
+          const timeSinceProgress = performance.now() - lastProgressAt;
+          const finalElapsed = performance.now() - startedAt;
+          if (timeSinceProgress >= timeoutMs || finalElapsed >= globalTimeoutMs) {
+            fail(`sendAndWait timed out after ${Math.round(finalElapsed)}ms (global)`);
+          } else {
+            fail(`sendAndWait timed out after ${timeoutMs}ms`);
+          }
+        }, nextTick);
+      };
+      resetAttemptTimer();
+
+      const abortHandler = () => {
+        fail("sendAndWait aborted");
+      };
+
+      if (abortSignal) {
+        abortSignal.addEventListener("abort", abortHandler);
+      }
+
+      const handler = (response: OutgoingEvent) => {
+        if (rejected) return;
+        rejected = true;
+        clearTimeout(timer);
+        this.off(responseEventName as IncomingEventName, handler as Listener);
+        if (abortSignal) {
+          abortSignal.removeEventListener("abort", abortHandler);
+        }
+        console.log(`[WS ← ${responseEventName}]`, response);
+        resolve(response as T);
+      };
+
+      const progressHandler = () => {
+        resetAttemptTimer();
+      };
+
+      this.on(responseEventName as IncomingEventName, handler as Listener);
+
+      if (options?.onProgress) {
+        const progressName = `__progress:${responseEventName}`;
+        this.on(progressName as IncomingEventName, progressHandler as Listener);
+        const originalProgress = options.onProgress;
+        notifyProgress = () => {
+          this.dispatch(progressName as IncomingEventName, { event: progressName } as OutgoingEvent);
+          originalProgress();
+        };
+      }
+
+      console.log(`[WS → ${responseEventName}]`, payload);
+      this.send(payload);
+    });
+
+    return Object.assign(promise, {
+      __notifyProgress: notifyProgress ?? (() => {}),
+    });
   }
 
   sendBinary(data: ArrayBuffer | Blob): void {
@@ -93,6 +216,11 @@ export class WSClient {
 
   private dispatch(event: IncomingEventName, payload: OutgoingEvent): void {
     this.listeners.get(event)?.forEach((l) => l(payload));
+    for (const { prefix, fn } of this.dynamicListeners) {
+      if (event.startsWith(prefix)) {
+        fn(payload);
+      }
+    }
   }
 
   simulate(payload: OutgoingEvent): void {

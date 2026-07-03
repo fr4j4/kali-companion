@@ -6,7 +6,7 @@
 // visible form, never the backend state — the original "every keystroke
 // reconfigures Kali" bug is fixed by construction.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cpu } from "lucide-react";
 import { useStage } from "../../stage/StageProvider";
@@ -14,8 +14,10 @@ import { ConnectionsList } from "./connections/ConnectionsList";
 import { ConnectionForm } from "./connections/ConnectionForm";
 import { ActivateModal } from "./connections/ActivateModal";
 import { ModelsModal } from "./connections/ModelsModal";
-import { deleteConnection, listConnections } from "../../lib/api/connections";
-import type { ConnectionKind, ConnectionSummary } from "../../lib/protocol";
+import { deleteConnection, listConnections, testConnection } from "../../lib/api/connections";
+import type { ConnectionKind, ConnectionSummary, StatusEvent } from "../../lib/protocol";
+
+type HealthStatus = "checking" | "online" | "offline";
 
 type FormMode = "create" | "edit";
 type FormKind = ConnectionKind;
@@ -29,7 +31,11 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { open: false, mode: "create", kind: "local", existingId: null };
 
-export function ProviderSection() {
+interface Props {
+  systemStatus: StatusEvent | null;
+}
+
+export function ProviderSection({ systemStatus }: Props) {
   const { t } = useTranslation();
   const { connections, activeConnectionId, cloudProviders, activateConnection, deactivateConnection, refreshConnections } = useStage();
 
@@ -37,6 +43,29 @@ export function ProviderSection() {
   const [activateConn, setActivateConn] = useState<ConnectionSummary | null>(null);
   const [modelsConn, setModelsConn] = useState<ConnectionSummary | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [health, setHealth] = useState<Record<string, HealthStatus>>({});
+
+  useEffect(() => {
+    const results: Record<string, HealthStatus> = {};
+    for (const conn of connections) {
+      results[conn.id] = "checking";
+    }
+    setHealth(results);
+
+    void Promise.all(
+      connections.map(async (conn) => {
+        try {
+          const result = await testConnection(conn.api_url, "");
+          setHealth((prev) => ({
+            ...prev,
+            [conn.id]: result.ok ? "online" : "offline",
+          }));
+        } catch {
+          setHealth((prev) => ({ ...prev, [conn.id]: "offline" }));
+        }
+      }),
+    );
+  }, [connections]);
 
   const handleAdd = (kind: FormKind) =>
     setForm({ open: true, mode: "create", kind, existingId: null });
@@ -123,6 +152,8 @@ export function ProviderSection() {
           onChangeModel={handleActivate}
           onDelete={handleDelete}
           onDisconnect={handleDisconnect}
+          gameConnectionId={systemStatus?.game_connection_id}
+          health={health}
         />
       )}
 

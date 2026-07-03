@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceAPI } from "../workspace/types";
-import { ArtifactWindow } from "./ArtifactWindow";
+import { KaliWindow } from "./Window";
 import { WindowContentRouter } from "./WindowContentRouter";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { Position, Size } from "../workspace/types";
@@ -11,7 +11,7 @@ interface Props {
   winScale?: number;
 }
 
-export function ArtifactCanvas({ api, winScale = 1 }: Props) {
+export function WindowCanvas({ api, winScale = 1 }: Props) {
   const { t } = useTranslation();
   const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize, toggleMaximize, persistWindow } = api;
 
@@ -30,7 +30,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
         {windows.filter((w) => !w.closed).map((w) => {
           const entry = widgetRegistry[w.type];
           return (
-            <ArtifactWindow
+            <KaliWindow
               key={w.id}
               window={w}
               focused={w.focused}
@@ -46,7 +46,7 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
               winScale={winScale}
             >
               <WindowContentRouter window={w} api={api} />
-            </ArtifactWindow>
+            </KaliWindow>
           );
         })}
       </div>
@@ -57,26 +57,26 @@ export function ArtifactCanvas({ api, winScale = 1 }: Props) {
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 30 }} aria-label={t("canvas.aria_label")}>
       {windows.filter((w) => !w.closed).map((w) => {
         const entry = widgetRegistry[w.type];
-        return (
-          <ArtifactWindow
-            key={w.id}
-            window={w}
-            focused={w.focused}
-            selected={selectedIds.has(w.id)}
-            onFocus={() => focusWindow(w.id)}
-            onClose={() => closeWindow(w.id)}
-            onMinimize={() => toggleMinimize(w.id)}
-            onMaximize={() => toggleMaximize(w.id)}
-            onMove={(pos) => moveWindow(w.id, pos)}
-            onMoveEnd={(prevPos) => handleMoveEnd(w.id, prevPos)}
-            onResize={(size, pos) => handleResize(w.id, size, pos)}
-            minW={entry?.minW}
-            minH={entry?.minH}
-            winScale={winScale}
-          >
-            <WindowContentRouter window={w} api={api} />
-          </ArtifactWindow>
-        );
+          return (
+            <KaliWindow
+              key={w.id}
+              window={w}
+              focused={w.focused}
+              selected={selectedIds.has(w.id)}
+              onFocus={() => focusWindow(w.id)}
+              onClose={() => closeWindow(w.id)}
+              onMinimize={() => toggleMinimize(w.id)}
+              onMaximize={() => toggleMaximize(w.id)}
+              onMove={(pos) => moveWindow(w.id, pos)}
+              onMoveEnd={(prevPos) => handleMoveEnd(w.id, prevPos)}
+              onResize={(size, pos) => handleResize(w.id, size, pos)}
+              minW={entry?.minW}
+              minH={entry?.minH}
+              winScale={winScale}
+            >
+              <WindowContentRouter window={w} api={api} />
+            </KaliWindow>
+          );
       })}
     </div>
   );

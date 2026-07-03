@@ -1,6 +1,17 @@
 import React from "react";
+import { Brain, Gamepad2, Terminal } from "lucide-react";
 import type { WindowType } from "../../workspace/types";
 import { DEFAULT_SIZES, WINDOW_ICONS } from "../../workspace/types";
+
+export interface SidePanelConfig {
+  position: "left" | "right" | "bottom";
+  defaultWidth: number;
+  defaultHeight: number;
+  defaultOpen: boolean;
+  minWidth: number;
+  minHeight: number;
+  toggleIcon: React.ReactNode;
+}
 
 export interface WidgetEntry {
   component: React.LazyExoticComponent<React.ComponentType<any>>;
@@ -10,6 +21,8 @@ export interface WidgetEntry {
   resizable: boolean;
   minW: number;
   minH: number;
+  sidePanel?: SidePanelConfig;
+  leftSidePanel?: SidePanelConfig;
 }
 
 const LazyEntityCard = React.lazy(() => import("./EntityCardWidget").then((m) => ({ default: m.EntityCardWidget })));
@@ -211,15 +224,6 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
     minW: 260,
     minH: 160,
   },
-  html: {
-    component: LazyHtml,
-    width: sz("html").width,
-    height: sz("html").height,
-    icon: WINDOW_ICONS.html,
-    resizable: true,
-    minW: 300,
-    minH: 200,
-  },
   reasoning: {
     component: LazyReasoning,
     width: sz("reasoning").width,
@@ -237,5 +241,41 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
     resizable: true,
     minW: 320,
     minH: 300,
+    sidePanel: {
+      position: "right",
+      defaultWidth: 320,
+      defaultHeight: 400,
+      defaultOpen: false,
+      minWidth: 160,
+      minHeight: 120,
+      toggleIcon: <Gamepad2 size={14} />,
+    },
+    leftSidePanel: {
+      position: "left",
+      defaultWidth: 320,
+      defaultHeight: 400,
+      defaultOpen: false,
+      minWidth: 160,
+      minHeight: 120,
+      toggleIcon: <Brain size={14} />,
+    },
+  },
+  html: {
+    component: LazyHtml,
+    width: sz("html").width,
+    height: sz("html").height,
+    icon: WINDOW_ICONS.html,
+    resizable: true,
+    minW: 300,
+    minH: 200,
+    sidePanel: {
+      position: "bottom",
+      defaultWidth: 400,
+      defaultHeight: 200,
+      defaultOpen: false,
+      minWidth: 240,
+      minHeight: 100,
+      toggleIcon: <Terminal size={14} />,
+    },
   },
 };

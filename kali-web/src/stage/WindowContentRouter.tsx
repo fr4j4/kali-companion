@@ -1,10 +1,10 @@
 import React, { memo, useMemo } from "react";
-import type { ArtifactWindowData, WorkspaceAPI } from "../workspace/types";
+import type { WindowData, WorkspaceAPI } from "../workspace/types";
 import type { ArtifactEvent } from "../lib/protocol";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 
 interface Props {
-  window: ArtifactWindowData;
+  window: WindowData;
   onHeaderActions?: (actions: React.ReactNode) => void;
   api?: WorkspaceAPI;
 }
@@ -78,7 +78,7 @@ function LoadingPlaceholder() {
 }
 
 /**
- * Memoized so that when a parent (ArtifactWindow) re-renders due to
+ * Memoized so that when a parent (KaliWindow) re-renders due to
  * position/size changes (e.g. during drag), the widget content itself
  * doesn't re-render unless its `window.content` or `api` reference changed.
  */

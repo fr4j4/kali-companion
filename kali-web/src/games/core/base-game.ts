@@ -4,10 +4,13 @@ import type { GameConfig } from "./types/game-config";
 import type { GameAction } from "./types/game-action";
 import type { GameState } from "./types/game-state";
 import type { GameStatusValue } from "./constants/game-status";
+import { gameSessionStore } from "./game-session-store";
+import { GameStatus } from "./constants/game-status";
 
 export abstract class BaseGame {
   abstract readonly type: GameTypeValue;
   abstract readonly slots: readonly PlayerSlot[];
+  abstract readonly paradigm: "turn-based" | "realtime";
 
   abstract start(config?: GameConfig): GameState;
   abstract handleAction(action: GameAction, fromSlotId: string): GameState;
@@ -15,6 +18,12 @@ export abstract class BaseGame {
   pause(): void {}
   resume(): void {}
   tick(): void {}
+
+  /** Reset the game and immediately set it to PLAYING. */
+  restart(config?: GameConfig): void {
+    this.start(config);
+    this.state = { ...this.state, status: GameStatus.PLAYING };
+  }
 
   private _state: GameState = {
     status: "waiting",
@@ -25,6 +34,7 @@ export abstract class BaseGame {
 
   private _prevData: unknown = null;
   private _version = 0;
+  private _sessionId = "";
 
   protected get state(): GameState {
     return this._state;
@@ -60,5 +70,25 @@ export abstract class BaseGame {
 
   get prevData(): unknown {
     return this._prevData;
+  }
+
+  get sessionId(): string {
+    return this._sessionId;
+  }
+
+  newGame(): string {
+    this._sessionId = crypto.randomUUID();
+    gameSessionStore.startSession(this._sessionId, this.type, this.paradigm);
+    return this._sessionId;
+  }
+
+  stop(): void {
+    if (this._sessionId) {
+      const status = this.getStatus();
+      if (status !== "playing" && status !== "paused" && status !== "waiting") {
+        gameSessionStore.endSession(this._sessionId, status);
+      }
+      gameSessionStore.clearSession(this._sessionId);
+    }
   }
 }

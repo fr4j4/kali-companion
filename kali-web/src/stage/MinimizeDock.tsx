@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
-import type { ArtifactWindowData } from "../workspace/types";
+import type { WindowData } from "../workspace/types";
 
 interface Props {
-  windows: ArtifactWindowData[];
+  windows: WindowData[];
   onRestore: (id: number) => void;
 }
 

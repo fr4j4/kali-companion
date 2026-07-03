@@ -54,14 +54,14 @@ interface Props {
 }
 
 const RESIZE_HANDLES: { edge: ResizeEdge; className: string; label: string }[] = [
-  { edge: "n", className: "aw-handle-n", label: "Redimensionar arriba" },
-  { edge: "s", className: "aw-handle-s", label: "Redimensionar abajo" },
-  { edge: "e", className: "aw-handle-e", label: "Redimensionar derecha" },
-  { edge: "w", className: "aw-handle-w", label: "Redimensionar izquierda" },
-  { edge: "ne", className: "aw-handle-ne", label: "Redimensionar noreste" },
-  { edge: "nw", className: "aw-handle-nw", label: "Redimensionar noroeste" },
-  { edge: "se", className: "aw-handle-se", label: "Redimensionar sureste" },
-  { edge: "sw", className: "aw-handle-sw", label: "Redimensionar southwest" },
+  { edge: "n", className: "kw-handle-n", label: "Redimensionar arriba" },
+  { edge: "s", className: "kw-handle-s", label: "Redimensionar abajo" },
+  { edge: "e", className: "kw-handle-e", label: "Redimensionar derecha" },
+  { edge: "w", className: "kw-handle-w", label: "Redimensionar izquierda" },
+  { edge: "ne", className: "kw-handle-ne", label: "Redimensionar noreste" },
+  { edge: "nw", className: "kw-handle-nw", label: "Redimensionar noroeste" },
+  { edge: "se", className: "kw-handle-se", label: "Redimensionar sureste" },
+  { edge: "sw", className: "kw-handle-sw", label: "Redimensionar southwest" },
 ];
 
 export function DebugPad({ onClose, client }: Props) {
@@ -118,7 +118,7 @@ export function DebugPad({ onClose, client }: Props) {
   return (
     <div
       ref={elRef}
-      className={`fixed z-50 aw ${focused ? "focused" : ""}`}
+      className={`fixed z-50 kw ${focused ? "focused" : ""}`}
       style={{
         left: position.x,
         top: position.y,
@@ -261,7 +261,7 @@ export function DebugPad({ onClose, client }: Props) {
       {RESIZE_HANDLES.map(({ edge, className, label }) => (
         <div
           key={edge}
-          className={`aw-handle ${className}`}
+          className={`kw-handle ${className}`}
           onPointerDown={(e) => handleResizeStart(e, edge)}
           aria-label={label}
         />

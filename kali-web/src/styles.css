@@ -1230,8 +1230,8 @@
   }
 }
 
-.aw {
-  position: absolute; display: flex; flex-direction: column;
+.kw {
+  position: relative; display: flex; flex-direction: column;
   background: rgba(var(--bg-elev-rgb), 0.92); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--border); border-radius: calc(16px * var(--mul-window));
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
@@ -1240,50 +1240,63 @@
   pointer-events: auto;
 }
 /* Low-perf path: solid background, no backdrop-filter (cheaper paint). */
-html.kali-perf-low .aw {
+html.kali-perf-low .kw {
   background: rgba(var(--bg-elev-rgb), 0.98);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-.aw.focused { border-color: rgba(var(--accent-rgb), 0.4); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15), 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(var(--accent-rgb), 0.12); }
-.aw.dimmed { opacity: 0.72; filter: saturate(0.6); }
-.aw.selected { border-color: rgba(var(--accent-rgb), 0.5); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2), 0 20px 60px rgba(0,0,0,0.5); }
-.aw.minimized { height: calc(36px * var(--mul-window)) !important; overflow: hidden; }
-.aw.minimized .aw-body { display: none; }
+.kw.focused { border-color: rgba(var(--accent-rgb), 0.4); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15), 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(var(--accent-rgb), 0.12); }
+.kw.dimmed { opacity: 0.72; filter: saturate(0.6); }
+.kw.selected { border-color: rgba(var(--accent-rgb), 0.5); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2), 0 20px 60px rgba(0,0,0,0.5); }
+.kw.minimized { height: calc(36px * var(--mul-window)) !important; overflow: hidden; }
+.kw.minimized .kw-body { display: none; }
 /* Skip layout/paint for offscreen widget bodies (perf, see
    docs/PERFORMANCE.md §3.4). contain-intrinsic-size avoids scrollbar
    jumps when the widget scrolls into view. */
-.aw-body {
+.kw-body {
   contain: layout style paint;
   content-visibility: auto;
   contain-intrinsic-size: auto 400px;
 }
-.aw.minimized .aw-handle { display: none; }
-.aw.entering { animation: awEnter 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+.kw.minimized .kw-handle { display: none; }
+.kw.entering { animation: awEnter 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
 @keyframes awEnter { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 @keyframes awLeave { to { opacity: 0; transform: scale(0.85); } }
 
-.aw-header { cursor: grab; user-select: none; position: relative; background: rgba(var(--accent-rgb), 0.04); border-bottom: 1px solid var(--border); }
-.aw-header:active { cursor: grabbing; }
+.kw-header { cursor: grab; user-select: none; position: relative; background: rgba(var(--accent-rgb), 0.04); border-bottom: 1px solid var(--border); }
+.kw-header:active { cursor: grabbing; }
 
 /* Resize handles — 8 directional handles */
-.aw-handle { position: absolute; z-index: 5; }
-.aw-handle-se { cursor: nwse-resize; bottom: 0; right: 0; width: 16px; height: 16px; }
-.aw-handle-sw { cursor: nesw-resize; bottom: 0; left: 0; width: 16px; height: 16px; }
-.aw-handle-ne { cursor: nesw-resize; top: 0; right: 0; width: 16px; height: 16px; }
-.aw-handle-nw { cursor: nwse-resize; top: 0; left: 0; width: 16px; height: 16px; }
-.aw-handle-n { cursor: n-resize; top: -3px; left: 16px; right: 16px; height: 6px; }
-.aw-handle-s { cursor: s-resize; bottom: -3px; left: 16px; right: 16px; height: 6px; }
-.aw-handle-e { cursor: e-resize; right: -3px; top: 16px; bottom: 16px; width: 6px; }
-.aw-handle-w { cursor: w-resize; left: -3px; top: 16px; bottom: 16px; width: 6px; }
+.kw-handle { position: absolute; z-index: 5; }
+.kw-handle-se { cursor: nwse-resize; bottom: 0; right: 0; width: 16px; height: 16px; }
+.kw-handle-sw { cursor: nesw-resize; bottom: 0; left: 0; width: 16px; height: 16px; }
+.kw-handle-ne { cursor: nesw-resize; top: 0; right: 0; width: 16px; height: 16px; }
+.kw-handle-nw { cursor: nwse-resize; top: 0; left: 0; width: 16px; height: 16px; }
+.kw-handle-n { cursor: n-resize; top: -3px; left: 16px; right: 16px; height: 6px; }
+.kw-handle-s { cursor: s-resize; bottom: -3px; left: 16px; right: 16px; height: 6px; }
+.kw-handle-e { cursor: e-resize; right: -3px; top: 16px; bottom: 16px; width: 6px; }
+.kw-handle-w { cursor: w-resize; left: -3px; top: 16px; bottom: 16px; width: 6px; }
 
 /* Corner visual indicator (only SE corner) */
-.aw-handle-se::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 10px; height: 10px; border-right: 2px solid rgba(var(--accent-rgb), 0.3); border-bottom: 2px solid rgba(var(--accent-rgb), 0.3); border-radius: 0 0 3px 0; transition: border-color 0.2s; }
-.aw-handle-se:hover::after { border-color: var(--accent); }
+.kw-handle-se::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 10px; height: 10px; border-right: 2px solid rgba(var(--accent-rgb), 0.3); border-bottom: 2px solid rgba(var(--accent-rgb), 0.3); border-radius: 0 0 3px 0; transition: border-color 0.2s; }
+.kw-handle-se:hover::after { border-color: var(--accent); }
 
 /* Maximized state */
-.aw.maximized { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border-radius: 0; z-index: 9999 !important; }
-.aw.maximized .aw-handle { display: none; }
+.kw.maximized { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border-radius: 0; z-index: 9999 !important; }
+.kw.maximized .kw-handle { display: none; }
+
+/* Side panel — lives inside the window wrapper, external to .kw */
+.kw-wrapper { position: relative; }
+.kw-side-panel { position: absolute; z-index: 1; pointer-events: auto; background: var(--glass-ide-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--border); overflow: clip; display: flex; flex-direction: column; }
+.kw-side-panel-right { left: 100%; top: 0; width: var(--panel-width, 320px); height: var(--panel-height, 400px); border-left: none; border-radius: 0 12px 12px 0; margin-left: 4px; }
+.kw-side-panel-left { right: 100%; top: 0; width: var(--panel-width, 320px); height: var(--panel-height, 400px); border-right: none; border-radius: 12px 0 0 12px; margin-right: 4px; }
+.kw-side-panel-bottom { top: 100%; left: 0; width: var(--panel-width, 400px); height: var(--panel-height, 200px); border-top: none; border-radius: 0 0 12px 12px; margin-top: 4px; }
+.kw-side-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); background: rgba(var(--accent-rgb), 0.04); flex-shrink: 0; pointer-events: auto; }
+.kw-side-panel-resize { position: absolute; background: transparent; z-index: 10; }
+.kw-side-panel-resize-right { right: -4px; top: 0; width: 8px; height: 100%; cursor: ew-resize; }
+.kw-side-panel-resize-bottom { left: 0; bottom: -4px; width: 100%; height: 8px; cursor: ns-resize; }
+.kw-side-panel-resize-left { left: -4px; top: 0; width: 8px; height: 100%; cursor: ew-resize; }
+.kw-side-panel-resize-top { left: 0; top: -4px; width: 100%; height: 8px; cursor: ns-resize; }
 
 /* Snap guides */
 .snap-guide { position: fixed; background: var(--accent); z-index: 9998; pointer-events: none; opacity: 0.6; }
@@ -1346,7 +1359,7 @@ html.kali-perf-low .aw {
 
 /* Grid mode (mobile / toggle) */
 .grid-mode .artifact-layer-grid { display: flex; flex-wrap: wrap; gap: calc(16px * var(--mul-density)); padding: calc(80px * var(--mul-density)) calc(20px * var(--mul-density)) calc(120px * var(--mul-density)); align-items: flex-start; justify-content: center; align-content: flex-start; }
-.grid-mode .aw { position: relative !important; left: auto !important; top: auto !important; }
+.grid-mode .kw { position: relative !important; left: auto !important; top: auto !important; }
 
 /* Minimize dock */
 #minimize-dock { position: fixed; bottom: calc(70px * var(--mul-density)); left: calc(20px * var(--mul-density)); z-index: 35; display: flex; flex-direction: column; gap: calc(4px * var(--mul-density)); max-width: calc(200px * var(--mul-window)); }
@@ -1696,7 +1709,7 @@ html.kali-perf-low .aw {
 
 /* Reduced motion — disable non-essential animations */
 @media (prefers-reduced-motion: reduce) {
-  .aw.entering { animation: none; }
+  .kw.entering { animation: none; }
   .spawn-anim { animation: none; }
   .entity-breathe { animation: none; }
   @keyframes dashFlow { to { stroke-dashoffset: 0; } }

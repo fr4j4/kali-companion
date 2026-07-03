@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { ArtifactWindowData, Position, Size } from "./types";
+import type { WindowData, Position, Size } from "./types";
 
 const STORAGE_KEY = "kali.workspace";
 
@@ -91,7 +91,7 @@ export function usePersistence() {
     return map[artifactId] ?? null;
   }, []);
 
-  const saveWindowState = useCallback((w: ArtifactWindowData) => {
+  const saveWindowState = useCallback((w: WindowData) => {
     if (!w.artifactId) return;
     pendingRef.current.set(w.artifactId, {
       position: w.position,

@@ -7,12 +7,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { ArtifactWindowData } from "../workspace/types";
+import type { WindowData } from "../workspace/types";
 import { TETHER_COLORS } from "../workspace/types";
 import { computeTetherPath } from "../workspace/windowManager";
 
 interface Props {
-  windows: ArtifactWindowData[];
+  windows: WindowData[];
 }
 
 interface TetherState {

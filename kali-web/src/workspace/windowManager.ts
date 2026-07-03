@@ -5,7 +5,7 @@
  * state is managed by useWorkspace, which calls these functions.
  */
 
-import type { ArtifactWindowData, WindowType, Position, CreateWindowOpts } from "./types";
+import type { WindowData, WindowType, Position, CreateWindowOpts } from "./types";
 import { DEFAULT_SIZES, WINDOW_ICONS } from "./types";
 
 let idCounter = 100;
@@ -41,8 +41,8 @@ export function getNextPosition(width: number, height: number): Position {
   return { x, y };
 }
 
-/** Create a new ArtifactWindowData from opts. */
-export function createWindowData(opts: Partial<CreateWindowOpts> & { type: WindowType }): ArtifactWindowData {
+/** Create a new WindowData from opts. */
+export function createWindowData(opts: Partial<CreateWindowOpts> & { type: WindowType }): WindowData {
   const defaults = DEFAULT_SIZES[opts.type] ?? { width: 340, height: null };
   const width = opts.width ?? defaults.width;
   const height = opts.height ?? defaults.height ?? undefined;
@@ -66,7 +66,7 @@ export function createWindowData(opts: Partial<CreateWindowOpts> & { type: Windo
 }
 
 /** Focus a window by id — bring it to front and unfocus others. */
-export function focusInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
+export function focusInArray(windows: WindowData[], id: number): WindowData[] {
   const z = nextZ();
   return windows.map((w) => ({
     ...w,
@@ -76,23 +76,23 @@ export function focusInArray(windows: ArtifactWindowData[], id: number): Artifac
 }
 
 /** Close a window by id (mark closed, keep in array for recovery). */
-export function closeInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
+export function closeInArray(windows: WindowData[], id: number): WindowData[] {
   return windows.map((w) => w.id === id ? { ...w, closed: true, focused: false } : w);
 }
 
 /** Restore a previously-closed window. */
-export function restoreInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
+export function restoreInArray(windows: WindowData[], id: number): WindowData[] {
   const z = nextZ();
   return windows.map((w) => w.id === id ? { ...w, closed: false, focused: true, zIndex: z } : { ...w, focused: false });
 }
 
 /** Duplicate a window (new id, offset position). */
-export function duplicateInArray(windows: ArtifactWindowData[], id: number): { windows: ArtifactWindowData[]; newId: number } {
+export function duplicateInArray(windows: WindowData[], id: number): { windows: WindowData[]; newId: number } {
   const original = windows.find((w) => w.id === id);
   if (!original) return { windows, newId: -1 };
   const newId = nextId();
   const z = nextZ();
-  const copy: ArtifactWindowData = {
+  const copy: WindowData = {
     ...original,
     id: newId,
     title: original.title + " (copia)",
@@ -108,22 +108,22 @@ export function duplicateInArray(windows: ArtifactWindowData[], id: number): { w
 }
 
 /** Move a window to a new position. */
-export function moveInArray(windows: ArtifactWindowData[], id: number, pos: Position): ArtifactWindowData[] {
+export function moveInArray(windows: WindowData[], id: number, pos: Position): WindowData[] {
   return windows.map((w) => w.id === id ? { ...w, position: pos } : w);
 }
 
 /** Resize a window. */
-export function resizeInArray(windows: ArtifactWindowData[], id: number, size: { width: number; height: number | null }): ArtifactWindowData[] {
+export function resizeInArray(windows: WindowData[], id: number, size: { width: number; height: number | null }): WindowData[] {
   return windows.map((w) => w.id === id ? { ...w, size } : w);
 }
 
 /** Toggle minimize. */
-export function toggleMinimizeInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
+export function toggleMinimizeInArray(windows: WindowData[], id: number): WindowData[] {
   return windows.map((w) => w.id === id ? { ...w, minimized: !w.minimized } : w);
 }
 
 /** Toggle maximize. */
-export function toggleMaximizeInArray(windows: ArtifactWindowData[], id: number): ArtifactWindowData[] {
+export function toggleMaximizeInArray(windows: WindowData[], id: number): WindowData[] {
   return windows.map((w) => {
     if (w.id !== id) return { ...w, maximized: false };
     return { ...w, maximized: !w.maximized };
@@ -131,12 +131,12 @@ export function toggleMaximizeInArray(windows: ArtifactWindowData[], id: number)
 }
 
 /** Unfocus all windows (set focused: false on every window). */
-export function unfocusAllInArray(windows: ArtifactWindowData[]): ArtifactWindowData[] {
+export function unfocusAllInArray(windows: WindowData[]): WindowData[] {
   return windows.map((w) => ({ ...w, focused: false }));
 }
 
 /** Clear all windows (mark all as closed). */
-export function clearAllInArray(windows: ArtifactWindowData[]): ArtifactWindowData[] {
+export function clearAllInArray(windows: WindowData[]): WindowData[] {
   return windows.map((w) => ({ ...w, closed: true, focused: false }));
 }
 
@@ -189,7 +189,7 @@ export function computeTetherPath(windowEl: HTMLElement): string {
 }
 
 /** Arrange windows in a circle around the avatar center. */
-export function computeOrbitPositions(windows: ArtifactWindowData[], _radius?: number): Array<{ id: number; pos: Position }> {
+export function computeOrbitPositions(windows: WindowData[], _radius?: number): Array<{ id: number; pos: Position }> {
   const center = getAvatarCenter();
   const ws = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mul-avatar')) || 1;
   const radius = (_radius ?? 330) * ws;

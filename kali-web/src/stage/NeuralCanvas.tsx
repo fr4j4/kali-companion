@@ -8,7 +8,7 @@
  *   │            [Avatar + Projection]              │
  *   │                                               │
  *   │            TetherLayer (SVG, behind windows)   │
- *   │            ArtifactCanvas (floating windows)   │
+ *   │            WindowCanvas (floating windows)   │
  *   │                                               │
  *   │            [Dock]                              │
  *   └──────────────────────────────────────────────┘
@@ -32,7 +32,7 @@ import { HUD } from "./HUD";
 import { PresenceLayer } from "./PresenceLayer";
 import { NeuralDock } from "./NeuralDock";
 import { TetherLayer } from "./TetherLayer";
-import { ArtifactCanvas } from "./ArtifactCanvas";
+import { WindowCanvas } from "./WindowCanvas";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { SpotlightInput } from "./SpotlightInput";
 import { VoiceBar } from "./VoiceBar";
@@ -312,7 +312,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
 
       {/* Artifact canvas — floating windows */}
       <ErrorBoundary>
-        <ArtifactCanvas api={api} winScale={winScale} />
+        <WindowCanvas api={api} winScale={winScale} />
       </ErrorBoundary>
 
       {/* HUD — top bar */}
@@ -361,6 +361,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       <NeuralDock
         api={api}
         onToggleDebug={() => setDebugOpen((d) => !d)}
+        onOpenTextInput={() => setTyping(true)}
       />
 
       {/* Stopped toast */}

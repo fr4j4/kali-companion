@@ -115,7 +115,7 @@ export interface ChatState {
   getJobLogs: (id: string) => void;
   requestImage: (key: string) => void;
   downloadTtsModel: (modelId: string, provider?: "qwen3" | "piper") => void;
-  downloadSttModel: (modelId: string) => void;
+  downloadSttModel: (modelId: string, provider?: "vosk" | "qwen3-asr") => void;
   downloadProgress: Record<string, number>;
   downloadError: string | null;
   /** Release the full content of an artifact from memory (close → metadata-only). */
@@ -768,9 +768,9 @@ export function useChat(): ChatState {
     clientRef.current?.send({ event: "download_tts_model", model_id: modelId, provider: provider ?? "qwen3" });
   }, []);
 
-  const downloadSttModel = useCallback((modelId: string) => {
+  const downloadSttModel = useCallback((modelId: string, provider?: "vosk" | "qwen3-asr") => {
     setDownloadError(null);
-    clientRef.current?.send({ event: "download_stt_model", model_id: modelId });
+    clientRef.current?.send({ event: "download_stt_model", model_id: modelId, provider });
   }, []);
 
   /** Release the full content of an artifact, keeping only metadata + preview. */

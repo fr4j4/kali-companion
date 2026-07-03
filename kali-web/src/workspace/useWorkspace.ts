@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useMemo, useRef } from "react";
 import type {
-  ArtifactWindowData,
+  WindowData,
   WindowType,
   Position,
   Size,
@@ -54,8 +54,8 @@ export interface UseWorkspaceOpts {
 export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").WorkspaceAPI {
   // Synchronous mirror of `windows` so stable callbacks can read current
   // state without depending on `windows` in their dependency array.
-  const windowsRef = useRef<ArtifactWindowData[]>([]);
-  const [windows, setWindows] = useState<ArtifactWindowData[]>([]);
+  const windowsRef = useRef<WindowData[]>([]);
+  const [windows, setWindows] = useState<WindowData[]>([]);
   windowsRef.current = windows;
   const [gridMode, setGridMode] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);

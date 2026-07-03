@@ -61,6 +61,7 @@ export interface SettingsEvent {
   stt_vad_silence_timeout?: number;
   stt_vad_auto_calibrate?: boolean;
   stt_vad_rms_threshold?: number;
+  game_session_path?: string;
   wake_word_enabled?: boolean;
   input_mode?: string;
   feedback_mode?: string;
@@ -69,6 +70,15 @@ export interface SettingsEvent {
   // Qwen3 VoiceDesign fields
   voice_instructions?: string;
   voice_seed?: number;
+  game_ai_global_timeout_ms?: number;
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
+  game_retry_timeout_1_ms?: number;
+  game_retry_timeout_2_ms?: number;
+  game_retry_timeout_3_ms?: number;
+  game_max_retries?: number;
 }
 
 export interface ConsentResponseEvent {
@@ -439,6 +449,16 @@ export interface StatusEvent {
   feedback_mode?: string;
   plan_mode?: boolean;
   artifact_diff_preview?: boolean;
+  game_session_path?: string;
+  game_ai_global_timeout_ms?: number;
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
+  game_retry_timeout_1_ms?: number;
+  game_retry_timeout_2_ms?: number;
+  game_retry_timeout_3_ms?: number;
+  game_max_retries?: number;
   config_warnings?: string[];
 }
 
@@ -570,6 +590,7 @@ export interface DownloadTtsModelErrorEvent {
 export interface DownloadSttModelEvent {
   event: "download_stt_model";
   model_id: string;
+  provider?: "vosk" | "qwen3-asr";
 }
 
 export interface DownloadSttModelStartedEvent {
@@ -608,6 +629,127 @@ export interface ModelCatalogEntry {
   downloaded: boolean;
 }
 
+// ── Game AI WebSocket Events ────────────────────────────────────────────────
+
+export interface GameRules {
+  system_prompt: string;
+  response_format?: string;
+  [key: string]: unknown;
+}
+
+export interface GameMoveEvent {
+  event: "game_move";
+  game_type: string;
+  session_id?: string;
+  game_session_id?: string;
+  rules: GameRules;
+  game_state: Record<string, unknown>;
+  player_role: string;
+  difficulty?: string;
+  starter?: string;
+  player_marker?: string;
+  opponent_marker?: string;
+}
+
+export interface GameAction {
+  type: string;
+  data: Record<string, unknown>;
+}
+
+export type GameMoveErrorCode = "PARSE_ERROR" | "INVALID_MOVE" | "MODEL_ERROR" | "NO_LEGAL_MOVES";
+
+export interface GameMoveError {
+  code: GameMoveErrorCode;
+  message: string;
+  fallback_action?: GameAction;
+}
+
+export interface GameMoveReasoningEvent {
+  event: string; // "game_move_reasoning:<game_session_id>"
+  chunk?: string;
+  done?: boolean;
+}
+
+export interface GameMoveResponseEvent {
+  event: "game_move_response";
+  game_type: string;
+  session_id?: string;
+  action: GameAction | null;
+  error: GameMoveError | null;
+  reasoning?: string;
+}
+
+// ── Game session events ──────────────────────────────
+
+import type {
+  GameSessionData,
+  GameTurnData,
+  GameEventData,
+  GameSessionMeta,
+} from "../games/core/game-session-types";
+
+export interface GameSessionStartEvent {
+  event: "game_session_start";
+  sessionId: string;
+  gameId: string;
+  paradigm: "turn-based" | "realtime";
+}
+
+export interface GameTurnEvent {
+  event: "game_turn";
+  sessionId: string;
+  turnData: GameTurnData;
+}
+
+export interface GameSessionEndEvent {
+  event: "game_session_end";
+  sessionId: string;
+  gameId: string;
+  paradigm: string;
+  status: string;
+  startedAt: number;
+  endedAt: number;
+  turns: GameTurnData[];
+  events: GameEventData[];
+}
+
+export interface GameSessionListEvent {
+  event: "list_game_sessions";
+  gameId?: string;
+}
+
+export interface GameSessionListResponseEvent {
+  event: "list_game_sessions";
+  sessions: GameSessionMeta[];
+}
+
+export interface GameSessionLoadEvent {
+  event: "load_game_session";
+  sessionId: string;
+}
+
+export interface GameSessionLoadedResponseEvent {
+  event: "game_session_loaded";
+  session: GameSessionData | null;
+}
+
+export interface GameSessionDeleteEvent {
+  event: "delete_game_session";
+  sessionId: string;
+}
+
+export interface GameSessionDeletedResponseEvent {
+  event: "game_session_deleted";
+  sessionId: string;
+  deleted: boolean;
+}
+
+export interface GameSessionPersistedEvent {
+  event: "game_session_persisted";
+  sessionId: string;
+  path: string;
+}
+
 export type IncomingEvent =
   | InputEvent
   | StopEvent
@@ -632,7 +774,14 @@ export type IncomingEvent =
   | ActivateConnectionRequest
   | DeactivateConnectionRequest
   | DownloadTtsModelEvent
-  | DownloadSttModelEvent;
+  | DownloadSttModelEvent
+  | GameMoveEvent
+  | GameSessionStartEvent
+  | GameTurnEvent
+  | GameSessionEndEvent
+  | GameSessionListEvent
+  | GameSessionLoadEvent
+  | GameSessionDeleteEvent;
 
 export type OutgoingEvent =
   | ReadyEvent
@@ -671,4 +820,6 @@ export type OutgoingEvent =
   | DownloadSttModelStartedEvent
   | DownloadSttModelProgressEvent
   | DownloadSttModelCompleteEvent
-  | DownloadSttModelErrorEvent;
+  | DownloadSttModelErrorEvent
+  | GameMoveResponseEvent
+  | GameMoveReasoningEvent;
