@@ -180,7 +180,7 @@ export function Overlay({
                   </button>
                 </div>
               )}
-              <div className={bare ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-5 scrollbar-thin"}>
+              <div className={bare ? "flex-1 overflow-hidden min-h-0" : "flex-1 overflow-y-auto p-5 scrollbar-thin"}>
                 {children}
               </div>
             </div>

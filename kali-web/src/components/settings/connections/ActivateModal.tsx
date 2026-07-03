@@ -90,7 +90,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
       bare={true}
       panelClassName="max-h-[70vh]"
     >
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-5 gap-4">
+      <div className="flex flex-col h-full p-5 gap-4">
         <div
           className={`flex flex-col rounded-xl border transition-all overflow-hidden shrink-0 ${
             health === "offline" ? "border-err/30 bg-err/5" : "border-border bg-surface"
@@ -147,12 +147,12 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
 
         {health === "online" && models.length > 0 && (
           <>
-            <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
-              <div className="text-[10px] text-muted uppercase tracking-wide shrink-0">
+            <div className="flex flex-col gap-2">
+              <div className="text-[10px] text-muted uppercase tracking-wide">
                 {t("settings.game_ai_select_model")}
               </div>
 
-              <div className="relative shrink-0">
+              <div className="relative">
                 <svg
                   width="12"
                   height="12"
@@ -172,7 +172,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
                 />
               </div>
 
-              <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto stage-scroll">
+              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto stage-scroll">
                 {filteredModels.map((m) => {
                   const selected = model === m;
                   return (
@@ -205,7 +205,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
             </div>
 
             {vendor && (
-              <p className="text-[10px] text-muted/60 shrink-0">
+              <p className="text-[10px] text-muted/60">
                 {t("connections.vendor_detected", { vendor })}
               </p>
             )}
