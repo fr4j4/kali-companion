@@ -455,7 +455,7 @@ function ConnectionCard({
                 <button
                   key={m}
                   onClick={() => onModelSelect(m)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     isSelected
                       ? "border-accent/50 bg-accent/10"
                       : "border-border/50 bg-surface/50 hover:border-accent/30"
@@ -466,9 +466,9 @@ function ConnectionCard({
                       isSelected ? "border-accent bg-accent" : "border-muted/40"
                     }`}
                   >
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-surface" />}
+                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-foreground" />}
                   </div>
-                  <span className="text-xs font-mono text-foreground truncate">{m}</span>
+                  <span className="text-xs font-mono text-foreground truncate leading-relaxed">{m}</span>
                 </button>
               );
             })}
