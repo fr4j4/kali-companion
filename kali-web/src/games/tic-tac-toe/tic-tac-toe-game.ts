@@ -104,7 +104,7 @@ export class TicTacToeGame extends BaseGame {
 
   giveUp(): void {
     this.state = {
-      status: GameStatus.LOST,
+      status: GameStatus.ABANDONED,
       score: 0,
       data: this._serializeBoard(),
       winner: SlotId.OPPONENT,
@@ -129,6 +129,9 @@ export class TicTacToeGame extends BaseGame {
           return this.state;
         case GameCommand.GIVE_UP:
           this.giveUp();
+          return this.state;
+        case GameCommand.TO_TITLE:
+          this.start();
           return this.state;
         default:
           return this.state;

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+const ABANDONED_DELAY_MS = 1500;
+
 import { TicTacToeGame, type TicTacToeData, type Difficulty } from "../../games/tic-tac-toe/tic-tac-toe-game";
 import { TicTacToeCPUPlayer } from "../../games/tic-tac-toe/tic-tac-toe-cpu";
 import type { GameSessionManager } from "../../games/core/game-session-manager";
@@ -92,6 +95,15 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
     manager.giveUp();
   }, [manager]);
 
+  // Auto-reset to title screen after the player abandons the game.
+  useEffect(() => {
+    if (game.getStatus() !== GameStatus.ABANDONED) return;
+    const t = setTimeout(() => {
+      sendCommand(GameCommand.TO_TITLE);
+    }, ABANDONED_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [game, tick, sendCommand]);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const status = game.getStatus();
@@ -114,7 +126,7 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
         return;
       }
 
-      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) {
+      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW || status === GameStatus.ABANDONED) {
         if (e.key === "Enter") {
           e.preventDefault();
           sendCommand(GameCommand.PLAY_AGAIN);
@@ -433,6 +445,25 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
         </div>
       )}
 
+      {/* Abandoned transition overlay */}
+      {status === GameStatus.ABANDONED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2
+            className="text-lg mb-1 tracking-wider"
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              color: "#f43f5e",
+              textShadow: "0 0 16px rgba(244,63,94,0.7)",
+            }}
+          >
+            ABANDONED
+          </h2>
+          <p className="text-[9px] mt-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}>
+            Returning to title screen…
+          </p>
+        </div>
+      )}
+
       {/* Won/Lost/Draw overlay */}
       {(status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
@@ -455,11 +486,11 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
               PLAY AGAIN
             </button>
             <button
-              onClick={() => sendCommand(GameCommand.GIVE_UP)}
+              onClick={() => sendCommand(GameCommand.TO_TITLE)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
             >
-              QUIT
+              TITLE SCREEN
             </button>
           </div>
         </div>

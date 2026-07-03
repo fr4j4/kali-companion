@@ -128,7 +128,7 @@ export class TwentyFortyEightGame extends BaseGame {
   giveUp(): void {
     this._over = true;
     this.state = {
-      status: GameStatus.LOST,
+      status: GameStatus.ABANDONED,
       score: this._score,
       data: this._serializeBoard(),
       winner: null,
@@ -153,6 +153,9 @@ export class TwentyFortyEightGame extends BaseGame {
           return this.state;
         case GameCommand.GIVE_UP:
           this.giveUp();
+          return this.state;
+        case GameCommand.TO_TITLE:
+          this.start({ slots: this.slots as unknown as readonly import("../core/types/player").PlayerSlot[], rules: { size: this._size } });
           return this.state;
         default:
           return this.state;

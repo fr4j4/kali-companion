@@ -63,7 +63,7 @@ describe("BaseGame.isFinished() default implementation", () => {
       game.start(config(game, { mode: "cpu" }));
       game.handleAction({ type: ActionType.COMMAND, data: GameCommand.START }, SlotId.PLAYER);
       game.handleAction({ type: ActionType.COMMAND, data: GameCommand.GIVE_UP }, SlotId.PLAYER);
-      expect(game.getStatus()).toBe(GameStatus.LOST);
+      expect(game.getStatus()).toBe(GameStatus.ABANDONED);
       expect(game.isFinished()).toBe(true);
     });
   });
@@ -108,7 +108,7 @@ describe("BaseGame.isFinished() default implementation", () => {
       game.start(config(game));
       game.handleAction({ type: ActionType.COMMAND, data: GameCommand.START }, SlotId.PLAYER);
       game.handleAction({ type: ActionType.COMMAND, data: GameCommand.GIVE_UP }, SlotId.PLAYER);
-      expect(game.getStatus()).toBe(GameStatus.LOST);
+      expect(game.getStatus()).toBe(GameStatus.ABANDONED);
       expect(game.isFinished()).toBe(true);
     });
   });

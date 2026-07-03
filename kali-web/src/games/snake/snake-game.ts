@@ -88,7 +88,7 @@ export class SnakeGame extends BaseGame {
 
   giveUp(): void {
     this.state = {
-      status: GameStatus.LOST,
+      status: GameStatus.ABANDONED,
       score: this._score,
       data: this._serializeBoard(),
       winner: "player",
@@ -113,6 +113,9 @@ export class SnakeGame extends BaseGame {
           return this.state;
         case GameCommand.GIVE_UP:
           this.giveUp();
+          return this.state;
+        case GameCommand.TO_TITLE:
+          this.start();
           return this.state;
       }
     }

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+const ABANDONED_DELAY_MS = 1500;
 import { SnakeGame } from "../../games/snake/snake-game";
 import { GameStatus } from "../../games/core/constants/game-status";
 import type { GameStatusValue } from "../../games/core/constants/game-status";
@@ -336,7 +338,7 @@ export function SnakeView({ game, isMaximized }: Props) {
         return;
       }
 
-      if (status === GameStatus.LOST) {
+      if (status === GameStatus.LOST || status === GameStatus.ABANDONED) {
         if (e.key === "Enter") {
           e.preventDefault();
           send(game, GameCommand.PLAY_AGAIN);
@@ -359,6 +361,15 @@ export function SnakeView({ game, isMaximized }: Props) {
 
   const status = statusRef.current;
   const state = game.getState();
+
+  // Auto-reset to title screen after the player abandons the game.
+  useEffect(() => {
+    if (status !== GameStatus.ABANDONED) return;
+    const t = setTimeout(() => {
+      send(game, GameCommand.TO_TITLE);
+    }, ABANDONED_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [game, status]);
 
   const pixelFont = { fontFamily: "'Press Start 2P', monospace" };
 
@@ -459,6 +470,20 @@ export function SnakeView({ game, isMaximized }: Props) {
         </div>
       )}
 
+      {status === GameStatus.ABANDONED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
+            ABANDONED
+          </h2>
+          <p className="text-xs mb-4" style={{ ...pixelFont, color: PALETTE.head }}>
+            SCORE: {state.score}
+          </p>
+          <p className="text-[9px] mt-2" style={{ ...pixelFont, color: PALETTE.border }}>
+            Returning to title screen…
+          </p>
+        </div>
+      )}
+
       {status === GameStatus.LOST && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
           <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
@@ -476,11 +501,11 @@ export function SnakeView({ game, isMaximized }: Props) {
               PLAY AGAIN
             </button>
             <button
-              onClick={() => send(game, GameCommand.GIVE_UP)}
+              onClick={() => send(game, GameCommand.TO_TITLE)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ ...pixelFont, color: PALETTE.buttonAltText, backgroundColor: PALETTE.platformBorder, border: `1px solid ${PALETTE.borderLight}` }}
             >
-              QUIT
+              TITLE SCREEN
             </button>
           </div>
           <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>

@@ -5,6 +5,7 @@ export const GameStatus = {
   WON: "won",
   LOST: "lost",
   DRAW: "draw",
+  ABANDONED: "abandoned",
 } as const;
 
 export type GameStatusValue = (typeof GameStatus)[keyof typeof GameStatus];

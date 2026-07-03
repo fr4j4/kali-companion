@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const ABANDONED_DELAY_MS = 1500;
+
 import {
   TwentyFortyEightGame,
   type BoardData,
@@ -232,7 +235,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
         return;
       }
 
-      if (status === GameStatus.WON || status === GameStatus.LOST) {
+      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.ABANDONED) {
         if (e.key === "Enter") {
           e.preventDefault();
           send(game, GameCommand.PLAY_AGAIN);
@@ -254,6 +257,16 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [game, refresh, pendingSize, startNewGame]);
+
+  // Auto-reset to title screen after the player abandons the game.
+  useEffect(() => {
+    if (statusRef.current !== GameStatus.ABANDONED) return;
+    const t = setTimeout(() => {
+      send(game, GameCommand.TO_TITLE);
+      refresh();
+    }, ABANDONED_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [game, refresh, statusVersion]);
 
   const data = game.getState().data as BoardData | null;
   const cells = data?.cells ?? [];
@@ -549,6 +562,33 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
         </div>
       )}
 
+      {statusRef.current === GameStatus.ABANDONED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2
+            className="text-lg mb-1 tracking-wider"
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              color: "#f43f5e",
+              textShadow: "0 0 16px rgba(244,63,94,0.7)",
+            }}
+          >
+            ABANDONED
+          </h2>
+          <p
+            className="text-xs mb-4"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9" }}
+          >
+            SCORE: {score}
+          </p>
+          <p
+            className="text-[9px]"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
+          >
+            Returning to title screen…
+          </p>
+        </div>
+      )}
+
       {(statusRef.current === GameStatus.WON || statusRef.current === GameStatus.LOST) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
           <h2
@@ -587,7 +627,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
             </button>
             <button
               onClick={() => {
-                send(game, GameCommand.GIVE_UP);
+                send(game, GameCommand.TO_TITLE);
                 refresh();
               }}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
@@ -598,7 +638,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                 border: "1px solid #38bdf8",
               }}
             >
-              QUIT
+              TITLE SCREEN
             </button>
           </div>
           <p
