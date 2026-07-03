@@ -2004,9 +2004,11 @@ class Connection:
         final_reasoning = ""
         final_action: dict | None = None
         final_error: dict | None = None
+        reasoning_truncated = False
 
         for idx, attempt in enumerate(attempts):
             is_last_attempt = idx == len(attempts) - 1
+            reasoning_max_chars = settings.game_reasoning_max_chars
             logger.info(
                 "[game_move] attempt %d/%d (%s) | game=%s session=%s",
                 idx + 1, len(attempts), attempt["label"], game_type, session_id,
@@ -2016,6 +2018,7 @@ class Connection:
             text_parts: list[str] = []
             pre_marker_buf: list[str] = []
             seen_move_marker = False
+            reasoning_chars = 0
 
             try:
                 async for ev in llm.stream(
@@ -2025,11 +2028,20 @@ class Connection:
                     response_format=attempt["response_format"],
                 ):
                     if ev.kind == "reasoning" and ev.text:
-                        reasoning_parts.append(ev.text)
-                        if game_session_id:
+                        if reasoning_chars < reasoning_max_chars:
+                            reasoning_parts.append(ev.text)
+                            if game_session_id:
+                                await self.send({
+                                    "event": f"game_move_reasoning:{game_session_id}",
+                                    "chunk": ev.text,
+                                })
+                        reasoning_chars += len(ev.text)
+                        if reasoning_chars >= reasoning_max_chars and game_session_id:
+                            reasoning_truncated = True
                             await self.send({
                                 "event": f"game_move_reasoning:{game_session_id}",
-                                "chunk": ev.text,
+                                "chunk": "",
+                                "done": True,
                             })
                     elif ev.kind == "delta" and ev.text:
                         if not seen_move_marker:
@@ -2128,6 +2140,7 @@ class Connection:
             "action": final_action,
             "error": final_error,
             "reasoning": final_reasoning,
+            "reasoning_truncated": reasoning_truncated,
         })
 
     def _build_game_messages(self, rules: dict, game_state: dict) -> list[dict]:

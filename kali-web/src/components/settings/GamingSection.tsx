@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Gamepad2, Server, Cloud, Check } from "lucide-react";
+import { Gamepad2, Server, Cloud, Check, RotateCcw } from "lucide-react";
 import type { StatusEvent } from "../../lib/protocol";
 import { useStage } from "../../stage/StageProvider";
 import { GameConnectionPicker } from "./connections/GameConnectionPicker";
@@ -13,10 +13,19 @@ interface Props {
   onUpdate: (patch: Record<string, unknown>) => void;
 }
 
-const DEFAULT_TIMEOUTS = [12_000, 3_000, 2_000];
-const DEFAULT_MAX_RETRIES = 2;
-const DEFAULT_TEMPERATURE = 0.7;
-const DEFAULT_MAX_TOKENS = 256;
+const GAME_AI_DEFAULTS = {
+  game_ai_global_timeout_ms: 20_000,
+  game_temperature: 0.4,
+  game_max_tokens: 128,
+  game_reasoning_max_chars: 200,
+  game_retry_timeout_1_ms: 12_000,
+  game_retry_timeout_2_ms: 3_000,
+  game_retry_timeout_3_ms: 2_000,
+  game_max_retries: 2,
+  game_session_path: "",
+  game_connection_id: "active",
+  game_model: "",
+};
 
 export function GamingSection({ systemStatus, onUpdate }: Props) {
   const { t } = useTranslation();
@@ -24,16 +33,17 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
   const [advanced, setAdvanced] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const gameSessionPath = systemStatus?.game_session_path ?? "";
-  const gameAiGlobalTimeoutMs = systemStatus?.game_ai_global_timeout_ms ?? 20_000;
-  const gameConnectionId = systemStatus?.game_connection_id ?? "active";
-  const gameModel = systemStatus?.game_model ?? "";
-  const gameTemperature = systemStatus?.game_temperature ?? DEFAULT_TEMPERATURE;
-  const gameMaxTokens = systemStatus?.game_max_tokens ?? DEFAULT_MAX_TOKENS;
-  const timeout1 = systemStatus?.game_retry_timeout_1_ms ?? DEFAULT_TIMEOUTS[0];
-  const timeout2 = systemStatus?.game_retry_timeout_2_ms ?? DEFAULT_TIMEOUTS[1];
-  const timeout3 = systemStatus?.game_retry_timeout_3_ms ?? DEFAULT_TIMEOUTS[2];
-  const gameMaxRetries = systemStatus?.game_max_retries ?? DEFAULT_MAX_RETRIES;
+  const gameSessionPath = systemStatus?.game_session_path ?? GAME_AI_DEFAULTS.game_session_path;
+  const gameAiGlobalTimeoutMs = systemStatus?.game_ai_global_timeout_ms ?? GAME_AI_DEFAULTS.game_ai_global_timeout_ms;
+  const gameConnectionId = systemStatus?.game_connection_id ?? GAME_AI_DEFAULTS.game_connection_id;
+  const gameModel = systemStatus?.game_model ?? GAME_AI_DEFAULTS.game_model;
+  const gameTemperature = systemStatus?.game_temperature ?? GAME_AI_DEFAULTS.game_temperature;
+  const gameMaxTokens = systemStatus?.game_max_tokens ?? GAME_AI_DEFAULTS.game_max_tokens;
+  const gameReasoningMaxChars = systemStatus?.game_reasoning_max_chars ?? GAME_AI_DEFAULTS.game_reasoning_max_chars;
+  const timeout1 = systemStatus?.game_retry_timeout_1_ms ?? GAME_AI_DEFAULTS.game_retry_timeout_1_ms;
+  const timeout2 = systemStatus?.game_retry_timeout_2_ms ?? GAME_AI_DEFAULTS.game_retry_timeout_2_ms;
+  const timeout3 = systemStatus?.game_retry_timeout_3_ms ?? GAME_AI_DEFAULTS.game_retry_timeout_3_ms;
+  const gameMaxRetries = systemStatus?.game_max_retries ?? GAME_AI_DEFAULTS.game_max_retries;
 
   const activeConnectionId = chat.systemStatus?.llm_connection_id ?? null;
   const activeConnection = connections.find((c) => c.id === activeConnectionId);
@@ -140,10 +150,20 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
               label={t("settings.game_max_tokens")}
               value={gameMaxTokens}
               min={16}
-              max={4096}
+              max={2048}
               step={16}
               onChange={(v) => onUpdate({ game_max_tokens: Math.round(v) })}
               displayValue={String(gameMaxTokens)}
+            />
+
+            <SliderField
+              label={t("settings.game_reasoning_max_chars")}
+              value={gameReasoningMaxChars}
+              min={50}
+              max={2000}
+              step={50}
+              onChange={(v) => onUpdate({ game_reasoning_max_chars: Math.round(v) })}
+              displayValue={gameReasoningMaxChars <= 0 ? t("settings.unlimited") : `${gameReasoningMaxChars} chars`}
             />
 
             <SliderField
@@ -185,6 +205,14 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
               onChange={(v) => onUpdate({ game_max_retries: Math.round(v) })}
               displayValue={String(gameMaxRetries)}
             />
+
+            <button
+              onClick={() => onUpdate(GAME_AI_DEFAULTS)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted hover:text-foreground hover:bg-elevated border border-border transition-colors self-start"
+            >
+              <RotateCcw size={12} />
+              {t("settings.reset_game_defaults")}
+            </button>
           </div>
         )}
       </SettingsCard>
