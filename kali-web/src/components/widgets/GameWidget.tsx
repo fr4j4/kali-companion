@@ -58,6 +58,8 @@ export function GameWidget({ content, api, windowId }: Props) {
   const hasKali = hasLLMIntegration(systemStatus, connections);
   const replaySessionId = parsed.sessionId;
 
+  const initialOpenDoneRef = useRef(false);
+
   const [, forceRender] = useState(0);
 
   useEffect(() => {
@@ -105,13 +107,16 @@ export function GameWidget({ content, api, windowId }: Props) {
       });
     }
 
+    const shouldOpenGameLog = systemStatusRef.current?.game_log_default_open ?? false;
+    const shouldOpenReasoning = systemStatusRef.current?.game_reasoning_default_open ?? false;
+
     setSidePanelContent({
       icon: <Gamepad2 size={14} />,
       title: "Game Log",
       onClear: () => gameSessionStore.clearSession(game.sessionId),
       content: <GameDebugPanel getSessionId={() => game.sessionId} />,
     });
-    if (systemStatus?.game_log_default_open) {
+    if (shouldOpenGameLog && !initialOpenDoneRef.current) {
       openSidePanel();
     }
 
@@ -121,9 +126,11 @@ export function GameWidget({ content, api, windowId }: Props) {
       onClear: () => gameSessionStore.clearSession(game.sessionId),
       content: <GameReasoningPanel getSessionId={() => game.sessionId} />,
     });
-    if (systemStatus?.game_reasoning_default_open) {
+    if (shouldOpenReasoning && !initialOpenDoneRef.current) {
       openLeftSidePanel();
     }
+
+    initialOpenDoneRef.current = true;
 
     return () => {
       managerRef.current?.destroy();
@@ -131,11 +138,12 @@ export function GameWidget({ content, api, windowId }: Props) {
       gameRef.current?.stop();
       gameRef.current = null;
       setReady(false);
+      initialOpenDoneRef.current = false;
       setSidePanelContent(null);
       setLeftSidePanelContent(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, gameType, wsClient, setSidePanelContent, openSidePanel, setLeftSidePanelContent, openLeftSidePanel, systemStatus?.game_ai_global_timeout_ms, systemStatus?.game_log_default_open, systemStatus?.game_reasoning_default_open]);
+  }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent, systemStatus?.game_log_default_open, systemStatus?.game_reasoning_default_open]);
 
   const prevFocusedRef = useRef(false);
 

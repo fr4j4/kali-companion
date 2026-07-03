@@ -561,6 +561,8 @@ class Server:
             "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
             "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
             "game_max_retries": settings.game_max_retries,
+            "game_log_default_open": settings.game_log_default_open,
+            "game_reasoning_default_open": settings.game_reasoning_default_open,
         }
         if self._config_warnings:
             payload["config_warnings"] = list(self._config_warnings.values())
@@ -1342,6 +1344,8 @@ class Server:
         "game_retry_timeout_2_ms",
         "game_retry_timeout_3_ms",
         "game_max_retries",
+        "game_log_default_open",
+        "game_reasoning_default_open",
     )
 
     def _get_fallback(self, key: str):
@@ -1387,6 +1391,8 @@ class Server:
             "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
             "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
             "game_max_retries": settings.game_max_retries,
+            "game_log_default_open": settings.game_log_default_open,
+            "game_reasoning_default_open": settings.game_reasoning_default_open,
         }
         return mapping.get(key)
 
@@ -1525,6 +1531,10 @@ class Server:
                     settings.game_retry_timeouts[2] = int(value)
             elif key == "game_max_retries":
                 settings.game_max_retries = int(value)
+            elif key == "game_log_default_open":
+                settings.game_log_default_open = bool(value)
+            elif key == "game_reasoning_default_open":
+                settings.game_reasoning_default_open = bool(value)
             else:
                 return
             # Success — clear any previous warning for this key.
@@ -3350,6 +3360,10 @@ class Connection:
                     await self.send({"event": "error", "detail": "game_max_retries must be between 1 and 5"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_max_retries"})
+        if "game_log_default_open" in event:
+            settings.game_log_default_open = bool(event["game_log_default_open"])
+        if "game_reasoning_default_open" in event:
+            settings.game_reasoning_default_open = bool(event["game_reasoning_default_open"])
         if "artifact_diff_preview" in event:
             settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         # Qwen3 VoiceDesign settings
@@ -3401,6 +3415,8 @@ class Connection:
             game_retry_timeout_2_ms=settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else None,
             game_retry_timeout_3_ms=settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else None,
             game_max_retries=settings.game_max_retries,
+            game_log_default_open=settings.game_log_default_open,
+            game_reasoning_default_open=settings.game_reasoning_default_open,
             # Per-connection
             stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,
