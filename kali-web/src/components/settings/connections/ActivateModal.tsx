@@ -87,7 +87,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
       onClose={onClose}
       size="md"
       title={isChangeModel ? t("connections.change_model_title") : t("connections.activate_title")}
-      panelClassName="max-h-[70vh] overflow-hidden"
+      panelClassName="h-[70vh]"
       bare={true}
     >
       <div className="flex flex-col h-full p-5 gap-4">
