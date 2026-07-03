@@ -1940,112 +1940,54 @@ class Connection:
 
     async def _handle_game_move(self, event: dict[str, Any]) -> None:
         """Handle game_move: stream LLM with game state, emit reasoning chunks,
-        and return the final action."""
+        and return the final action.
+
+        Strategy: up to 3 progressive attempts.
+          1. Normal prompt + JSON mode + reasoning in JSON
+          2. Minimal prompt (list of empty cells) + temp=0 + max_tokens=64
+          3. Same as 2
+        On exhausting all attempts without a valid action, returns MODEL_ERROR
+        so the frontend can fall back to the CPU player (not a random move).
+        """
         game_type = event.get("game_type", "unknown")
         session_id = event.get("session_id") or "no-session"
         game_session_id = event.get("game_session_id") or session_id
         rules = event.get("rules", {})
         game_state = event.get("game_state", {})
-        player_role = event.get("player_role", "opponent")
 
         logger.info(
             "[game_move] received | game=%s session=%s player=%s",
-            game_type, session_id, player_role,
+            game_type, session_id, event.get("player_role", "opponent"),
         )
 
-        messages = self._build_game_messages(rules, game_state)
+        base_messages = self._build_game_messages(rules, game_state)
 
-        try:
-            llm = await self._resolve_game_llm_provider()
-            if llm is None:
-                raise RuntimeError("No LLM provider configured")
-            logger.info("[game_move] → LLM stream | game=%s session=%s", game_type, session_id)
+        attempts = [
+            {
+                "label": "normal",
+                "messages": base_messages,
+                "temperature": settings.game_temperature,
+                "max_tokens": settings.game_max_tokens,
+                "response_format": {"type": "json_object"},
+            },
+            {
+                "label": "minimal",
+                "messages": self._build_minimal_game_messages(game_state),
+                "temperature": 0.0,
+                "max_tokens": 64,
+                "response_format": {"type": "json_object"},
+            },
+            {
+                "label": "minimal-retry",
+                "messages": self._build_minimal_game_messages(game_state),
+                "temperature": 0.0,
+                "max_tokens": 64,
+                "response_format": {"type": "json_object"},
+            },
+        ]
 
-            reasoning_parts: list[str] = []
-            text_parts: list[str] = []
-            pre_marker_buf: list[str] = []
-            seen_move_marker = False
-
-            async for event in llm.stream(
-                messages,
-                temperature=settings.game_temperature,
-                max_tokens=settings.game_max_tokens,
-            ):
-                if event.kind == "reasoning" and event.text:
-                    reasoning_parts.append(event.text)
-                    if game_session_id:
-                        await self.send({
-                            "event": f"game_move_reasoning:{game_session_id}",
-                            "chunk": event.text,
-                        })
-                elif event.kind == "delta" and event.text:
-                    if not seen_move_marker:
-                        pre_marker_buf.append(event.text)
-                        combined = "".join(pre_marker_buf)
-                        marker_idx = combined.find("---MOVE---")
-                        if marker_idx >= 0:
-                            seen_move_marker = True
-                            reasoning_text = combined[:marker_idx]
-                            json_text = combined[marker_idx + len("---MOVE---"):]
-                            if reasoning_text.strip():
-                                reasoning_parts.append(reasoning_text.strip())
-                                if game_session_id:
-                                    await self.send({
-                                        "event": f"game_move_reasoning:{game_session_id}",
-                                        "chunk": reasoning_text.strip(),
-                                    })
-                            if json_text.strip():
-                                text_parts.append(json_text)
-                            pre_marker_buf = []
-                    else:
-                        text_parts.append(event.text)
-                elif event.kind == "done":
-                    break
-
-            # If marker was never seen, pre-marker buffer was JSON text all along
-            if not seen_move_marker:
-                text_parts = pre_marker_buf + text_parts
-
-            full_reasoning = "".join(reasoning_parts)
-            full_text = "".join(text_parts)
-
-            logger.info(
-                "[game_move] ← LLM stream done | game=%s session=%s | text=%r | reasoning_len=%d",
-                game_type, session_id, full_text[:200], len(full_reasoning),
-            )
-
-            action, error = self._parse_game_action({"text": full_text}, game_state, rules)
-
-            # Fallback: if no reasoning was streamed (non-CoT model) but the JSON
-            # has a reasoning field, extract it and emit as a single event.
-            if not full_reasoning and action and action.get("reasoning"):
-                full_reasoning = action["reasoning"]
-                if game_session_id and full_reasoning:
-                    await self.send({
-                        "event": f"game_move_reasoning:{game_session_id}",
-                        "chunk": full_reasoning,
-                        "done": True,
-                    })
-
-            # Attach reasoning to action if present
-            if action and full_reasoning:
-                action["reasoning"] = full_reasoning
-
-            logger.info(
-                "[game_move] → WS response | game=%s session=%s | action=%s error=%s",
-                game_type, session_id, action, error,
-            )
-            await self.send({
-                "event": "game_move_response",
-                "game_type": game_type,
-                "session_id": session_id,
-                "action": action,
-                "error": error,
-                "reasoning": full_reasoning,
-            })
-
-        except Exception as ex:
-            logger.exception("[game_move] LLM error | game=%s session=%s", game_type, session_id)
+        llm = await self._resolve_game_llm_provider()
+        if llm is None:
             await self.send({
                 "event": "game_move_response",
                 "game_type": game_type,
@@ -2053,10 +1995,140 @@ class Connection:
                 "action": None,
                 "error": {
                     "code": "MODEL_ERROR",
-                    "message": str(ex),
+                    "message": "No LLM provider configured",
                     "fallback_action": None,
                 },
             })
+            return
+
+        final_reasoning = ""
+        final_action: dict | None = None
+        final_error: dict | None = None
+
+        for idx, attempt in enumerate(attempts):
+            is_last_attempt = idx == len(attempts) - 1
+            logger.info(
+                "[game_move] attempt %d/%d (%s) | game=%s session=%s",
+                idx + 1, len(attempts), attempt["label"], game_type, session_id,
+            )
+
+            reasoning_parts: list[str] = []
+            text_parts: list[str] = []
+            pre_marker_buf: list[str] = []
+            seen_move_marker = False
+
+            try:
+                async for ev in llm.stream(
+                    attempt["messages"],
+                    temperature=attempt["temperature"],
+                    max_tokens=attempt["max_tokens"],
+                    response_format=attempt["response_format"],
+                ):
+                    if ev.kind == "reasoning" and ev.text:
+                        reasoning_parts.append(ev.text)
+                        if game_session_id:
+                            await self.send({
+                                "event": f"game_move_reasoning:{game_session_id}",
+                                "chunk": ev.text,
+                            })
+                    elif ev.kind == "delta" and ev.text:
+                        if not seen_move_marker:
+                            pre_marker_buf.append(ev.text)
+                            combined = "".join(pre_marker_buf)
+                            marker_idx = combined.find("---MOVE---")
+                            if marker_idx >= 0:
+                                seen_move_marker = True
+                                reasoning_text = combined[:marker_idx]
+                                json_text = combined[marker_idx + len("---MOVE---"):]
+                                if reasoning_text.strip():
+                                    reasoning_parts.append(reasoning_text.strip())
+                                    if game_session_id:
+                                        await self.send({
+                                            "event": f"game_move_reasoning:{game_session_id}",
+                                            "chunk": reasoning_text.strip(),
+                                        })
+                                if json_text.strip():
+                                    text_parts.append(json_text)
+                                pre_marker_buf = []
+                        else:
+                            text_parts.append(ev.text)
+                    elif ev.kind == "done":
+                        break
+
+                if not seen_move_marker:
+                    text_parts = pre_marker_buf + text_parts
+
+                full_reasoning = "".join(reasoning_parts)
+                full_text = "".join(text_parts)
+
+                logger.info(
+                    "[game_move] ← attempt %d done | game=%s session=%s | text=%r reasoning_len=%d",
+                    idx + 1, game_type, session_id, full_text[:200], len(full_reasoning),
+                )
+
+                action, error = self._parse_game_action({"text": full_text}, game_state, rules)
+
+                if not full_reasoning and action and action.get("reasoning"):
+                    full_reasoning = action["reasoning"]
+                    if game_session_id and full_reasoning:
+                        await self.send({
+                            "event": f"game_move_reasoning:{game_session_id}",
+                            "chunk": full_reasoning,
+                            "done": True,
+                        })
+
+                if action and full_reasoning:
+                    action["reasoning"] = full_reasoning
+
+                if action is not None:
+                    final_action = action
+                    final_reasoning = full_reasoning
+                    break
+
+                if error is not None and not is_last_attempt:
+                    logger.info(
+                        "[game_move] attempt %d failed with %s — retrying | game=%s session=%s",
+                        idx + 1, error["code"], game_type, session_id,
+                    )
+                    continue
+
+                if error is not None and is_last_attempt:
+                    final_error = {
+                        "code": "MODEL_ERROR",
+                        "message": (
+                            f"Model did not return valid JSON after {len(attempts)} attempts. "
+                            f"Last error: {error['message']}"
+                        ),
+                        "fallback_action": None,
+                    }
+                    final_reasoning = full_reasoning
+
+            except Exception as ex:
+                logger.exception(
+                    "[game_move] attempt %d exception | game=%s session=%s",
+                    idx + 1, game_type, session_id,
+                )
+                if is_last_attempt:
+                    final_error = {
+                        "code": "MODEL_ERROR",
+                        "message": str(ex),
+                        "fallback_action": None,
+                    }
+                else:
+                    continue
+
+        logger.info(
+            "[game_move] → WS response | game=%s session=%s | action=%s error=%s",
+            game_type, session_id, final_action, final_error,
+        )
+        await self.send({
+            "event": "game_move_response",
+            "game_type": game_type,
+            "session_id": session_id,
+            "action": final_action,
+            "error": final_error,
+            "reasoning": final_reasoning,
+        })
 
     def _build_game_messages(self, rules: dict, game_state: dict) -> list[dict]:
         """Build a fresh user-only messages list. The provider's own system prompt is
@@ -2065,6 +2137,130 @@ class Connection:
         system_prompt = rules.get("system_prompt", "You are a game AI. Output valid JSON.")
         user_content = "SYSTEM INSTRUCTIONS:\n" + system_prompt + "\n\nGame state:\n" + json.dumps(game_state, indent=2)
         return [{"role": "user", "content": user_content}]
+
+    def _build_minimal_game_messages(self, game_state: dict) -> list[dict]:
+        """Build a minimal prompt for retry attempts: only list empty cells
+        and demand strict JSON output. No reasoning requested."""
+        board = game_state.get("board", [])
+        empties = [
+            f"({r},{c})"
+            for r, row in enumerate(board)
+            for c, cell in enumerate(row)
+            if cell is None
+        ]
+        empties_str = ",".join(empties) if empties else "none"
+        user_content = (
+            f"Empty cells: {empties_str}.\n"
+            "Output ONLY valid JSON, no text, no explanation, no markdown:\n"
+            '{"row":<0-2>,"col":<0-2>}'
+        )
+        return [{"role": "user", "content": user_content}]
+
+    def _extract_json_text(self, raw_text: str) -> str:
+        """Extract the JSON substring from an LLM response that may contain
+        extra text, markdown fences, or a ---MOVE--- marker.
+
+        Returns the best-effort JSON string. Does NOT parse — caller does.
+        """
+        text = raw_text.strip()
+        if not text:
+            return ""
+
+        marker = "---MOVE---"
+        marker_idx = text.find(marker)
+        if marker_idx >= 0:
+            candidate = text[marker_idx + len(marker):].strip()
+            if candidate:
+                return candidate
+            candidate = text[:marker_idx].strip()
+            if candidate:
+                return candidate
+            return ""
+
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            lines = stripped.split("\n")
+            json_lines: list[str] = []
+            in_code = False
+            for line in lines:
+                if line.strip().startswith("```"):
+                    in_code = not in_code
+                    continue
+                if in_code:
+                    json_lines.append(line)
+                elif json_lines and line.strip():
+                    json_lines.append(line)
+            if json_lines:
+                return "\n".join(json_lines).strip()
+
+        first_brace = text.find("{")
+        if first_brace < 0:
+            first_brace = text.find("[")
+        if first_brace < 0:
+            return text.strip()
+
+        last_brace = text.rfind("}")
+        last_bracket = text.rfind("]")
+        last_close = max(last_brace, last_bracket)
+        if last_close < 0:
+            return text[first_brace:].strip()
+
+        return text[first_brace:last_close + 1].strip()
+
+    def _repair_and_parse_json(self, raw: str) -> dict | None:
+        """Try to parse JSON, repairing truncated input by adding missing
+        closing braces/brackets. Returns None if repair fails."""
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        stripped = raw.strip()
+        if not stripped or stripped[0] not in "{[":
+            return None
+
+        opens = stripped.count("{") - stripped.count("}")
+        brackets = stripped.count("[") - stripped.count("]")
+        if opens <= 0 and brackets <= 0:
+            return None
+
+        candidate = stripped
+        if opens > 0:
+            candidate += "}" * opens
+        if brackets > 0:
+            candidate += "]" * brackets
+
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                logger.warning(
+                    "Repaired truncated JSON (added %d closing braces/brackets)",
+                    opens + brackets,
+                )
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        for end in range(len(stripped), 0, -1):
+            try:
+                candidate = stripped[:end]
+                e = candidate.count("{") - candidate.count("}")
+                b = candidate.count("[") - candidate.count("]")
+                if e > 0:
+                    candidate += "}" * e
+                if b > 0:
+                    candidate += "]" * b
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    logger.warning(
+                        "Repaired truncated JSON (truncated at len=%d, added %d close tokens)",
+                        end, e + b,
+                    )
+                    return parsed
+            except json.JSONDecodeError:
+                continue
+
+        return None
 
     def _parse_game_action(
         self,
@@ -2076,39 +2272,52 @@ class Connection:
         Parse LLM response into a GameAction.
         Returns (action, error). One is always None.
         """
-        text = llm_response.get("text", "").strip()
+        raw_text = llm_response.get("text", "").strip()
+        json_text = self._extract_json_text(raw_text)
 
-        try:
-            data = json.loads(text)
-            row = data.get("row")
-            col = data.get("col")
-            reasoning = data.get("reasoning", "")
+        data = None
+        if json_text:
+            data = self._repair_and_parse_json(json_text)
 
-            if not self._is_legal_move(game_state, row, col):
-                fallback = self._get_fallback_move(game_state)
-                return None, {
-                    "code": "INVALID_MOVE",
-                    "message": f"Coordinates ({row}, {col}) are out of range or cell is occupied",
-                    "fallback_action": fallback,
-                }
-
-            action = {"type": "move", "data": {"row": row, "col": col}}
-            if reasoning:
-                action["reasoning"] = reasoning
-            return action, None
-
-        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        if data is None:
             logger.warning(
                 "game AI parse error | game_type=%s | raw_response=%r",
                 rules.get("game_type", "unknown"),
-                text[:500],
+                raw_text[:500],
             )
-            fallback = self._get_fallback_move(game_state)
             return None, {
                 "code": "PARSE_ERROR",
-                "message": f"Could not parse JSON from model response: {text[:100]}",
-                "fallback_action": fallback,
+                "message": f"Could not parse valid JSON from model response: {raw_text[:100]}",
+                "fallback_action": None,
             }
+
+        row = data.get("row")
+        col = data.get("col")
+
+        if isinstance(row, str):
+            try:
+                row = int(row)
+            except (ValueError, TypeError):
+                pass
+        if isinstance(col, str):
+            try:
+                col = int(col)
+            except (ValueError, TypeError):
+                pass
+
+        reasoning = data.get("reasoning", "")
+
+        if not self._is_legal_move(game_state, row, col):
+            return None, {
+                "code": "INVALID_MOVE",
+                "message": f"Coordinates ({row}, {col}) are out of range or cell is occupied",
+                "fallback_action": None,
+            }
+
+        action = {"type": "move", "data": {"row": row, "col": col}}
+        if reasoning:
+            action["reasoning"] = reasoning
+        return action, None
 
     def _is_legal_move(self, game_state: dict, row: int | None, col: int | None) -> bool:
         """Check if the coordinates are within bounds and the cell is empty."""

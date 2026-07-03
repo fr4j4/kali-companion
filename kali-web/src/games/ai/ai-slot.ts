@@ -180,7 +180,8 @@ export class AISlot implements MoveProvider {
     const difficulty = (data[TttField.DIFFICULTY] as string) ?? "medium";
     const opponentMarker = (data[TttField.OPPONENT_MARK] as string) ?? "O";
     const playerMarker = (data[TttField.PLAYER_MARK] as string) ?? "X";
-    const starter = data[TttField.STARTER] as string;
+    const currentSlot = data[TttField.CURRENT_SLOT] as string;
+    const isMyTurn = currentSlot === this._slotId;
 
     const instructions: Record<string, string> = {
       easy: "You are a beginner. Make random but reasonable moves.",
@@ -190,6 +191,9 @@ export class AISlot implements MoveProvider {
     const instruction = instructions[difficulty] ?? instructions.medium;
 
     const board = data[TttField.BOARD] as (string | null)[][];
+    const empties = board
+      .flatMap((row, r) => row.map((cell, c) => (cell === null ? `(${r},${c})` : null)))
+      .filter((v): v is string => v !== null);
     const boardStr = board
       .map((row) => row.map((cell) => cell ?? "_").join(" | "))
       .map((line, r) => `row ${r}: ${line}`)
@@ -198,16 +202,15 @@ export class AISlot implements MoveProvider {
     return [
       "You are playing Tic-Tac-Toe.",
       `Your marker is ${opponentMarker}, opponent is ${playerMarker}.`,
-      starter === "opponent" ? "You go first." : "Opponent (X) goes first.",
+      isMyTurn
+        ? "It is YOUR turn. Choose an empty cell."
+        : "Wait for the opponent to move.",
       instruction,
       `Current board (row 0-2, col 0-2):`,
       boardStr,
-      "Think step by step. First, explain your reasoning in natural language.",
-      "Then output ---MOVE--- on its own line.",
-      "Then output ONLY valid JSON with row (0-2) and column (0-2).",
-      "",
-      "---MOVE---",
-      '{"row": <number>, "col": <number>}',
+      empties.length > 0 ? `Empty cells: ${empties.join(",")}.` : "No empty cells.",
+      "Respond with ONLY valid JSON, no markdown, no extra text:",
+      `{"reasoning": "<one short sentence>", "row": <0-2>, "col": <0-2>}`,
     ].join("\n");
   }
 }

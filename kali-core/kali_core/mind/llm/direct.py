@@ -172,6 +172,7 @@ class DirectLLMProvider:
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> AsyncIterator[StreamEvent]:
         system_content = self._system_prompt
         if tools:
@@ -190,6 +191,11 @@ class DirectLLMProvider:
             if tools_param:
                 kwargs["tools"] = tools_param
                 kwargs["tool_choice"] = "auto"
+            if response_format:
+                try:
+                    kwargs["response_format"] = response_format
+                except Exception:
+                    pass
 
             stream = await self._try_create(kwargs)
 
@@ -444,6 +450,10 @@ class DirectLLMProvider:
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> dict:
         system_content = self._system_prompt
         if tools:
@@ -455,12 +465,17 @@ class DirectLLMProvider:
             kwargs: dict = {
                 "model": self._model,
                 "messages": full,
-                "temperature": 0.7,
-                "max_tokens": self._max_tokens,
+                "temperature": temperature if temperature is not None else 0.7,
+                "max_tokens": max_tokens if max_tokens is not None else self._max_tokens,
             }
             if tools_param:
                 kwargs["tools"] = tools_param
                 kwargs["tool_choice"] = "auto"
+            if response_format:
+                try:
+                    kwargs["response_format"] = response_format
+                except Exception:
+                    pass
             resp = await self._try_create(kwargs)
             msg = resp.choices[0].message
             # Include reasoning in the returned dict so callers can inspect it.
