@@ -1,7 +1,10 @@
 // AppearanceSection — theme, UI scale, canvas auto-expand, language.
 
 import { useTranslation } from "react-i18next";
+import { Palette } from "lucide-react";
 import { SelectField, SliderField, ToggleField } from "./fields";
+import { SectionHeader } from "./SectionHeader";
+import { SettingsCard } from "./SettingsCard";
 
 interface Props {
   theme: string;
@@ -42,8 +45,13 @@ export function AppearanceSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted">{t("settings.theme")}</label>
+      <SectionHeader
+        icon={Palette}
+        title={t("settings.section.appearance")}
+        description={t("settings.appearance.description")}
+      />
+
+      <SettingsCard title={t("settings.appearance.theme_group")}>
         <div className="grid grid-cols-5 gap-2">
           {THEMES.map((tname) => {
             const swatches = THEME_SWATCHES[tname] || [];
@@ -54,7 +62,7 @@ export function AppearanceSection({
                 className={`flex flex-col items-center gap-1.5 p-2 rounded-lg border transition-all ${
                   theme === tname
                     ? "border-accent bg-accent/10"
-                    : "border-border hover:border-accent/30 bg-surface"
+                    : "border-border hover:border-accent/30 bg-elevated"
                 }`}
                 title={t(`theme.${tname}`)}
               >
@@ -74,23 +82,23 @@ export function AppearanceSection({
             );
           })}
         </div>
-      </div>
+      </SettingsCard>
 
-      <SelectField
-        label={t("settings.language")}
-        value={currentLanguage}
-        onChange={onLanguageChange}
-      >
-        {LANGS.map((l) => (
-          <option key={l.id} value={l.id}>
-            {t(l.labelKey)}
-          </option>
-        ))}
-      </SelectField>
+      <SettingsCard title={t("settings.appearance.language_group")}>
+        <SelectField
+          label={t("settings.language")}
+          value={currentLanguage}
+          onChange={onLanguageChange}
+        >
+          {LANGS.map((l) => (
+            <option key={l.id} value={l.id}>
+              {t(l.labelKey)}
+            </option>
+          ))}
+        </SelectField>
+      </SettingsCard>
 
-      <div className="flex flex-col gap-3 border-t border-border pt-3 mt-1">
-        <label className="text-xs text-muted font-semibold">{t("settings.appearance")}</label>
-
+      <SettingsCard title={t("settings.appearance.scale_group")}>
         <SliderField
           label={t("settings.scale_global")}
           value={uiScale.global}
@@ -121,13 +129,15 @@ export function AppearanceSection({
             />
           </div>
         ))}
-      </div>
+      </SettingsCard>
 
-      <ToggleField
-        label={t("settings.canvas_auto_expand")}
-        checked={canvasAutoExpand}
-        onChange={onCanvasAutoExpandChange}
-      />
+      <SettingsCard title={t("settings.appearance.canvas_group")}>
+        <ToggleField
+          label={t("settings.canvas_auto_expand")}
+          checked={canvasAutoExpand}
+          onChange={onCanvasAutoExpandChange}
+        />
+      </SettingsCard>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Loader, Loader2, Plug, Unplug, Trash2 } from "lucide-react";
+import { Download, Loader, Loader2, Plug, Unplug, Trash2, Volume2 } from "lucide-react";
 import { apiBase, fetchWithRetry } from "../../lib/api/http";
 import type { StatusEvent, TtsModelInfo, TtsDeviceInfo, ModelCatalogEntry } from "../../lib/protocol";
 import { TTS_PROVIDERS } from "../../lib/tts-providers";
@@ -8,6 +8,8 @@ import type { TtsProviderId } from "../../lib/tts-providers";
 import { ToggleField } from "./fields";
 import { PiperVoiceControls } from "./PiperVoiceControls";
 import { QwenVoiceControls } from "./QwenVoiceControls";
+import { SectionHeader } from "./SectionHeader";
+import { SettingsCard } from "./SettingsCard";
 
 interface Props {
   systemStatus: StatusEvent | null;
@@ -241,22 +243,31 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
     : `${t(`tts.engine.${activeProvider}`)} · ${t("tts.status.not_loaded")}`;
 
   return (
-    <div className="space-y-4">
-      {/* Active TTS bar — always visible */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border">
-        <span className={`w-2 h-2 rounded-full ${ttsActiveDotClass}`} />
-        <span className="text-xs text-foreground font-medium">{ttsActiveLabel}</span>
-        {loadingAction && <Loader size={12} className="animate-spin text-muted ml-auto" />}
-      </div>
-
-      {/* TTS on/off toggle */}
-      <ToggleField
-        label={t("settings.tts_enabled")}
-        checked={autoTts}
-        onChange={(v) => onUpdate({ auto_tts: v })}
+    <div className="flex flex-col gap-4">
+      <SectionHeader
+        icon={Volume2}
+        title={t("settings.section.voice")}
+        description={t("settings.tts.description")}
       />
 
-      <div className="flex gap-1 p-1 bg-surface rounded-lg border border-border">
+      <SettingsCard title={t("settings.tts.status_group")}>
+        {/* Active TTS bar — always visible */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-elevated border border-border">
+          <span className={`w-2 h-2 rounded-full ${ttsActiveDotClass}`} />
+          <span className="text-xs text-foreground font-medium">{ttsActiveLabel}</span>
+          {loadingAction && <Loader size={12} className="animate-spin text-muted ml-auto" />}
+        </div>
+
+        {/* TTS on/off toggle */}
+        <ToggleField
+          label={t("settings.tts_enabled")}
+          checked={autoTts}
+          onChange={(v) => onUpdate({ auto_tts: v })}
+        />
+      </SettingsCard>
+
+      <SettingsCard title={t("settings.tts.provider_group")}>
+        <div className="flex gap-1 p-1 bg-elevated rounded-lg border border-border">
         {([TTS_PROVIDERS.PIPER, TTS_PROVIDERS.QWEN3] as TtsProviderId[]).map((p) => (
           <button
             key={p}
@@ -314,7 +325,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
           </div>
         )}
         {!loadingModels && subTab === "installed" && models.filter(m => m.available).map((m) => (
-          <div key={m.id} className="flex items-center justify-between gap-2 p-2 bg-surface rounded-md border border-border">
+          <div key={m.id} className="flex items-center justify-between gap-2 p-2 bg-elevated rounded-md border border-border">
             <div className="flex flex-col min-w-0">
               <span className="text-sm text-foreground truncate">{m.display_name}</span>
               <span className="text-[11px] text-muted">
@@ -357,14 +368,17 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
         ))}
       </div>
 
+      </SettingsCard>
+
       {tab === TTS_PROVIDERS.QWEN3 && subTab === "installed" && compatibleDevices.length > 0 && (
-        <div className="flex flex-col gap-1.5 pt-2">
-          <label className="text-xs text-muted">{t("settings.tts_device")}</label>
-          <select
-            className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
-            value={selectedDevice}
-            onChange={(e) => setSelectedDevice(e.target.value)}
-          >
+        <SettingsCard title={t("settings.tts.qwen_settings_group")}>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted">{t("settings.tts_device")}</label>
+            <select
+              className="bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+              value={selectedDevice}
+              onChange={(e) => setSelectedDevice(e.target.value)}
+            >
             {compatibleDevices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.id === "cpu"
@@ -373,35 +387,38 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
               </option>
             ))}
           </select>
-        </div>
+          </div>
+        </SettingsCard>
       )}
 
       {tab === TTS_PROVIDERS.QWEN3 && subTab === "installed" && (
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.tts_models_dir")}</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
-              value={modelsDir}
-              onChange={(e) => setModelsDir(e.target.value)}
-              placeholder={t("tts.models_dir_placeholder")}
-            />
-            <button
-              onClick={handleApplyModelsDir}
-              disabled={modelsDir === savedModelsDir}
-              className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {t("common.apply")}
-            </button>
+        <SettingsCard title={t("settings.tts.qwen_settings_group")}>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted">{t("settings.tts_models_dir")}</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                value={modelsDir}
+                onChange={(e) => setModelsDir(e.target.value)}
+                placeholder={t("tts.models_dir_placeholder")}
+              />
+              <button
+                onClick={handleApplyModelsDir}
+                disabled={modelsDir === savedModelsDir}
+                className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {t("common.apply")}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted/60">{t("settings.tts_models_dir_hint")}</p>
           </div>
-          <p className="text-[11px] text-muted/60">{t("settings.tts_models_dir_hint")}</p>
-        </div>
+        </SettingsCard>
       )}
 
       {/* Qwen voice download catalog */}
       {tab === TTS_PROVIDERS.QWEN3 && subTab === "catalog" && (
-        <div className="flex flex-col gap-2">
+        <SettingsCard title={t("models.catalog")}>
           <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
             {loadingQwenCatalog && (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
@@ -440,80 +457,82 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
               <div className="px-3 py-2 text-xs text-muted">{t("models.no_results")}</div>
             )}
           </div>
-        </div>
+        </SettingsCard>
       )}
 
       {/* Piper voice download catalog */}
       {tab === TTS_PROVIDERS.PIPER && subTab === "catalog" && (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
-              placeholder={t("models.search_placeholder")}
-              value={piperSearch}
-              onChange={(e) => setPiperSearch(e.target.value)}
-            />
-            {piperCatalogLangs.length > 0 && (
-              <select
-                className="bg-surface text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none"
-                value={piperLangFilter}
-                onChange={(e) => setPiperLangFilter(e.target.value)}
-              >
-                <option value="">{t("models.filter_all")}</option>
-                {piperCatalogLangs.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
-            )}
-          </div>
-          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
-            {loadingPiperCatalog && (
-              <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
-                <Loader2 size={12} className="animate-spin" />
-                {"Loading..."}
-              </div>
-            )}
-            {!loadingPiperCatalog && piperCatalog
-              .filter((m) => {
-                const matchSearch = !piperSearch
-                  || m.display_name.toLowerCase().includes(piperSearch.toLowerCase())
-                  || m.language.toLowerCase().includes(piperSearch.toLowerCase());
-                const matchLang = !piperLangFilter || m.language === piperLangFilter;
-                return matchSearch && matchLang;
-              })
-              .map((m) => {
-                const isDownloaded = m.downloaded;
-                return (
-                  <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs text-foreground truncate">{m.display_name}</span>
-                      <span className="text-[10px] text-muted">{m.language} · {m.quality} · {m.size_mb} MB</span>
+        <SettingsCard title={t("models.catalog")}>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                placeholder={t("models.search_placeholder")}
+                value={piperSearch}
+                onChange={(e) => setPiperSearch(e.target.value)}
+              />
+              {piperCatalogLangs.length > 0 && (
+                <select
+                  className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none"
+                  value={piperLangFilter}
+                  onChange={(e) => setPiperLangFilter(e.target.value)}
+                >
+                  <option value="">{t("models.filter_all")}</option>
+                  {piperCatalogLangs.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
+              {loadingPiperCatalog && (
+                <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
+                  <Loader2 size={12} className="animate-spin" />
+                  {"Loading..."}
+                </div>
+              )}
+              {!loadingPiperCatalog && piperCatalog
+                .filter((m) => {
+                  const matchSearch = !piperSearch
+                    || m.display_name.toLowerCase().includes(piperSearch.toLowerCase())
+                    || m.language.toLowerCase().includes(piperSearch.toLowerCase());
+                  const matchLang = !piperLangFilter || m.language === piperLangFilter;
+                  return matchSearch && matchLang;
+                })
+                .map((m) => {
+                  const isDownloaded = m.downloaded;
+                  return (
+                    <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs text-foreground truncate">{m.display_name}</span>
+                        <span className="text-[10px] text-muted">{m.language} · {m.quality} · {m.size_mb} MB</span>
+                      </div>
+                      {isDownloaded ? (
+                        <span className="text-[10px] text-ok shrink-0">✓ {t("models.downloaded")}</span>
+                      ) : downloadProgress[m.id] !== undefined ? (
+                        <span className="flex items-center gap-1 text-[10px] text-accent shrink-0">
+                          <Loader2 size={11} className="animate-spin" />
+                          {downloadProgress[m.id]}%
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleDownloadModel(m.id)}
+                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
+                        >
+                          <Download size={10} />
+                          {t("models.download")}
+                        </button>
+                      )}
                     </div>
-                    {isDownloaded ? (
-                      <span className="text-[10px] text-ok shrink-0">✓ {t("models.downloaded")}</span>
-                    ) : downloadProgress[m.id] !== undefined ? (
-                      <span className="flex items-center gap-1 text-[10px] text-accent shrink-0">
-                        <Loader2 size={11} className="animate-spin" />
-                        {downloadProgress[m.id]}%
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleDownloadModel(m.id)}
-                        className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
-                      >
-                        <Download size={10} />
-                        {t("models.download")}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            {!loadingPiperCatalog && piperCatalog.length === 0 && (
-              <div className="px-3 py-2 text-xs text-muted">{t("models.no_results")}</div>
-            )}
+                  );
+                })}
+              {!loadingPiperCatalog && piperCatalog.length === 0 && (
+                <div className="px-3 py-2 text-xs text-muted">{t("models.no_results")}</div>
+              )}
+            </div>
           </div>
-        </div>
+        </SettingsCard>
       )}
 
       {activeProvider !== tab && (
@@ -527,24 +546,28 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
       )}
 
       {(error || downloadError) && (
-        <div className="text-xs text-err bg-err/10 rounded-md p-2">
+        <div className="px-3 py-2 rounded-lg bg-err/10 border border-err/30 text-err text-xs whitespace-pre-wrap">
           {error ?? downloadError}
         </div>
       )}
 
       {tab === TTS_PROVIDERS.PIPER ? (
-        <PiperVoiceControls
-          systemStatus={systemStatus}
-          voices={tabVoices}
-          onUpdate={onUpdate}
-        />
+        <SettingsCard title={t("settings.tts.voice_settings_group")}>
+          <PiperVoiceControls
+            systemStatus={systemStatus}
+            voices={tabVoices}
+            onUpdate={onUpdate}
+          />
+        </SettingsCard>
       ) : (
-        <QwenVoiceControls
-          systemStatus={systemStatus}
-          voices={tabVoices}
-          variant={loadedVariant}
-          onUpdate={onUpdate}
-        />
+        <SettingsCard title={t("settings.tts.voice_settings_group")}>
+          <QwenVoiceControls
+            systemStatus={systemStatus}
+            voices={tabVoices}
+            variant={loadedVariant}
+            onUpdate={onUpdate}
+          />
+        </SettingsCard>
       )}
     </div>
   );

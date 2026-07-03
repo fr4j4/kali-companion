@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
@@ -172,11 +173,11 @@ export function Overlay({
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
                   <h2 className="text-sm font-semibold text-foreground m-0">{title}</h2>
                   <button
-                    className="bg-transparent border-none text-muted text-base cursor-pointer hover:text-foreground transition-colors p-1 rounded-md focus-visible:ring-2 focus-visible:ring-accent outline-none"
+                    className="flex items-center justify-center w-7 h-7 bg-transparent border-none text-muted cursor-pointer hover:text-foreground hover:bg-white/5 transition-colors rounded-md focus-visible:ring-2 focus-visible:ring-accent outline-none"
                     onClick={onClose}
                     aria-label={closeLabel}
                   >
-                    ✕
+                    <X size={18} />
                   </button>
                 </div>
               )}

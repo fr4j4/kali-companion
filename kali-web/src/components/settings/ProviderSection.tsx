@@ -9,13 +9,16 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cpu } from "lucide-react";
+import type { StatusEvent } from "../../lib/protocol";
 import { useStage } from "../../stage/StageProvider";
+import { SectionHeader } from "./SectionHeader";
+import { SettingsCard } from "./SettingsCard";
 import { ConnectionsList } from "./connections/ConnectionsList";
 import { ConnectionForm } from "./connections/ConnectionForm";
 import { ActivateModal } from "./connections/ActivateModal";
 import { ModelsModal } from "./connections/ModelsModal";
 import { deleteConnection, listConnections, testConnection } from "../../lib/api/connections";
-import type { ConnectionKind, ConnectionSummary, StatusEvent } from "../../lib/protocol";
+import type { ConnectionKind, ConnectionSummary } from "../../lib/protocol";
 
 type HealthStatus = "checking" | "online" | "offline";
 
@@ -127,35 +130,38 @@ export function ProviderSection({ systemStatus }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 pb-1 border-b border-border">
-        <Cpu size={15} className="text-accent" />
-        <span className="text-sm font-semibold text-foreground">{t("connections.title")}</span>
-      </div>
+      <SectionHeader
+        icon={Cpu}
+        title={t("connections.title")}
+        description={t("connections.description")}
+      />
 
-      {form.open ? (
-        <ConnectionForm
-          mode={form.mode}
-          kind={form.kind}
-          existing={existing}
-          cloudProviders={cloudProviders}
-          onSaved={handleFormSaved}
-          onCancel={() => setForm(EMPTY_FORM)}
-        />
-      ) : (
-        <ConnectionsList
-          connections={connections}
-          hasActiveProvider={activeConnectionId !== null}
-          onAdd={handleAdd}
-          onEdit={handleEdit}
-          onModels={handleModels}
-           onActivate={handleActivate}
-          onChangeModel={handleActivate}
-          onDelete={handleDelete}
-          onDisconnect={handleDisconnect}
-          gameConnectionId={systemStatus?.game_connection_id}
-          health={health}
-        />
-      )}
+      <SettingsCard>
+        {form.open ? (
+          <ConnectionForm
+            mode={form.mode}
+            kind={form.kind}
+            existing={existing}
+            cloudProviders={cloudProviders}
+            onSaved={handleFormSaved}
+            onCancel={() => setForm(EMPTY_FORM)}
+          />
+        ) : (
+          <ConnectionsList
+            connections={connections}
+            hasActiveProvider={activeConnectionId !== null}
+            onAdd={handleAdd}
+            onEdit={handleEdit}
+            onModels={handleModels}
+            onActivate={handleActivate}
+            onChangeModel={handleActivate}
+            onDelete={handleDelete}
+            onDisconnect={handleDisconnect}
+            gameConnectionId={systemStatus?.game_connection_id}
+            health={health}
+          />
+        )}
+      </SettingsCard>
 
       <ActivateModal
         conn={activateConn}
