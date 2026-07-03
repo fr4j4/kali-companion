@@ -22,7 +22,7 @@ import { AISlot } from "../../games/ai/ai-slot";
 import { PlayerType } from "../../games/core/constants/player-types";
 import { Brain, Gamepad2 } from "lucide-react";
 
-interface GameContent {
+export interface GameContent {
   mode?: "launchpad" | "game" | "saved-games" | "saved-game-replay";
   gameType?: GameTypeValue;
   sessionId?: string;

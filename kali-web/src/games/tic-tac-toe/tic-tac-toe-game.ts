@@ -155,9 +155,11 @@ export class TicTacToeGame extends BaseGame {
     if (win) {
       this._winner = fromSlotId;
       this._winningLine = win;
+      // WON means the human player won; LOST means the opponent (CPU/Kali) won.
+      const humanWon = fromSlotId === SlotId.PLAYER;
       this.state = {
-        status: GameStatus.WON,
-        score: 0,
+        status: humanWon ? GameStatus.WON : GameStatus.LOST,
+        score: humanWon ? 1 : 0,
         data: this._serializeBoard(),
         winner: fromSlotId,
       };
