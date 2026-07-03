@@ -111,6 +111,15 @@ export class TurnBasedSessionManager implements GameSessionManager {
     this._game.handleAction(action, humanSlot);
     this._turnNumber += 1;
 
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "turn",
+      label: "PLAYER MOVE",
+      icon: "player",
+      details: { actor: "player", action, turnNumber: this._turnNumber },
+    });
+
     gameSessionStore.addTurn(this._game.sessionId, {
       turnId: crypto.randomUUID(),
       turnNumber: this._turnNumber,
@@ -190,6 +199,15 @@ export class TurnBasedSessionManager implements GameSessionManager {
 
     this._turnNumber += 1;
     const turnNumber = this._turnNumber;
+
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "turn",
+      label: "AI TURN START",
+      icon: "ai",
+      details: { actor: "ai", turnNumber },
+    });
 
     gameSessionStore.addTurn(this._game.sessionId, {
       turnId: crypto.randomUUID(),
@@ -283,6 +301,16 @@ export class TurnBasedSessionManager implements GameSessionManager {
     if (!aiSlot) return;
 
     const difficulty = (this._game.getState().data as { difficulty?: string }).difficulty ?? "medium";
+
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "turn",
+      label: "CPU FALLBACK",
+      icon: "ai",
+      details: { actor: "ai", turnNumber, difficulty },
+    });
+
     const { TicTacToeCPUPlayer } = await import("../tic-tac-toe/tic-tac-toe-cpu");
     const cpuPlayer = new TicTacToeCPUPlayer(difficulty as "easy" | "medium" | "hard");
     this.fallbackToCPU(cpuPlayer);
@@ -321,6 +349,16 @@ export class TurnBasedSessionManager implements GameSessionManager {
     this._kaliError = error;
     this._kaliStatus = KaliStatus.ERROR;
     this._callbacks.onAIStatusChange(KaliStatus.ERROR, error);
+
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "ws_error",
+      label: "AI FAILED",
+      icon: "error",
+      details: { errorMessage: error.message },
+    });
+
     this._notify();
   }
 

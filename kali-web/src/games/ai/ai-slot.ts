@@ -14,6 +14,7 @@ import {
   GAME_AI_GLOBAL_TIMEOUT_MS,
 } from "../core/constants/game-ai";
 import type { MoveProvider } from "./ai-slot-filler";
+import { gameSessionStore } from "../core/game-session-store";
 
 export interface GameAiConfig {
   game_connection_id?: string;
@@ -103,6 +104,20 @@ export class AISlot implements MoveProvider {
     const globalTimeoutMs = this._getGlobalTimeout();
     let lastError: unknown;
 
+    const requestTimestamp = Date.now();
+    gameSessionStore.addLogEntry(gameSessionId, {
+      id: crypto.randomUUID(),
+      timestamp: requestTimestamp,
+      kind: "ws_request",
+      label: "AI THINKING",
+      icon: "send",
+      details: {
+        gameType: "tictactoe",
+        difficulty: data[TttField.DIFFICULTY] as string | undefined,
+        model: aiConfig.game_model,
+      },
+    });
+
     for (let attempt = 0; attempt < timeouts.length; attempt++) {
       const timeoutMs = timeouts[attempt]!;
       const reasoningChunks: string[] = [];
@@ -142,6 +157,20 @@ export class AISlot implements MoveProvider {
         const reasoning = response.reasoning ?? reasoningChunks.join("");
 
         if (response.error) {
+          const durationMs = Date.now() - requestTimestamp;
+          gameSessionStore.addLogEntry(gameSessionId, {
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            kind: "ws_error",
+            label: "AI ERROR",
+            icon: "error",
+            details: {
+              gameType: response.game_type,
+              model: aiConfig.game_model,
+              errorMessage: response.error.message,
+              durationMs,
+            },
+          });
           throw fromGameMoveError(
             response.error.code,
             response.error.message,
@@ -150,6 +179,23 @@ export class AISlot implements MoveProvider {
         }
 
         if (response.action) {
+          const durationMs = Date.now() - requestTimestamp;
+          const moveData = response.action.data as { row?: number; col?: number } | undefined;
+          gameSessionStore.addLogEntry(gameSessionId, {
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            kind: "ws_response",
+            label: "AI MOVE",
+            icon: "receive",
+            details: {
+              gameType: response.game_type,
+              model: aiConfig.game_model,
+              move: moveData && typeof moveData.row === "number" && typeof moveData.col === "number"
+                ? { row: moveData.row, col: moveData.col }
+                : undefined,
+              durationMs,
+            },
+          });
           return {
             type: response.action.type as (typeof ActionType)[keyof typeof ActionType],
             data: response.action.data,
