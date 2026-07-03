@@ -647,6 +647,10 @@ export interface GameMoveEvent {
   rules: GameRules;
   game_state: Record<string, unknown>;
   player_role: string;
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
   difficulty?: string;
   starter?: string;
   player_marker?: string;
@@ -676,6 +680,7 @@ export interface GameMoveResponseEvent {
   event: "game_move_response";
   game_type: string;
   session_id?: string;
+  game_session_id: string | null;
   action: GameAction | null;
   error: GameMoveError | null;
   reasoning?: string;

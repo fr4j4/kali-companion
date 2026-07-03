@@ -16,7 +16,7 @@ interface Props {
 const GAME_AI_DEFAULTS = {
   game_ai_global_timeout_ms: 20_000,
   game_temperature: 0.4,
-  game_max_tokens: 128,
+  game_max_tokens: 256,
   game_reasoning_max_chars: 200,
   game_retry_timeout_1_ms: 12_000,
   game_retry_timeout_2_ms: 3_000,
@@ -140,7 +140,7 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
               label={t("settings.game_temperature")}
               value={gameTemperature}
               min={0}
-              max={1.5}
+              max={2.0}
               step={0.1}
               onChange={(v) => onUpdate({ game_temperature: v })}
               displayValue={gameTemperature.toFixed(1)}
@@ -149,9 +149,9 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
             <SliderField
               label={t("settings.game_max_tokens")}
               value={gameMaxTokens}
-              min={16}
+              min={128}
               max={2048}
-              step={16}
+              step={32}
               onChange={(v) => onUpdate({ game_max_tokens: Math.round(v) })}
               displayValue={String(gameMaxTokens)}
             />
@@ -169,7 +169,7 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
             <SliderField
               label={t("settings.game_retry_timeout_1_ms")}
               value={timeout1}
-              min={1000}
+              min={2000}
               max={60_000}
               step={1000}
               onChange={(v) => onUpdate({ game_retry_timeout_1_ms: Math.round(v) })}
@@ -179,7 +179,7 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
             <SliderField
               label={t("settings.game_retry_timeout_2_ms")}
               value={timeout2}
-              min={1000}
+              min={2000}
               max={30_000}
               step={1000}
               onChange={(v) => onUpdate({ game_retry_timeout_2_ms: Math.round(v) })}
@@ -189,7 +189,7 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
             <SliderField
               label={t("settings.game_retry_timeout_3_ms")}
               value={timeout3}
-              min={1000}
+              min={2000}
               max={20_000}
               step={1000}
               onChange={(v) => onUpdate({ game_retry_timeout_3_ms: Math.round(v) })}

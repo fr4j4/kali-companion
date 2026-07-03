@@ -27,10 +27,14 @@ describe("AISlot reasoning timeout behavior", () => {
         }
         return () => {};
       }),
-      sendAndWait: vi.fn(async (_payload, _event, timeoutMs, _signal, options) => {
+      sendAndWait: vi.fn(async (payload, _event, timeoutMs, _signal, options) => {
         return new Promise((resolve, reject) => {
           const startedAt = performance.now();
           const globalTimeoutMs = options?.globalTimeoutMs ?? timeoutMs;
+          const matchFilter = options?.matchFilter as
+            | ((response: { game_session_id?: string | null }) => boolean)
+            | undefined;
+          const requestGameSessionId = (payload as { game_session_id?: string }).game_session_id;
 
           let rejected = false;
           const fail = (reason: string) => {
@@ -60,12 +64,17 @@ describe("AISlot reasoning timeout behavior", () => {
           const check = () => {
             const elapsed = performance.now() - startedAt;
             if (elapsed >= opts.responseDelayMs) {
-              clearTimeout(timer);
-              resolve({
-                event: "game_move_response",
+              const response = {
+                event: "game_move_response" as const,
+                game_session_id: requestGameSessionId ?? null,
                 action: opts.response?.action ?? { type: ActionType.MOVE, data: { row: 0, col: 0 } },
                 reasoning: opts.response?.reasoning ?? "",
-              });
+              };
+              if (matchFilter && !matchFilter(response)) {
+                return;
+              }
+              clearTimeout(timer);
+              resolve(response);
             } else {
               if (options?.onProgress) {
                 options.onProgress();

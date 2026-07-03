@@ -78,6 +78,12 @@ export function GameWidget({ content, api, windowId }: Props) {
       if (slot.type === PlayerType.AI) {
         const aiSlot = new AISlot(slot.id, wsClient, () => game.sessionId);
         aiSlot.setGlobalTimeout(() => systemStatus?.game_ai_global_timeout_ms ?? 20_000);
+        aiSlot.setGameAiConfig(() => ({
+          game_connection_id: systemStatus?.game_connection_id,
+          game_model: systemStatus?.game_model,
+          game_temperature: systemStatus?.game_temperature,
+          game_max_tokens: systemStatus?.game_max_tokens,
+        }));
         providers.set(slot.id, aiSlot);
       }
     }

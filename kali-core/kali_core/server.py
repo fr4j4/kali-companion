@@ -551,12 +551,13 @@ class Server:
             "stt_streaming": getattr(self.stt_provider, "_streaming", True),
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
             "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
-            "game_session_path": settings.game_session_path,
+            "game_session_path": str(settings.game_session_path),
             "game_ai_global_timeout_ms": settings.game_ai_global_timeout_ms,
             "game_connection_id": settings.game_connection_id,
             "game_model": settings.game_model,
             "game_temperature": settings.game_temperature,
             "game_max_tokens": settings.game_max_tokens,
+            "game_reasoning_max_chars": settings.game_reasoning_max_chars,
             "game_retry_timeout_1_ms": settings.game_retry_timeouts[0] if len(settings.game_retry_timeouts) > 0 else 12000,
             "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
             "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
@@ -1342,6 +1343,7 @@ class Server:
         "game_retry_timeout_2_ms",
         "game_retry_timeout_3_ms",
         "game_max_retries",
+        "game_reasoning_max_chars",
     )
 
     def _get_fallback(self, key: str):
@@ -1514,6 +1516,8 @@ class Server:
                 settings.game_temperature = float(value)
             elif key == "game_max_tokens":
                 settings.game_max_tokens = int(value)
+            elif key == "game_reasoning_max_chars":
+                settings.game_reasoning_max_chars = int(value)
             elif key == "game_retry_timeout_1_ms":
                 if len(settings.game_retry_timeouts) > 0:
                     settings.game_retry_timeouts[0] = int(value)
@@ -1909,7 +1913,12 @@ class Connection:
 
     # ── Game AI (WebSocket) ───────────────────────────────────
 
-    async def _resolve_game_llm_provider(self) -> LLMProvider | None:
+    async def _resolve_game_llm_provider(
+        self,
+        connection_id: str | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+    ) -> LLMProvider | None:
         """Return an LLM provider for game moves.
 
         If game_connection_id is unset or 'active', reuse the server's active LLM.
@@ -1917,7 +1926,7 @@ class Connection:
         resolving the reference internally — never exposing connection properties
         in StatusEvent.
         """
-        gid = settings.game_connection_id
+        gid = connection_id if connection_id is not None else settings.game_connection_id
         if not gid or gid == "active":
             return self.server.llm_provider
 
@@ -1926,16 +1935,16 @@ class Connection:
             logger.warning("[game_move] game_connection_id=%s not found, falling back to active", gid)
             return self.server.llm_provider
 
-        model = settings.game_model or (conn.models[0] if conn.models else "")
-        if not model:
+        eff_model = model or settings.game_model or (conn.models[0] if conn.models else "")
+        if not eff_model:
             logger.warning("[game_move] no model available for connection %s, falling back to active", gid)
             return self.server.llm_provider
 
         return DirectLLMProvider(
             api_url=conn.api_url,
             api_key=conn.api_key,
-            model=model,
-            max_tokens=settings.game_max_tokens,
+            model=eff_model,
+            max_tokens=max_tokens if max_tokens is not None else settings.game_max_tokens,
         )
 
     async def _handle_game_move(self, event: dict[str, Any]) -> None:
@@ -1950,48 +1959,97 @@ class Connection:
         so the frontend can fall back to the CPU player (not a random move).
         """
         game_type = event.get("game_type", "unknown")
-        session_id = event.get("session_id") or "no-session"
-        game_session_id = event.get("game_session_id") or session_id
+        session_id = self.session_id or event.get("session_id") or "no-session"
+        game_session_id = event.get("game_session_id")
         rules = event.get("rules", {})
         game_state = event.get("game_state", {})
 
+        if not game_session_id:
+            logger.warning(
+                "[game_move] missing required game_session_id | game=%s session=%s",
+                game_type, session_id,
+            )
+            await self.send({
+                "event": "game_move_response",
+                "game_type": game_type,
+                "session_id": session_id,
+                "game_session_id": None,
+                "action": None,
+                "error": {
+                    "code": "MODEL_ERROR",
+                    "message": "Missing required field: game_session_id",
+                    "fallback_action": None,
+                },
+                "reasoning": "",
+                "reasoning_truncated": False,
+            })
+            return
+
+        # Per-event overrides for game AI params (fall back to global settings).
+        eff_temperature = event.get("game_temperature")
+        if eff_temperature is None:
+            eff_temperature = settings.game_temperature
+        eff_max_tokens = event.get("game_max_tokens")
+        if eff_max_tokens is None:
+            eff_max_tokens = settings.game_max_tokens
+        else:
+            eff_max_tokens = int(eff_max_tokens)
+        eff_connection_id = event.get("game_connection_id") or settings.game_connection_id
+        eff_model = event.get("game_model") or settings.game_model
+
         logger.info(
-            "[game_move] received | game=%s session=%s player=%s",
-            game_type, session_id, event.get("player_role", "opponent"),
+            "[game_move] received | game=%s session=%s game_session=%s player=%s",
+            game_type, session_id, game_session_id, event.get("player_role", "opponent"),
         )
 
         base_messages = self._build_game_messages(rules, game_state)
+        minimal_messages = self._build_minimal_game_messages(game_state)
 
-        attempts = [
-            {
-                "label": "normal",
-                "messages": base_messages,
-                "temperature": settings.game_temperature,
-                "max_tokens": settings.game_max_tokens,
-                "response_format": {"type": "json_object"},
-            },
-            {
-                "label": "minimal",
-                "messages": self._build_minimal_game_messages(game_state),
-                "temperature": 0.0,
-                "max_tokens": 64,
-                "response_format": {"type": "json_object"},
-            },
-            {
-                "label": "minimal-retry",
-                "messages": self._build_minimal_game_messages(game_state),
-                "temperature": 0.0,
-                "max_tokens": 64,
-                "response_format": {"type": "json_object"},
-            },
-        ]
+        # Build attempts dynamically from settings.game_max_retries and
+        # settings.game_retry_timeouts. Attempt 1 is "normal" (with rules),
+        # attempts 2..N are "minimal" (only empty cells + strict JSON).
+        # max_tokens for minimal attempts is scaled up (1.5x) so reasoning
+        # models have headroom to think briefly AND emit the JSON answer.
+        n_attempts = max(1, settings.game_max_retries)
+        timeouts = settings.game_retry_timeouts or [12000, 3000, 2000]
+        minimal_max_tokens = int(eff_max_tokens * 1.5)
 
-        llm = await self._resolve_game_llm_provider()
+        attempts = []
+        for i in range(n_attempts):
+            t_idx = min(i, len(timeouts) - 1)
+            timeout_ms = timeouts[t_idx]
+            if i == 0:
+                attempts.append({
+                    "label": "normal",
+                    "messages": base_messages,
+                    "temperature": float(eff_temperature),
+                    "max_tokens": eff_max_tokens,
+                    "response_format": {"type": "json_object"},
+                    "reasoning_effort": "low",
+                    "timeout_ms": timeout_ms,
+                })
+            else:
+                attempts.append({
+                    "label": f"minimal-{i}",
+                    "messages": minimal_messages,
+                    "temperature": 0.0,
+                    "max_tokens": minimal_max_tokens,
+                    "response_format": {"type": "json_object"},
+                    "reasoning_effort": "low",
+                    "timeout_ms": timeout_ms,
+                })
+
+        llm = await self._resolve_game_llm_provider(
+            connection_id=eff_connection_id,
+            model=eff_model,
+            max_tokens=eff_max_tokens,
+        )
         if llm is None:
             await self.send({
                 "event": "game_move_response",
                 "game_type": game_type,
                 "session_id": session_id,
+                "game_session_id": game_session_id,
                 "action": None,
                 "error": {
                     "code": "MODEL_ERROR",
@@ -2010,8 +2068,8 @@ class Connection:
             is_last_attempt = idx == len(attempts) - 1
             reasoning_max_chars = settings.game_reasoning_max_chars
             logger.info(
-                "[game_move] attempt %d/%d (%s) | game=%s session=%s",
-                idx + 1, len(attempts), attempt["label"], game_type, session_id,
+                "[game_move] attempt %d/%d (%s) | game=%s session=%s game_session=%s",
+                idx + 1, len(attempts), attempt["label"], game_type, session_id, game_session_id,
             )
 
             reasoning_parts: list[str] = []
@@ -2026,6 +2084,7 @@ class Connection:
                     temperature=attempt["temperature"],
                     max_tokens=attempt["max_tokens"],
                     response_format=attempt["response_format"],
+                    reasoning_effort=attempt.get("reasoning_effort"),
                 ):
                     if ev.kind == "reasoning" and ev.text:
                         if reasoning_chars < reasoning_max_chars:
@@ -2074,11 +2133,11 @@ class Connection:
                 full_text = "".join(text_parts)
 
                 logger.info(
-                    "[game_move] ← attempt %d done | game=%s session=%s | text=%r reasoning_len=%d",
-                    idx + 1, game_type, session_id, full_text[:200], len(full_reasoning),
+                    "[game_move] ← attempt %d done | game=%s session=%s game_session=%s | text=%r reasoning_len=%d",
+                    idx + 1, game_type, session_id, game_session_id, full_text[:200], len(full_reasoning),
                 )
 
-                action, error = self._parse_game_action({"text": full_text}, game_state, rules)
+                action, error = self._parse_game_action({"text": full_text}, game_state, rules, game_type)
 
                 if not full_reasoning and action and action.get("reasoning"):
                     full_reasoning = action["reasoning"]
@@ -2099,8 +2158,8 @@ class Connection:
 
                 if error is not None and not is_last_attempt:
                     logger.info(
-                        "[game_move] attempt %d failed with %s — retrying | game=%s session=%s",
-                        idx + 1, error["code"], game_type, session_id,
+                        "[game_move] attempt %d failed with %s — retrying | game=%s session=%s game_session=%s",
+                        idx + 1, error["code"], game_type, session_id, game_session_id,
                     )
                     continue
 
@@ -2117,8 +2176,8 @@ class Connection:
 
             except Exception as ex:
                 logger.exception(
-                    "[game_move] attempt %d exception | game=%s session=%s",
-                    idx + 1, game_type, session_id,
+                    "[game_move] attempt %d exception | game=%s session=%s game_session=%s",
+                    idx + 1, game_type, session_id, game_session_id,
                 )
                 if is_last_attempt:
                     final_error = {
@@ -2130,13 +2189,14 @@ class Connection:
                     continue
 
         logger.info(
-            "[game_move] → WS response | game=%s session=%s | action=%s error=%s",
-            game_type, session_id, final_action, final_error,
+            "[game_move] → WS response | game=%s session=%s game_session=%s | action=%s error=%s",
+            game_type, session_id, game_session_id, final_action, final_error,
         )
         await self.send({
             "event": "game_move_response",
             "game_type": game_type,
             "session_id": session_id,
+            "game_session_id": game_session_id,
             "action": final_action,
             "error": final_error,
             "reasoning": final_reasoning,
@@ -2280,6 +2340,7 @@ class Connection:
         llm_response: dict,
         game_state: dict,
         rules: dict,
+        game_type: str = "unknown",
     ) -> tuple[dict | None, dict | None]:
         """
         Parse LLM response into a GameAction.
@@ -2295,7 +2356,7 @@ class Connection:
         if data is None:
             logger.warning(
                 "game AI parse error | game_type=%s | raw_response=%r",
-                rules.get("game_type", "unknown"),
+                game_type,
                 raw_text[:500],
             )
             return None, {
@@ -3238,37 +3299,46 @@ class Connection:
         if "game_max_tokens" in event:
             try:
                 value = int(event["game_max_tokens"])
-                if value >= 16:
+                if 128 <= value <= 2048:
                     settings.game_max_tokens = value
                 else:
-                    await self.send({"event": "error", "detail": "game_max_tokens must be at least 16"})
+                    await self.send({"event": "error", "detail": "game_max_tokens must be between 128 and 2048"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_max_tokens"})
+        if "game_reasoning_max_chars" in event:
+            try:
+                value = int(event["game_reasoning_max_chars"])
+                if value >= 0:
+                    settings.game_reasoning_max_chars = value
+                else:
+                    await self.send({"event": "error", "detail": "game_reasoning_max_chars must be non-negative"})
+            except (TypeError, ValueError):
+                await self.send({"event": "error", "detail": "Invalid game_reasoning_max_chars"})
         if "game_retry_timeout_1_ms" in event:
             try:
                 v = int(event["game_retry_timeout_1_ms"])
-                if v >= 1000:
+                if v >= 2000:
                     settings.game_retry_timeouts[0] = v
                 else:
-                    await self.send({"event": "error", "detail": "game_retry_timeout_1_ms must be at least 1000"})
+                    await self.send({"event": "error", "detail": "game_retry_timeout_1_ms must be at least 2000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_retry_timeout_1_ms"})
         if "game_retry_timeout_2_ms" in event:
             try:
                 v = int(event["game_retry_timeout_2_ms"])
-                if v >= 1000:
+                if v >= 2000:
                     settings.game_retry_timeouts[1] = v
                 else:
-                    await self.send({"event": "error", "detail": "game_retry_timeout_2_ms must be at least 1000"})
+                    await self.send({"event": "error", "detail": "game_retry_timeout_2_ms must be at least 2000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_retry_timeout_2_ms"})
         if "game_retry_timeout_3_ms" in event:
             try:
                 v = int(event["game_retry_timeout_3_ms"])
-                if v >= 1000:
+                if v >= 2000:
                     settings.game_retry_timeouts[2] = v
                 else:
-                    await self.send({"event": "error", "detail": "game_retry_timeout_3_ms must be at least 1000"})
+                    await self.send({"event": "error", "detail": "game_retry_timeout_3_ms must be at least 2000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_retry_timeout_3_ms"})
         if "game_max_retries" in event:
@@ -3331,6 +3401,7 @@ class Connection:
             game_retry_timeout_2_ms=settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else None,
             game_retry_timeout_3_ms=settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else None,
             game_max_retries=settings.game_max_retries,
+            game_reasoning_max_chars=settings.game_reasoning_max_chars,
             # Per-connection
             stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,

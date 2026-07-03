@@ -62,6 +62,7 @@ class FakeLLMProvider:
         temperature: float | None = None,
         max_tokens: int | None = None,
         response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ):
         resp = self._next_response()
         text = resp.get("text", "")
@@ -80,6 +81,7 @@ class FakeLLMProvider:
         temperature: float | None = None,
         max_tokens: int | None = None,
         response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict:
         return self._next_response()
 
@@ -224,6 +226,7 @@ class TestHandleGameMove:
             "event": "game_move",
             "game_type": "tictactoe",
             "session_id": "test-session",
+            "game_session_id": "game-rt",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
@@ -234,6 +237,7 @@ class TestHandleGameMove:
         assert resp["event"] == "game_move_response"
         assert resp["game_type"] == "tictactoe"
         assert resp["session_id"] == "test-session"
+        assert resp["game_session_id"] == "game-rt"
         assert resp["action"] is not None
         assert resp["action"]["data"]["row"] == 1
         assert resp["action"]["data"]["col"] == 1
@@ -246,12 +250,14 @@ class TestHandleGameMove:
         event = {
             "event": "game_move",
             "game_type": "tictactoe",
+            "game_session_id": "game-retry",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
         }
         await conn._handle_game_move(event)
         resp = conn._sent[0]
+        assert resp["game_session_id"] == "game-retry"
         assert resp["action"] is None
         assert resp["error"]["code"] == "MODEL_ERROR"
         assert resp["error"]["fallback_action"] is None
@@ -262,12 +268,14 @@ class TestHandleGameMove:
         event = {
             "event": "game_move",
             "game_type": "tictactoe",
+            "game_session_id": "game-invalid",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
         }
         await conn._handle_game_move(event)
         resp = conn._sent[0]
+        assert resp["game_session_id"] == "game-invalid"
         assert resp["action"] is None
         assert resp["error"]["code"] == "MODEL_ERROR"
         assert resp["error"]["fallback_action"] is None
@@ -298,6 +306,7 @@ class TestHandleGameMove:
 
         resp = conn._sent[1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-123"
         assert resp["action"]["data"]["row"] == 0
         assert resp["action"]["data"]["col"] == 0
         assert resp["reasoning"] == "I see the center is open. Taking it."
@@ -328,6 +337,7 @@ class TestHandleGameMove:
 
         resp = conn._sent[1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "g-789"
         assert resp["action"]["data"]["row"] == 0
         assert resp["action"]["data"]["col"] == 0
         assert resp["reasoning"] == "Taking center."
@@ -357,6 +367,7 @@ class TestHandleGameMove:
 
         resp = conn._sent[1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "g-101"
         assert resp["action"]["data"]["row"] == 1
         assert resp["action"]["data"]["col"] == 1
         assert resp["reasoning"] == "Center is open."
@@ -374,6 +385,7 @@ class TestHandleGameMove:
                 temperature=None,
                 max_tokens=None,
                 response_format=None,
+                reasoning_effort=None,
             ):
                 raise RuntimeError("Connection refused")
                 yield  # pragma: no cover — makes this an async generator
@@ -386,6 +398,7 @@ class TestHandleGameMove:
                 temperature=None,
                 max_tokens=None,
                 response_format=None,
+                reasoning_effort=None,
             ):
                 raise RuntimeError("Connection refused")
 
@@ -394,12 +407,14 @@ class TestHandleGameMove:
         event = {
             "event": "game_move",
             "game_type": "tictactoe",
+            "game_session_id": "game-fail",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
         }
         await conn._handle_game_move(event)
         resp = conn._sent[0]
+        assert resp["game_session_id"] == "game-fail"
         assert resp["action"] is None
         assert resp["error"]["code"] == "MODEL_ERROR"
         assert "Connection refused" in resp["error"]["message"]
@@ -416,6 +431,7 @@ class TestHandleGameMove:
             "event": "game_move",
             "game_type": "tictactoe",
             "session_id": "retry-test",
+            "game_session_id": "game-retry-prog",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None, None, None], [None, None, None], [None, None, None]]},
             "player_role": "opponent",
@@ -423,6 +439,7 @@ class TestHandleGameMove:
         await conn._handle_game_move(event)
         resp = conn._sent[-1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-retry-prog"
         assert resp["action"] is not None
         assert resp["action"]["data"]["row"] == 0
         assert resp["action"]["data"]["col"] == 2
@@ -440,6 +457,7 @@ class TestHandleGameMove:
             "event": "game_move",
             "game_type": "tictactoe",
             "session_id": "fail-test",
+            "game_session_id": "game-3fail",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
@@ -447,9 +465,30 @@ class TestHandleGameMove:
         await conn._handle_game_move(event)
         resp = conn._sent[-1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-3fail"
         assert resp["action"] is None
         assert resp["error"]["code"] == "MODEL_ERROR"
         assert resp["error"]["fallback_action"] is None
+
+    async def test_missing_game_session_id_returns_error(self):
+        """Missing game_session_id is rejected with MODEL_ERROR."""
+        conn = ConnectionTestHelper({"text": '{"row": 0, "col": 0}'})
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "test-session",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None] * 3 for _ in range(3)]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+        assert len(conn._sent) == 1
+        resp = conn._sent[0]
+        assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] is None
+        assert resp["action"] is None
+        assert resp["error"]["code"] == "MODEL_ERROR"
+        assert "game_session_id" in resp["error"]["message"]
 
 
 class TestParseGameActionResilient:

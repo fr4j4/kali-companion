@@ -250,9 +250,9 @@ async def test_apply_settings_game_retry_timeouts(settings_helper, monkeypatch):
         "event": "settings",
         "game_retry_timeout_1_ms": 8_000,
         "game_retry_timeout_2_ms": 4_000,
-        "game_retry_timeout_3_ms": 1_500,
+        "game_retry_timeout_3_ms": 2_500,
     })
-    assert settings.game_retry_timeouts == [8_000, 4_000, 1_500]
+    assert settings.game_retry_timeouts == [8_000, 4_000, 2_500]
 
 
 @pytest.mark.asyncio

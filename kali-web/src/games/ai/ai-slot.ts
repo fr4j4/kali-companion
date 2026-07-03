@@ -15,9 +15,19 @@ import {
 } from "../core/constants/game-ai";
 import type { MoveProvider } from "./ai-slot-filler";
 
+export interface GameAiConfig {
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
+}
+
 export class AISlot implements MoveProvider {
+  private static readonly MAX_REASONING_WORDS = 50;
+
   private _abortController: AbortController | null = null;
   private _getGlobalTimeout: () => number = () => GAME_AI_GLOBAL_TIMEOUT_MS;
+  private _getGameAiConfig: () => GameAiConfig = () => ({});
 
   constructor(
     private _slotId: SlotIdValue,
@@ -39,6 +49,10 @@ export class AISlot implements MoveProvider {
 
   setGlobalTimeout(getter: () => number) {
     this._getGlobalTimeout = getter;
+  }
+
+  setGameAiConfig(getter: () => GameAiConfig) {
+    this._getGameAiConfig = getter;
   }
 
   abort(): void {
@@ -64,6 +78,7 @@ export class AISlot implements MoveProvider {
 
     const gameSessionId = this._getSessionId();
     const data = context.data as Record<string, unknown>;
+    const aiConfig = this._getGameAiConfig();
     const payload = {
       event: "game_move",
       game_type: "tictactoe",
@@ -74,6 +89,10 @@ export class AISlot implements MoveProvider {
       },
       game_state: data,
       player_role: this._slotId,
+      game_connection_id: aiConfig.game_connection_id,
+      game_model: aiConfig.game_model,
+      game_temperature: aiConfig.game_temperature,
+      game_max_tokens: aiConfig.game_max_tokens,
       difficulty: data[TttField.DIFFICULTY] as string | undefined,
       starter: data[TttField.STARTER] as string | undefined,
       player_marker: data[TttField.PLAYER_MARK] as string | undefined,
@@ -114,6 +133,7 @@ export class AISlot implements MoveProvider {
               void lastChunkAt;
             },
             globalTimeoutMs,
+            matchFilter: (r) => r.game_session_id === gameSessionId,
           },
         );
 
@@ -209,7 +229,7 @@ export class AISlot implements MoveProvider {
       `Current board (row 0-2, col 0-2):`,
       boardStr,
       empties.length > 0 ? `Empty cells: ${empties.join(",")}.` : "No empty cells.",
-      "Respond with ONLY valid JSON, no markdown, no extra text:",
+      `Think briefly about your move — a short paragraph of at most ${AISlot.MAX_REASONING_WORDS} words — in your reasoning channel, then respond with ONLY valid JSON, no markdown, no extra text:`,
       `{"reasoning": "<one short sentence>", "row": <0-2>, "col": <0-2>}`,
     ].join("\n");
   }

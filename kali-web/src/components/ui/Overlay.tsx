@@ -113,7 +113,7 @@ export function Overlay({
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
   const panelClasses = isModal
-    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
+    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`
     : effectiveVariant === "sheet-bottom"
       ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] h-auto overflow-auto scrollbar-thin"
       : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-auto max-h-[85vh] overflow-auto scrollbar-thin ${

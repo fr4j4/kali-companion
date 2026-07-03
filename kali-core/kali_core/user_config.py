@@ -50,6 +50,7 @@ class UserConfig:
     game_retry_timeout_2_ms: int | None = None
     game_retry_timeout_3_ms: int | None = None
     game_max_retries: int | None = None
+    game_reasoning_max_chars: int | None = None
 
     # ── Per-connection (applied on every new Connection, override env defaults) ──
     stt_enabled: bool | None = None
