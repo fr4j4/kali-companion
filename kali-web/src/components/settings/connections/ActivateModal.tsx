@@ -87,7 +87,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
       onClose={onClose}
       size="md"
       title={isChangeModel ? t("connections.change_model_title") : t("connections.activate_title")}
-      panelClassName="max-h-[70vh]"
+      panelClassName="max-h-[70vh] overflow-hidden"
       bare={true}
     >
       <div className="flex flex-col h-full p-5 gap-4">
@@ -146,68 +146,70 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
         )}
 
         {health === "online" && models.length > 0 && (
-          <div className="flex flex-col gap-2 flex-1 min-h-0">
-            <div className="text-[10px] text-muted uppercase tracking-wide shrink-0">
-              {t("settings.game_ai_select_model")}
-            </div>
+          <>
+            <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
+              <div className="text-[10px] text-muted uppercase tracking-wide shrink-0">
+                {t("settings.game_ai_select_model")}
+              </div>
 
-            <div className="relative shrink-0">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted"
-              >
-                <circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M8.5 8.5l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("connections.search_models", { defaultValue: "Search…" })}
-                className="w-full bg-surface text-foreground border border-border rounded-lg pl-8 pr-2.5 py-2 text-xs outline-none focus:border-accent/60 transition-colors"
-              />
-            </div>
+              <div className="relative shrink-0">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted"
+                >
+                  <circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M8.5 8.5l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t("connections.search_models", { defaultValue: "Search…" })}
+                  className="w-full bg-surface text-foreground border border-border rounded-lg pl-8 pr-2.5 py-2 text-xs outline-none focus:border-accent/60 transition-colors"
+                />
+              </div>
 
-            <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto stage-scroll">
-              {filteredModels.map((m) => {
-                const selected = model === m;
-                return (
-                  <button
-                    key={m}
-                    onClick={() => setModel(m)}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left ${
-                      selected
-                        ? "border-accent/50 bg-accent/10"
-                        : "border-muted/20 bg-surface/50 hover:border-accent/40"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                        selected ? "border-accent bg-accent" : "border-muted/25"
+              <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto stage-scroll">
+                {filteredModels.map((m) => {
+                  const selected = model === m;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setModel(m)}
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                        selected
+                          ? "border-accent/50 bg-accent/10"
+                          : "border-muted/20 bg-surface/50 hover:border-accent/40"
                       }`}
                     >
-                      {selected && <div className="w-1.5 h-1.5 rounded-full bg-foreground" />}
-                    </div>
-                    <span className="text-xs font-mono text-foreground truncate leading-relaxed">{m}</span>
-                  </button>
-                );
-              })}
-              {filteredModels.length === 0 && (
-                <div className="py-4 text-center">
-                  <p className="text-xs text-muted">{t("connections.no_models_match")}</p>
-                </div>
-              )}
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                          selected ? "border-accent bg-accent" : "border-muted/25"
+                        }`}
+                      >
+                        {selected && <div className="w-1.5 h-1.5 rounded-full bg-foreground" />}
+                      </div>
+                      <span className="text-xs font-mono text-foreground truncate leading-relaxed">{m}</span>
+                    </button>
+                  );
+                })}
+                {filteredModels.length === 0 && (
+                  <div className="py-4 text-center">
+                    <p className="text-xs text-muted">{t("connections.no_models_match")}</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {vendor && (
-              <p className="text-[10px] text-muted/60">
+              <p className="text-[10px] text-muted/60 shrink-0">
                 {t("connections.vendor_detected", { vendor })}
               </p>
             )}
-          </div>
+          </>
         )}
 
         {health === "online" && models.length === 0 && (
