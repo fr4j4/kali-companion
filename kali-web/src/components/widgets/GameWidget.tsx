@@ -14,6 +14,7 @@ import { GameReasoningPanel } from "../games/GameReasoningPanel";
 import { useSidePanel } from "../../stage/SidePanelContext";
 import { useGameWS } from "../../lib/gameWSClient";
 import { useChat } from "../../hooks/useChat";
+import { useStage } from "../../stage/StageProvider";
 import { hasLLMIntegration } from "../../games/ai/game-llm-provider";
 import { gameSessionStore } from "../../games/core/game-session-store";
 import { createGameSessionManager, type GameSessionManager } from "../../games/core/game-session-manager";
@@ -51,7 +52,8 @@ export function GameWidget({ content, api, windowId }: Props) {
   const { setSidePanelContent, setLeftSidePanelContent } = useSidePanel();
   const wsClient = useGameWS();
   const { systemStatus } = useChat();
-  const hasKali = hasLLMIntegration(systemStatus);
+  const { connections } = useStage();
+  const hasKali = hasLLMIntegration(systemStatus, connections);
   const replaySessionId = parsed.sessionId;
 
   const [, forceRender] = useState(0);
