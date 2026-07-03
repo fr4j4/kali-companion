@@ -1972,7 +1972,6 @@ class Connection:
             await self.send({
                 "event": "game_move_response",
                 "game_type": game_type,
-                "session_id": session_id,
                 "game_session_id": None,
                 "action": None,
                 "error": {
@@ -2001,6 +2000,37 @@ class Connection:
             "[game_move] received | game=%s session=%s game_session=%s player=%s",
             game_type, session_id, game_session_id, event.get("player_role", "opponent"),
         )
+
+        # Guard: if the game state carries a 2D board with no empty cells,
+        # there are no legal moves — respond early without calling the LLM.
+        board = game_state.get("board")
+        if isinstance(board, list) and board and isinstance(board[0], list):
+            empties = [
+                (r, c)
+                for r, row in enumerate(board)
+                if isinstance(row, list)
+                for c, cell in enumerate(row)
+                if cell is None
+            ]
+            if not empties:
+                logger.info(
+                    "[game_move] no legal moves | game=%s session=%s game_session=%s",
+                    game_type, session_id, game_session_id,
+                )
+                await self.send({
+                    "event": "game_move_response",
+                    "game_type": game_type,
+                    "game_session_id": game_session_id,
+                    "action": None,
+                    "error": {
+                        "code": "NO_LEGAL_MOVES",
+                        "message": "Board is full — no legal moves available",
+                        "fallback_action": None,
+                    },
+                    "reasoning": "",
+                    "reasoning_truncated": False,
+                })
+                return
 
         base_messages = self._build_game_messages(rules, game_state)
         minimal_messages = self._build_minimal_game_messages(game_state)
@@ -2048,7 +2078,6 @@ class Connection:
             await self.send({
                 "event": "game_move_response",
                 "game_type": game_type,
-                "session_id": session_id,
                 "game_session_id": game_session_id,
                 "action": None,
                 "error": {
@@ -2195,7 +2224,6 @@ class Connection:
         await self.send({
             "event": "game_move_response",
             "game_type": game_type,
-            "session_id": session_id,
             "game_session_id": game_session_id,
             "action": final_action,
             "error": final_error,

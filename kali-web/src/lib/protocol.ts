@@ -679,7 +679,6 @@ export interface GameMoveReasoningEvent {
 export interface GameMoveResponseEvent {
   event: "game_move_response";
   game_type: string;
-  session_id?: string;
   game_session_id: string | null;
   action: GameAction | null;
   error: GameMoveError | null;

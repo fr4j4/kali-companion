@@ -64,6 +64,19 @@ export abstract class BaseGame {
     return this._state.status;
   }
 
+  /**
+   * Whether the game has ended and accepts no more moves.
+   *
+   * Default implementation returns `true` for any status that is not
+   * `playing`, `paused`, or `waiting`. Games may override this for
+   * more precise logic (e.g. checking an internal flag before the
+   * status field is updated).
+   */
+  isFinished(): boolean {
+    const s = this.state.status;
+    return s !== "playing" && s !== "paused" && s !== "waiting";
+  }
+
   get version(): number {
     return this._version;
   }

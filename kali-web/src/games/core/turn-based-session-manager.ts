@@ -170,6 +170,7 @@ export class TurnBasedSessionManager implements GameSessionManager {
 
   private async _maybeTriggerAITurn(): Promise<void> {
     if (this._cancelled) return;
+    if (this._game.isFinished()) return;
     const currentSlot = this._getCurrentSlot();
     const aiSlot = this._findAISlot();
     if (currentSlot && aiSlot && currentSlot === aiSlot) {
@@ -179,6 +180,7 @@ export class TurnBasedSessionManager implements GameSessionManager {
 
     private async _triggerAITurn(): Promise<void> {
     if (this._cancelled) return;
+    if (this._game.isFinished()) return;
 
     const aiSlot = this._findAISlot();
     if (!aiSlot) return;

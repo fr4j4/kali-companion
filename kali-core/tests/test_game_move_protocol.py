@@ -236,7 +236,6 @@ class TestHandleGameMove:
         resp = conn._sent[0]
         assert resp["event"] == "game_move_response"
         assert resp["game_type"] == "tictactoe"
-        assert resp["session_id"] == "test-session"
         assert resp["game_session_id"] == "game-rt"
         assert resp["action"] is not None
         assert resp["action"]["data"]["row"] == 1
@@ -489,6 +488,28 @@ class TestHandleGameMove:
         assert resp["action"] is None
         assert resp["error"]["code"] == "MODEL_ERROR"
         assert "game_session_id" in resp["error"]["message"]
+
+    async def test_full_board_returns_no_legal_moves(self):
+        """A full board triggers NO_LEGAL_MOVES without calling the LLM."""
+        conn = ConnectionTestHelper({"text": '{"row": 0, "col": 0}'})
+        full_board = [["X", "O", "X"], ["X", "O", "O"], ["O", "X", "X"]]
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "game_session_id": "game-full",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": full_board},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+        assert len(conn._sent) == 1
+        resp = conn._sent[0]
+        assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-full"
+        assert resp["action"] is None
+        assert resp["error"]["code"] == "NO_LEGAL_MOVES"
+        # The FakeLLMProvider should not have been called at all.
+        assert conn.server.llm_provider._call_count == 0
 
 
 class TestParseGameActionResilient:
