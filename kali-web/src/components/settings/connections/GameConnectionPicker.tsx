@@ -258,7 +258,7 @@ function ActiveConnectionCard({
         }`}
       >
         {selected && (
-          <CheckCircle size={10} fill="currentColor" className="text-white" />
+          <CheckCircle size={10} className="text-foreground" />
         )}
       </div>
 
@@ -284,7 +284,7 @@ function ActiveConnectionCard({
 
       <div className="shrink-0">
         {activeConnectionModel ? (
-          <CheckCircle size={16} className="text-ok" fill="currentColor" />
+          <CheckCircle size={16} className="text-ok" />
         ) : (
           <Circle size={16} className="text-muted" />
         )}
@@ -372,7 +372,7 @@ function ConnectionCard({
           }`}
           style={!selected && !isDisabled ? { borderColor: "var(--color-muted)" } : undefined}
         >
-          {selected && <CheckCircle size={10} fill="currentColor" className="text-white" />}
+          {selected && <CheckCircle size={10} className="text-foreground" />}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -397,7 +397,7 @@ function ConnectionCard({
               <div className="w-2 h-2 rounded-full border border-current animate-pulse" />
             )}
             {health?.status === "online" && <div className="w-2 h-2 rounded-full bg-current" />}
-            {health?.status === "offline" && <XCircle size={10} fill="currentColor" />}
+            {health?.status === "offline" && <XCircle size={10} className="text-current" />}
             {health?.status === "idle" && <div className="w-2 h-2 rounded-full border border-current" />}
             <span>
               {health?.status === "checking"
@@ -443,7 +443,7 @@ function ConnectionCard({
                 value={modelQuery}
                 onChange={(e) => onModelQueryChange(e.target.value)}
                 placeholder={t("connections.search_models", { defaultValue: "Search…" })}
-                className="w-full bg-background text-foreground border border-border rounded-lg pl-8 pr-2.5 py-2 text-xs outline-none focus:border-accent/60 transition-colors"
+                className="w-full bg-surface text-foreground border border-border rounded-lg pl-8 pr-2.5 py-2 text-xs outline-none focus:border-accent/60 transition-colors"
               />
             </div>
           </div>
@@ -458,7 +458,7 @@ function ConnectionCard({
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors text-left ${
                     isSelected
                       ? "border-accent/50 bg-accent/10"
-                      : "border-border/50 bg-background hover:border-accent/30"
+                      : "border-border/50 bg-surface/50 hover:border-accent/30"
                   }`}
                 >
                   <div
@@ -466,7 +466,7 @@ function ConnectionCard({
                       isSelected ? "border-accent bg-accent" : "border-muted/40"
                     }`}
                   >
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-surface" />}
                   </div>
                   <span className="text-xs font-mono text-foreground truncate">{m}</span>
                 </button>
