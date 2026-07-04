@@ -16,7 +16,7 @@ export function ArtifactModal({ open, onClose, api }: Props) {
   const { chat } = useStage();
 
   const artifactList = useMemo(() => {
-    return Array.from(chat.artifacts.values()).filter((a) => a.update !== "close");
+    return Array.from(chat.artifacts.values()).filter((a) => a.update !== "close" || a.phase === "complete");
   }, [chat.artifacts]);
 
   const handleFocus = (artifactId: string) => {

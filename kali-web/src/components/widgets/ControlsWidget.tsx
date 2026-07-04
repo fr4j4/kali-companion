@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
+import { Select } from "../ui/Select";
 
 interface Props {
   content?: unknown;
@@ -33,6 +34,7 @@ export function ControlsWidget(_props: Props) {
             step="0.1"
             value={temp}
             onChange={(e) => setTemp(parseFloat(e.target.value))}
+            className="w-full accent-accent"
           />
         </div>
 
@@ -49,6 +51,7 @@ export function ControlsWidget(_props: Props) {
             step="128"
             value={tokens}
             onChange={(e) => setTokens(parseInt(e.target.value))}
+            className="w-full accent-accent"
           />
         </div>
 
@@ -66,16 +69,17 @@ export function ControlsWidget(_props: Props) {
         {/* Voice select */}
         <div>
           <div className="text-xs text-muted mb-1">{t("widget.controls.voice")}</div>
-          <select
+          <Select
             value={voice}
-            onChange={(e) => setVoice(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-fg outline-none focus:border-accent/40 transition"
-          >
-            <option value="nova">{t("widget.controls.voice_nova")}</option>
-            <option value="alloy">{t("widget.controls.voice_alloy")}</option>
-            <option value="echo">{t("widget.controls.voice_echo")}</option>
-            <option value="fable">{t("widget.controls.voice_fable")}</option>
-          </select>
+            onChange={(v) => setVoice(v)}
+            options={[
+              { value: "nova", label: t("widget.controls.voice_nova") },
+              { value: "alloy", label: t("widget.controls.voice_alloy") },
+              { value: "echo", label: t("widget.controls.voice_echo") },
+              { value: "fable", label: t("widget.controls.voice_fable") },
+            ]}
+            buttonClassName="bg-white/[0.04] border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-fg focus:border-accent/40"
+          />
         </div>
 
         {/* Apply button */}

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { StatusEvent, VoiceDesignPreset, QwenVoice } from "../../lib/protocol";
 import { TTS_PROVIDERS } from "../../lib/tts-providers";
 import type { TtsProviderId } from "../../lib/tts-providers";
+import { Select } from "../ui/Select";
 import { SelectField, ToggleField } from "./fields";
 import { VoiceDesignControls } from "./VoiceDesignControls";
 import { VoicePreviewButton } from "./VoicePreviewButton";
@@ -115,21 +116,18 @@ export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-muted">{t("settings.voice")}</label>
           <div className="flex items-center gap-2">
-            <select
-              className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+            <Select
               value={effectiveVoice}
-              onChange={(e) => onUpdate({ voice: e.target.value })}
-            >
-              {voices.length === 0 ? (
-                <option value={effectiveVoice}>{effectiveVoice}</option>
-              ) : (
-                qwenVoices.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({v.gender})
-                  </option>
-                ))
-              )}
-            </select>
+              onChange={(v) => onUpdate({ voice: v })}
+              options={voices.length === 0
+                ? [{ value: effectiveVoice, label: effectiveVoice }]
+                : qwenVoices.map((v) => ({
+                    value: v.id,
+                    label: `${v.name} (${v.gender})`,
+                  }))
+              }
+              className="flex-1"
+            />
             <VoicePreviewButton voiceId={effectiveVoice} sttLanguage={sttLanguage} provider={tab} />
           </div>
         </div>
@@ -148,24 +146,18 @@ export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-muted">{t("settings.voice")}</label>
         <div className="flex items-center gap-2">
-          <select
-            className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+          <Select
             value={currentVoice}
-            onChange={(e) => onUpdate({ voice: e.target.value })}
-          >
-            {voices.length === 0 ? (
-              <option value={currentVoice}>{currentVoice}</option>
-            ) : (
-              voices.map((v) => {
-                const voiceId = (v.voice_id ?? v.id) as string;
-                return (
-                  <option key={voiceId} value={voiceId}>
-                    {(v.name ?? voiceId) as string}
-                  </option>
-                );
-              })
-            )}
-          </select>
+            onChange={(v) => onUpdate({ voice: v })}
+            options={voices.length === 0
+              ? [{ value: currentVoice, label: currentVoice }]
+              : voices.map((v) => {
+                  const voiceId = (v.voice_id ?? v.id) as string;
+                  return { value: voiceId, label: (v.name ?? voiceId) as string };
+                })
+            }
+            className="flex-1"
+          />
           <VoicePreviewButton voiceId={currentVoice} sttLanguage={sttLanguage} mode={currentMode} provider={tab} />
         </div>
       </div>
@@ -174,13 +166,8 @@ export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
         label={t("settings.tts_mode")}
         value={currentMode}
         onChange={(v) => onUpdate({ tts_mode: v })}
-      >
-        {MODES.map((m) => (
-          <option key={m} value={m}>
-            {t(`voice.mode.${m}`)}
-          </option>
-        ))}
-      </SelectField>
+        options={MODES.map((m) => ({ value: m, label: t(`voice.mode.${m}`) }))}
+      />
 
       <ToggleField
         label={t("settings.tts_enabled")}
@@ -192,13 +179,8 @@ export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
         label={t("settings.tts_language")}
         value={sttLanguage}
         onChange={(v) => onUpdate({ stt_language: v })}
-      >
-        {TTS_LANGS.map((l) => (
-          <option key={l.id} value={l.id}>
-            {t(l.labelKey)}
-          </option>
-        ))}
-      </SelectField>
+        options={TTS_LANGS.map((l) => ({ value: l.id, label: t(l.labelKey) }))}
+      />
     </div>
   );
 }

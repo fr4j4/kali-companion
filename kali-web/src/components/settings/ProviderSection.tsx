@@ -58,7 +58,7 @@ export function ProviderSection({ systemStatus }: Props) {
     void Promise.all(
       connections.map(async (conn) => {
         try {
-          const result = await testConnection(conn.api_url, "");
+          const result = await testConnection(conn.api_url, "", conn.id);
           setHealth((prev) => ({
             ...prev,
             [conn.id]: result.ok ? "online" : "offline",

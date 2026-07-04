@@ -74,20 +74,26 @@ export function StageProvider({ children }: { children: ReactNode }) {
   const [customVoices, setCustomVoices] = useState<CustomVoice[]>([]);
   const [connections, setConnections] = useState<ConnectionSummary[]>([]);
   const [cloudProviders, setCloudProviders] = useState<CloudProviderInfo[]>([]);
+  const connectionsSigRef = useRef<string>("");
 
   // Sync the connections list from the live status event (server pushes
   // it after every CRUD).  Falls back to a one-shot fetch on first ready
   // so a fresh page load still shows the persisted list.
+  // Only updates when the actual list content changes (avoids re-testing
+  // all connections on every unrelated settings change).
   useEffect(() => {
     const live = chat.systemStatus?.connections;
-    if (live && live.length >= 0) {
-      setConnections(live);
-    }
+    if (!live || live.length < 0) return;
+    const sig = JSON.stringify(live.map((c) => [c.id, c.is_active, c.active_model]));
+    if (sig === connectionsSigRef.current) return;
+    connectionsSigRef.current = sig;
+    setConnections(live);
   }, [chat.systemStatus?.connections]);
 
   const refreshConnections = useCallback(async () => {
     try {
       const list = await listConnections();
+      connectionsSigRef.current = JSON.stringify(list.map((c) => [c.id, c.is_active, c.active_model]));
       setConnections(list);
     } catch {
       // keep stale list

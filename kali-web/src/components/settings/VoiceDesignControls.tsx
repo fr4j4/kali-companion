@@ -7,6 +7,7 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getSidecarPort } from "../../hooks/useChat";
 import type { CustomVoice, VoiceDesignPreset } from "../../lib/protocol";
+import { Select } from "../ui/Select";
 
 function randomSeed() {
   return Math.floor(Math.random() * 999999);
@@ -233,18 +234,14 @@ export function VoiceDesignControls({
       {/* Preset selector */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-muted">{t("voice_design.preset_label")}</label>
-        <select
-          className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+        <Select
           value={selectedPreset}
-          onChange={(e) => handlePresetSelect(e.target.value)}
-        >
-          <option value="">{t("voice_design.preset_custom")}</option>
-          {presets.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => handlePresetSelect(v)}
+          options={[
+            { value: "", label: t("voice_design.preset_custom") },
+            ...presets.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+        />
       </div>
 
       {/* Custom mode controls - only show when no preset selected */}

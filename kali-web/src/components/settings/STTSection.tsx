@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Download, Loader, Loader2, Mic, Trash2 } from "lucide-react";
 import type { StatusEvent, SttProvider, ModelCatalogEntry } from "../../lib/protocol";
 import { STT_PROVIDERS } from "../../lib/stt-providers";
+import { Select } from "../ui/Select";
 import { SelectField, SliderField, ToggleField } from "./fields";
 import { useStage } from "../../stage/StageProvider";
 import { SectionHeader } from "./SectionHeader";
@@ -456,26 +457,24 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                 {compatibleDevices.length === 0 ? (
                   <p className="text-xs text-err">{t("settings.stt_no_device")}</p>
                 ) : (
-                  <select
-                    className="bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                  <Select
                     value={selectedDevice}
-                    onChange={(e) => setSelectedDevice(e.target.value)}
-                  >
-                    {compatibleDevices.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.id === "cpu"
-                          ? t("stt.device_cpu", {
-                              free: d.ram_free_mb != null ? ((d.ram_free_mb ?? 0) / 1024).toFixed(0) : "",
-                            })
-                          : t("stt.device_gpu", {
-                              id: d.id,
-                              name: d.name,
-                              free: ((d.vram_free_mb ?? 0) / 1024).toFixed(1),
-                              total: ((d.vram_total_mb ?? 0) / 1024).toFixed(1),
-                            })}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setSelectedDevice(v)}
+                    options={compatibleDevices.map((d) => ({
+                      value: d.id,
+                      label: d.id === "cpu"
+                        ? t("stt.device_cpu", {
+                            free: d.ram_free_mb != null ? ((d.ram_free_mb ?? 0) / 1024).toFixed(0) : "",
+                          })
+                        : t("stt.device_gpu", {
+                            id: d.id,
+                            name: d.name,
+                            free: ((d.vram_free_mb ?? 0) / 1024).toFixed(1),
+                            total: ((d.vram_total_mb ?? 0) / 1024).toFixed(1),
+                          }),
+                    }))}
+                    buttonClassName="bg-elevated border-border focus:border-accent-dim"
+                  />
                 )}
               </div>
             )}
@@ -506,16 +505,15 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                   onChange={(e) => setCatalogSearch(e.target.value)}
                 />
                 {catalogLanguages.length > 0 && (
-                  <select
-                    className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none"
+                  <Select
                     value={catalogLangFilter}
-                    onChange={(e) => setCatalogLangFilter(e.target.value)}
-                  >
-                    <option value="">{t("models.filter_all")}</option>
-                    {catalogLanguages.map((l) => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setCatalogLangFilter(v)}
+                    options={[
+                      { value: "", label: t("models.filter_all") },
+                      ...catalogLanguages.map((l) => ({ value: l, label: l })),
+                    ]}
+                    buttonClassName="bg-elevated border-border rounded-md px-2 py-1.5 text-xs"
+                  />
                 )}
               </div>
             )}
@@ -690,13 +688,8 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
           label={t("settings.stt_language")}
           value={sttLanguage}
           onChange={(v) => onUpdate({ stt_language: v })}
-        >
-          {STT_LANGS.map((l) => (
-            <option key={l.id} value={l.id}>
-              {t(l.labelKey)}
-            </option>
-          ))}
-        </SelectField>
+          options={STT_LANGS.map((l) => ({ value: l.id, label: t(l.labelKey) }))}
+        />
       </SettingsCard>
     </div>
   );

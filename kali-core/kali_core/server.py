@@ -944,6 +944,19 @@ class Server:
             body = await request.json()
             api_url = str(body.get("api_url", "")).strip()
             api_key = str(body.get("api_key", ""))
+            conn_id = str(body.get("connection_id", "")) or None
+
+            # If a connection_id is provided, look up the stored API key so
+            # health checks on cloud providers with mandatory auth work.
+            stored_conn = None
+            if conn_id:
+                stored_conn = self.connections_store.get(conn_id)
+                if stored_conn:
+                    if not api_key and stored_conn.api_key:
+                        api_key = stored_conn.api_key
+                    if not api_url:
+                        api_url = stored_conn.api_url
+
             if not api_url:
                 return JSONResponse(content={"error": "api_url is required"}, status_code=400)
             probe = await probe_endpoint(api_url=api_url, api_key=api_key)

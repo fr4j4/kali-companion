@@ -5,6 +5,7 @@ import { apiBase, fetchWithRetry } from "../../lib/api/http";
 import type { StatusEvent, TtsModelInfo, TtsDeviceInfo, ModelCatalogEntry } from "../../lib/protocol";
 import { TTS_PROVIDERS } from "../../lib/tts-providers";
 import type { TtsProviderId } from "../../lib/tts-providers";
+import { Select } from "../ui/Select";
 import { ToggleField } from "./fields";
 import { PiperVoiceControls } from "./PiperVoiceControls";
 import { QwenVoiceControls } from "./QwenVoiceControls";
@@ -374,19 +375,17 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
         <SettingsCard title={t("settings.tts.qwen_settings_group")}>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-muted">{t("settings.tts_device")}</label>
-            <select
-              className="bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+            <Select
               value={selectedDevice}
-              onChange={(e) => setSelectedDevice(e.target.value)}
-            >
-            {compatibleDevices.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.id === "cpu"
+              onChange={(v) => setSelectedDevice(v)}
+              options={compatibleDevices.map((d) => ({
+                value: d.id,
+                label: d.id === "cpu"
                   ? t("tts.device_cpu")
-                  : t("tts.device_gpu", { id: d.id, name: d.name })}
-              </option>
-            ))}
-          </select>
+                  : t("tts.device_gpu", { id: d.id, name: d.name }),
+              }))}
+              buttonClassName="bg-elevated border-border focus:border-accent-dim"
+            />
           </div>
         </SettingsCard>
       )}
@@ -473,16 +472,15 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                 onChange={(e) => setPiperSearch(e.target.value)}
               />
               {piperCatalogLangs.length > 0 && (
-                <select
-                  className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none"
+                <Select
                   value={piperLangFilter}
-                  onChange={(e) => setPiperLangFilter(e.target.value)}
-                >
-                  <option value="">{t("models.filter_all")}</option>
-                  {piperCatalogLangs.map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setPiperLangFilter(v)}
+                  options={[
+                    { value: "", label: t("models.filter_all") },
+                    ...piperCatalogLangs.map((l) => ({ value: l, label: l })),
+                  ]}
+                  buttonClassName="bg-elevated border-border rounded-md px-2 py-1.5 text-xs"
+                />
               )}
             </div>
             <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">

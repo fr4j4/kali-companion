@@ -34,7 +34,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
 
     void (async () => {
       try {
-        const result = await testConnection(conn.api_url, "");
+        const result = await testConnection(conn.api_url, "", conn.id);
         if (result.ok) {
           setModels(result.models);
           setVendor(result.vendor);

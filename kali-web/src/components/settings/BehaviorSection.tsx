@@ -58,13 +58,8 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           onChange={handleInputModeChange}
           disabled={!sttEnabled}
           helperText={!sttEnabled ? t("dock.mic_disabled") : undefined}
-        >
-          {INPUT_MODES.map((m) => (
-            <option key={m.id} value={m.id}>
-              {t(m.labelKey)}
-            </option>
-          ))}
-        </SelectField>
+          options={INPUT_MODES.map((m) => ({ value: m.id, label: t(m.labelKey) }))}
+        />
 
         {inputMode === "ptt" && (
           <ToggleField
@@ -81,13 +76,8 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           label={t("settings.feedback_mode")}
           value={feedbackMode}
           onChange={(v) => onUpdate({ feedback_mode: v })}
-        >
-          {FEEDBACK_MODES.map((m) => (
-            <option key={m.id} value={m.id}>
-              {t(m.labelKey)}
-            </option>
-          ))}
-        </SelectField>
+          options={FEEDBACK_MODES.map((m) => ({ value: m.id, label: t(m.labelKey) }))}
+        />
 
         {feedbackMode === "plan" && (
           <ToggleField
@@ -103,13 +93,8 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           label={t("settings.profile")}
           value={profile}
           onChange={(v) => onUpdate({ profile: v })}
-        >
-          {profiles.map((p) => (
-            <option key={p} value={p}>
-              {t(`profile.${p}`)}
-            </option>
-          ))}
-        </SelectField>
+          options={profiles.map((p) => ({ value: p, label: t(`profile.${p}`) }))}
+        />
 
         <ToggleField
           label={t("settings.artifact_diff_preview")}

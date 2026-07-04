@@ -78,13 +78,8 @@ export function LocalFormFields({ value, onChange, testState, onTest }: Props) {
         label={t("connections.api_format")}
         value={value.api_format}
         onChange={handleFormatChange}
-      >
-        {FORMATS.map((f) => (
-          <option key={f.id} value={f.id}>
-            {t(f.key)}
-          </option>
-        ))}
-      </SelectField>
+        options={FORMATS.map((f) => ({ value: f.id, label: t(f.key) }))}
+      />
 
       <TextField
         label={t("ai.endpoint")}

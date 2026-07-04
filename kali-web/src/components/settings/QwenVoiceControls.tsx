@@ -4,6 +4,7 @@ import type { StatusEvent, VoiceDesignPreset, QwenVoice } from "../../lib/protoc
 import { VoiceDesignControls } from "./VoiceDesignControls";
 import { VoicePreviewButton } from "./VoicePreviewButton";
 import { useStage } from "../../stage/StageProvider";
+import { Select } from "../ui/Select";
 
 interface Props {
   systemStatus: StatusEvent | null;
@@ -75,21 +76,18 @@ export function QwenVoiceControls({ systemStatus, voices, variant, onUpdate }: P
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-muted">{t("settings.voice")}</label>
           <div className="flex items-center gap-2">
-            <select
-              className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+            <Select
               value={effectiveVoice}
-              onChange={(e) => onUpdate({ voice: e.target.value })}
-            >
-              {voices.length === 0 ? (
-                <option value={effectiveVoice}>{effectiveVoice}</option>
-              ) : (
-                qwenVoices.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({v.gender})
-                  </option>
-                ))
-              )}
-            </select>
+              onChange={(v) => onUpdate({ voice: v })}
+              options={voices.length === 0
+                ? [{ value: effectiveVoice, label: effectiveVoice }]
+                : qwenVoices.map((v) => ({
+                    value: v.id,
+                    label: `${v.name} (${v.gender})`,
+                  }))
+              }
+              className="flex-1"
+            />
             <VoicePreviewButton voiceId={effectiveVoice} sttLanguage={sttLanguage} provider="qwen3" />
           </div>
         </div>

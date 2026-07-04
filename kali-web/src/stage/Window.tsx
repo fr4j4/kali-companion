@@ -193,7 +193,7 @@ function WindowImpl({
       minW,
       minH,
       bodyAspectRatio,
-      headerHeight: headerRef.current?.getBoundingClientRect().height,
+      headerHeight: headerRef.current?.offsetHeight,
       winScale,
       onResize: (_id, size, pos) => onResize(
         { width: size.width, height: size.height },

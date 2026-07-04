@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Gauge } from "lucide-react";
 import type { StatusEvent, SettingsEvent } from "../../lib/protocol";
@@ -26,17 +26,30 @@ function formatTokens(v: number): string {
 
 export function GenerationSection({ systemStatus, onUpdate }: Props) {
   const { t } = useTranslation();
-  const value = systemStatus?.llm_max_tokens ?? 16384;
+  const [value, setValue] = useState(systemStatus?.llm_max_tokens ?? 16384);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync from server (handles external changes).
+  useEffect(() => {
+    const sv = systemStatus?.llm_max_tokens;
+    if (sv != null) setValue(sv);
+  }, [systemStatus?.llm_max_tokens]);
+
+  // Cleanup debounce on unmount.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handleChange = useCallback((v: number) => {
     const next = clampTokens(v);
-    if (next === value) return;
+    setValue(next);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       onUpdate({ llm_max_tokens: next });
     }, 300);
-  }, [value, onUpdate]);
+  }, [onUpdate]);
 
   return (
     <div className="flex flex-col gap-4">

@@ -12,6 +12,7 @@ import { ColorSwatchPicker } from "./ColorSwatchPicker";
 import { Overlay } from "../components/ui/Overlay";
 import { Cat, Palette, User, Sparkles } from "lucide-react";
 import { SpeciesIcon } from "../components/ui/SpeciesIcon";
+import { Select } from "../components/ui/Select";
 
 interface Props {
   open: boolean;
@@ -400,20 +401,21 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                 <div className="bg-white/5 p-5 rounded-2xl border border-white/5 space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted uppercase tracking-widest">{t("customizer.neck.accessory")}</label>
-                    <select
+                    <Select
                       value={config.accessory}
-                      onChange={(e) => setAccessory(e.target.value as AvatarConfig["accessory"])}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none appearance-none"
-                    >
-                      <option value="cascabel">{t("customizer.neck.bell")}</option>
-                      <option value="placa">{t("customizer.neck.plate")}</option>
-                      <option value="corazon">{t("customizer.neck.heart")}</option>
-                      <option value="corbatin">{t("customizer.neck.tie")}</option>
-                      <option value="flor">{t("customizer.neck.flower")}</option>
-                      <option value="estrella">{t("customizer.neck.star")}</option>
-                      <option value="bufanda">{t("customizer.neck.scarf")}</option>
-                      <option value="ninguno">{t("customizer.neck.none")}</option>
-                    </select>
+                      onChange={(v) => setAccessory(v as AvatarConfig["accessory"])}
+                      options={[
+                        { value: "cascabel", label: t("customizer.neck.bell") },
+                        { value: "placa", label: t("customizer.neck.plate") },
+                        { value: "corazon", label: t("customizer.neck.heart") },
+                        { value: "corbatin", label: t("customizer.neck.tie") },
+                        { value: "flor", label: t("customizer.neck.flower") },
+                        { value: "estrella", label: t("customizer.neck.star") },
+                        { value: "bufanda", label: t("customizer.neck.scarf") },
+                        { value: "ninguno", label: t("customizer.neck.none") },
+                      ]}
+                      buttonClassName="bg-white/5 border-white/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
+                    />
                   </div>
 
                   <div className="space-y-1.5 pt-2">
@@ -448,15 +450,16 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-muted uppercase tracking-widest">{t("customizer.hats.glasses")}</label>
                       <div className="flex gap-2">
-                        <select
+                        <Select
                           value={config.glasses}
-                          onChange={(e) => setGlasses(e.target.value as AvatarConfig["glasses"])}
-                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none"
-                        >
-                          <option value="none">{t("customizer.hats.no_glasses")}</option>
-                          <option value="round">{t("customizer.hats.round")}</option>
-                          <option value="square">{t("customizer.hats.square")}</option>
-                        </select>
+                          onChange={(v) => setGlasses(v as AvatarConfig["glasses"])}
+                          options={[
+                            { value: "none", label: t("customizer.hats.no_glasses") },
+                            { value: "round", label: t("customizer.hats.round") },
+                            { value: "square", label: t("customizer.hats.square") },
+                          ]}
+                          buttonClassName="bg-white/5 border-white/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
+                        />
                         <ColorSwatchPicker label={t("customizer.glasses_color")} value={config.glassesColor} onChange={(v) => onChange({ ...config, glassesColor: v })} />
                       </div>
                     </div>
@@ -464,16 +467,17 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                     <div className="space-y-1.5 pt-2 border-t border-white/10">
                       <label className="text-[10px] font-bold text-muted uppercase tracking-widest">{t("customizer.hats.hat")}</label>
                       <div className="flex gap-2">
-                        <select
+                        <Select
                           value={config.hat}
-                          onChange={(e) => setHat(e.target.value as AvatarConfig["hat"])}
-                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none"
-                        >
-                          <option value="none">{t("customizer.hats.no_hat")}</option>
-                          <option value="gorro">{t("customizer.hats.beanie")}</option>
-                          <option value="copa">{t("customizer.hats.top_hat")}</option>
-                          <option value="fiesta">{t("customizer.hats.party")}</option>
-                        </select>
+                          onChange={(v) => setHat(v as AvatarConfig["hat"])}
+                          options={[
+                            { value: "none", label: t("customizer.hats.no_hat") },
+                            { value: "gorro", label: t("customizer.hats.beanie") },
+                            { value: "copa", label: t("customizer.hats.top_hat") },
+                            { value: "fiesta", label: t("customizer.hats.party") },
+                          ]}
+                          buttonClassName="bg-white/5 border-white/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
+                        />
                         <ColorSwatchPicker label={t("customizer.hat_color")} value={config.hatColor} onChange={(v) => onChange({ ...config, hatColor: v })} />
                       </div>
                     </div>

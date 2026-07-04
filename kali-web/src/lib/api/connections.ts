@@ -126,12 +126,13 @@ export async function verifyApiKey(
 export async function testConnection(
   apiUrl: string,
   apiKey = "",
+  connectionId?: string,
 ): Promise<ConnectionTestResult> {
   const base = await baseUrl();
   const res = await fetch(`${base}/llm/connections/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_url: apiUrl, api_key: apiKey }),
+    body: JSON.stringify({ api_url: apiUrl, api_key: apiKey, connection_id: connectionId }),
   });
   if (!res.ok) {
     const txt = await res.text();

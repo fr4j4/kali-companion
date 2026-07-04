@@ -68,7 +68,7 @@ export function GameConnectionPicker({
     await Promise.all(
       connections.map(async (conn) => {
         try {
-          const result = await testConnection(conn.api_url, "");
+          const result = await testConnection(conn.api_url, "", conn.id);
           if (result.ok) {
             setHealth((prev) => ({
               ...prev,

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { Select, type SelectOption } from "../ui/Select";
 
 interface FieldBase {
   label: string;
@@ -11,30 +11,29 @@ export function SelectField({
   label,
   value,
   onChange,
-  children,
+  options,
   error,
   disabled,
   helperText,
 }: FieldBase & {
   value: string;
   onChange: (v: string) => void;
-  children: ReactNode;
+  options: SelectOption[];
 }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs text-muted">{label}</label>
-      <select
-        className={`bg-surface text-foreground border rounded-md px-2.5 py-2 text-sm outline-none transition-colors ${
+      <Select
+        value={value}
+        onChange={onChange}
+        options={options}
+        disabled={disabled}
+        buttonClassName={`border ${
           error
             ? "border-err focus:border-err"
             : "border-border focus:border-accent-dim"
-        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-      >
-        {children}
-      </select>
+        }`}
+      />
       {error && (
         <p className="text-[11px] text-err" role="alert">{error}</p>
       )}

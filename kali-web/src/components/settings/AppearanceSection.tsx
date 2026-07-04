@@ -95,13 +95,8 @@ export function AppearanceSection({
           label={t("settings.language")}
           value={currentLanguage}
           onChange={onLanguageChange}
-        >
-          {LANGS.map((l) => (
-            <option key={l.id} value={l.id}>
-              {t(l.labelKey)}
-            </option>
-          ))}
-        </SelectField>
+          options={LANGS.map((l) => ({ value: l.id, label: t(l.labelKey) }))}
+        />
       </SettingsCard>
 
       <SettingsCard title={t("settings.appearance.performance_group")}>
@@ -110,13 +105,8 @@ export function AppearanceSection({
           value={performanceProfile}
           onChange={(value) => onPerformanceProfileChange(value as PerformanceProfile)}
           helperText={t("settings.performance_profile_hint")}
-        >
-          {PERFORMANCE_PROFILES.map((profile) => (
-            <option key={profile} value={profile}>
-              {t(`performance_profile.${profile}`)}
-            </option>
-          ))}
-        </SelectField>
+          options={PERFORMANCE_PROFILES.map((p) => ({ value: p, label: t(`performance_profile.${p}`) }))}
+        />
       </SettingsCard>
 
       <SettingsCard title={t("settings.appearance.scale_group")}>
