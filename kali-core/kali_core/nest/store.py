@@ -132,15 +132,19 @@ class SessionStore:
             msg_id = cursor.lastrowid
         return {"id": msg_id, "session_id": session_id, "role": role, "content": content}
 
-    async def set_title_if_default(self, session_id: str, title: str) -> None:
-        """Update the session title only if it is still the default."""
+    async def set_title_if_default(self, session_id: str, title: str) -> bool:
+        """Update the session title only if it is still the default.
+
+        Returns True if the title was actually changed.
+        """
         await self._ensure_db()
         async with aiosqlite.connect(self._db_path) as db:
-            await db.execute(
+            cursor = await db.execute(
                 "UPDATE sessions SET title = ? WHERE id = ? AND title = 'New chat'",
                 (title, session_id),
             )
             await db.commit()
+            return cursor.rowcount > 0
 
     async def get_messages(self, session_id: str) -> list[dict]:
         """Return all messages for a session in chronological order."""

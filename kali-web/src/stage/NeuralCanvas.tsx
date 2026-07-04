@@ -123,22 +123,28 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
 
   const newSession = useCallback(() => {
     setHistoryOpen(false);
+    // Reset the workspace immediately so open artifact windows disappear right
+    // away, without waiting for the backend round-trip that delivers the new
+    // session id. The session-change effect below will also reset once the new
+    // id arrives, but doing it here prevents stale windows from lingering.
+    api.resetWorkspace();
+    processedRef.current.clear();
     chat.newSession();
-    window.location.hash = "#/";
-  }, [chat]);
+    // URL navigation is handled centrally by StageProvider via the
+    // isCreatingSession flag set by chat.newSession(). Do not mutate
+    // window.location.hash here to avoid racing React's state update.
+  }, [chat, api]);
 
   const deleteSession = useCallback((sid: string) => {
     chat.deleteSession(sid);
     if (sid === chat.sessionId) {
       chat.newSession();
-      window.location.hash = "#/";
     }
   }, [chat]);
 
   const clearAllSessions = useCallback(() => {
     chat.clearAllSessions();
     chat.newSession();
-    window.location.hash = "#/";
   }, [chat]);
 
   const onLanguageChange = useCallback((lang: string) => {

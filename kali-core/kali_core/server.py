@@ -1709,6 +1709,8 @@ class Connection:
             if self.server.agent:
                 self.server.agent.reset_history(self.session_id)
             await self.send({"event": "connected", "session_id": self.session_id})
+            sessions = await self.server.session_store.list_sessions()
+            await self.send({"event": "session_list", "sessions": sessions})
 
         elif kind == "attach_session":
             sid = event.get("session_id", "")
@@ -3043,9 +3045,15 @@ class Connection:
         title = content[:50].strip()
         if len(content) > 50:
             title += "…"
-        await session_store.set_title_if_default(session_id, title)
+        title_changed = await session_store.set_title_if_default(session_id, title)
         if accumulated:
             await session_store.add_message(session_id, "assistant", accumulated)
+
+        # Notify the frontend when the session title changes so the sidebar
+        # updates without requiring a page refresh.
+        if title_changed:
+            sessions = await session_store.list_sessions()
+            await self.send({"event": "session_list", "sessions": sessions})
 
         await self.send({"event": "turn_end", "session_id": session_id})
 
