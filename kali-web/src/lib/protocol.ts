@@ -420,6 +420,7 @@ export interface StatusEvent {
   llm_max_tokens?: number;
   llm_connection_id?: string | null;
   llm_connection_name?: string | null;
+  llm_vendor_detected?: string | null;
   connections?: ConnectionSummary[];
   tts_provider: TtsProvider;
   voice: string;
