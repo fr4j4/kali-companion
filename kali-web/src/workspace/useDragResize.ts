@@ -35,8 +35,19 @@ function trySnap(el: HTMLElement, x: number, y: number, otherWindows: Array<{ el
   if (Math.abs(y - cy) < SNAP_THRESHOLD) y = cy;
 
   for (const other of otherWindows) {
-    const r = other.el.getBoundingClientRect();
-    const ax = r.left, ay = r.top, aw = r.width, ah = r.height;
+    // Use offsetWidth/offsetHeight (unaffected by transform: scale) and
+    // the wrapper's inline left/top style (the source of truth for window
+    // position) instead of getBoundingClientRect(), which returns scaled
+    // values during the awEnter entry animation and stale 400px
+    // placeholders when content-visibility:auto virtualizes offscreen
+    // siblings. The .kw element carries data-window-id but not left/top;
+    // those live on its .kw-wrapper parent.
+    const wrapper = other.el.closest(".kw-wrapper") as HTMLElement | null;
+    const posEl = wrapper ?? other.el;
+    const aw = other.el.offsetWidth;
+    const ah = other.el.offsetHeight;
+    const ax = parseFloat(posEl.style.left) || 0;
+    const ay = parseFloat(posEl.style.top) || 0;
     if (Math.abs(x - ax) < SNAP_THRESHOLD) x = ax;
     if (Math.abs(x + el.offsetWidth - ax - aw) < SNAP_THRESHOLD) x = ax + aw - el.offsetWidth;
     if (Math.abs(y - ay) < SNAP_THRESHOLD) y = ay;
@@ -108,7 +119,7 @@ function getHeaderLogical(
   if (headerHeight !== undefined) return headerHeight / winScale;
   const header = el.querySelector(".kw-header") as HTMLElement | null;
   if (!header) return 0;
-  return header.getBoundingClientRect().height / winScale;
+  return header.offsetHeight / winScale;
 }
 
 export function startResize(opts: ResizeOpts) {

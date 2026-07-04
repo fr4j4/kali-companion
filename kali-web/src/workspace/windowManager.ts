@@ -156,10 +156,21 @@ export function getAvatarCenter(): Position {
 
 /** Compute tether SVG path between avatar edge and a window center.
  *  The path starts at the avatar's outer edge in the direction of the window,
- *  and uses a cubic bezier with two control points to curve gracefully around. */
+ *  and uses a cubic bezier with two control points to curve gracefully around.
+ *
+ *  Measures the .kw-wrapper parent (which has no transform) instead of the
+ *  .kw element itself, because .kw has a transform: scale() applied during
+ *  the awEnter entry animation, which makes getBoundingClientRect() return
+ *  a scaled (wrong) rect. The wrapper carries the same position and is not
+ *  animated. */
 export function computeTetherPath(windowEl: HTMLElement): string {
   const center = getAvatarCenter();
-  const rect = windowEl.getBoundingClientRect();
+  // The .kw element has the transform; its .kw-wrapper parent does not and
+  // carries the same position. Fall back to the element itself if the
+  // wrapper is absent (mobile/grid mode).
+  const wrapper = windowEl.closest(".kw-wrapper") as HTMLElement | null;
+  const measureEl = wrapper ?? windowEl;
+  const rect = measureEl.getBoundingClientRect();
   const nodeX = rect.left + rect.width / 2;
   const nodeY = rect.top + rect.height / 2;
 

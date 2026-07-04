@@ -45,6 +45,13 @@ async function createWindow(): Promise<BrowserWindow> {
     },
   );
 
+  // Block window.open() / target="_blank" from sandboxed artifact iframes.
+  // Without this, an artifact calling window.open() (allowed by the
+  // sandbox="allow-popups" flag) spawns a native Electron window, whose
+  // focus/blur cycle triggers a content-visibility:auto re-measure of
+  // sibling windows and visibly misaligns the Kali UI.
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
   return window;
 }
 
