@@ -84,7 +84,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const live = chat.systemStatus?.connections;
     if (!live || live.length < 0) return;
-    const sig = live.map((c) => c.id).join(",");
+    const sig = JSON.stringify(live.map((c) => [c.id, c.is_active, c.active_model]));
     if (sig === connectionsSigRef.current) return;
     connectionsSigRef.current = sig;
     setConnections(live);
@@ -93,7 +93,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   const refreshConnections = useCallback(async () => {
     try {
       const list = await listConnections();
-      connectionsSigRef.current = list.map((c) => c.id).join(",");
+      connectionsSigRef.current = JSON.stringify(list.map((c) => [c.id, c.is_active, c.active_model]));
       setConnections(list);
     } catch {
       // keep stale list
