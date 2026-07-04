@@ -10,6 +10,7 @@ import { ActionType, GameCommand } from "../../games/core/constants/action-types
 import { SlotId } from "../../games/core/constants/player-types";
 import { KaliStatus, GameMode, type KaliStatusValue, type GameModeValue } from "../../games/core/constants/game-ai";
 import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
+import { GameButton, GameSegmentedControl } from "./GameUI";
 
 interface Props {
   game: TicTacToeGame;
@@ -269,28 +270,15 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
               <span className="text-[10px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}>
                 MODO
               </span>
-              <div className="flex gap-2">
-                {([GameMode.CPU, GameMode.KALI] as GameModeValue[]).map((m) => {
-                  const disabled = m === GameMode.KALI && !hasKali;
-                  return (
-                    <button
-                      key={m}
-                      onClick={() => !disabled && setMode(m)}
-                      disabled={disabled}
-                      className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                      style={{
-                        fontFamily: "'Press Start 2P', monospace",
-                        backgroundColor: mode === m ? PALETTE.x : "#0f172a",
-                        color: mode === m ? "#020617" : disabled ? "#475569" : "#94a3b8",
-                        boxShadow: mode === m ? `0 0 12px ${PALETTE.xGlow}` : "none",
-                        cursor: disabled ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {m === GameMode.CPU ? "VS CPU" : "VS KALI"}
-                    </button>
-                  );
-                })}
-              </div>
+              <GameSegmentedControl
+                options={[
+                  { value: GameMode.CPU, label: "VS CPU" },
+                  { value: GameMode.KALI, label: "VS KALI" },
+                ]}
+                value={mode}
+                onChange={(value) => setMode(value)}
+                disabledValue={(value) => value === GameMode.KALI && !hasKali}
+              />
               {!hasKali && (
                 <span className="text-[8px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#64748b" }}>
                   Conecta un proveedor de IA para jugar contra Kali
@@ -303,23 +291,15 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
                 <span className="text-[10px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}>
                   DIFICULTAD
                 </span>
-                <div className="flex gap-2">
-                  {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setDifficulty(d)}
-                      className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                      style={{
-                        fontFamily: "'Press Start 2P', monospace",
-                        backgroundColor: difficulty === d ? PALETTE.o : "#0f172a",
-                        color: difficulty === d ? "#020617" : "#94a3b8",
-                        boxShadow: difficulty === d ? `0 0 12px ${PALETTE.oGlow}` : "none",
-                      }}
-                    >
-                      {d === "easy" ? "FÁCIL" : d === "medium" ? "MEDIO" : "DIFÍCIL"}
-                    </button>
-                  ))}
-                </div>
+                <GameSegmentedControl
+                  options={[
+                    { value: "easy", label: "FÁCIL" },
+                    { value: "medium", label: "MEDIO" },
+                    { value: "hard", label: "DIFÍCIL" },
+                  ]}
+                  value={difficulty}
+                  onChange={(value) => setDifficulty(value)}
+                />
               </div>
             )}
 
@@ -327,38 +307,20 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
               <span className="text-[10px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}>
                 EMPIEZA
               </span>
-              <div className="flex gap-2">
-                {([SlotId.PLAYER, SlotId.OPPONENT] as Starter[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStarter(s)}
-                    className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      backgroundColor: starter === s ? PALETTE.x : "#0f172a",
-                      color: starter === s ? "#020617" : "#94a3b8",
-                      boxShadow: starter === s ? `0 0 12px ${PALETTE.xGlow}` : "none",
-                    }}
-                  >
-                    {s === SlotId.PLAYER ? "TÚ" : "OPONENTE"}
-                  </button>
-                ))}
-              </div>
+              <GameSegmentedControl
+                options={[
+                  { value: SlotId.PLAYER, label: "TÚ" },
+                  { value: SlotId.OPPONENT, label: "OPONENTE" },
+                ]}
+                value={starter}
+                onChange={(value) => setStarter(value)}
+              />
             </div>
           </div>
 
-          <button
-            onClick={startGame}
-            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              backgroundColor: PALETTE.x,
-              color: "#020617",
-              boxShadow: `0 0 14px ${PALETTE.xGlow}`,
-            }}
-          >
+          <GameButton onClick={startGame}>
             START
-          </button>
+          </GameButton>
           <p className="text-[9px] mt-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}>
             ENTER to start
           </p>
@@ -372,27 +334,15 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
             PAUSED
           </h2>
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => sendCommand(GameCommand.RESUME)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: PALETTE.x, color: "#020617", boxShadow: `0 0 14px ${PALETTE.xGlow}` }}
-            >
+            <GameButton onClick={() => sendCommand(GameCommand.RESUME)}>
               RESUME
-            </button>
-            <button
-              onClick={() => sendCommand(GameCommand.RESTART)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
-            >
+            </GameButton>
+            <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.RESTART)}>
               RESTART
-            </button>
-            <button
-              onClick={() => sendCommand(GameCommand.GIVE_UP)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", color: "#e0f2fe", backgroundColor: "#7f1d1d", border: "1px solid #f87171" }}
-            >
+            </GameButton>
+            <GameButton variant="danger" onClick={() => sendCommand(GameCommand.GIVE_UP)}>
               QUIT
-            </button>
+            </GameButton>
           </div>
         </div>
       )}

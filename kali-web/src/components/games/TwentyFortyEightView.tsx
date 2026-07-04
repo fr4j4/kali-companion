@@ -14,6 +14,7 @@ import { GameStatus } from "../../games/core/constants/game-status";
 import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
+import { GameButton, GameSegmentedControl } from "./GameUI";
 
 interface Props {
   game: TwentyFortyEightGame;
@@ -459,40 +460,16 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
             >
               BOARD SIZE
             </p>
-            <div className="flex items-center justify-center gap-2">
-              {SIZES.map((s) => {
-                const active = pendingSize === s.value;
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => setPendingSize(s.value)}
-                    className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      backgroundColor: active ? "#22d3ee" : "#0f172a",
-                      color: active ? "#020617" : "#94a3b8",
-                      boxShadow: active ? "0 0 12px rgba(34,211,238,0.55)" : "none",
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
+            <GameSegmentedControl
+              options={SIZES.map((s) => ({ value: String(s.value), label: s.label }))}
+              value={String(pendingSize)}
+              onChange={(value) => setPendingSize(Number(value) as BoardSize)}
+            />
           </div>
 
-          <button
-            onClick={() => startNewGame(pendingSize)}
-            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              backgroundColor: "#22d3ee",
-              color: "#020617",
-              boxShadow: "0 0 14px rgba(34,211,238,0.55)",
-            }}
-          >
+          <GameButton onClick={() => startNewGame(pendingSize)}>
             START
-          </button>
+          </GameButton>
           <p
             className="text-[9px] mt-4"
             style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
@@ -511,51 +488,32 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
             PAUSED
           </h2>
           <div className="flex flex-col gap-3">
-            <button
+            <GameButton
               onClick={() => {
                 send(game, GameCommand.RESUME);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                backgroundColor: "#22d3ee",
-                color: "#020617",
-                boxShadow: "0 0 14px rgba(34,211,238,0.55)",
-              }}
             >
               RESUME
-            </button>
-            <button
+            </GameButton>
+            <GameButton
+              variant="secondary"
               onClick={() => {
                 send(game, GameCommand.RESTART);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                backgroundColor: "#1e3a8a",
-                color: "#e0f2fe",
-                border: "1px solid #38bdf8",
-              }}
             >
               RESTART
-            </button>
-            <button
+            </GameButton>
+            <GameButton
+              variant="danger"
               onClick={() => {
                 send(game, GameCommand.GIVE_UP);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                color: "#e0f2fe",
-                backgroundColor: "#7f1d1d",
-                border: "1px solid #f87171",
-              }}
             >
               QUIT
-            </button>
+            </GameButton>
           </div>
           <p
             className="text-[9px] mt-4"

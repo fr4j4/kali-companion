@@ -48,17 +48,30 @@ import { ConsentModal } from "../components/ConsentModal";
 import { JobsPanel } from "../components/JobsPanel";
 import { DebugPad } from "./DebugPad";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import type { PerformanceProfile } from "../App";
+import { usePerfMetrics } from "../hooks/usePerfMetrics";
 
 interface Props {
   theme: string;
   onThemeChange: (t: string) => void;
+  performanceProfile: PerformanceProfile;
+  onPerformanceProfileChange: (p: PerformanceProfile) => void;
   canvasAutoExpand: boolean;
   onCanvasAutoExpandChange: (v: boolean) => void;
   uiScale: { global: number; text: number; avatar: number; window: number; density: number };
   onUIScaleChange: (patch: Partial<{ global: number; text: number; avatar: number; window: number; density: number }>) => void;
 }
 
-export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasAutoExpandChange, uiScale, onUIScaleChange }: Props) {
+export function NeuralCanvas({
+  theme,
+  onThemeChange,
+  performanceProfile,
+  onPerformanceProfileChange,
+  canvasAutoExpand,
+  onCanvasAutoExpandChange,
+  uiScale,
+  onUIScaleChange,
+}: Props) {
   const { t, i18n } = useTranslation();
   const { chat, tts, ptt, configWarnings } = useStage();
   const { isMobile } = useBreakpoint();
@@ -67,6 +80,7 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     onCloseArtifact: chat.markArtifactClosed,
     onContentLoaded: chat.setArtifactContent,
   });
+  const perfMetrics = usePerfMetrics(api.windows, performanceProfile);
   const [typing, setTyping] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [jobsOpen, setJobsOpen] = useState(false);
@@ -456,6 +470,8 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
         onUpdate={chat.updateSettings}
         theme={theme}
         onThemeChange={onThemeChange}
+        performanceProfile={performanceProfile}
+        onPerformanceProfileChange={onPerformanceProfileChange}
         canvasAutoExpand={canvasAutoExpand}
         onCanvasAutoExpandChange={onCanvasAutoExpandChange}
         uiScale={uiScale}
@@ -479,7 +495,11 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
       />
 
       {import.meta.env.DEV && debugOpen && (
-        <DebugPad onClose={() => setDebugOpen(false)} client={chat.wsClient as unknown as { simulate: (payload: unknown) => void; send: (payload: Record<string, unknown>) => void } | null} />
+        <DebugPad
+          onClose={() => setDebugOpen(false)}
+          client={chat.wsClient as unknown as { simulate: (payload: unknown) => void; send: (payload: Record<string, unknown>) => void } | null}
+          perfMetrics={perfMetrics}
+        />
       )}
     </div>
   );

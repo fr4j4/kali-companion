@@ -65,9 +65,10 @@ export default {
         "safe-t": "env(safe-area-inset-top)",
       },
       fontFamily: {
-        prose: ['"Iowan Old Style"', "Georgia", "Cambria", "serif"],
-        ui: ['"IBM Plex Sans"', "system-ui", "-apple-system", "sans-serif"],
-        mono: ['"JetBrains Mono"', '"Fira Code"', "monospace"],
+        prose: ["var(--font-prose)"],
+        ui: ["var(--font-ui)"],
+        mono: ["var(--font-mono)"],
+        game: ["var(--font-game)"],
       },
       transitionTimingFunction: {
         stage: "cubic-bezier(0.22, 1, 0.36, 1)",

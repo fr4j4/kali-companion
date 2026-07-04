@@ -1,14 +1,17 @@
 // AppearanceSection — theme, UI scale, canvas auto-expand, language.
 
 import { useTranslation } from "react-i18next";
-import { Palette } from "lucide-react";
+import { Palette, RotateCcw } from "lucide-react";
 import { SelectField, SliderField, ToggleField } from "./fields";
 import { SectionHeader } from "./SectionHeader";
 import { SettingsCard } from "./SettingsCard";
+import type { PerformanceProfile } from "../../App";
 
 interface Props {
   theme: string;
   onThemeChange: (t: string) => void;
+  performanceProfile: PerformanceProfile;
+  onPerformanceProfileChange: (p: PerformanceProfile) => void;
   canvasAutoExpand: boolean;
   onCanvasAutoExpandChange: (v: boolean) => void;
   uiScale: { global: number; text: number; avatar: number; window: number; density: number };
@@ -18,6 +21,7 @@ interface Props {
 }
 
 const THEMES = ["amberwave", "foxglove", "vellum", "tidepool", "aether"];
+const PERFORMANCE_PROFILES: PerformanceProfile[] = ["balanced", "performance", "quality"];
 
 const THEME_SWATCHES: Record<string, string[]> = {
   amberwave: ["#E8A24C", "#100E14", "#F2EBE0", "#7DD692"],
@@ -34,6 +38,8 @@ const LANGS = [
 export function AppearanceSection({
   theme,
   onThemeChange,
+  performanceProfile,
+  onPerformanceProfileChange,
   canvasAutoExpand,
   onCanvasAutoExpandChange,
   uiScale,
@@ -98,6 +104,21 @@ export function AppearanceSection({
         </SelectField>
       </SettingsCard>
 
+      <SettingsCard title={t("settings.appearance.performance_group")}>
+        <SelectField
+          label={t("settings.performance_profile")}
+          value={performanceProfile}
+          onChange={(value) => onPerformanceProfileChange(value as PerformanceProfile)}
+          helperText={t("settings.performance_profile_hint")}
+        >
+          {PERFORMANCE_PROFILES.map((profile) => (
+            <option key={profile} value={profile}>
+              {t(`performance_profile.${profile}`)}
+            </option>
+          ))}
+        </SelectField>
+      </SettingsCard>
+
       <SettingsCard title={t("settings.appearance.scale_group")}>
         <SliderField
           label={t("settings.scale_global")}
@@ -129,6 +150,15 @@ export function AppearanceSection({
             />
           </div>
         ))}
+
+        <button
+          type="button"
+          onClick={() => onUIScaleChange({ global: 1, text: 1, avatar: 1, window: 1, density: 1 })}
+          className="mt-1 flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted hover:text-foreground hover:bg-surface border border-border transition-colors self-start"
+        >
+          <RotateCcw size={12} />
+          {t("settings.reset_scale")}
+        </button>
       </SettingsCard>
 
       <SettingsCard title={t("settings.appearance.canvas_group")}>

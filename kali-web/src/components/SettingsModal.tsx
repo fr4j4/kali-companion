@@ -17,6 +17,7 @@ import { AppearanceSection } from "./settings/AppearanceSection";
 import { GenerationSection } from "./settings/GenerationSection";
 import { AboutSection } from "./settings/AboutSection";
 import { GamingSection } from "./settings/GamingSection";
+import type { PerformanceProfile } from "../App";
 
 interface Props {
   open: boolean;
@@ -25,6 +26,8 @@ interface Props {
   onUpdate: (patch: Partial<SettingsEvent>) => void;
   theme: string;
   onThemeChange: (t: string) => void;
+  performanceProfile: PerformanceProfile;
+  onPerformanceProfileChange: (p: PerformanceProfile) => void;
   canvasAutoExpand: boolean;
   onCanvasAutoExpandChange: (v: boolean) => void;
   uiScale: { global: number; text: number; avatar: number; window: number; density: number };
@@ -62,6 +65,8 @@ export function SettingsModal({
   onUpdate,
   theme,
   onThemeChange,
+  performanceProfile,
+  onPerformanceProfileChange,
   canvasAutoExpand,
   onCanvasAutoExpandChange,
   uiScale,
@@ -179,6 +184,8 @@ export function SettingsModal({
       <AppearanceSection
         theme={theme}
         onThemeChange={onThemeChange}
+        performanceProfile={performanceProfile}
+        onPerformanceProfileChange={onPerformanceProfileChange}
         canvasAutoExpand={canvasAutoExpand}
         onCanvasAutoExpandChange={onCanvasAutoExpandChange}
         uiScale={uiScale}

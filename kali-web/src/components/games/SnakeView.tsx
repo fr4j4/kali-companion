@@ -7,6 +7,7 @@ import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { useGameLoop } from "../../hooks/useGameLoop";
 import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
+import { GameButton } from "./GameUI";
 
 const CELL = 24;
 const BOARD_W = 20;
@@ -371,7 +372,7 @@ export function SnakeView({ game, isMaximized }: Props) {
     return () => clearTimeout(t);
   }, [game, status]);
 
-  const pixelFont = { fontFamily: "'Press Start 2P', monospace" };
+  const pixelFont = { fontFamily: "var(--font-game)" };
 
   return (
     <div
@@ -423,13 +424,9 @@ export function SnakeView({ game, isMaximized }: Props) {
           <p className="text-xs mb-6" style={{ ...pixelFont, color: PALETTE.borderLight }}>
             Eat. Grow. Survive.
           </p>
-          <button
-            onClick={() => send(game, GameCommand.START)}
-            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-            style={{ ...pixelFont, backgroundColor: PALETTE.head, color: PALETTE.buttonText, boxShadow: `0 0 10px ${PALETTE.headGlow}` }}
-          >
+          <GameButton onClick={() => send(game, GameCommand.START)}>
             START
-          </button>
+          </GameButton>
           <p className="text-[9px] mt-3" style={{ ...pixelFont, color: PALETTE.border }}>
             or press ENTER
           </p>
@@ -442,27 +439,15 @@ export function SnakeView({ game, isMaximized }: Props) {
             PAUSED
           </h2>
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => send(game, GameCommand.RESUME)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ ...pixelFont, backgroundColor: PALETTE.head, color: PALETTE.buttonText, boxShadow: `0 0 10px ${PALETTE.headGlow}` }}
-            >
+            <GameButton onClick={() => send(game, GameCommand.RESUME)}>
               RESUME
-            </button>
-            <button
-              onClick={() => send(game, GameCommand.RESTART)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ ...pixelFont, backgroundColor: PALETTE.platformBorder, color: PALETTE.buttonAltText, border: `1px solid ${PALETTE.borderLight}` }}
-            >
+            </GameButton>
+            <GameButton variant="secondary" onClick={() => send(game, GameCommand.RESTART)}>
               RESTART
-            </button>
-            <button
-              onClick={() => send(game, GameCommand.GIVE_UP)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ ...pixelFont, color: PALETTE.buttonAltText, backgroundColor: "#7f1d1d", border: `1px solid ${PALETTE.apple}` }}
-            >
+            </GameButton>
+            <GameButton variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>
               QUIT
-            </button>
+            </GameButton>
           </div>
           <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>
             ESC to resume
@@ -493,20 +478,12 @@ export function SnakeView({ game, isMaximized }: Props) {
             SCORE: {state.score}
           </p>
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => send(game, GameCommand.PLAY_AGAIN)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ ...pixelFont, backgroundColor: PALETTE.head, color: PALETTE.buttonText, boxShadow: `0 0 10px ${PALETTE.headGlow}` }}
-            >
+            <GameButton onClick={() => send(game, GameCommand.PLAY_AGAIN)}>
               PLAY AGAIN
-            </button>
-            <button
-              onClick={() => send(game, GameCommand.TO_TITLE)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ ...pixelFont, color: PALETTE.buttonAltText, backgroundColor: PALETTE.platformBorder, border: `1px solid ${PALETTE.borderLight}` }}
-            >
+            </GameButton>
+            <GameButton variant="secondary" onClick={() => send(game, GameCommand.TO_TITLE)}>
               TITLE SCREEN
-            </button>
+            </GameButton>
           </div>
           <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>
             ENTER to retry

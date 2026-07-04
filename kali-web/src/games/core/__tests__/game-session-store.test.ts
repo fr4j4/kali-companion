@@ -1,4 +1,4 @@
-import { GameSessionStore } from "../game-session-store";
+import { GameSessionStore, GAME_SESSION_RETENTION } from "../game-session-store";
 import {
   GAME_PARADIGM,
   GAME_ACTOR,
@@ -141,6 +141,17 @@ describe("GameSessionStore", () => {
       store.updateTurnReasoning("s1", 1, "b");
       expect(fn).toHaveBeenCalledTimes(2);
     });
+
+    it("keeps reasoning text within the retention limit", () => {
+      store.startSession("s1", "tictactoe", GAME_PARADIGM.TURN_BASED);
+      store.addTurn("s1", createAITurn(1));
+
+      store.updateTurnReasoning("s1", 1, "a".repeat(GAME_SESSION_RETENTION.maxReasoningChars + 20));
+
+      const turn = store.getTurns("s1")[0];
+      expect(turn.reasoning?.text).toHaveLength(GAME_SESSION_RETENTION.maxReasoningChars);
+      expect(turn.reasoning?.text.endsWith("a".repeat(20))).toBe(true);
+    });
   });
 
   describe("finalizeTurnReasoning", () => {
@@ -250,6 +261,64 @@ describe("GameSessionStore", () => {
         sessionId: "s1",
         eventData: event,
       });
+    });
+  });
+
+  describe("retention limits", () => {
+    it("keeps only the newest turns in memory", () => {
+      store.startSession("s1", "tictactoe", GAME_PARADIGM.TURN_BASED);
+      for (let i = 1; i <= GAME_SESSION_RETENTION.maxTurnsPerSession + 5; i += 1) {
+        store.addTurn("s1", createAITurn(i));
+      }
+
+      const turns = store.getTurns("s1");
+      expect(turns).toHaveLength(GAME_SESSION_RETENTION.maxTurnsPerSession);
+      expect(turns[0].turnNumber).toBe(6);
+    });
+
+    it("keeps only the newest realtime events in memory", () => {
+      store.startSession("s1", "snake", GAME_PARADIGM.REALTIME);
+      for (let i = 1; i <= GAME_SESSION_RETENTION.maxEventsPerSession + 3; i += 1) {
+        store.addEvent("s1", {
+          eventId: `e${i}`,
+          type: "direction_change",
+          timestamp: i,
+          stateAfter: { direction: "up" },
+          payload: { direction: "up" },
+        });
+      }
+
+      const events = store.getSession("s1")?.events ?? [];
+      expect(events).toHaveLength(GAME_SESSION_RETENTION.maxEventsPerSession);
+      expect(events[0].eventId).toBe("e4");
+    });
+
+    it("keeps only the newest log entries in memory", () => {
+      store.startSession("s1", "tictactoe", GAME_PARADIGM.TURN_BASED);
+      for (let i = 1; i <= GAME_SESSION_RETENTION.maxLogEntriesPerSession + 2; i += 1) {
+        store.addLogEntry("s1", {
+          id: `l${i}`,
+          timestamp: i,
+          kind: "ws_request",
+          label: `Log ${i}`,
+          icon: "send",
+          details: {},
+        });
+      }
+
+      const logs = store.getLogEntries("s1");
+      expect(logs).toHaveLength(GAME_SESSION_RETENTION.maxLogEntriesPerSession);
+      expect(logs[0].id).toBe("l3");
+    });
+
+    it("keeps only the newest sessions in memory", () => {
+      for (let i = 1; i <= GAME_SESSION_RETENTION.maxSessions + 4; i += 1) {
+        store.startSession(`s${i}`, "snake", GAME_PARADIGM.REALTIME);
+      }
+
+      expect(store.getSession("s1")).toBeUndefined();
+      expect(store.getSession("s4")).toBeUndefined();
+      expect(store.getSession("s5")).toBeDefined();
     });
   });
 });
