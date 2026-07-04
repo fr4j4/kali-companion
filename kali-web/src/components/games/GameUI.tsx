@@ -59,6 +59,7 @@ interface GameButtonProps {
   children: ReactNode;
   onClick: () => void;
   variant?: "primary" | "secondary" | "danger";
+  size?: "md" | "sm";
   disabled?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -68,6 +69,7 @@ export function GameButton({
   children,
   onClick,
   variant = "primary",
+  size = "md",
   disabled,
   className = "",
   style,
@@ -98,7 +100,7 @@ export function GameButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`px-5 py-2 rounded-lg text-xs tracking-wider font-game transition-all focus-visible:ring-2 focus-visible:ring-accent outline-none ${
+      className={`${size === "sm" ? "px-3 py-2 text-[10px] min-h-11" : "px-5 py-2 text-xs"} rounded-lg tracking-wider font-game transition-all focus-visible:ring-2 focus-visible:ring-accent outline-none ${
         disabled ? "opacity-50 cursor-not-allowed" : "hover:brightness-110 hover:scale-105"
       } ${className}`}
       style={{ ...colors[variant], ...style }}
@@ -176,6 +178,39 @@ export function GameHud({ children, width, className = "" }: { children: ReactNo
   );
 }
 
+export function GameHudStat({
+  label,
+  value,
+  tone = "primary",
+  minWidth,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "primary" | "secondary";
+  minWidth?: number;
+}) {
+  const color = tone === "primary" ? "var(--game-primary)" : "var(--game-secondary)";
+  const glow = tone === "primary" ? "var(--game-primary-glow)" : "var(--game-secondary-glow)";
+  return (
+    <div
+      className="flex flex-col items-center justify-center px-2 py-1 rounded-md"
+      style={{
+        backgroundColor: "var(--game-panel-2)",
+        boxShadow: `0 0 calc(8px * var(--fx-glow-scale)) ${glow}`,
+        minWidth,
+        boxSizing: "border-box",
+      }}
+    >
+      <span className="text-[8px] font-game" style={{ color, lineHeight: 1.2 }}>
+        {label}
+      </span>
+      <span className="text-xs font-game" style={{ color: "var(--game-text)", lineHeight: 1.2 }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export function GameStatusBadge({ children, tone = "primary" }: { children: ReactNode; tone?: "primary" | "secondary" }) {
   return (
     <div
@@ -189,6 +224,101 @@ export function GameStatusBadge({ children, tone = "primary" }: { children: Reac
       }}
     >
       {children}
+    </div>
+  );
+}
+
+export function GameTitleScreen({
+  icon,
+  title,
+  subtitle,
+  controls,
+  primaryAction,
+  footer,
+}: {
+  icon?: ReactNode;
+  title: string;
+  subtitle?: ReactNode;
+  controls?: ReactNode;
+  primaryAction?: ReactNode;
+  footer?: ReactNode;
+}) {
+  return (
+    <GameOverlay title={title} subtitle={subtitle} icon={icon} footer={footer}>
+      {controls && <div className="flex flex-col items-center gap-3 mb-6">{controls}</div>}
+      {primaryAction}
+    </GameOverlay>
+  );
+}
+
+export function GamePauseScreen({
+  title = "PAUSED",
+  actions,
+  footer,
+}: {
+  title?: string;
+  actions: ReactNode;
+  footer?: ReactNode;
+}) {
+  return (
+    <GameOverlay title={title} footer={footer}>
+      <div className="flex flex-col gap-3">{actions}</div>
+    </GameOverlay>
+  );
+}
+
+export function GameResultScreen({
+  title,
+  tone = "primary",
+  subtitle,
+  actions,
+  footer,
+}: {
+  title: string;
+  tone?: "primary" | "danger" | "secondary";
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  footer?: ReactNode;
+}) {
+  return (
+    <GameOverlay title={title} tone={tone} subtitle={subtitle} footer={footer}>
+      {actions && <div className="flex flex-col gap-3">{actions}</div>}
+    </GameOverlay>
+  );
+}
+
+export function TouchDPad({
+  onDirection,
+}: {
+  onDirection: (direction: "UP" | "DOWN" | "LEFT" | "RIGHT") => void;
+}) {
+  const buttonClassName =
+    "min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20";
+
+  return (
+    <div className="absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+      <div className="grid grid-cols-3 gap-2">
+        <div />
+        <button type="button" className={buttonClassName} onClick={() => onDirection("UP")} aria-label="Move up">↑</button>
+        <div />
+        <button type="button" className={buttonClassName} onClick={() => onDirection("LEFT")} aria-label="Move left">←</button>
+        <button type="button" className={buttonClassName} onClick={() => onDirection("DOWN")} aria-label="Move down">↓</button>
+        <button type="button" className={buttonClassName} onClick={() => onDirection("RIGHT")} aria-label="Move right">→</button>
+      </div>
+    </div>
+  );
+}
+
+export function GameMobileActionBar({
+  actions,
+}: {
+  actions: ReactNode;
+}) {
+  return (
+    <div className="absolute top-[max(12px,env(safe-area-inset-top))] right-[max(12px,env(safe-area-inset-right))] z-20 pointer-events-auto">
+      <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-panel/90 px-2 py-2 shadow-lg backdrop-blur-md">
+        {actions}
+      </div>
     </div>
   );
 }

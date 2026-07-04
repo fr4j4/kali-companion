@@ -6,8 +6,11 @@ import { GameStatus } from "../../games/core/constants/game-status";
 import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { useGameLoop } from "../../hooks/useGameLoop";
-import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
-import { GameButton } from "./GameUI";
+import { useGameViewport } from "./useGameViewport";
+import { GameButton, GameMobileActionBar, GamePauseScreen, GameResultScreen, GameTitleScreen, TouchDPad } from "./GameUI";
+import { computeGameOffsets, computeGameScale } from "./gameViewportSizing";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useSwipeDirection } from "./useSwipeDirection";
 
 const CELL = 24;
 const BOARD_W = 20;
@@ -186,9 +189,21 @@ export function SnakeView({ game, isMaximized }: Props) {
   const lastScoreRef = useRef(-1);
   const lastLevelRef = useRef(-1);
 
+  const { hasCoarsePointer, isMobile } = useBreakpoint();
   const viewport = useGameViewport(containerRef, isMaximized);
-  const scale = fitScale(game.naturalWidth, game.naturalHeight, viewport.width, viewport.height);
-  const offsets = centerOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
+  const scale = computeGameScale({
+    naturalWidth: game.naturalWidth,
+    naturalHeight: game.naturalHeight,
+    containerWidth: viewport.width,
+    containerHeight: viewport.height,
+    isMobile,
+  });
+  const offsets = computeGameOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
+  const sendDirection = useCallback((direction: "UP" | "DOWN" | "LEFT" | "RIGHT") => {
+    if (game.getStatus() !== GameStatus.PLAYING) return;
+    game.handleAction({ type: ActionType.MOVE, data: direction }, "player");
+  }, [game]);
+  const swipeHandlers = useSwipeDirection(sendDirection);
 
   const drawFrame = useCallback(
     (interp: number) => {
@@ -379,9 +394,10 @@ export function SnakeView({ game, isMaximized }: Props) {
       ref={containerRef}
       className="flex-1 w-full relative overflow-hidden"
       style={{ backgroundColor: isMaximized ? "#000" : "#020617" }}
+      {...(hasCoarsePointer ? swipeHandlers : {})}
     >
-        <div
-          className="p-2 rounded-xl border-2 absolute top-0 left-0"
+      <div
+        className="p-2 rounded-xl border-2 absolute top-0 left-0"
           style={{
             backgroundColor: PALETTE.platform,
             borderColor: PALETTE.platformBorder,
@@ -415,81 +431,73 @@ export function SnakeView({ game, isMaximized }: Props) {
         </div>
       </div>
 
+      {hasCoarsePointer && (status === GameStatus.PLAYING || status === GameStatus.PAUSED) && (
+        <GameMobileActionBar
+          actions={
+            <>
+              <GameButton
+                size="sm"
+                variant="secondary"
+                onClick={() => send(game, status === GameStatus.PLAYING ? GameCommand.PAUSE : GameCommand.RESUME)}
+              >
+                {status === GameStatus.PLAYING ? "PAUSE" : "PLAY"}
+              </GameButton>
+              <GameButton size="sm" variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>
+                EXIT
+              </GameButton>
+            </>
+          }
+        />
+      )}
+
       {status === GameStatus.WAITING && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
-          <span className="text-5xl mb-3" style={{ filter: "drop-shadow(0 0 12px rgba(0,240,255,0.7))" }}>{'\u{1F40D}'}</span>
-          <h2 className="text-xl mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.head }}>
-            SNAKE
-          </h2>
-          <p className="text-xs mb-6" style={{ ...pixelFont, color: PALETTE.borderLight }}>
-            Eat. Grow. Survive.
-          </p>
-          <GameButton onClick={() => send(game, GameCommand.START)}>
-            START
-          </GameButton>
-          <p className="text-[9px] mt-3" style={{ ...pixelFont, color: PALETTE.border }}>
-            or press ENTER
-          </p>
-        </div>
+        <GameTitleScreen
+          icon={"🐍"}
+          title="SNAKE"
+          subtitle="Eat. Grow. Survive."
+          primaryAction={<GameButton onClick={() => send(game, GameCommand.START)}>START</GameButton>}
+          footer={hasCoarsePointer ? "Tap to start" : "or press ENTER"}
+        />
       )}
 
       {status === GameStatus.PAUSED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#020617]/80 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2 className="text-base mb-6 tracking-wider" style={{ ...pixelFont, color: PALETTE.head }}>
-            PAUSED
-          </h2>
-          <div className="flex flex-col gap-3">
-            <GameButton onClick={() => send(game, GameCommand.RESUME)}>
-              RESUME
-            </GameButton>
-            <GameButton variant="secondary" onClick={() => send(game, GameCommand.RESTART)}>
-              RESTART
-            </GameButton>
-            <GameButton variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>
-              QUIT
-            </GameButton>
-          </div>
-          <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>
-            ESC to resume
-          </p>
-        </div>
+        <GamePauseScreen
+          actions={
+            <>
+              <GameButton onClick={() => send(game, GameCommand.RESUME)}>RESUME</GameButton>
+              <GameButton variant="secondary" onClick={() => send(game, GameCommand.RESTART)}>RESTART</GameButton>
+              <GameButton variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>QUIT</GameButton>
+            </>
+          }
+          footer={hasCoarsePointer ? "Tap resume to continue" : "ESC to resume"}
+        />
       )}
 
       {status === GameStatus.ABANDONED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
-            ABANDONED
-          </h2>
-          <p className="text-xs mb-4" style={{ ...pixelFont, color: PALETTE.head }}>
-            SCORE: {state.score}
-          </p>
-          <p className="text-[9px] mt-2" style={{ ...pixelFont, color: PALETTE.border }}>
-            Returning to title screen…
-          </p>
-        </div>
+        <GameResultScreen
+          title="ABANDONED"
+          tone="danger"
+          subtitle={`SCORE: ${state.score}`}
+          footer="Returning to title screen..."
+        />
       )}
 
       {status === GameStatus.LOST && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
-            GAME OVER
-          </h2>
-          <p className="text-xs mb-4" style={{ ...pixelFont, color: PALETTE.head }}>
-            SCORE: {state.score}
-          </p>
-          <div className="flex flex-col gap-3">
-            <GameButton onClick={() => send(game, GameCommand.PLAY_AGAIN)}>
-              PLAY AGAIN
-            </GameButton>
-            <GameButton variant="secondary" onClick={() => send(game, GameCommand.TO_TITLE)}>
-              TITLE SCREEN
-            </GameButton>
-          </div>
-          <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>
-            ENTER to retry
-          </p>
-        </div>
+        <GameResultScreen
+          title="GAME OVER"
+          tone="danger"
+          subtitle={`SCORE: ${state.score}`}
+          actions={
+            <>
+              <GameButton onClick={() => send(game, GameCommand.PLAY_AGAIN)}>PLAY AGAIN</GameButton>
+              <GameButton variant="secondary" onClick={() => send(game, GameCommand.TO_TITLE)}>TITLE SCREEN</GameButton>
+            </>
+          }
+          footer={hasCoarsePointer ? "Tap to continue" : "ENTER to retry"}
+        />
       )}
+
+      {hasCoarsePointer && status === GameStatus.PLAYING && <TouchDPad onDirection={sendDirection} />}
     </div>
   );
 }

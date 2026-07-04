@@ -1342,6 +1342,19 @@ html.kali-perf-low .kw {
 /* Maximized state */
 .kw.maximized { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border-radius: 0; z-index: 9999 !important; }
 .kw.maximized .kw-handle { display: none; }
+.kw.mobile-game-shell {
+  border-radius: 0 !important;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+.kw.mobile-game-shell .kw-header {
+  padding-top: max(8px, env(safe-area-inset-top));
+}
+.kw.mobile-game-shell .kw-body {
+  height: calc(100dvh - var(--titlebar-h) - max(8px, env(safe-area-inset-top)));
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
 
 /* Side panel — lives inside the window wrapper, external to .kw */
 .kw-wrapper { position: relative; }
