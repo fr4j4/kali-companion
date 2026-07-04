@@ -2,6 +2,7 @@ import { useRef, useCallback, useState } from "react";
 import { startDrag, startResize, type ResizeEdge } from "../workspace/useDragResize";
 import { X, ChevronDown, ChevronRight, Bug, Play, GripVertical, ChevronUp } from "lucide-react";
 import { useDebug } from "../hooks/useDebug";
+import type { PerfMetrics } from "../hooks/usePerfMetrics";
 
 interface SectionProps {
   title: string;
@@ -51,6 +52,7 @@ function Button({ onClick, children, variant = "default" }: ButtonProps) {
 interface Props {
   onClose: () => void;
   client: { simulate: (payload: unknown) => void; send: (payload: Record<string, unknown>) => void } | null;
+  perfMetrics?: PerfMetrics;
 }
 
 const RESIZE_HANDLES: { edge: ResizeEdge; className: string; label: string }[] = [
@@ -64,7 +66,7 @@ const RESIZE_HANDLES: { edge: ResizeEdge; className: string; label: string }[] =
   { edge: "sw", className: "kw-handle-sw", label: "Redimensionar southwest" },
 ];
 
-export function DebugPad({ onClose, client }: Props) {
+export function DebugPad({ onClose, client, perfMetrics }: Props) {
   const debug = useDebug(client);
   const [ttsText, setTtsText] = useState("");
   const [allExpanded, setAllExpanded] = useState(true);
@@ -165,6 +167,33 @@ export function DebugPad({ onClose, client }: Props) {
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="p-3 space-y-2">
+            {perfMetrics && (
+              <Section title="Performance" defaultOpen>
+                <div className="grid grid-cols-2 gap-2 w-full text-xs text-fg/80">
+                  <div className="rounded-md bg-white/5 p-2">
+                    <div className="text-muted/70">FPS</div>
+                    <div className="font-mono text-accent">{perfMetrics.fps}</div>
+                  </div>
+                  <div className="rounded-md bg-white/5 p-2">
+                    <div className="text-muted/70">Worst frame</div>
+                    <div className="font-mono text-accent">{perfMetrics.worstFrameMs}ms</div>
+                  </div>
+                  <div className="rounded-md bg-white/5 p-2">
+                    <div className="text-muted/70">Memory</div>
+                    <div className="font-mono text-accent">{perfMetrics.memoryMB === null ? "n/a" : `${perfMetrics.memoryMB}MB`}</div>
+                  </div>
+                  <div className="rounded-md bg-white/5 p-2">
+                    <div className="text-muted/70">Windows</div>
+                    <div className="font-mono text-accent">{perfMetrics.windows} / games {perfMetrics.gameWindows}</div>
+                  </div>
+                  <div className="rounded-md bg-white/5 p-2 col-span-2">
+                    <div className="text-muted/70">Profile</div>
+                    <div className="font-mono text-accent">{perfMetrics.profile}</div>
+                  </div>
+                </div>
+              </Section>
+            )}
+
             <Section title="Chat">
               <Button onClick={() => debug.simulateUserMessage("Mensaje de prueba del usuario")}>Msg Usuario</Button>
               <Button onClick={() => debug.simulateAssistantMessage("Mensaje de prueba del asistente")}>Msg Asistente</Button>

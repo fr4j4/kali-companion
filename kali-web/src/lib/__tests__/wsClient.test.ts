@@ -56,9 +56,10 @@ describe("WSClient.sendAndWait", () => {
       100,
     );
 
+    const rejection = expect(promise).rejects.toThrow("sendAndWait timed out after 100ms");
     vi.advanceTimersByTime(101);
 
-    await expect(promise).rejects.toThrow("sendAndWait timed out after 100ms");
+    await rejection;
   });
 
   it("resets the attempt timer when onProgress is called", async () => {
@@ -101,6 +102,8 @@ describe("WSClient.sendAndWait", () => {
       },
     );
 
+    const rejection = expect(promise).rejects.toThrow("global");
+
     // Notifying progress resets the attempt timer and invokes the callback.
     promise.__notifyProgress?.();
     await vi.advanceTimersByTimeAsync(80);
@@ -113,7 +116,7 @@ describe("WSClient.sendAndWait", () => {
     // No further progress, so it expires at ~200ms with the global message.
     await vi.advanceTimersByTimeAsync(50);
 
-    await expect(promise).rejects.toThrow("global");
+    await rejection;
   });
 
   it("rejects immediately when abort signal is already aborted", async () => {
@@ -135,9 +138,10 @@ describe("WSClient.sendAndWait", () => {
       controller.signal,
     );
 
+    const rejection = expect(promise).rejects.toThrow("sendAndWait aborted");
     await vi.advanceTimersByTimeAsync(0);
     controller.abort();
 
-    await expect(promise).rejects.toThrow("sendAndWait aborted");
+    await rejection;
   });
 });

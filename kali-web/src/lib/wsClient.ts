@@ -121,15 +121,24 @@ export class WSClient {
       let rejected = false;
       const startedAt = performance.now();
       const globalTimeoutMs = options?.globalTimeoutMs ?? timeoutMs;
+      const progressName = `__progress:${responseEventName}` as IncomingEventName;
+      let progressHandler: Listener | null = null;
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.off(responseEventName as IncomingEventName, handler as Listener);
+        if (progressHandler) {
+          this.off(progressName, progressHandler);
+        }
+        if (abortSignal) {
+          abortSignal.removeEventListener("abort", abortHandler);
+        }
+      };
 
       const fail = (reason: string) => {
         if (rejected) return;
         rejected = true;
-        clearTimeout(timer);
-        this.off(responseEventName as IncomingEventName, handler as Listener);
-        if (abortSignal) {
-          abortSignal.removeEventListener("abort", abortHandler);
-        }
+        cleanup();
         reject(new Error(reason));
       };
 
@@ -172,23 +181,18 @@ export class WSClient {
         if (rejected) return;
         if (matchFilter && !matchFilter(response as T)) return;
         rejected = true;
-        clearTimeout(timer);
-        this.off(responseEventName as IncomingEventName, handler as Listener);
-        if (abortSignal) {
-          abortSignal.removeEventListener("abort", abortHandler);
-        }
+        cleanup();
         console.log(`[WS ← ${responseEventName}]`, response);
         resolve(response as T);
       };
 
-      const progressHandler = () => {
+      progressHandler = () => {
         resetAttemptTimer();
       };
 
       this.on(responseEventName as IncomingEventName, handler as Listener);
 
       if (options?.onProgress) {
-        const progressName = `__progress:${responseEventName}`;
         this.on(progressName as IncomingEventName, progressHandler as Listener);
         const originalProgress = options.onProgress;
         notifyProgress = () => {

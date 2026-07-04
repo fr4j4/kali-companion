@@ -158,12 +158,13 @@ describe("AISlot reasoning timeout behavior", () => {
     };
 
     const decidePromise = slot.decide(state, 1);
+    const rejection = expect(decidePromise).rejects.toMatchObject({
+      code: KaliErrorCode.WS_TIMEOUT,
+    });
 
     await vi.runAllTimersAsync();
 
-    await expect(decidePromise).rejects.toMatchObject({
-      code: KaliErrorCode.WS_TIMEOUT,
-    });
+    await rejection;
   });
 
   it("uses the default global timeout when no setter is provided", async () => {

@@ -9,20 +9,26 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Bug, Gamepad2, MessageSquare, Mic, MoreHorizontal, Send, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
+import { Bug, Gamepad2, House, LayoutGrid, MessageSquare, Mic, MoreHorizontal, Send, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStage } from "./StageProvider";
 import type { WorkspaceAPI } from "../workspace/types";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 
 interface Props {
   api: WorkspaceAPI;
   onToggleDebug?: () => void;
   onOpenTextInput: () => void;
+  onOpenWindowSwitcher?: () => void;
+  onReturnHome?: () => void;
+  isMobile?: boolean;
 }
 
-export function NeuralDock({ api, onToggleDebug, onOpenTextInput }: Props) {
+export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSwitcher, onReturnHome, isMobile: isMobileProp }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
+  const { isMobile: isMobileBreakpoint } = useBreakpoint();
+  const isMobile = isMobileProp ?? isMobileBreakpoint;
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -61,8 +67,206 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput }: Props) {
   }, [overflowOpen]);
 
   return (
-    <footer className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40">
-      <div className="glass-strong rounded-2xl px-3 py-2.5 flex items-center gap-2 shadow-2xl border border-white/10">
+    <footer className={`fixed left-1/2 -translate-x-1/2 z-40 ${isMobile ? "bottom-[max(10px,env(safe-area-inset-bottom))] w-[calc(100vw-12px)] max-w-[560px]" : "bottom-5"}`}>
+      <div className={`glass-strong rounded-2xl shadow-2xl border border-white/10 ${isMobile ? "px-2 py-2 flex items-center justify-between gap-1 overflow-x-auto" : "px-3 py-2.5 flex items-center gap-2"}`}>
+        {isMobile ? (
+          <>
+            <button
+              onClick={onOpenWindowSwitcher}
+              disabled={!onOpenWindowSwitcher || isChatActive || isRecording}
+              className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+                isChatActive || isRecording
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-white/8 text-muted hover:text-fg"
+              }`}
+              title={t("stage.windows")}
+              aria-label={t("stage.windows")}
+            >
+              <LayoutGrid size={16} />
+            </button>
+
+            <button
+              onClick={onReturnHome}
+              disabled={!onReturnHome || isChatActive || isRecording || !api.windows.some((w) => w.focused && !w.minimized && !w.closed)}
+              className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+                isChatActive || isRecording
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-white/8 text-muted hover:text-fg"
+              }`}
+              title={t("stage.return_home")}
+              aria-label={t("stage.return_home")}
+            >
+              <House size={16} />
+            </button>
+
+            <button
+              onClick={onOpenTextInput}
+              disabled={isChatActive || isRecording}
+              className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+                isChatActive || isRecording
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-accent/20 text-muted hover:text-accent"
+              }`}
+              title={t("dock.text_input")}
+              aria-label={t("dock.text_input")}
+            >
+              <MessageSquare size={16} />
+            </button>
+
+            <div className="w-px h-5 bg-white/10 mx-0.5" />
+
+            {/* ── Central record button ─────────────────────────── */}
+            <button
+              onClick={sttEnabled ? handleRecordClick : undefined}
+              disabled={!sttEnabled}
+              className={`flex items-center justify-center h-12 w-12 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 ${
+                !sttEnabled
+                  ? "bg-white/10 text-muted cursor-not-allowed opacity-40"
+                  : isRecording
+                    ? isSpeaking
+                      ? "bg-red-500 text-white shadow-red-500/25 animate-rec-pulse"
+                      : "bg-red-500 text-white hover:bg-red-600 shadow-red-500/25"
+                    : "bg-accent text-white hover:bg-accent/90 shadow-accent/25"
+              }`}
+              aria-label={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
+              title={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
+            >
+              {isRecording ? (isSpeaking ? <div className="w-5 h-5 rounded-full bg-current" /> : <Send size={22} />) : <Mic size={22} />}
+            </button>
+
+            <button
+              onClick={handleControlClick}
+              disabled={!isControlVisible}
+              className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+                isControlVisible
+                  ? "bg-red-500/15 text-red-300 hover:bg-red-500/25"
+                  : "opacity-30 cursor-not-allowed text-muted"
+              }`}
+              aria-label={isRecording ? t("dock.mic_cancel") : t("dock.mic_stop")}
+              title={isRecording ? t("dock.mic_cancel") : t("dock.mic_stop")}
+            >
+              {isRecording ? <X size={16} /> : <Square size={16} />}
+            </button>
+
+            <button
+              onClick={() => {
+                const existing = api.windows.find(
+                  (w) => w.type === "game" && (w.content as any)?.mode === "launchpad",
+                );
+                if (existing && !existing.closed) {
+                  api.focusWindow(existing.id);
+                } else {
+                  api.createWindow("game", {
+                    title: t("dock.toys"),
+                    icon: "\u{1F3AE}",
+                    content: { mode: "launchpad" },
+                    resizable: true,
+                    minW: 360,
+                    minH: 400,
+                  });
+                }
+              }}
+              disabled={isChatActive || isRecording}
+              className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+                isChatActive || isRecording
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-accent/20 text-muted hover:text-accent"
+              }`}
+              title={t("dock.toys")}
+              aria-label={t("dock.toys")}
+            >
+              <Gamepad2 size={16} />
+            </button>
+
+            <div className="relative" ref={overflowRef}>
+              <button
+                onClick={() => setOverflowOpen((v) => !v)}
+                className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
+                  overflowOpen
+                    ? "bg-white/10 text-fg"
+                    : "hover:bg-white/8 text-muted hover:text-fg"
+                }`}
+                title={t("dock.overflow")}
+                aria-label={t("dock.overflow")}
+                aria-expanded={overflowOpen}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+
+              {overflowOpen && (
+                <div className="ctx-menu absolute bottom-12 right-0 min-w-[160px]">
+                  <button
+                    className="ctx-item w-full"
+                    onClick={() => {
+                      api.toggleGrid();
+                      setOverflowOpen(false);
+                    }}
+                  >
+                    <LayoutGrid size={14} />
+                    {t("dock.grid")}
+                  </button>
+                  <button
+                    className="ctx-item w-full"
+                    onClick={() => {
+                      api.focusLast();
+                      setOverflowOpen(false);
+                    }}
+                  >
+                    <House size={14} />
+                    {t("dock.focus")}
+                  </button>
+                  <button
+                    className="ctx-item w-full"
+                    onClick={() => {
+                      api.toggleAudio();
+                      setOverflowOpen(false);
+                    }}
+                  >
+                    <Volume2 size={14} />
+                    {t("dock.audio")}
+                  </button>
+                  <button
+                    className="ctx-item w-full"
+                    onClick={() => {
+                      api.undo();
+                      setOverflowOpen(false);
+                    }}
+                  >
+                    <Undo2 size={14} />
+                    {t("dock.undo")}
+                  </button>
+                  {import.meta.env.DEV && (
+                    <>
+                      <div className="ctx-sep" />
+                      <button
+                        className="ctx-item w-full"
+                        onClick={() => {
+                          onToggleDebug?.();
+                          setOverflowOpen(false);
+                        }}
+                      >
+                        <Bug size={14} />
+                        {t("dock.debug")}
+                      </button>
+                    </>
+                  )}
+                  <div className="ctx-sep" />
+                  <button
+                    className="ctx-item danger w-full"
+                    onClick={() => {
+                      api.clearAll();
+                      setOverflowOpen(false);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    {t("dock.clear")}
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         {/* ── Workspace ops ───────────────────────────────── */}
         <button
           onClick={api.toggleGrid}
@@ -287,6 +491,8 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput }: Props) {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
     </footer>
   );

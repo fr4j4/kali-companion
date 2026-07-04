@@ -252,6 +252,7 @@ function WindowImpl({
   }, [isMobile, sidePanelWidth, sidePanelHeight, leftPanelWidth, leftPanelHeight, panelConfig?.minWidth, panelConfig?.minHeight, leftPanelConfig?.minWidth, leftPanelConfig?.minHeight]);
 
   const panelPosition = panelConfig?.position ?? "right";
+  const isMobileFullscreenWindow = isMobile && w.type === "game";
 
   const sidePanelContextValue = useMemo(() => ({
     setSidePanelContent: handleSetSidePanelContent,
@@ -388,20 +389,36 @@ function WindowImpl({
     return (
       <SidePanelProvider value={sidePanelContextValue}>
         <div className="kw-wrapper">
-          {!w.maximized && renderPanel(leftPanelOpen, leftPanelContent, leftPos, leftPanelWidth, leftPanelHeight, toggleLeftPanel, true)}
+          {!w.maximized && !isMobileFullscreenWindow && renderPanel(leftPanelOpen, leftPanelContent, leftPos, leftPanelWidth, leftPanelHeight, toggleLeftPanel, true)}
           <div
             ref={elRef}
             data-window-id={w.id}
             data-window-type={w.type}
-            className={`kw ${focused ? "focused" : ""} ${selected ? "selected" : ""} ${w.minimized ? "minimized" : ""}`}
-            style={{ width: (w.size.width * winScale) + "px", maxWidth: "100%" }}
+            className={`kw ${focused ? "focused" : ""} ${selected ? "selected" : ""} ${w.minimized ? "minimized" : ""} ${isMobileFullscreenWindow ? "mobile-game-shell" : ""}`}
+            style={
+              isMobileFullscreenWindow
+                ? {
+                    position: "fixed",
+                    inset: 0,
+                    width: "100vw",
+                    height: "100dvh",
+                    borderRadius: 0,
+                    zIndex: 9999,
+                  }
+                : {
+                    width: `min(${w.size.width * winScale}px, calc(100vw - 12px))`,
+                    maxWidth: "calc(100vw - 12px)",
+                    maxHeight: "calc(100dvh - 176px)",
+                    margin: "0 auto",
+                  }
+            }
             onPointerDown={onFocus}
             role="region"
             aria-label={w.title}
           >
             {renderWindowContent(children)}
           </div>
-          {!w.maximized && renderPanel(sidePanelOpen, sidePanelContent, panelPosition, sidePanelWidth, sidePanelHeight, toggleSidePanel, false)}
+          {!w.maximized && !isMobileFullscreenWindow && renderPanel(sidePanelOpen, sidePanelContent, panelPosition, sidePanelWidth, sidePanelHeight, toggleSidePanel, false)}
         </div>
       </SidePanelProvider>
     );

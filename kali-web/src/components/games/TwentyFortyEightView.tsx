@@ -13,7 +13,11 @@ import {
 import { GameStatus } from "../../games/core/constants/game-status";
 import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
-import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
+import { useGameViewport } from "./useGameViewport";
+import { GameButton, GameHud, GameHudStat, GameMobileActionBar, GameSegmentedControl, GameTitleScreen, GamePauseScreen, GameResultScreen, TouchDPad } from "./GameUI";
+import { computeGameOffsets, computeGameScale } from "./gameViewportSizing";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useSwipeDirection } from "./useSwipeDirection";
 
 interface Props {
   game: TwentyFortyEightGame;
@@ -179,9 +183,16 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pendingSize, setPendingSize] = useState<BoardSize>(game.size);
 
+  const { isMobile, hasCoarsePointer } = useBreakpoint();
   const viewport = useGameViewport(containerRef, isMaximized);
-  const scale = fitScale(game.naturalWidth, game.naturalHeight, viewport.width, viewport.height);
-  const offsets = centerOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
+  const scale = computeGameScale({
+    naturalWidth: game.naturalWidth,
+    naturalHeight: game.naturalHeight,
+    containerWidth: viewport.width,
+    containerHeight: viewport.height,
+    isMobile,
+  });
+  const offsets = computeGameOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
   const animRef = useRef<BoardData | null>(null);
 
   const refresh = useCallback(() => {
@@ -297,6 +308,11 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
       if (tile) tiles.push({ id: tile.id, value: tile.value, row, col });
     }
   }
+  const swipeHandlers = useSwipeDirection((direction) => {
+    if (statusRef.current !== GameStatus.PLAYING) return;
+    move(game, direction);
+    refresh();
+  });
 
   return (
     <div
@@ -304,6 +320,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
       className="flex-1 w-full relative select-none overflow-hidden"
       style={{ backgroundColor: isMaximized ? "#000" : "#02040a" }}
       tabIndex={-1}
+      {...(hasCoarsePointer ? swipeHandlers : {})}
     >
       <div
         className="p-3 rounded-2xl border-2 absolute top-0 left-0 inline-flex flex-col items-center"
@@ -319,63 +336,18 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
           visibility: viewport.ready ? "visible" : "hidden",
         }}
       >
-        <div
-          className="flex items-end justify-between px-1 pb-3"
-          style={{ width: GRID_AREA_SIZE, height: 46, flex: "0 0 auto", gap: 12 }}
-        >
+        <GameHud width={GRID_AREA_SIZE}>
           <span
             className="text-sm tracking-widest font-bold"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee", lineHeight: 1 }}
+            style={{ fontFamily: "var(--font-game)", color: "#22d3ee", lineHeight: 1 }}
           >
             2048
           </span>
           <div className="flex gap-3">
-            <div
-              className="flex flex-col items-center justify-center px-2 py-1 rounded-md"
-              style={{
-                backgroundColor: "#0f172a",
-                boxShadow: "0 0 8px rgba(34,211,238,0.25)",
-                minWidth: 76,
-                boxSizing: "border-box",
-              }}
-            >
-              <span
-                className="text-[8px]"
-                style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee", lineHeight: 1.2 }}
-              >
-                SCORE
-              </span>
-              <span
-                className="text-xs"
-                style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9", lineHeight: 1.2 }}
-              >
-                {score}
-              </span>
-            </div>
-            <div
-              className="flex flex-col items-center justify-center px-2 py-1 rounded-md"
-              style={{
-                backgroundColor: "#0f172a",
-                boxShadow: "0 0 8px rgba(139,92,246,0.25)",
-                minWidth: 66,
-                boxSizing: "border-box",
-              }}
-            >
-              <span
-                className="text-[8px]"
-                style={{ fontFamily: "'Press Start 2P', monospace", color: "#a78bfa", lineHeight: 1.2 }}
-              >
-                MOVES
-              </span>
-              <span
-                className="text-xs"
-                style={{ fontFamily: "'Press Start 2P', monospace", color: "#c4b5fd", lineHeight: 1.2 }}
-              >
-                {moves}
-              </span>
-            </div>
+            <GameHudStat label="SCORE" value={score} minWidth={76} />
+            <GameHudStat label="MOVES" value={moves} tone="secondary" minWidth={66} />
           </div>
-        </div>
+        </GameHud>
 
         <div
           className="grid rounded-xl p-2 relative"
@@ -429,229 +401,141 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
             })}
           </div>
         </div>
+
+        {hasCoarsePointer && (statusRef.current === GameStatus.PLAYING || statusRef.current === GameStatus.PAUSED) && (
+          <GameMobileActionBar
+            placement="inline-bottom"
+            actions={
+              <>
+                <GameButton
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    send(game, statusRef.current === GameStatus.PLAYING ? GameCommand.PAUSE : GameCommand.RESUME);
+                    refresh();
+                  }}
+                >
+                  {statusRef.current === GameStatus.PLAYING ? "PAUSE" : "PLAY"}
+                </GameButton>
+                <GameButton
+                  size="sm"
+                  variant="danger"
+                  onClick={() => {
+                    send(game, GameCommand.GIVE_UP);
+                    refresh();
+                  }}
+                >
+                  EXIT
+                </GameButton>
+              </>
+            }
+          />
+        )}
+
+        {hasCoarsePointer && statusRef.current === GameStatus.PLAYING && (
+          <TouchDPad
+            placement="inline-bottom"
+            onDirection={(direction) => {
+              move(game, direction);
+              refresh();
+            }}
+          />
+        )}
       </div>
 
       {statusRef.current === GameStatus.WAITING && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
-          <span
-            className="text-5xl mb-3"
-            style={{ filter: "drop-shadow(0 0 14px rgba(34,211,238,0.8))" }}
-          >
-            {"\u{1F9EE}"}
-          </span>
-          <h2
-            className="text-xl mb-1 tracking-wider"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee" }}
-          >
-            2048
-          </h2>
-          <p
-            className="text-xs mb-6"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#38bdf8" }}
-          >
-            Merge. Glow. Win.
-          </p>
-
-          <div className="flex flex-col items-center gap-3 mb-6">
-            <p
-              className="text-[10px]"
-              style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}
-            >
-              BOARD SIZE
-            </p>
-            <div className="flex items-center justify-center gap-2">
-              {SIZES.map((s) => {
-                const active = pendingSize === s.value;
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => setPendingSize(s.value)}
-                    className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      backgroundColor: active ? "#22d3ee" : "#0f172a",
-                      color: active ? "#020617" : "#94a3b8",
-                      boxShadow: active ? "0 0 12px rgba(34,211,238,0.55)" : "none",
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            onClick={() => startNewGame(pendingSize)}
-            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              backgroundColor: "#22d3ee",
-              color: "#020617",
-              boxShadow: "0 0 14px rgba(34,211,238,0.55)",
-            }}
-          >
-            START
-          </button>
-          <p
-            className="text-[9px] mt-4"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
-          >
-            ENTER to start
-          </p>
-        </div>
+        <GameTitleScreen
+          icon={"🧮"}
+          title="2048"
+          subtitle="Merge. Glow. Win."
+          controls={
+            <>
+              <p className="text-[10px] font-game" style={{ color: "#94a3b8" }}>BOARD SIZE</p>
+              <GameSegmentedControl
+                options={SIZES.map((s) => ({ value: String(s.value), label: s.label }))}
+                value={String(pendingSize)}
+                onChange={(value) => setPendingSize(Number(value) as BoardSize)}
+              />
+            </>
+          }
+          primaryAction={<GameButton onClick={() => startNewGame(pendingSize)}>START</GameButton>}
+          footer={hasCoarsePointer ? "Tap to start" : "ENTER to start"}
+        />
       )}
 
       {statusRef.current === GameStatus.PAUSED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/85 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2
-            className="text-base mb-6 tracking-wider"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee" }}
-          >
-            PAUSED
-          </h2>
-          <div className="flex flex-col gap-3">
-            <button
+        <GamePauseScreen
+          actions={
+            <>
+            <GameButton
               onClick={() => {
                 send(game, GameCommand.RESUME);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                backgroundColor: "#22d3ee",
-                color: "#020617",
-                boxShadow: "0 0 14px rgba(34,211,238,0.55)",
-              }}
             >
               RESUME
-            </button>
-            <button
+            </GameButton>
+            <GameButton
+              variant="secondary"
               onClick={() => {
                 send(game, GameCommand.RESTART);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                backgroundColor: "#1e3a8a",
-                color: "#e0f2fe",
-                border: "1px solid #38bdf8",
-              }}
             >
               RESTART
-            </button>
-            <button
+            </GameButton>
+            <GameButton
+              variant="danger"
               onClick={() => {
                 send(game, GameCommand.GIVE_UP);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                color: "#e0f2fe",
-                backgroundColor: "#7f1d1d",
-                border: "1px solid #f87171",
-              }}
             >
               QUIT
-            </button>
-          </div>
-          <p
-            className="text-[9px] mt-4"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
-          >
-            ESC to resume
-          </p>
-        </div>
+            </GameButton>
+            </>
+          }
+          footer={hasCoarsePointer ? "Tap resume to continue" : "ESC to resume"}
+        />
       )}
 
       {statusRef.current === GameStatus.ABANDONED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2
-            className="text-lg mb-1 tracking-wider"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              color: "#f43f5e",
-              textShadow: "0 0 16px rgba(244,63,94,0.7)",
-            }}
-          >
-            ABANDONED
-          </h2>
-          <p
-            className="text-xs mb-4"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9" }}
-          >
-            SCORE: {score}
-          </p>
-          <p
-            className="text-[9px]"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
-          >
-            Returning to title screen…
-          </p>
-        </div>
+        <GameResultScreen
+          title="ABANDONED"
+          tone="danger"
+          subtitle={`SCORE: ${score}`}
+          footer="Returning to title screen..."
+        />
       )}
 
       {(statusRef.current === GameStatus.WON || statusRef.current === GameStatus.LOST) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2
-            className="text-lg mb-1 tracking-wider"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              color: statusRef.current === GameStatus.WON ? "#22d3ee" : "#f43f5e",
-              textShadow: statusRef.current === GameStatus.WON
-                ? "0 0 16px rgba(34,211,238,0.7)"
-                : "0 0 16px rgba(244,63,94,0.7)",
-            }}
-          >
-            {statusRef.current === GameStatus.WON ? "YOU WIN" : "GAME OVER"}
-          </h2>
-          <p
-            className="text-xs mb-4"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9" }}
-          >
-            SCORE: {score}
-          </p>
-          <div className="flex flex-col gap-3">
-            <button
+        <GameResultScreen
+          title={statusRef.current === GameStatus.WON ? "YOU WIN" : "GAME OVER"}
+          tone={statusRef.current === GameStatus.WON ? "primary" : "danger"}
+          subtitle={`SCORE: ${score}`}
+          actions={
+            <>
+            <GameButton
               onClick={() => {
                 send(game, GameCommand.PLAY_AGAIN);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                backgroundColor: "#22d3ee",
-                color: "#020617",
-                boxShadow: "0 0 14px rgba(34,211,238,0.55)",
-              }}
             >
               PLAY AGAIN
-            </button>
-            <button
+            </GameButton>
+            <GameButton
+              variant="secondary"
               onClick={() => {
                 send(game, GameCommand.TO_TITLE);
                 refresh();
               }}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{
-                fontFamily: "'Press Start 2P', monospace",
-                backgroundColor: "#1e3a8a",
-                color: "#e0f2fe",
-                border: "1px solid #38bdf8",
-              }}
             >
               TITLE SCREEN
-            </button>
-          </div>
-          <p
-            className="text-[9px] mt-4"
-            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
-          >
-            ENTER to retry
-          </p>
-        </div>
+            </GameButton>
+            </>
+          }
+          footer={hasCoarsePointer ? "Tap to retry" : "ENTER to retry"}
+        />
       )}
 
       <style>{`

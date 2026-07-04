@@ -3,6 +3,20 @@ import { StageProvider } from "./stage/StageProvider";
 import { NeuralCanvas } from "./stage/NeuralCanvas";
 import { useUIScale } from "./hooks/useUIScale";
 
+export type PerformanceProfile = "balanced" | "performance" | "quality";
+
+const PERFORMANCE_PROFILES: PerformanceProfile[] = ["balanced", "performance", "quality"];
+
+function shouldUseLowPerfProfile(): boolean {
+  const stored = localStorage.getItem("kali.perfLow");
+  if (stored === "0") return false;
+  if (stored === "1") return true;
+  const ua = navigator.userAgent;
+  const isWebkitGtk = /webkit/i.test(ua) && !/chrome|chromium|edge|firefox/i.test(ua);
+  const cores = navigator.hardwareConcurrency || 8;
+  return isWebkitGtk || cores <= 4;
+}
+
 /**
  * Detect low-performance environments and mark <html> with `kali-perf-low`.
  *
@@ -29,10 +43,7 @@ function usePerfProfile() {
       document.documentElement.classList.add("kali-perf-low");
       return;
     }
-    const ua = navigator.userAgent;
-    const isWebkitGtk = /webkit/i.test(ua) && !/chrome|chromium|edge|firefox/i.test(ua);
-    const cores = navigator.hardwareConcurrency || 8;
-    if (isWebkitGtk || cores <= 4) {
+    if (shouldUseLowPerfProfile()) {
       document.documentElement.classList.add("kali-perf-low");
     }
   }, []);
@@ -48,6 +59,12 @@ export default function App() {
     }
     return "amberwave";
   });
+  const [performanceProfile, setPerformanceProfile] = useState<PerformanceProfile>(() => {
+    const saved = localStorage.getItem("kali.performanceProfile");
+    return PERFORMANCE_PROFILES.includes(saved as PerformanceProfile)
+      ? (saved as PerformanceProfile)
+      : "balanced";
+  });
   const [canvasAutoExpand, setCanvasAutoExpand] = useState(
     () => localStorage.getItem("kali.canvasAutoExpand") !== "false",
   );
@@ -58,6 +75,18 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("kali.theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-perf-profile", performanceProfile);
+    if (performanceProfile === "performance") {
+      document.documentElement.classList.add("kali-perf-low");
+    } else if (performanceProfile === "quality") {
+      document.documentElement.classList.remove("kali-perf-low");
+    } else {
+      document.documentElement.classList.toggle("kali-perf-low", shouldUseLowPerfProfile());
+    }
+    localStorage.setItem("kali.performanceProfile", performanceProfile);
+  }, [performanceProfile]);
 
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -72,6 +101,8 @@ export default function App() {
       <NeuralCanvas
         theme={theme}
         onThemeChange={setTheme}
+        performanceProfile={performanceProfile}
+        onPerformanceProfileChange={setPerformanceProfile}
         canvasAutoExpand={canvasAutoExpand}
         onCanvasAutoExpandChange={(v) => {
           setCanvasAutoExpand(v);

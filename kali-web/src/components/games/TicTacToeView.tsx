@@ -9,7 +9,10 @@ import { GameStatus } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { SlotId } from "../../games/core/constants/player-types";
 import { KaliStatus, GameMode, type KaliStatusValue, type GameModeValue } from "../../games/core/constants/game-ai";
-import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
+import { useGameViewport } from "./useGameViewport";
+import { GameButton, GameHud, GameHudStat, GameMobileActionBar, GamePauseScreen, GameResultScreen, GameSegmentedControl, GameTitleScreen } from "./GameUI";
+import { computeGameOffsets, computeGameScale } from "./gameViewportSizing";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 
 interface Props {
   game: TicTacToeGame;
@@ -37,8 +40,15 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
   const [tick, setTick] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewport = useGameViewport(containerRef, isMaximized);
-  const scale = fitScale(game.naturalWidth, game.naturalHeight, viewport.width, viewport.height);
-  const offsets = centerOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
+  const { isMobile, hasCoarsePointer } = useBreakpoint();
+  const scale = computeGameScale({
+    naturalWidth: game.naturalWidth,
+    naturalHeight: game.naturalHeight,
+    containerWidth: viewport.width,
+    containerHeight: viewport.height,
+    isMobile,
+  });
+  const offsets = computeGameOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
 
   useEffect(() => {
     const unsub = manager.subscribe(() => setTick((v) => v + 1));
@@ -175,33 +185,26 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
           paddingBottom: 14,
         }}
       >
-      {/* Header bar */}
-      <div
-        className="flex items-end justify-between"
-        style={{ width: 288, height: 46, flex: "0 0 auto" }}
-      >
-        <span
-          className="text-sm tracking-widest font-bold"
-          style={{ fontFamily: "'Press Start 2P', monospace", color: PALETTE.x, lineHeight: 1 }}
-        >
-          TA-TE-TI
-        </span>
-        <div
-          className="px-2 py-1 rounded-md text-[9px]"
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            backgroundColor: "#0f172a",
-            color: currentSlot === SlotId.PLAYER ? PALETTE.x : PALETTE.o,
-            boxShadow: `0 0 8px ${currentSlot === SlotId.PLAYER ? PALETTE.xGlow : PALETTE.oGlow}`,
-          }}
-        >
-          {currentSlot === SlotId.PLAYER
-            ? "TU TURNO"
-            : kaliStatus === KaliStatus.THINKING
-              ? "KALI PENSANDO..."
-              : "TURNO IA"}
-        </div>
-      </div>
+        <GameHud width={288}>
+          <span
+            className="text-sm tracking-widest font-bold"
+            style={{ fontFamily: "var(--font-game)", color: PALETTE.x, lineHeight: 1 }}
+          >
+            TA-TE-TI
+          </span>
+          <GameHudStat
+            label="STATE"
+            value={
+              currentSlot === SlotId.PLAYER
+                ? "TU TURNO"
+                : kaliStatus === KaliStatus.THINKING
+                  ? "KALI..."
+                  : "IA"
+            }
+            tone={currentSlot === SlotId.PLAYER ? "primary" : "secondary"}
+            minWidth={92}
+          />
+        </GameHud>
 
       {/* Board grid */}
       <div
@@ -251,150 +254,93 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
         )}
       </div>
 
-      {/* Waiting overlay */}
-      {status === GameStatus.WAITING && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
-          <span className="text-5xl mb-3" style={{ filter: "drop-shadow(0 0 14px rgba(34,211,238,0.8))" }}>
-            {"\u{2B1C}"}
-          </span>
-          <h2 className="text-xl mb-1 tracking-wider" style={{ fontFamily: "'Press Start 2P', monospace", color: PALETTE.x }}>
-            TA-TE-TI
-          </h2>
-          <p className="text-xs mb-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#38bdf8" }}>
-            Tres en línea contra Kali o la CPU.
-          </p>
-
-          <div className="flex flex-col gap-3 mb-4">
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-[10px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}>
-                MODO
-              </span>
-              <div className="flex gap-2">
-                {([GameMode.CPU, GameMode.KALI] as GameModeValue[]).map((m) => {
-                  const disabled = m === GameMode.KALI && !hasKali;
-                  return (
-                    <button
-                      key={m}
-                      onClick={() => !disabled && setMode(m)}
-                      disabled={disabled}
-                      className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                      style={{
-                        fontFamily: "'Press Start 2P', monospace",
-                        backgroundColor: mode === m ? PALETTE.x : "#0f172a",
-                        color: mode === m ? "#020617" : disabled ? "#475569" : "#94a3b8",
-                        boxShadow: mode === m ? `0 0 12px ${PALETTE.xGlow}` : "none",
-                        cursor: disabled ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {m === GameMode.CPU ? "VS CPU" : "VS KALI"}
-                    </button>
-                  );
-                })}
-              </div>
-              {!hasKali && (
-                <span className="text-[8px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#64748b" }}>
-                  Conecta un proveedor de IA para jugar contra Kali
-                </span>
-              )}
-            </div>
-
-            {mode === GameMode.CPU && (
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}>
-                  DIFICULTAD
-                </span>
-                <div className="flex gap-2">
-                  {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setDifficulty(d)}
-                      className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                      style={{
-                        fontFamily: "'Press Start 2P', monospace",
-                        backgroundColor: difficulty === d ? PALETTE.o : "#0f172a",
-                        color: difficulty === d ? "#020617" : "#94a3b8",
-                        boxShadow: difficulty === d ? `0 0 12px ${PALETTE.oGlow}` : "none",
-                      }}
-                    >
-                      {d === "easy" ? "FÁCIL" : d === "medium" ? "MEDIO" : "DIFÍCIL"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-[10px]" style={{ fontFamily: "'Press Start 2P', monospace", color: "#94a3b8" }}>
-                EMPIEZA
-              </span>
-              <div className="flex gap-2">
-                {([SlotId.PLAYER, SlotId.OPPONENT] as Starter[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStarter(s)}
-                    className="px-3 py-2 rounded-md text-[10px] transition-all hover:brightness-110 hover:scale-105"
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      backgroundColor: starter === s ? PALETTE.x : "#0f172a",
-                      color: starter === s ? "#020617" : "#94a3b8",
-                      boxShadow: starter === s ? `0 0 12px ${PALETTE.xGlow}` : "none",
-                    }}
-                  >
-                    {s === SlotId.PLAYER ? "TÚ" : "OPONENTE"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={startGame}
-            className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              backgroundColor: PALETTE.x,
-              color: "#020617",
-              boxShadow: `0 0 14px ${PALETTE.xGlow}`,
-            }}
-          >
-            START
-          </button>
-          <p className="text-[9px] mt-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}>
-            ENTER to start
-          </p>
-        </div>
+      {hasCoarsePointer && (status === GameStatus.PLAYING || status === GameStatus.PAUSED) && (
+        <GameMobileActionBar
+          placement="inline-bottom"
+          actions={
+            <>
+              <GameButton
+                size="sm"
+                variant="secondary"
+                onClick={() => sendCommand(status === GameStatus.PLAYING ? GameCommand.PAUSE : GameCommand.RESUME)}
+              >
+                {status === GameStatus.PLAYING ? "PAUSE" : "PLAY"}
+              </GameButton>
+              <GameButton size="sm" variant="danger" onClick={() => sendCommand(GameCommand.GIVE_UP)}>
+                EXIT
+              </GameButton>
+            </>
+          }
+        />
       )}
 
-      {/* Paused overlay */}
+      {status === GameStatus.WAITING && (
+        <GameTitleScreen
+          icon={"✚"}
+          title="TA-TE-TI"
+          subtitle="Tres en linea contra Kali o la CPU."
+          controls={
+            <>
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>MODO</span>
+                <GameSegmentedControl
+                  options={[
+                    { value: GameMode.CPU, label: "VS CPU" },
+                    { value: GameMode.KALI, label: "VS KALI" },
+                  ]}
+                  value={mode}
+                  onChange={(value) => setMode(value)}
+                  disabledValue={(value) => value === GameMode.KALI && !hasKali}
+                />
+                {!hasKali && (
+                  <span className="text-[8px] font-game" style={{ color: "#64748b" }}>
+                    Conecta un proveedor de IA para jugar contra Kali
+                  </span>
+                )}
+              </div>
+              {mode === GameMode.CPU && (
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>DIFICULTAD</span>
+                  <GameSegmentedControl
+                    options={[
+                      { value: "easy", label: "FACIL" },
+                      { value: "medium", label: "MEDIO" },
+                      { value: "hard", label: "DIFICIL" },
+                    ]}
+                    value={difficulty}
+                    onChange={(value) => setDifficulty(value)}
+                  />
+                </div>
+              )}
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>EMPIEZA</span>
+                <GameSegmentedControl
+                  options={[
+                    { value: SlotId.PLAYER, label: "TU" },
+                    { value: SlotId.OPPONENT, label: "OPONENTE" },
+                  ]}
+                  value={starter}
+                  onChange={(value) => setStarter(value)}
+                />
+              </div>
+            </>
+          }
+          primaryAction={<GameButton onClick={startGame}>START</GameButton>}
+          footer={hasCoarsePointer ? "Tap to start" : "ENTER to start"}
+        />
+      )}
+
       {status === GameStatus.PAUSED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/85 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2 className="text-base mb-6 tracking-wider" style={{ fontFamily: "'Press Start 2P', monospace", color: PALETTE.x }}>
-            PAUSED
-          </h2>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => sendCommand(GameCommand.RESUME)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: PALETTE.x, color: "#020617", boxShadow: `0 0 14px ${PALETTE.xGlow}` }}
-            >
-              RESUME
-            </button>
-            <button
-              onClick={() => sendCommand(GameCommand.RESTART)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
-            >
-              RESTART
-            </button>
-            <button
-              onClick={() => sendCommand(GameCommand.GIVE_UP)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", color: "#e0f2fe", backgroundColor: "#7f1d1d", border: "1px solid #f87171" }}
-            >
-              QUIT
-            </button>
-          </div>
-        </div>
+        <GamePauseScreen
+          actions={
+            <>
+              <GameButton onClick={() => sendCommand(GameCommand.RESUME)}>RESUME</GameButton>
+              <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.RESTART)}>RESTART</GameButton>
+              <GameButton variant="danger" onClick={() => sendCommand(GameCommand.GIVE_UP)}>QUIT</GameButton>
+            </>
+          }
+          footer={hasCoarsePointer ? "Tap resume to continue" : "ESC to resume"}
+        />
       )}
 
       {/* Error overlay */}
@@ -447,53 +393,25 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
 
       {/* Abandoned transition overlay */}
       {status === GameStatus.ABANDONED && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2
-            className="text-lg mb-1 tracking-wider"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              color: "#f43f5e",
-              textShadow: "0 0 16px rgba(244,63,94,0.7)",
-            }}
-          >
-            ABANDONED
-          </h2>
-          <p className="text-[9px] mt-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}>
-            Returning to title screen…
-          </p>
-        </div>
+        <GameResultScreen
+          title="ABANDONED"
+          tone="danger"
+          footer="Returning to title screen..."
+        />
       )}
 
-      {/* Won/Lost/Draw overlay */}
       {(status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
-          <h2
-            className="text-lg mb-1 tracking-wider"
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              color: status === GameStatus.WON ? PALETTE.x : status === GameStatus.LOST ? "#f43f5e" : "#a78bfa",
-              textShadow: `0 0 16px ${status === GameStatus.WON ? PALETTE.xGlow : status === GameStatus.LOST ? "rgba(244,63,94,0.7)" : "rgba(139,92,246,0.7)"}`,
-            }}
-          >
-            {status === GameStatus.WON ? "GANASTE" : status === GameStatus.LOST ? "PERDISTE" : "EMPATE"}
-          </h2>
-          <div className="flex flex-col gap-3 mt-4">
-            <button
-              onClick={() => sendCommand(GameCommand.PLAY_AGAIN)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: PALETTE.x, color: "#020617", boxShadow: `0 0 14px ${PALETTE.xGlow}` }}
-            >
-              PLAY AGAIN
-            </button>
-            <button
-              onClick={() => sendCommand(GameCommand.TO_TITLE)}
-              className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
-              style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
-            >
-              TITLE SCREEN
-            </button>
-          </div>
-        </div>
+        <GameResultScreen
+          title={status === GameStatus.WON ? "GANASTE" : status === GameStatus.LOST ? "PERDISTE" : "EMPATE"}
+          tone={status === GameStatus.WON ? "primary" : status === GameStatus.LOST ? "danger" : "secondary"}
+          actions={
+            <>
+              <GameButton onClick={() => sendCommand(GameCommand.PLAY_AGAIN)}>PLAY AGAIN</GameButton>
+              <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.TO_TITLE)}>TITLE SCREEN</GameButton>
+            </>
+          }
+          footer={hasCoarsePointer ? "Tap to continue" : "ENTER to continue"}
+        />
       )}
       </div>
     </div>

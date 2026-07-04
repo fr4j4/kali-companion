@@ -19,12 +19,27 @@ export function useGameLoop(
   useEffect(() => {
     let lastTick = performance.now();
     let lastStatus = game.getStatus();
-    let rafId: number;
+    let rafId: number | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+
+    const clearScheduled = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
 
     function loop(now: number) {
+      if (stopped) return;
       const status = game.getStatus();
+      const visible = document.visibilityState !== "hidden";
 
-      if (status === GameStatus.PLAYING) {
+      if (status === GameStatus.PLAYING && visible) {
         if (now - lastTick >= tickMsRef.current) {
           game.tick();
           lastTick = now;
@@ -37,15 +52,23 @@ export function useGameLoop(
       if (status !== lastStatus) {
         lastStatus = status;
         onStatusChangeRef.current(status);
-        if (status === GameStatus.PLAYING) {
+        if (status === GameStatus.PLAYING && visible) {
           lastTick = now;
         }
       }
 
-      rafId = requestAnimationFrame(loop);
+      clearScheduled();
+      if (status === GameStatus.PLAYING && visible) {
+        rafId = requestAnimationFrame(loop);
+      } else {
+        timeoutId = setTimeout(() => loop(performance.now()), 200);
+      }
     }
 
     rafId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      stopped = true;
+      clearScheduled();
+    };
   }, [game]);
 }

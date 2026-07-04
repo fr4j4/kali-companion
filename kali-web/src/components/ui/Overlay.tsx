@@ -108,7 +108,7 @@ export function Overlay({
 
   if (!visible && !open) return null;
 
-  const effectiveVariant = isMobile && variant === "modal" ? "sheet-bottom" : variant;
+  const effectiveVariant = isMobile && variant !== "drawer" ? "sheet-bottom" : variant;
 
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
