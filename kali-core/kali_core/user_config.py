@@ -40,6 +40,7 @@ class UserConfig:
     tts_models_dir: str | None = None
     profile: str | None = None
     artifact_diff_preview: bool | None = None
+    game_ai_enabled: bool | None = None
     game_session_path: str | None = None
     game_ai_global_timeout_ms: int | None = None
     game_connection_id: str | None = None

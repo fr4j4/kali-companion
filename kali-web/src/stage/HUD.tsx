@@ -331,7 +331,7 @@ function ModelStatsPanel({
           <StatsRow label={t("stats.auto")} value={systemStatus.auto_tts ? "On" : "Off"} />
         </StatsSection>
 
-        {systemStatus.game_model && (
+        {systemStatus.game_ai_enabled && systemStatus.game_model && (
           <StatsSection title="Game" icon={<Gamepad2 size={12} />}>
             <StatsRow label={t("stats.model")} value={systemStatus.game_model} mono />
             <StatsRow label="Temperature" value={String(systemStatus.game_temperature ?? "-")} />

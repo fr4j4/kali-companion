@@ -277,13 +277,13 @@ function ActiveConnectionCard({
           <span className="text-xs text-muted truncate">
             {activeConnectionModel
               ? `${activeConnName} → ${activeConnectionModel}`
-              : activeConnName}
+              : `${activeConnName} (${t("settings.game_ai_inactive")})`}
           </span>
         </div>
       </div>
 
       <div className="shrink-0">
-        {activeConnectionModel ? (
+        {selected ? (
           <CheckCircle size={16} className="text-ok" />
         ) : (
           <Circle size={16} className="text-muted" />

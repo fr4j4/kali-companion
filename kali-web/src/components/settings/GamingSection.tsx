@@ -24,6 +24,7 @@ const GAME_AI_DEFAULTS = {
   game_session_path: "",
   game_connection_id: "active",
   game_model: "",
+  game_ai_enabled: true,
   game_log_default_open: false,
   game_reasoning_default_open: false,
 };
@@ -38,6 +39,7 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
   const gameSessionPath = systemStatus?.game_session_path ?? GAME_AI_DEFAULTS.game_session_path;
   const gameConnectionId = systemStatus?.game_connection_id ?? GAME_AI_DEFAULTS.game_connection_id;
   const gameModel = systemStatus?.game_model ?? GAME_AI_DEFAULTS.game_model;
+  const gameAiEnabled = systemStatus?.game_ai_enabled ?? GAME_AI_DEFAULTS.game_ai_enabled;
   const gameLogDefaultOpen = systemStatus?.game_log_default_open ?? GAME_AI_DEFAULTS.game_log_default_open;
   const gameReasoningDefaultOpen = systemStatus?.game_reasoning_default_open ?? GAME_AI_DEFAULTS.game_reasoning_default_open;
 
@@ -169,7 +171,14 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
         description={t("settings.gaming.description")}
       />
 
-      <SettingsCard title={t("settings.gaming.panels_group")}>
+      <SettingsCard title={t("settings.gaming.display_group")}>
+        <TextField
+          label={t("settings.game_session_path")}
+          value={gameSessionPath}
+          onChange={(v) => onUpdate({ game_session_path: v })}
+          placeholder="~/.kali/game-sessions"
+          helperText={t("settings.game_session_path_hint")}
+        />
         <ToggleField
           label={t("settings.game_log_default_open")}
           checked={gameLogDefaultOpen}
@@ -184,144 +193,147 @@ export function GamingSection({ systemStatus, onUpdate }: Props) {
         />
       </SettingsCard>
 
-      <SettingsCard title={t("settings.gaming.storage_group")}>
-        <TextField
-          label={t("settings.game_session_path")}
-          value={gameSessionPath}
-          onChange={(v) => onUpdate({ game_session_path: v })}
-          placeholder="~/.kali/game-sessions"
-          helperText={t("settings.game_session_path_hint")}
-        />
-      </SettingsCard>
-
-      <SettingsCard title={t("settings.gaming.timing_group")}>
-        <SliderField
-          label={t("settings.game_ai_global_timeout_ms")}
-          value={localGameTimeout / 1000}
-          min={5}
-          max={120}
-          step={5}
-          onChange={handleGameTimeoutChange}
-          displayValue={`${(localGameTimeout / 1000).toFixed(0)}${t("common.seconds_abbrev")}`}
-          helperText={t("settings.game_ai_global_timeout_ms_hint")}
-        />
-      </SettingsCard>
-
       <SettingsCard title={t("settings.game_ai_title")}>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted">{t("settings.game_ai_title")}</label>
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-elevated border border-border hover:border-accent/30 transition-colors text-left w-full"
-          >
-            {isUsingActive ? (
-              <Check size={14} className="text-ok shrink-0" />
-            ) : selectedConn?.kind === "cloud" ? (
-              <Cloud size={14} className="text-muted shrink-0" />
-            ) : (
-              <Server size={14} className="text-muted shrink-0" />
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-foreground">{displayName}</div>
-              <div className="text-[10px] text-muted font-mono mt-0.5 truncate">
-                {displayUrl || t("settings.game_ai_no_connection")}
+        <ToggleField
+          label={t("settings.game_ai_enabled")}
+          checked={gameAiEnabled}
+          onChange={(v) => onUpdate({ game_ai_enabled: v })}
+          helperText={t("settings.game_ai_enabled_hint")}
+        />
+
+        {gameAiEnabled && (
+          <>
+            <div className="h-px bg-border/40" />
+
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted">{t("settings.game_ai_title")}</label>
+                <button
+                  onClick={() => setPickerOpen(true)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-elevated border border-border hover:border-accent/30 transition-colors text-left w-full"
+                >
+                  {isUsingActive ? (
+                    <Check size={14} className="text-ok shrink-0" />
+                  ) : selectedConn?.kind === "cloud" ? (
+                    <Cloud size={14} className="text-muted shrink-0" />
+                  ) : (
+                    <Server size={14} className="text-muted shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-foreground">{displayName}</div>
+                    <div className="text-[10px] text-muted font-mono mt-0.5 truncate">
+                      {displayUrl || t("settings.game_ai_no_connection")}
+                    </div>
+                    {displayModel && (
+                      <div className="text-[10px] text-accent font-mono mt-0.5 truncate">
+                        {t("settings.game_ai_model_label")}: {displayModel}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-accent shrink-0 font-medium">
+                    {t("settings.game_ai_change")}
+                  </span>
+                </button>
               </div>
-              {displayModel && (
-                <div className="text-[10px] text-accent font-mono mt-0.5 truncate">
-                  {t("settings.game_ai_model_label")}: {displayModel}
+
+              <SliderField
+                label={t("settings.game_ai_global_timeout_ms")}
+                value={localGameTimeout / 1000}
+                min={5}
+                max={120}
+                step={5}
+                onChange={handleGameTimeoutChange}
+                displayValue={`${(localGameTimeout / 1000).toFixed(0)}${t("common.seconds_abbrev")}`}
+                helperText={t("settings.game_ai_global_timeout_ms_hint")}
+              />
+
+              <div className="h-px bg-border/40" />
+
+              <ToggleField
+                label={t("settings.advanced_configuration")}
+                checked={advanced}
+                onChange={setAdvanced}
+              />
+
+              {advanced && (
+                <div className="flex flex-col gap-4 pl-3 border-l-2 border-border">
+                  <SliderField
+                    label={t("settings.game_temperature")}
+                    value={localGameTemperature}
+                    min={0}
+                    max={2.0}
+                    step={0.1}
+                    onChange={handleGameTemperatureChange}
+                    displayValue={localGameTemperature.toFixed(1)}
+                    helperText={t("settings.game_temperature_hint")}
+                  />
+
+                  <SliderField
+                    label={t("settings.game_max_tokens")}
+                    value={localGameMaxTokens}
+                    min={128}
+                    max={2048}
+                    step={32}
+                    onChange={handleGameMaxTokensChange}
+                    displayValue={String(localGameMaxTokens)}
+                    helperText={t("settings.game_max_tokens_hint")}
+                  />
+
+                  <SliderField
+                    label={t("settings.game_retry_timeout_1_ms")}
+                    value={localTimeout1}
+                    min={2000}
+                    max={60_000}
+                    step={1000}
+                    onChange={handleRetryTimeout1Change}
+                    displayValue={`${localTimeout1}ms`}
+                    helperText={t("settings.game_retry_timeout_1_ms_hint")}
+                  />
+
+                  <SliderField
+                    label={t("settings.game_retry_timeout_2_ms")}
+                    value={localTimeout2}
+                    min={2000}
+                    max={30_000}
+                    step={1000}
+                    onChange={handleRetryTimeout2Change}
+                    displayValue={`${localTimeout2}ms`}
+                    helperText={t("settings.game_retry_timeout_2_ms_hint")}
+                  />
+
+                  <SliderField
+                    label={t("settings.game_retry_timeout_3_ms")}
+                    value={localTimeout3}
+                    min={2000}
+                    max={20_000}
+                    step={1000}
+                    onChange={handleRetryTimeout3Change}
+                    displayValue={`${localTimeout3}ms`}
+                    helperText={t("settings.game_retry_timeout_3_ms_hint")}
+                  />
+
+                  <SliderField
+                    label={t("settings.game_max_retries")}
+                    value={localMaxRetries}
+                    min={1}
+                    max={5}
+                    step={1}
+                    onChange={handleMaxRetriesChange}
+                    displayValue={String(localMaxRetries)}
+                    helperText={t("settings.game_max_retries_hint")}
+                  />
+
+                  <button
+                    onClick={() => onUpdate(GAME_AI_DEFAULTS)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted hover:text-foreground hover:bg-elevated border border-border transition-colors self-start"
+                  >
+                    <RotateCcw size={12} />
+                    {t("settings.reset_game_defaults")}
+                  </button>
                 </div>
               )}
             </div>
-            <span className="text-[11px] text-accent shrink-0 font-medium">
-              {t("settings.game_ai_change")}
-            </span>
-          </button>
-        </div>
-      </SettingsCard>
-
-      <SettingsCard title={t("settings.advanced_configuration")}>
-        <ToggleField
-          label={t("settings.advanced_configuration")}
-          checked={advanced}
-          onChange={setAdvanced}
-        />
-
-        {advanced && (
-          <div className="flex flex-col gap-4 pl-3 border-l-2 border-border">
-            <SliderField
-              label={t("settings.game_temperature")}
-              value={localGameTemperature}
-              min={0}
-              max={2.0}
-              step={0.1}
-              onChange={handleGameTemperatureChange}
-              displayValue={localGameTemperature.toFixed(1)}
-              helperText={t("settings.game_temperature_hint")}
-            />
-
-            <SliderField
-              label={t("settings.game_max_tokens")}
-              value={localGameMaxTokens}
-              min={128}
-              max={2048}
-              step={32}
-              onChange={handleGameMaxTokensChange}
-              displayValue={String(localGameMaxTokens)}
-              helperText={t("settings.game_max_tokens_hint")}
-            />
-
-            <SliderField
-              label={t("settings.game_retry_timeout_1_ms")}
-              value={localTimeout1}
-              min={2000}
-              max={60_000}
-              step={1000}
-              onChange={handleRetryTimeout1Change}
-              displayValue={`${localTimeout1}ms`}
-              helperText={t("settings.game_retry_timeout_1_ms_hint")}
-            />
-
-            <SliderField
-              label={t("settings.game_retry_timeout_2_ms")}
-              value={localTimeout2}
-              min={2000}
-              max={30_000}
-              step={1000}
-              onChange={handleRetryTimeout2Change}
-              displayValue={`${localTimeout2}ms`}
-              helperText={t("settings.game_retry_timeout_2_ms_hint")}
-            />
-
-            <SliderField
-              label={t("settings.game_retry_timeout_3_ms")}
-              value={localTimeout3}
-              min={2000}
-              max={20_000}
-              step={1000}
-              onChange={handleRetryTimeout3Change}
-              displayValue={`${localTimeout3}ms`}
-              helperText={t("settings.game_retry_timeout_3_ms_hint")}
-            />
-
-            <SliderField
-              label={t("settings.game_max_retries")}
-              value={localMaxRetries}
-              min={1}
-              max={5}
-              step={1}
-              onChange={handleMaxRetriesChange}
-              displayValue={String(localMaxRetries)}
-              helperText={t("settings.game_max_retries_hint")}
-            />
-
-            <button
-              onClick={() => onUpdate(GAME_AI_DEFAULTS)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted hover:text-foreground hover:bg-elevated border border-border transition-colors self-start"
-            >
-              <RotateCcw size={12} />
-              {t("settings.reset_game_defaults")}
-            </button>
-          </div>
+          </>
         )}
       </SettingsCard>
 

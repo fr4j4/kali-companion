@@ -33,6 +33,7 @@ game_ai_global_timeout_ms: int = int(
 )  # tope global para razonamiento del modelo en juegos
 
 # ── Game AI (kali-toys) ───────────────────────────────
+game_ai_enabled: bool = _env_bool("KALI_GAME_AI_ENABLED", True)
 game_connection_id: str = os.getenv("KALI_GAME_CONNECTION_ID", "")
 game_model: str = os.getenv("KALI_GAME_MODEL", "")
 game_temperature: float = float(os.getenv("KALI_GAME_TEMPERATURE", "0.4"))
@@ -480,6 +481,7 @@ class _Settings:
     game_max_retries = game_max_retries
     game_log_default_open = game_log_default_open
     game_reasoning_default_open = game_reasoning_default_open
+    game_ai_enabled = game_ai_enabled
 
 
 settings = _Settings()

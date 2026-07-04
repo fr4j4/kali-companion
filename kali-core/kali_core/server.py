@@ -553,6 +553,7 @@ class Server:
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
             "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
             "game_session_path": str(settings.game_session_path),
+            "game_ai_enabled": settings.game_ai_enabled,
             "game_ai_global_timeout_ms": settings.game_ai_global_timeout_ms,
             "game_connection_id": settings.game_connection_id,
             "game_model": settings.game_model,
@@ -1360,6 +1361,7 @@ class Server:
         "game_max_retries",
         "game_log_default_open",
         "game_reasoning_default_open",
+        "game_ai_enabled",
     )
 
     def _get_fallback(self, key: str):
@@ -1407,6 +1409,7 @@ class Server:
             "game_max_retries": settings.game_max_retries,
             "game_log_default_open": settings.game_log_default_open,
             "game_reasoning_default_open": settings.game_reasoning_default_open,
+            "game_ai_enabled": settings.game_ai_enabled,
         }
         return mapping.get(key)
 
@@ -1985,6 +1988,22 @@ class Connection:
         game_session_id = event.get("game_session_id")
         rules = event.get("rules", {})
         game_state = event.get("game_state", {})
+
+        if not settings.game_ai_enabled:
+            logger.info("[game_move] rejected — game AI is disabled | game=%s", game_type)
+            await self.send({
+                "event": "game_move_response",
+                "game_type": game_type,
+                "game_session_id": game_session_id,
+                "action": None,
+                "error": {
+                    "code": "MODEL_ERROR",
+                    "message": "Game AI is disabled",
+                    "fallback_action": None,
+                },
+                "reasoning": "",
+            })
+            return
 
         if not game_session_id:
             logger.warning(
@@ -3324,6 +3343,8 @@ class Connection:
                     await self.send({"event": "error", "detail": "game_ai_global_timeout_ms must be at least 5000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_ai_global_timeout_ms"})
+        if "game_ai_enabled" in event:
+            settings.game_ai_enabled = bool(event["game_ai_enabled"])
         if "game_connection_id" in event:
             settings.game_connection_id = str(event["game_connection_id"])
         if "game_model" in event:
@@ -3439,6 +3460,7 @@ class Connection:
             game_max_retries=settings.game_max_retries,
             game_log_default_open=settings.game_log_default_open,
             game_reasoning_default_open=settings.game_reasoning_default_open,
+            game_ai_enabled=settings.game_ai_enabled,
             # Per-connection
             stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,

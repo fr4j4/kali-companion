@@ -71,6 +71,7 @@ export interface SettingsEvent {
   voice_instructions?: string;
   voice_seed?: number;
   game_ai_global_timeout_ms?: number;
+  game_ai_enabled?: boolean;
   game_connection_id?: string;
   game_model?: string;
   game_temperature?: number;
@@ -454,6 +455,7 @@ export interface StatusEvent {
   artifact_diff_preview?: boolean;
   game_session_path?: string;
   game_ai_global_timeout_ms?: number;
+  game_ai_enabled?: boolean;
   game_connection_id?: string;
   game_model?: string;
   game_temperature?: number;
