@@ -739,5 +739,47 @@
   "about.icons_prefix": "Vectores e iconos por",
   "about.icons_suffix": "Licencia: CC0 / Dominio Público — no requiere atribución.",
   "about.made_with": "Hecho con",
-  "about.made_by": "por fr4j4"
+  "about.made_by": "por fr4j4",
+
+  "game_window.no_manager": "Gestor de sesión de juego no disponible",
+  "game_window.fallback_score": "Juego: {{type}} — Puntaje: {{score}}",
+
+  "game_catalog.category.single": "Un Jugador",
+  "game_catalog.category.versus": "Versus",
+  "game_catalog.category.coop": "Cooperativo",
+  "game_catalog.category.trivia": "Trivia",
+  "game_launchpad.title": "Juegos",
+  "game_launchpad.subtitle": "Seleccioná un juego. Kali puede ocupar cualquier rol.",
+  "game_launchpad.saved_games": "Partidas Guardadas",
+
+  "saved_games.title": "Partidas Guardadas",
+  "saved_games.empty": "No hay partidas guardadas aún.",
+  "saved_games.view_replay": "Ver replay",
+  "saved_games.delete": "Eliminar",
+  "saved_games.turns": "{{count}} turnos",
+  "saved_games.status_won": "GANASTE",
+  "saved_games.status_lost": "PERDISTE",
+  "saved_games.status_draw": "EMPATE",
+  "saved_games.status_abandoned": "ABANDONADA",
+
+  "saved_game_replay.loading": "Cargando partida...",
+  "saved_game_replay.title": "Replay de la Partida",
+  "saved_game_replay.turn": "Turno {{number}}",
+  "saved_game_replay.player": "Jugador",
+  "saved_game_replay.kali": "Kali",
+  "saved_game_replay.action": "Acción",
+  "saved_game_replay.reasoning": "Razonamiento",
+
+  "game_debug.title": "WS / AI Log",
+  "game_debug.copy": "COPIAR",
+  "game_debug.copy_title": "Copiar todo como JSON",
+  "game_debug.clear": "LIMPIAR",
+  "game_debug.clear_title": "Limpiar log",
+  "game_debug.empty": "Sin mensajes",
+
+  "game_reasoning.title": "Kali Reasoning",
+  "game_reasoning.clear": "LIMPIAR",
+  "game_reasoning.clear_title": "Limpiar razonamiento",
+  "game_reasoning.empty": "Esperando razonamiento de Kali...",
+  "game_reasoning.turn": "Turno {{number}}"
 }

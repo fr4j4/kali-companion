@@ -152,7 +152,7 @@ export function GameWidget({ content, api, windowId }: Props) {
     const game = gameRef.current;
 
     if (prevFocusedRef.current && !isFocused && game?.getStatus() === GameStatus.PLAYING) {
-      if (game.type === GameType.SNAKE) {
+      if (game.pauseOnBlur) {
         game.pause();
         forceRender((v) => v + 1);
       }
@@ -162,9 +162,10 @@ export function GameWidget({ content, api, windowId }: Props) {
   });
 
   const isMaximized = (api?.windows ?? []).some((w) => w.id === windowId && w.maximized);
+  const isFocused = (api?.windows ?? []).some((w) => w.id === windowId && w.focused && !w.closed);
 
   if (mode === "game" && gameType && ready && gameRef.current && managerRef.current) {
-    return <GameRenderer game={gameRef.current} manager={managerRef.current} hasKali={hasKali} isMaximized={isMaximized} />;
+    return <GameRenderer game={gameRef.current} manager={managerRef.current} hasKali={hasKali} isMaximized={isMaximized} focused={isFocused} />;
   }
 
   if (mode === "saved-games") {

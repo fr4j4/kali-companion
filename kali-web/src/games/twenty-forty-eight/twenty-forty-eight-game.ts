@@ -61,6 +61,8 @@ export class TwentyFortyEightGame extends BaseGame {
   readonly naturalWidth = 364;
   readonly naturalHeight = 394;
 
+  pauseOnBlur = false;
+
   private _size: BoardSize = DEFAULT_SIZE;
   private _cells: (Tile | null)[][] = [];
   private _score = 0;

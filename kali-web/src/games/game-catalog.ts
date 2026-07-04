@@ -1,213 +1,183 @@
 import { GameType, type GameTypeValue } from "./core/constants/game-types";
+import { SNAKE_I18N } from "./snake/snake-i18n";
+import { TIC_TAC_TOE_I18N } from "./tic-tac-toe/tic-tac-toe-i18n";
+import { TWENTY_FORTY_EIGHT_I18N } from "./twenty-forty-eight/twenty-forty-eight-i18n";
 
 export interface GameEntry {
   id: GameTypeValue;
   name: string;
-  nameEs: string;
   icon: string;
   description: string;
-  descriptionEs: string;
   category: Category;
   players: string;
+  getStrings?: (lang: string) => Record<string, string>;
 }
 
 export type Category = "single" | "versus" | "coop" | "trivia";
 
-export const CATEGORIES: { id: Category; label: string; labelEs: string }[] = [
-  { id: "single", label: "Single Player", labelEs: "Un Jugador" },
-  { id: "coop", label: "Cooperativo", labelEs: "Cooperativo" },
-  { id: "versus", label: "Versus", labelEs: "Versus" },
-  { id: "trivia", label: "Trivia", labelEs: "Trivia" },
+export const CATEGORIES: { id: Category; labelKey: string }[] = [
+  { id: "single", labelKey: "game_catalog.category.single" },
+  { id: "coop", labelKey: "game_catalog.category.coop" },
+  { id: "versus", labelKey: "game_catalog.category.versus" },
+  { id: "trivia", labelKey: "game_catalog.category.trivia" },
 ];
+
+const enStrings = (m: Record<string, Record<string, string>>) => (lang: string) =>
+  m[lang] ?? m.en;
 
 export const GAME_CATALOG: GameEntry[] = [
   {
     id: GameType.SNAKE,
     name: "Snake",
-    nameEs: "Snake",
     icon: "\u{1F40D}",
     description: "Classic snake game. Eat food, grow, don't crash into walls or yourself.",
-    descriptionEs: "Juego clásico de la serpiente. Come, crece y no choques contra las paredes o tu cola.",
     category: "single",
     players: "1P",
+    getStrings: enStrings(SNAKE_I18N),
   },
   {
     id: GameType.TWENTY_FORTY_EIGHT,
     name: "2048",
-    nameEs: "2048",
     icon: "\u{1F9EE}",
     description: "Merge tiles to reach 2048. Slide and combine numbers.",
-    descriptionEs: "Fusiona fichas para llegar a 2048. Desliza y combina números.",
     category: "single",
     players: "1P",
+    getStrings: enStrings(TWENTY_FORTY_EIGHT_I18N),
   },
   {
     id: GameType.MEMORY,
     name: "Memory",
-    nameEs: "Memoria",
     icon: "\u{1F52E}",
     description: "Flip cards and match pairs. Test your memory.",
-    descriptionEs: "Voltea cartas y encuentra pares. Poné tu memoria a prueba.",
     category: "single",
     players: "1P",
   },
   {
     id: GameType.MINESWEEPER,
     name: "Minesweeper",
-    nameEs: "Buscaminas",
     icon: "\u{1F4A3}",
     description: "Clear a minefield without detonating any mines.",
-    descriptionEs: "Despeja un campo minado sin detonar ninguna mina.",
     category: "single",
     players: "1P",
   },
   {
     id: GameType.BREAKOUT,
     name: "Breakout",
-    nameEs: "Breakout",
     icon: "\u{1F3D0}",
     description: "Break all the bricks with a ball and paddle.",
-    descriptionEs: "Rompe todos los ladrillos con una pelota y una paleta.",
     category: "single",
     players: "1P",
   },
   {
     id: GameType.PUZZLE_SLIDE,
     name: "Slide Puzzle",
-    nameEs: "Rompecabezas Deslizante",
     icon: "\u{1F9E9}",
     description: "Slide tiles to recreate the image.",
-    descriptionEs: "Desliza fichas para recrear la imagen.",
     category: "single",
     players: "1P",
   },
   {
     id: GameType.TIC_TAC_TOE,
     name: "Tic-Tac-Toe",
-    nameEs: "Ta-Te-Ti",
     icon: "\u{2B1C}",
     description: "Classic 3-in-a-row. Play against Kali or a friend.",
-    descriptionEs: "Clásico 3 en línea. Juega contra Kali o un amigo.",
     category: "versus",
     players: "1-2P",
+    getStrings: enStrings(TIC_TAC_TOE_I18N),
   },
   {
     id: GameType.CONNECT4,
     name: "Connect 4",
-    nameEs: "Conecta 4",
     icon: "\u{1F535}",
     description: "Drop discs and connect 4 in a row. Play against Kali.",
-    descriptionEs: "Tira fichas y conecta 4 en línea. Juega contra Kali.",
     category: "versus",
     players: "1-2P",
   },
   {
     id: GameType.CHESS,
     name: "Chess",
-    nameEs: "Ajedrez",
     icon: "\u265E",
     description: "Classic chess against Kali.",
-    descriptionEs: "Ajedrez clásico contra Kali.",
     category: "versus",
     players: "1P",
   },
   {
     id: GameType.RPS,
     name: "Rock Paper Scissors",
-    nameEs: "Piedra Papel Tijera",
     icon: "\u{1F44A}",
     description: "Rock paper scissors against Kali. Best of 3.",
-    descriptionEs: "Piedra papel tijera contra Kali. Al mejor de 3.",
     category: "versus",
     players: "1P",
   },
   {
     id: GameType.WORDLE,
     name: "Wordle",
-    nameEs: "Wordle",
     icon: "\u{1F520}",
     description: "Guess the 5-letter word in 6 tries.",
-    descriptionEs: "Adivina la palabra de 5 letras en 6 intentos.",
     category: "single",
     players: "1P",
   },
   {
     id: GameType.STORY_BUILDER,
     name: "Story Builder",
-    nameEs: "Creador de Historias",
     icon: "\u{1F4D6}",
     description: "Build a story together with Kali, sentence by sentence.",
-    descriptionEs: "Construyan una historia juntos, frase por frase.",
     category: "coop",
     players: "1P+Kali",
   },
   {
     id: GameType.MATH_CHALLENGE,
     name: "Math Challenge",
-    nameEs: "Desafío Matemático",
     icon: "\u{1F522}",
     description: "Solve math problems. Kali adapts the difficulty.",
-    descriptionEs: "Resuelve problemas matemáticos. Kali adapta la dificultad.",
     category: "coop",
     players: "1P+Kali",
   },
   {
     id: GameType.CODE_GUESS,
     name: "Code Guess",
-    nameEs: "Adivina el Código",
     icon: "\u{1F4BB}",
     description: "Guess the secret code. Kali gives you hints.",
-    descriptionEs: "Adivina el código secreto. Kali te da pistas.",
     category: "coop",
     players: "1P+Kali",
   },
   {
     id: GameType.TRIVIA,
     name: "Trivia",
-    nameEs: "Trivia",
     icon: "\u{1F3AF}",
     description: "General knowledge quiz with Kali as host.",
-    descriptionEs: "Preguntas de cultura general con Kali como anfitriona.",
     category: "trivia",
     players: "1P+Kali",
   },
   {
     id: GameType.TRUE_FALSE,
     name: "True or False",
-    nameEs: "Verdadero o Falso",
     icon: "\u2705",
     description: "Decide if statements are true or false. Kali scores you.",
-    descriptionEs: "Decide si las afirmaciones son verdaderas o falsas. Kali te puntúa.",
     category: "trivia",
     players: "1P+Kali",
   },
   {
     id: GameType.PREGUNTADOS,
     name: "Preguntados",
-    nameEs: "Preguntados",
     icon: "\u{1F30D}",
     description: "Category-based trivia game. Answer questions to earn points.",
-    descriptionEs: "Trivia por categorías. Responde preguntas y gana puntos.",
     category: "trivia",
     players: "1P+Kali",
   },
   {
     id: GameType.FILL_BLANK,
     name: "Fill the Blank",
-    nameEs: "Completar la Frase",
     icon: "\u{1F3B6}",
     description: "Complete the sentence with the right word. Kali helps.",
-    descriptionEs: "Completa la frase con la palabra correcta. Kali te ayuda.",
     category: "trivia",
     players: "1P+Kali",
   },
   {
     id: GameType.WORD_HINT,
     name: "Word Hint",
-    nameEs: "Pista de Palabras",
     icon: "\u{1F4DD}",
     description: "Guess the word from clues. Ask Kali for hints.",
-    descriptionEs: "Adivina la palabra por pistas. Pregúntale a Kali.",
     category: "trivia",
     players: "1P+Kali",
   },

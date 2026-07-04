@@ -10,15 +10,8 @@ interface Props {
   api?: WorkspaceAPI;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  won: "GANASTE",
-  lost: "PERDISTE",
-  draw: "EMPATE",
-  abandoned: "ABANDONADA",
-};
-
 export function SavedGamesPanel({ api }: Props) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isEs = i18n.language?.startsWith("es");
   const wsClient = useGameWS();
   const [sessions, setSessions] = useState<GameSessionMeta[]>([]);
@@ -52,14 +45,13 @@ export function SavedGamesPanel({ api }: Props) {
       event: GAME_SESSION_WS_EVENT.DELETE,
       sessionId,
     });
-    // Optimistic update: remove from list immediately
     setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
   };
 
   const handleView = (sessionId: string) => {
     if (!api) return;
     api.createWindow("game", {
-      title: isEs ? "Replay de partida" : "Game replay",
+      title: t("saved_game_replay.title"),
       content: { mode: "saved-game-replay", sessionId },
       width: 520,
       height: 600,
@@ -75,16 +67,18 @@ export function SavedGamesPanel({ api }: Props) {
       timeStyle: "short",
     });
 
+  const statusKey = (s: string) => `saved_games.status_${s}`;
+
   return (
     <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto scrollbar-thin">
       <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
         <span>{"\u{1F4CB}"}</span>
-        {isEs ? "Partidas Guardadas" : "Saved Games"}
+        {t("saved_games.title")}
       </h2>
 
       {sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-sm text-muted">
-          {isEs ? "No hay partidas guardadas aún." : "No saved games yet."}
+          {t("saved_games.empty")}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -95,24 +89,24 @@ export function SavedGamesPanel({ api }: Props) {
             >
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium text-fg">
-                  {STATUS_LABEL[s.status] ?? s.status.toUpperCase()}
+                  {t(statusKey(s.status), s.status.toUpperCase())}
                 </span>
                 <span className="text-xs text-muted">
-                  {formatDate(s.startedAt)} · {s.turnCount} turnos
+                  {formatDate(s.startedAt)} · {t("saved_games.turns", { count: s.turnCount })}
                 </span>
               </div>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleView(s.sessionId)}
                   className="p-2 rounded-md hover:bg-surface transition-colors"
-                  title={isEs ? "Ver replay" : "View replay"}
+                  title={t("saved_games.view_replay")}
                 >
                   <Eye size={14} />
                 </button>
                 <button
                   onClick={() => handleDelete(s.sessionId)}
                   className="p-2 rounded-md hover:bg-danger/20 text-danger transition-colors"
-                  title={isEs ? "Eliminar" : "Delete"}
+                  title={t("saved_games.delete")}
                 >
                   <Trash2 size={14} />
                 </button>

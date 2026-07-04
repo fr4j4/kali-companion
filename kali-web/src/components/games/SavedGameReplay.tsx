@@ -48,8 +48,7 @@ function renderBoard(board: (string | null)[][]) {
 }
 
 export function SavedGameReplay({ sessionId }: Props) {
-  const { i18n } = useTranslation();
-  const isEs = i18n.language?.startsWith("es");
+  const { t } = useTranslation();
   const wsClient = useGameWS();
   const [session, setSession] = useState<GameSessionData | null>(null);
 
@@ -74,7 +73,7 @@ export function SavedGameReplay({ sessionId }: Props) {
   if (!session) {
     return (
       <div className="flex flex-col flex-1 items-center justify-center text-muted">
-        {isEs ? "Cargando partida..." : "Loading game..."}
+        {t("saved_game_replay.loading")}
       </div>
     );
   }
@@ -84,10 +83,10 @@ export function SavedGameReplay({ sessionId }: Props) {
   return (
     <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto">
       <h2 className="text-lg font-semibold text-fg">
-        {isEs ? "Replay de la partida" : "Game Replay"}
+        {t("saved_game_replay.title")}
       </h2>
       <p className="text-xs text-muted">
-        {new Date(session.startedAt).toLocaleString()} · {turns.length} turnos
+        {new Date(session.startedAt).toLocaleString()} · {t("saved_games.turns", { count: turns.length })}
       </p>
 
       <div className="flex flex-col gap-4">
@@ -101,16 +100,16 @@ export function SavedGameReplay({ sessionId }: Props) {
               className="flex flex-col gap-2 p-3 rounded-lg border border-border/50 bg-surface/30"
             >
               <div className="flex items-center gap-2 text-sm font-medium text-fg">
-                <span>{isPlayer ? "🧑" : "🤖"}</span>
+                <span>{isPlayer ? "\u{1F9D1}" : "\u{1F916}"}</span>
                 <span>
-                  Turno {turn.turnNumber} · {isPlayer ? "Jugador" : "Kali"}
+                  {t("saved_game_replay.turn", { number: turn.turnNumber })} · {isPlayer ? t("saved_game_replay.player") : t("saved_game_replay.kali")}
                 </span>
               </div>
 
               <div className="flex items-start gap-4">
                 {state?.board && renderBoard(state.board)}
                 <div className="flex flex-col gap-1 text-xs text-muted">
-                  <span>Acción: {JSON.stringify(turn.action)}</span>
+                  <span>{t("saved_game_replay.action")}: {JSON.stringify(turn.action)}</span>
                   <span>
                     {new Date(turn.timestamp).toLocaleTimeString()}
                   </span>
@@ -118,9 +117,8 @@ export function SavedGameReplay({ sessionId }: Props) {
               </div>
 
               {turn.reasoning && (
-                <div className="text-xs text-muted/80 bg-surface/50 rounded p-2"
-                >
-                  <span className="font-semibold text-accent">Razonamiento:</span> {turn.reasoning.text}
+                <div className="text-xs text-muted/80 bg-surface/50 rounded p-2">
+                  <span className="font-semibold text-accent">{t("saved_game_replay.reasoning")}:</span> {turn.reasoning.text}
                 </div>
               )}
             </div>

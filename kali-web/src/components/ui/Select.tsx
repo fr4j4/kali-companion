@@ -40,11 +40,14 @@ export function Select({
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
+    const right = rect.left + rect.width;
+    const overflow = right - window.innerWidth;
     setDropdownStyle({
       position: "fixed",
       top: rect.bottom + 4,
-      left: rect.left,
+      left: overflow > 0 ? rect.left - overflow - 8 : rect.left,
       minWidth: rect.width,
+      maxWidth: Math.min(320, window.innerWidth - 16),
       zIndex: 9999,
     });
   }, []);
@@ -80,7 +83,10 @@ export function Select({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleClose();
     };
-    const onScroll = () => handleClose();
+    const onScroll = (e: Event) => {
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      handleClose();
+    };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, true);
@@ -125,7 +131,7 @@ export function Select({
             <div
               ref={dropdownRef}
               style={dropdownStyle}
-              className="bg-elevated border border-border rounded-lg shadow-xl overflow-hidden py-1 z-[9999]"
+              className="bg-elevated border border-border rounded-lg shadow-xl overflow-y-auto max-h-60 py-1 z-[9999] scrollbar-thin"
               onMouseDown={(e) => e.stopPropagation()}
             >
               {options.map((opt) => (

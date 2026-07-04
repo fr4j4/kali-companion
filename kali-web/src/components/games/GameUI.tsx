@@ -252,11 +252,11 @@ export function GameTitleScreen({
 }
 
 export function GamePauseScreen({
-  title = "PAUSED",
+  title,
   actions,
   footer,
 }: {
-  title?: string;
+  title: string;
   actions: ReactNode;
   footer?: ReactNode;
 }) {
@@ -291,21 +291,24 @@ export function TouchDPad({
   onDirection,
   placement = "bottom-center",
   bottomOffset = 110,
+  ariaLabels,
 }: {
   onDirection: (direction: "UP" | "DOWN" | "LEFT" | "RIGHT") => void;
   placement?: "bottom-center" | "top-right" | "top-left" | "inline-bottom";
   bottomOffset?: number;
+  ariaLabels: { up: string; down: string; left: string; right: string };
 }) {
+  const a = ariaLabels;
   if (placement === "inline-bottom") {
     return (
       <div className="mt-4 w-full flex justify-center pointer-events-auto">
         <div className="grid grid-cols-3 gap-2">
           <div />
-          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("UP")} aria-label="Move up">↑</button>
+          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("UP")} aria-label={a.up}>↑</button>
           <div />
-          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("LEFT")} aria-label="Move left">←</button>
-          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("DOWN")} aria-label="Move down">↓</button>
-          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("RIGHT")} aria-label="Move right">→</button>
+          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("LEFT")} aria-label={a.left}>←</button>
+          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("DOWN")} aria-label={a.down}>↓</button>
+          <button type="button" className="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-accent/30 bg-elevated/90 text-foreground text-lg font-bold flex items-center justify-center active:scale-95 active:bg-accent/20" onClick={() => onDirection("RIGHT")} aria-label={a.right}>→</button>
         </div>
       </div>
     );
@@ -324,11 +327,11 @@ export function TouchDPad({
     <div className={`absolute ${placementClass} z-20 pointer-events-auto`}>
       <div className="grid grid-cols-3 gap-2">
         <div />
-        <button type="button" className={buttonClassName} onClick={() => onDirection("UP")} aria-label="Move up">↑</button>
+        <button type="button" className={buttonClassName} onClick={() => onDirection("UP")} aria-label={a.up}>↑</button>
         <div />
-        <button type="button" className={buttonClassName} onClick={() => onDirection("LEFT")} aria-label="Move left">←</button>
-        <button type="button" className={buttonClassName} onClick={() => onDirection("DOWN")} aria-label="Move down">↓</button>
-        <button type="button" className={buttonClassName} onClick={() => onDirection("RIGHT")} aria-label="Move right">→</button>
+        <button type="button" className={buttonClassName} onClick={() => onDirection("LEFT")} aria-label={a.left}>←</button>
+        <button type="button" className={buttonClassName} onClick={() => onDirection("DOWN")} aria-label={a.down}>↓</button>
+        <button type="button" className={buttonClassName} onClick={() => onDirection("RIGHT")} aria-label={a.right}>→</button>
       </div>
     </div>
   );

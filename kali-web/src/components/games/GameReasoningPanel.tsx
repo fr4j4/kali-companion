@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Brain, Trash2 } from "lucide-react";
 import { gameSessionStore } from "../../games/core/game-session-store";
 import type { GameTurnData } from "../../games/core/game-session-types";
@@ -17,6 +18,7 @@ function formatTime(ts: number): string {
 }
 
 export function GameReasoningPanel({ getSessionId }: Props) {
+  const { t } = useTranslation();
   const [aiTurns, setAITurns] = useState<GameTurnData[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +56,7 @@ export function GameReasoningPanel({ getSessionId }: Props) {
             className="text-[10px] font-medium tracking-widest uppercase"
             style={{ fontFamily: "'Press Start 2P', monospace", color: "#22d3ee" }}
           >
-            Kali Reasoning
+            {t("game_reasoning.title")}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -69,10 +71,10 @@ export function GameReasoningPanel({ getSessionId }: Props) {
               color: "#64748b",
               cursor: aiTurns.length === 0 ? "not-allowed" : "pointer",
             }}
-            title="Clear reasoning log"
+            title={t("game_reasoning.clear_title")}
           >
             <Trash2 size={10} />
-            LIMPIAR
+            {t("game_reasoning.clear")}
           </button>
         </div>
       </div>
@@ -88,7 +90,7 @@ export function GameReasoningPanel({ getSessionId }: Props) {
               className="text-[8px] text-center px-4"
               style={{ fontFamily: "'Press Start 2P', monospace", color: "#64748b", lineHeight: 1.6 }}
             >
-              Esperando razonamiento de Kali...
+              {t("game_reasoning.empty")}
             </span>
           </div>
         )}
@@ -96,7 +98,7 @@ export function GameReasoningPanel({ getSessionId }: Props) {
           <div key={turn.turnId} className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22d3ee" }}>
-                🧠 Turno {turn.turnNumber}
+                {"\u{1F9E0}"} {t("game_reasoning.turn", { number: turn.turnNumber })}
               </span>
               <span
                 style={{
@@ -123,7 +125,7 @@ export function GameReasoningPanel({ getSessionId }: Props) {
               {turn.reasoning?.text}
               {turn.reasoning && !turn.reasoning.done && (
                 <span className="inline-block ml-0.5 animate-pulse" style={{ color: "#22d3ee" }}>
-                  ▌
+                  \u258C
                 </span>
               )}
             </div>

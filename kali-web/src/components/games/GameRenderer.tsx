@@ -7,8 +7,9 @@ interface Props {
   manager?: GameSessionManager;
   hasKali?: boolean;
   isMaximized?: boolean;
+  focused?: boolean;
 }
 
-export function GameRenderer({ game, manager, hasKali, isMaximized }: Props) {
-  return <GameWindow game={game} manager={manager} hasKali={hasKali} isMaximized={isMaximized} />;
+export function GameRenderer({ game, manager, hasKali, isMaximized, focused }: Props) {
+  return <GameWindow game={game} manager={manager} hasKali={hasKali} isMaximized={isMaximized} focused={focused} />;
 }

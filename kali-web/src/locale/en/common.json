@@ -739,5 +739,47 @@
   "about.icons_prefix": "Vectors and icons by",
   "about.icons_suffix": "License: CC0 / Public Domain — no attribution required.",
   "about.made_with": "Made with",
-  "about.made_by": "by fr4j4"
+  "about.made_by": "by fr4j4",
+
+  "game_window.no_manager": "Game session manager not available",
+  "game_window.fallback_score": "Game: {{type}} — Score: {{score}}",
+
+  "game_catalog.category.single": "Single Player",
+  "game_catalog.category.versus": "Versus",
+  "game_catalog.category.coop": "Cooperative",
+  "game_catalog.category.trivia": "Trivia",
+  "game_launchpad.title": "Games",
+  "game_launchpad.subtitle": "Select a game. Kali can fill any role.",
+  "game_launchpad.saved_games": "Saved Games",
+
+  "saved_games.title": "Saved Games",
+  "saved_games.empty": "No saved games yet.",
+  "saved_games.view_replay": "View replay",
+  "saved_games.delete": "Delete",
+  "saved_games.turns": "{{count}} turns",
+  "saved_games.status_won": "Won",
+  "saved_games.status_lost": "Lost",
+  "saved_games.status_draw": "Draw",
+  "saved_games.status_abandoned": "Abandoned",
+
+  "saved_game_replay.loading": "Loading game...",
+  "saved_game_replay.title": "Game Replay",
+  "saved_game_replay.turn": "Turn {{number}}",
+  "saved_game_replay.player": "Player",
+  "saved_game_replay.kali": "Kali",
+  "saved_game_replay.action": "Action",
+  "saved_game_replay.reasoning": "Reasoning",
+
+  "game_debug.title": "WS / AI Log",
+  "game_debug.copy": "COPY",
+  "game_debug.copy_title": "Copy all as JSON",
+  "game_debug.clear": "CLEAR",
+  "game_debug.clear_title": "Clear log",
+  "game_debug.empty": "No messages",
+
+  "game_reasoning.title": "Kali Reasoning",
+  "game_reasoning.clear": "CLEAR",
+  "game_reasoning.clear_title": "Clear reasoning log",
+  "game_reasoning.empty": "Waiting for Kali's reasoning...",
+  "game_reasoning.turn": "Turn {{number}}"
 }

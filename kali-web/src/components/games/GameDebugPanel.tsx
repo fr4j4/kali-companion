@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Gamepad2,
   Trash2,
@@ -82,6 +83,7 @@ function getDetailText(entry: GameLogEntry): string {
 }
 
 export function GameDebugPanel({ getSessionId, sessionId: staticSessionId }: Props) {
+  const { t } = useTranslation();
   const [logEntries, setLogEntries] = useState<GameLogEntry[]>([]);
 
   useEffect(() => {
@@ -117,7 +119,7 @@ export function GameDebugPanel({ getSessionId, sessionId: staticSessionId }: Pro
             className="text-[10px] font-medium tracking-widest uppercase"
             style={{ fontFamily: "'Press Start 2P', monospace", color: LOG_COLORS.player.fg }}
           >
-            WS / AI Log
+            {t("game_debug.title")}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -132,10 +134,10 @@ export function GameDebugPanel({ getSessionId, sessionId: staticSessionId }: Pro
               color: PALETTE.muted,
               cursor: logEntries.length === 0 ? "not-allowed" : "pointer",
             }}
-            title="Copy all as JSON"
+            title={t("game_debug.copy_title")}
           >
             <Copy size={10} />
-            COPIAR
+            {t("game_debug.copy")}
           </button>
           <button
             onClick={handleClear}
@@ -147,10 +149,10 @@ export function GameDebugPanel({ getSessionId, sessionId: staticSessionId }: Pro
               color: PALETTE.muted,
               cursor: "pointer",
             }}
-            title="Clear log"
+            title={t("game_debug.clear_title")}
           >
             <Trash2 size={10} />
-            LIMPIAR
+            {t("game_debug.clear")}
           </button>
         </div>
       </div>
@@ -165,7 +167,7 @@ export function GameDebugPanel({ getSessionId, sessionId: staticSessionId }: Pro
               className="text-[8px]"
               style={{ fontFamily: "'Press Start 2P', monospace", color: PALETTE.muted }}
             >
-              Sin mensajes
+              {t("game_debug.empty")}
             </span>
           </div>
         )}

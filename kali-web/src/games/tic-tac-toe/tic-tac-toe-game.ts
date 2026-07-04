@@ -48,6 +48,8 @@ export class TicTacToeGame extends BaseGame {
   readonly naturalWidth = 320;
   readonly naturalHeight = 362;
 
+  pauseOnBlur = false;
+
   private _board: (Mark | null)[][] = createEmptyBoard();
   private _currentSlot: string = SlotId.PLAYER;
   private _winner: string | null = null;

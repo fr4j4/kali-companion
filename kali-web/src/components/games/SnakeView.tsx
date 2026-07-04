@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSnakeI18n } from "../../games/snake/snake-i18n";
 
 const ABANDONED_DELAY_MS = 1500;
 import { SnakeGame } from "../../games/snake/snake-game";
@@ -10,6 +11,7 @@ import { useGameViewport } from "./useGameViewport";
 import { GameButton, GameMobileActionBar, GamePauseScreen, GameResultScreen, GameTitleScreen, TouchDPad } from "./GameUI";
 import { computeGameOffsets, computeGameScale } from "./gameViewportSizing";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useGameKeyboard } from "../../hooks/useGameKeyboard";
 import { useSwipeDirection } from "./useSwipeDirection";
 
 const CELL = 24;
@@ -48,6 +50,7 @@ const PALETTE = {
 interface Props {
   game: SnakeGame;
   isMaximized?: boolean;
+  focused?: boolean;
 }
 
 function send(game: SnakeGame, command: string) {
@@ -178,7 +181,8 @@ function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
-export function SnakeView({ game, isMaximized }: Props) {
+export function SnakeView({ game, isMaximized, focused = true }: Props) {
+  const $ = useSnakeI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreSpanRef = useRef<HTMLSpanElement>(null);
@@ -214,8 +218,6 @@ export function SnakeView({ game, isMaximized }: Props) {
 
       const dpr = viewport.dpr;
 
-      // Canvas backing store is fixed at logical 480x480 * dpr; the parent
-      // platform scales it visually via transform: scale(...).
       const targetW = Math.max(1, Math.round(CANVAS_W * dpr));
       const targetH = Math.max(1, Math.round(CANVAS_H * dpr));
       if (canvas.width !== targetW || canvas.height !== targetH) {
@@ -229,7 +231,6 @@ export function SnakeView({ game, isMaximized }: Props) {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Map logical 480x480 board coordinates to the canvas backing store.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const state = game.getState();
@@ -327,58 +328,54 @@ export function SnakeView({ game, isMaximized }: Props) {
     canvas.style.height = `${CANVAS_H}px`;
   }, [viewport.dpr]);
 
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      const dir: Record<string, string> = {
-        ArrowUp: "UP", ArrowDown: "DOWN",
-        ArrowLeft: "LEFT", ArrowRight: "RIGHT",
-      };
+  const handleKey = useCallback((e: KeyboardEvent) => {
+    const dir: Record<string, string> = {
+      ArrowUp: "UP", ArrowDown: "DOWN",
+      ArrowLeft: "LEFT", ArrowRight: "RIGHT",
+    };
 
-      const status = game.getStatus();
+    const status = game.getStatus();
 
-      if (status === GameStatus.WAITING) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          send(game, GameCommand.START);
-        }
-        return;
-      }
-
-      if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+    if (status === GameStatus.WAITING) {
+      if (e.key === "Enter") {
         e.preventDefault();
-        if (status === GameStatus.PLAYING) {
-          send(game, GameCommand.PAUSE);
-        } else if (status === GameStatus.PAUSED) {
-          send(game, GameCommand.RESUME);
-        }
-        return;
+        send(game, GameCommand.START);
       }
-
-      if (status === GameStatus.LOST || status === GameStatus.ABANDONED) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          send(game, GameCommand.PLAY_AGAIN);
-        }
-        return;
-      }
-
-      if (status === GameStatus.PAUSED) return;
-
-      const d = dir[e.key];
-      if (d) {
-        e.preventDefault();
-        game.handleAction({ type: ActionType.MOVE, data: d }, "player");
-      }
+      return;
     }
 
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+      e.preventDefault();
+      if (status === GameStatus.PLAYING) {
+        send(game, GameCommand.PAUSE);
+      } else if (status === GameStatus.PAUSED) {
+        send(game, GameCommand.RESUME);
+      }
+      return;
+    }
+
+    if (status === GameStatus.LOST || status === GameStatus.ABANDONED) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        send(game, GameCommand.PLAY_AGAIN);
+      }
+      return;
+    }
+
+    if (status === GameStatus.PAUSED) return;
+
+    const d = dir[e.key];
+    if (d) {
+      e.preventDefault();
+      game.handleAction({ type: ActionType.MOVE, data: d }, "player");
+    }
   }, [game]);
+
+  useGameKeyboard(focused, handleKey);
 
   const status = statusRef.current;
   const state = game.getState();
 
-  // Auto-reset to title screen after the player abandons the game.
   useEffect(() => {
     if (status !== GameStatus.ABANDONED) return;
     const t = setTimeout(() => {
@@ -420,13 +417,13 @@ export function SnakeView({ game, isMaximized }: Props) {
             className="text-[10px] tracking-wider"
             style={{ ...pixelFont, color: PALETTE.head }}
           >
-            SCORE: <span ref={scoreSpanRef}>{state.score}</span>
+            {$.score}: <span ref={scoreSpanRef}>{state.score}</span>
           </span>
           <span
             className="text-[10px] tracking-wider"
             style={{ ...pixelFont, color: PALETTE.head }}
           >
-            LEVEL: <span ref={levelSpanRef}>{(state.data as DrawState | null)?.level ?? 1}</span>
+            {$.level}: <span ref={levelSpanRef}>{(state.data as DrawState | null)?.level ?? 1}</span>
           </span>
         </div>
       </div>
@@ -442,10 +439,10 @@ export function SnakeView({ game, isMaximized }: Props) {
                 variant="secondary"
                 onClick={() => send(game, status === GameStatus.PLAYING ? GameCommand.PAUSE : GameCommand.RESUME)}
               >
-                {status === GameStatus.PLAYING ? "PAUSE" : "PLAY"}
+                {status === GameStatus.PLAYING ? $.pause : $.play}
               </GameButton>
               <GameButton size="sm" variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>
-                EXIT
+                {$.exit}
               </GameButton>
             </>
           }
@@ -454,52 +451,58 @@ export function SnakeView({ game, isMaximized }: Props) {
 
       {status === GameStatus.WAITING && (
         <GameTitleScreen
-          icon={"🐍"}
-          title="SNAKE"
-          subtitle="Eat. Grow. Survive."
-          primaryAction={<GameButton onClick={() => send(game, GameCommand.START)}>START</GameButton>}
-          footer={hasCoarsePointer ? "Tap to start" : "or press ENTER"}
+          icon={"\u{1F40D}"}
+          title={$.title}
+          subtitle={$.subtitle}
+          primaryAction={<GameButton onClick={() => send(game, GameCommand.START)}>{$.start}</GameButton>}
+          footer={hasCoarsePointer ? $.tap_to_start : $.or_press_enter}
         />
       )}
 
       {status === GameStatus.PAUSED && (
         <GamePauseScreen
+          title={$.paused}
           actions={
             <>
-              <GameButton onClick={() => send(game, GameCommand.RESUME)}>RESUME</GameButton>
-              <GameButton variant="secondary" onClick={() => send(game, GameCommand.RESTART)}>RESTART</GameButton>
-              <GameButton variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>QUIT</GameButton>
+              <GameButton onClick={() => send(game, GameCommand.RESUME)}>{$.resume}</GameButton>
+              <GameButton variant="secondary" onClick={() => send(game, GameCommand.RESTART)}>{$.restart}</GameButton>
+              <GameButton variant="danger" onClick={() => send(game, GameCommand.GIVE_UP)}>{$.quit}</GameButton>
             </>
           }
-          footer={hasCoarsePointer ? "Tap resume to continue" : "ESC to resume"}
+          footer={hasCoarsePointer ? $.tap_resume : $.esc_to_resume}
         />
       )}
 
       {status === GameStatus.ABANDONED && (
         <GameResultScreen
-          title="ABANDONED"
+          title={$.abandoned}
           tone="danger"
-          subtitle={`SCORE: ${state.score}`}
-          footer="Returning to title screen..."
+          subtitle={`${$.score}: ${state.score}`}
+          footer={$.returning_to_title}
         />
       )}
 
       {status === GameStatus.LOST && (
         <GameResultScreen
-          title="GAME OVER"
+          title={$.game_over}
           tone="danger"
-          subtitle={`SCORE: ${state.score}`}
+          subtitle={`${$.score}: ${state.score}`}
           actions={
             <>
-              <GameButton onClick={() => send(game, GameCommand.PLAY_AGAIN)}>PLAY AGAIN</GameButton>
-              <GameButton variant="secondary" onClick={() => send(game, GameCommand.TO_TITLE)}>TITLE SCREEN</GameButton>
+              <GameButton onClick={() => send(game, GameCommand.PLAY_AGAIN)}>{$.play_again}</GameButton>
+              <GameButton variant="secondary" onClick={() => send(game, GameCommand.TO_TITLE)}>{$.title_screen}</GameButton>
             </>
           }
-          footer={hasCoarsePointer ? "Tap to continue" : "ENTER to retry"}
+          footer={hasCoarsePointer ? $.tap_to_continue : $.enter_to_retry}
         />
       )}
 
-      {hasCoarsePointer && status === GameStatus.PLAYING && <TouchDPad onDirection={sendDirection} />}
+      {hasCoarsePointer && status === GameStatus.PLAYING && (
+        <TouchDPad
+          onDirection={sendDirection}
+          ariaLabels={{ up: $.move_up, down: $.move_down, left: $.move_left, right: $.move_right }}
+        />
+      )}
     </div>
   );
 }

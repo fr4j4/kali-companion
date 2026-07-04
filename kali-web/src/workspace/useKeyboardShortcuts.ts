@@ -31,6 +31,9 @@ export function useKeyboardShortcuts(api: WorkspaceAPI, opts: {
 }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Suppress workspace shortcuts when a game window has focus
+      if (api.windows.some((w) => w.type === "game" && w.focused)) return;
+
       const active = document.activeElement;
       const inInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT" || (active as HTMLElement).isContentEditable);
 

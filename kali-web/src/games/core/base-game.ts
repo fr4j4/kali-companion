@@ -20,6 +20,9 @@ export abstract class BaseGame {
   abstract start(config?: GameConfig): GameState;
   abstract handleAction(action: GameAction, fromSlotId: string): GameState;
 
+  /** Whether the game should auto-pause when its window loses focus. */
+  pauseOnBlur: boolean = true;
+
   /** Aspect ratio of the game's content area (width / height). */
   get aspectRatio(): number {
     return this.naturalWidth / this.naturalHeight;

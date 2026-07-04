@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTicTacToeI18n } from "../../games/tic-tac-toe/tic-tac-toe-i18n";
 
 const ABANDONED_DELAY_MS = 1500;
 
@@ -13,12 +14,14 @@ import { useGameViewport } from "./useGameViewport";
 import { GameButton, GameHud, GameHudStat, GameMobileActionBar, GamePauseScreen, GameResultScreen, GameSegmentedControl, GameTitleScreen } from "./GameUI";
 import { computeGameOffsets, computeGameScale } from "./gameViewportSizing";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useGameKeyboard } from "../../hooks/useGameKeyboard";
 
 interface Props {
   game: TicTacToeGame;
   manager: GameSessionManager;
-  hasKali: boolean;
+  hasKali?: boolean;
   isMaximized?: boolean;
+  focused?: boolean;
 }
 
 const PALETTE = {
@@ -36,7 +39,8 @@ const PALETTE = {
 
 type Starter = typeof SlotId.PLAYER | typeof SlotId.OPPONENT;
 
-export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
+export function TicTacToeView({ game, manager, hasKali, isMaximized, focused = true }: Props) {
+  const $ = useTicTacToeI18n();
   const [tick, setTick] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewport = useGameViewport(containerRef, isMaximized);
@@ -105,7 +109,6 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
     manager.giveUp();
   }, [manager]);
 
-  // Auto-reset to title screen after the player abandons the game.
   useEffect(() => {
     if (game.getStatus() !== GameStatus.ABANDONED) return;
     const t = setTimeout(() => {
@@ -114,42 +117,38 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
     return () => clearTimeout(t);
   }, [game, tick, sendCommand]);
 
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      const status = game.getStatus();
+  const handleKey = useCallback((e: KeyboardEvent) => {
+    const status = game.getStatus();
 
-      if (status === GameStatus.WAITING) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          startGame();
-        }
-        return;
-      }
-
-      if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+    if (status === GameStatus.WAITING) {
+      if (e.key === "Enter") {
         e.preventDefault();
-        if (status === GameStatus.PLAYING) {
-          sendCommand(GameCommand.PAUSE);
-        } else if (status === GameStatus.PAUSED) {
-          sendCommand(GameCommand.RESUME);
-        }
-        return;
+        startGame();
       }
-
-      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW || status === GameStatus.ABANDONED) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          sendCommand(GameCommand.PLAY_AGAIN);
-        }
-        return;
-      }
+      return;
     }
 
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+      e.preventDefault();
+      if (status === GameStatus.PLAYING) {
+        sendCommand(GameCommand.PAUSE);
+      } else if (status === GameStatus.PAUSED) {
+        sendCommand(GameCommand.RESUME);
+      }
+      return;
+    }
+
+    if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW || status === GameStatus.ABANDONED) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendCommand(GameCommand.PLAY_AGAIN);
+      }
+      return;
+    }
   }, [game, startGame, sendCommand]);
 
-  // Trigger a render tick whenever the component re-renders from subscription.
+  useGameKeyboard(focused, handleKey);
+
   void tick;
 
   const state = game.getState();
@@ -190,23 +189,20 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
             className="text-sm tracking-widest font-bold"
             style={{ fontFamily: "var(--font-game)", color: PALETTE.x, lineHeight: 1 }}
           >
-            TA-TE-TI
+            {$.title}
           </span>
           <GameHudStat
-            label="STATE"
+            label={$.state}
             value={
               currentSlot === SlotId.PLAYER
-                ? "TU TURNO"
-                : kaliStatus === KaliStatus.THINKING
-                  ? "KALI..."
-                  : "IA"
+                ? $.your_turn
+                : $.thinking
             }
             tone={currentSlot === SlotId.PLAYER ? "primary" : "secondary"}
             minWidth={92}
           />
         </GameHud>
 
-      {/* Board grid */}
       <div
         className="grid rounded-xl p-2"
         style={{
@@ -264,10 +260,10 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
                 variant="secondary"
                 onClick={() => sendCommand(status === GameStatus.PLAYING ? GameCommand.PAUSE : GameCommand.RESUME)}
               >
-                {status === GameStatus.PLAYING ? "PAUSE" : "PLAY"}
+                {status === GameStatus.PLAYING ? $.pause : $.play}
               </GameButton>
               <GameButton size="sm" variant="danger" onClick={() => sendCommand(GameCommand.GIVE_UP)}>
-                EXIT
+                {$.exit}
               </GameButton>
             </>
           }
@@ -276,17 +272,17 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
 
       {status === GameStatus.WAITING && (
         <GameTitleScreen
-          icon={"✚"}
-          title="TA-TE-TI"
-          subtitle="Tres en linea contra Kali o la CPU."
+          icon={"\u{271A}"}
+          title={$.title}
+          subtitle={$.subtitle}
           controls={
             <>
               <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>MODO</span>
+                <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>{$.mode}</span>
                 <GameSegmentedControl
                   options={[
-                    { value: GameMode.CPU, label: "VS CPU" },
-                    { value: GameMode.KALI, label: "VS KALI" },
+                    { value: GameMode.CPU, label: $.vs_cpu },
+                    { value: GameMode.KALI, label: $.vs_kali },
                   ]}
                   value={mode}
                   onChange={(value) => setMode(value)}
@@ -294,18 +290,18 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
                 />
                 {!hasKali && (
                   <span className="text-[8px] font-game" style={{ color: "#64748b" }}>
-                    Conecta un proveedor de IA para jugar contra Kali
+                    {$.connect_ai_hint}
                   </span>
                 )}
               </div>
               {mode === GameMode.CPU && (
                 <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>DIFICULTAD</span>
+                  <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>{$.difficulty}</span>
                   <GameSegmentedControl
                     options={[
-                      { value: "easy", label: "FACIL" },
-                      { value: "medium", label: "MEDIO" },
-                      { value: "hard", label: "DIFICIL" },
+                      { value: "easy", label: $.easy },
+                      { value: "medium", label: $.medium },
+                      { value: "hard", label: $.hard },
                     ]}
                     value={difficulty}
                     onChange={(value) => setDifficulty(value)}
@@ -313,11 +309,11 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
                 </div>
               )}
               <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>EMPIEZA</span>
+                <span className="text-[10px] font-game" style={{ color: "#94a3b8" }}>{$.starter}</span>
                 <GameSegmentedControl
                   options={[
-                    { value: SlotId.PLAYER, label: "TU" },
-                    { value: SlotId.OPPONENT, label: "OPONENTE" },
+                    { value: SlotId.PLAYER, label: $.you_label },
+                    { value: SlotId.OPPONENT, label: $.opponent },
                   ]}
                   value={starter}
                   onChange={(value) => setStarter(value)}
@@ -325,35 +321,35 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
               </div>
             </>
           }
-          primaryAction={<GameButton onClick={startGame}>START</GameButton>}
-          footer={hasCoarsePointer ? "Tap to start" : "ENTER to start"}
+          primaryAction={<GameButton onClick={startGame}>{$.start}</GameButton>}
+          footer={hasCoarsePointer ? $.tap_to_start : $.enter_to_start}
         />
       )}
 
       {status === GameStatus.PAUSED && (
         <GamePauseScreen
+          title={$.paused}
           actions={
             <>
-              <GameButton onClick={() => sendCommand(GameCommand.RESUME)}>RESUME</GameButton>
-              <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.RESTART)}>RESTART</GameButton>
-              <GameButton variant="danger" onClick={() => sendCommand(GameCommand.GIVE_UP)}>QUIT</GameButton>
+              <GameButton onClick={() => sendCommand(GameCommand.RESUME)}>{$.resume}</GameButton>
+              <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.RESTART)}>{$.restart}</GameButton>
+              <GameButton variant="danger" onClick={() => sendCommand(GameCommand.GIVE_UP)}>{$.quit}</GameButton>
             </>
           }
-          footer={hasCoarsePointer ? "Tap resume to continue" : "ESC to resume"}
+          footer={hasCoarsePointer ? $.tap_resume : $.esc_to_resume}
         />
       )}
 
-      {/* Error overlay */}
       {kaliStatus === KaliStatus.ERROR && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-30 backdrop-blur-[2px]">
           <span className="text-4xl mb-3" style={{ filter: "drop-shadow(0 0 14px rgba(244,63,94,0.8))" }}>
             {"\u26A0"}
           </span>
           <h2 className="text-sm mb-2 text-center px-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#f43f5e" }}>
-            ERROR
+            {$.error}
           </h2>
           <p className="text-[9px] mb-1 text-center px-6" style={{ fontFamily: "'Press Start 2P', monospace", color: "#fca5a5" }}>
-            {kaliError?.message ?? "Error desconocido"}
+            {kaliError?.message ?? $.unknown_error}
           </p>
           {kaliError?.code && (
             <p className="text-[8px] mb-4 text-center" style={{ fontFamily: "'Press Start 2P', monospace", color: "#737373" }}>
@@ -366,11 +362,11 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: PALETTE.x, color: "#020617", boxShadow: `0 0 14px ${PALETTE.xGlow}` }}
             >
-              REINTENTAR
+              {$.retry}
             </button>
             {retryCount >= 1 && (
               <p className="text-[8px] text-center" style={{ fontFamily: "'Press Start 2P', monospace", color: "#f59e0b" }}>
-                ¡Último intento!
+                {$.last_attempt}
               </p>
             )}
             <button
@@ -378,39 +374,38 @@ export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
             >
-              CONTINUAR CON CPU
+              {$.continue_cpu}
             </button>
             <button
               onClick={handleGiveUp}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", color: "#e0f2fe", backgroundColor: "#7f1d1d", border: "1px solid #f87171" }}
             >
-              RENDIRSE
+              {$.give_up}
             </button>
           </div>
         </div>
       )}
 
-      {/* Abandoned transition overlay */}
       {status === GameStatus.ABANDONED && (
         <GameResultScreen
-          title="ABANDONED"
+          title={$.abandoned}
           tone="danger"
-          footer="Returning to title screen..."
+          footer={$.returning_to_title}
         />
       )}
 
       {(status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) && (
         <GameResultScreen
-          title={status === GameStatus.WON ? "GANASTE" : status === GameStatus.LOST ? "PERDISTE" : "EMPATE"}
+          title={status === GameStatus.WON ? $.won : status === GameStatus.LOST ? $.lost : $.draw}
           tone={status === GameStatus.WON ? "primary" : status === GameStatus.LOST ? "danger" : "secondary"}
           actions={
             <>
-              <GameButton onClick={() => sendCommand(GameCommand.PLAY_AGAIN)}>PLAY AGAIN</GameButton>
-              <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.TO_TITLE)}>TITLE SCREEN</GameButton>
+              <GameButton onClick={() => sendCommand(GameCommand.PLAY_AGAIN)}>{$.play_again}</GameButton>
+              <GameButton variant="secondary" onClick={() => sendCommand(GameCommand.TO_TITLE)}>{$.title_screen}</GameButton>
             </>
           }
-          footer={hasCoarsePointer ? "Tap to continue" : "ENTER to continue"}
+          footer={hasCoarsePointer ? $.tap_to_continue : $.enter_to_continue}
         />
       )}
       </div>

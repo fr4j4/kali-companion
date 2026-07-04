@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTwentyFortyEightI18n } from "../../games/twenty-forty-eight/twenty-forty-eight-i18n";
 
 const ABANDONED_DELAY_MS = 1500;
 
@@ -18,10 +19,12 @@ import { GameButton, GameHud, GameHudStat, GameMobileActionBar, GameSegmentedCon
 import { computeGameOffsets, computeGameScale } from "./gameViewportSizing";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useSwipeDirection } from "./useSwipeDirection";
+import { useGameKeyboard } from "../../hooks/useGameKeyboard";
 
 interface Props {
   game: TwentyFortyEightGame;
   isMaximized?: boolean;
+  focused?: boolean;
 }
 
 interface TileItem {
@@ -176,7 +179,8 @@ function AnimatedTile({
   );
 }
 
-export function TwentyFortyEightView({ game, isMaximized }: Props) {
+export function TwentyFortyEightView({ game, isMaximized, focused = true }: Props) {
+  const $ = useTwentyFortyEightI18n();
   const [statusVersion, setStatusVersion] = useState(0);
   void statusVersion;
   const statusRef = useRef<GameStatusValue>(game.getStatus());
@@ -213,67 +217,63 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
     refresh();
   }, [game, refresh]);
 
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      const status = game.getStatus();
-      const dirMap: Record<string, Direction> = {
-        ArrowUp: "UP",
-        ArrowDown: "DOWN",
-        ArrowLeft: "LEFT",
-        ArrowRight: "RIGHT",
-        w: "UP",
-        W: "UP",
-        s: "DOWN",
-        S: "DOWN",
-        a: "LEFT",
-        A: "LEFT",
-        d: "RIGHT",
-        D: "RIGHT",
-      };
+  const handleKey = useCallback((e: KeyboardEvent) => {
+    const status = game.getStatus();
+    const dirMap: Record<string, Direction> = {
+      ArrowUp: "UP",
+      ArrowDown: "DOWN",
+      ArrowLeft: "LEFT",
+      ArrowRight: "RIGHT",
+      w: "UP",
+      W: "UP",
+      s: "DOWN",
+      S: "DOWN",
+      a: "LEFT",
+      A: "LEFT",
+      d: "RIGHT",
+      D: "RIGHT",
+    };
 
-      if (status === GameStatus.WAITING) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          startNewGame(pendingSize);
-        }
-        return;
-      }
-
-      if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+    if (status === GameStatus.WAITING) {
+      if (e.key === "Enter") {
         e.preventDefault();
-        if (status === GameStatus.PLAYING) {
-          send(game, GameCommand.PAUSE);
-        } else if (status === GameStatus.PAUSED) {
-          send(game, GameCommand.RESUME);
-        }
-        refresh();
-        return;
+        startNewGame(pendingSize);
       }
-
-      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.ABANDONED) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          send(game, GameCommand.PLAY_AGAIN);
-          refresh();
-        }
-        return;
-      }
-
-      if (status === GameStatus.PAUSED) return;
-
-      const dir = dirMap[e.key];
-      if (dir) {
-        e.preventDefault();
-        move(game, dir);
-        refresh();
-      }
+      return;
     }
 
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+      e.preventDefault();
+      if (status === GameStatus.PLAYING) {
+        send(game, GameCommand.PAUSE);
+      } else if (status === GameStatus.PAUSED) {
+        send(game, GameCommand.RESUME);
+      }
+      refresh();
+      return;
+    }
+
+    if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.ABANDONED) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        send(game, GameCommand.PLAY_AGAIN);
+        refresh();
+      }
+      return;
+    }
+
+    if (status === GameStatus.PAUSED) return;
+
+    const dir = dirMap[e.key];
+    if (dir) {
+      e.preventDefault();
+      move(game, dir);
+      refresh();
+    }
   }, [game, refresh, pendingSize, startNewGame]);
 
-  // Auto-reset to title screen after the player abandons the game.
+  useGameKeyboard(focused, handleKey);
+
   useEffect(() => {
     if (statusRef.current !== GameStatus.ABANDONED) return;
     const t = setTimeout(() => {
@@ -341,11 +341,11 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
             className="text-sm tracking-widest font-bold"
             style={{ fontFamily: "var(--font-game)", color: "#22d3ee", lineHeight: 1 }}
           >
-            2048
+            {$.title}
           </span>
           <div className="flex gap-3">
-            <GameHudStat label="SCORE" value={score} minWidth={76} />
-            <GameHudStat label="MOVES" value={moves} tone="secondary" minWidth={66} />
+            <GameHudStat label={$.score} value={score} minWidth={76} />
+            <GameHudStat label={$.moves} value={moves} tone="secondary" minWidth={66} />
           </div>
         </GameHud>
 
@@ -415,7 +415,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                     refresh();
                   }}
                 >
-                  {statusRef.current === GameStatus.PLAYING ? "PAUSE" : "PLAY"}
+                  {statusRef.current === GameStatus.PLAYING ? $.pause : $.play}
                 </GameButton>
                 <GameButton
                   size="sm"
@@ -425,7 +425,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                     refresh();
                   }}
                 >
-                  EXIT
+                  {$.exit}
                 </GameButton>
               </>
             }
@@ -439,18 +439,19 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
               move(game, direction);
               refresh();
             }}
+            ariaLabels={{ up: $.move_up, down: $.move_down, left: $.move_left, right: $.move_right }}
           />
         )}
       </div>
 
       {statusRef.current === GameStatus.WAITING && (
         <GameTitleScreen
-          icon={"🧮"}
-          title="2048"
-          subtitle="Merge. Glow. Win."
+          icon={"\u{1F9EE}"}
+          title={$.title}
+          subtitle={$.subtitle}
           controls={
             <>
-              <p className="text-[10px] font-game" style={{ color: "#94a3b8" }}>BOARD SIZE</p>
+              <p className="text-[10px] font-game" style={{ color: "#94a3b8" }}>{$.board_size}</p>
               <GameSegmentedControl
                 options={SIZES.map((s) => ({ value: String(s.value), label: s.label }))}
                 value={String(pendingSize)}
@@ -458,13 +459,14 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
               />
             </>
           }
-          primaryAction={<GameButton onClick={() => startNewGame(pendingSize)}>START</GameButton>}
-          footer={hasCoarsePointer ? "Tap to start" : "ENTER to start"}
+          primaryAction={<GameButton onClick={() => startNewGame(pendingSize)}>{$.start}</GameButton>}
+          footer={hasCoarsePointer ? $.tap_to_start : $.enter_to_start}
         />
       )}
 
       {statusRef.current === GameStatus.PAUSED && (
         <GamePauseScreen
+          title={$.paused}
           actions={
             <>
             <GameButton
@@ -473,7 +475,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                 refresh();
               }}
             >
-              RESUME
+              {$.resume}
             </GameButton>
             <GameButton
               variant="secondary"
@@ -482,7 +484,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                 refresh();
               }}
             >
-              RESTART
+              {$.restart}
             </GameButton>
             <GameButton
               variant="danger"
@@ -491,28 +493,28 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                 refresh();
               }}
             >
-              QUIT
+              {$.quit}
             </GameButton>
             </>
           }
-          footer={hasCoarsePointer ? "Tap resume to continue" : "ESC to resume"}
+          footer={hasCoarsePointer ? $.tap_resume : $.esc_to_resume}
         />
       )}
 
       {statusRef.current === GameStatus.ABANDONED && (
         <GameResultScreen
-          title="ABANDONED"
+          title={$.abandoned}
           tone="danger"
-          subtitle={`SCORE: ${score}`}
-          footer="Returning to title screen..."
+          subtitle={`${$.score}: ${score}`}
+          footer={$.returning_to_title}
         />
       )}
 
       {(statusRef.current === GameStatus.WON || statusRef.current === GameStatus.LOST) && (
         <GameResultScreen
-          title={statusRef.current === GameStatus.WON ? "YOU WIN" : "GAME OVER"}
+          title={statusRef.current === GameStatus.WON ? $.you_win : $.game_over}
           tone={statusRef.current === GameStatus.WON ? "primary" : "danger"}
-          subtitle={`SCORE: ${score}`}
+          subtitle={`${$.score}: ${score}`}
           actions={
             <>
             <GameButton
@@ -521,7 +523,7 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                 refresh();
               }}
             >
-              PLAY AGAIN
+              {$.play_again}
             </GameButton>
             <GameButton
               variant="secondary"
@@ -530,11 +532,11 @@ export function TwentyFortyEightView({ game, isMaximized }: Props) {
                 refresh();
               }}
             >
-              TITLE SCREEN
+              {$.title_screen}
             </GameButton>
             </>
           }
-          footer={hasCoarsePointer ? "Tap to retry" : "ENTER to retry"}
+          footer={hasCoarsePointer ? $.tap_to_retry : $.enter_to_retry}
         />
       )}
 
