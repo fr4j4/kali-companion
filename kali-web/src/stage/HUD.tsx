@@ -331,9 +331,13 @@ function ModelStatsPanel({
           <StatsRow label={t("stats.auto")} value={systemStatus.auto_tts ? "On" : "Off"} />
         </StatsSection>
 
-        {systemStatus.game_ai_enabled && systemStatus.game_model && (
+        {systemStatus.game_ai_enabled && (
           <StatsSection title="Game" icon={<Gamepad2 size={12} />}>
-            <StatsRow label={t("stats.model")} value={systemStatus.game_model} mono />
+            <StatsRow label={t("stats.model")} value={
+              systemStatus.game_connection_id === "active"
+                ? (systemStatus.llm_model || "—")
+                : (systemStatus.game_model || "—")
+            } mono />
             <StatsRow label="Temperature" value={String(systemStatus.game_temperature ?? "-")} />
             <StatsRow label={t("stats.max_tokens")} value={String(systemStatus.game_max_tokens ?? "-")} />
           </StatsSection>

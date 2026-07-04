@@ -212,10 +212,11 @@ export function GameConnectionPicker({
           <button
             onClick={handleConfirm}
             disabled={
-              !selectedModel ||
-              (selectedConnId !== "active" &&
-                (health[selectedConnId]?.status === "offline" ||
-                  (filteredModels.length === 0 && health[selectedConnId]?.status === "online")))
+              selectedConnId !== "active" && (
+                !selectedModel ||
+                health[selectedConnId]?.status === "offline" ||
+                (filteredModels.length === 0 && health[selectedConnId]?.status === "online")
+              )
             }
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
