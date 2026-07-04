@@ -58,10 +58,15 @@ export function HUD({
   const dateStr = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 
   const runningJobs = Array.from(chat.jobs.values()).filter((j) => j.status === "running").length;
-  const statusKey = `status.${chat.status}`;
+  const hasProvider = chat.systemStatus?.llm_active ?? false;
 
-  const statusDotClass =
-    chat.status === "ready" ? "bg-ok" : chat.status === "error" ? "bg-err" : "bg-muted";
+  const statusDotClass = !hasProvider
+    ? "bg-err"
+    : chat.status === "ready" ? "bg-ok"
+    : chat.status === "error" ? "bg-err"
+    : "bg-muted";
+
+  const statusKey = !hasProvider ? "status.disconnected" : `status.${chat.status}`;
 
   const sttProvider = chat.systemStatus?.stt_provider ?? "vosk";
   const sttEnabled = chat.systemStatus?.stt_enabled ?? false;
@@ -162,10 +167,14 @@ export function HUD({
                 <button
                   onClick={() => setStatsOpen((v) => !v)}
                   className="hud-pill cursor-pointer"
-                  title={chat.systemStatus.llm_model}
+                  title={
+                    hasProvider
+                      ? chat.systemStatus!.llm_model
+                      : t("connections.no_provider")
+                  }
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${statusDotClass}`} />
-                  {t(statusKey)} · {chat.systemStatus.llm_model}
+                  {t(statusKey)}{hasProvider ? ` · ${chat.systemStatus!.llm_model}` : ""}
                 </button>
                 {statsOpen && (
                   <ModelStatsPanel

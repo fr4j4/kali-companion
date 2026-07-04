@@ -525,7 +525,8 @@ class Server:
             "llm_provider": getattr(self.llm_provider, "provider_name", "") if self.llm_provider else "",
             "llm_api_url": getattr(self.llm_provider, "_api_url", settings.llm_api_url) if self.llm_provider else settings.llm_api_url,
             "llm_api_key_set": bool(getattr(self.llm_provider, "_api_key", "")) if self.llm_provider else False,
-            "llm_model": getattr(self.llm_provider, "_model", settings.llm_model) if self.llm_provider else settings.llm_model,
+            "llm_active": self.llm_provider is not None,
+            "llm_model": getattr(self.llm_provider, "_model", "") if self.llm_provider else "",
             "llm_max_tokens": getattr(self.llm_provider, "_max_tokens", settings.llm_max_tokens) if self.llm_provider else settings.llm_max_tokens,
             "llm_connection_id": cfg.connection_id,
             "llm_connection_name": next(

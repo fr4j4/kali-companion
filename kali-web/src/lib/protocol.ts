@@ -414,6 +414,7 @@ export interface StatusEvent {
   llm_provider: string;
   llm_api_url: string;
   llm_api_key_set: boolean;
+  llm_active: boolean;
   llm_model: string;
   llm_max_tokens?: number;
   llm_connection_id?: string | null;
