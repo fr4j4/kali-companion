@@ -111,6 +111,15 @@ export class TurnBasedSessionManager implements GameSessionManager {
     this._game.handleAction(action, humanSlot);
     this._turnNumber += 1;
 
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "turn",
+      label: "PLAYER MOVE",
+      icon: "player",
+      details: { actor: "player", action, turnNumber: this._turnNumber },
+    });
+
     gameSessionStore.addTurn(this._game.sessionId, {
       turnId: crypto.randomUUID(),
       turnNumber: this._turnNumber,
@@ -170,6 +179,7 @@ export class TurnBasedSessionManager implements GameSessionManager {
 
   private async _maybeTriggerAITurn(): Promise<void> {
     if (this._cancelled) return;
+    if (this._game.isFinished()) return;
     const currentSlot = this._getCurrentSlot();
     const aiSlot = this._findAISlot();
     if (currentSlot && aiSlot && currentSlot === aiSlot) {
@@ -177,8 +187,9 @@ export class TurnBasedSessionManager implements GameSessionManager {
     }
   }
 
-  private async _triggerAITurn(): Promise<void> {
+    private async _triggerAITurn(): Promise<void> {
     if (this._cancelled) return;
+    if (this._game.isFinished()) return;
 
     const aiSlot = this._findAISlot();
     if (!aiSlot) return;
@@ -189,8 +200,15 @@ export class TurnBasedSessionManager implements GameSessionManager {
     this._turnNumber += 1;
     const turnNumber = this._turnNumber;
 
-    // FIX DEL BUG: crear el turno placeholder AI ANTES de llamar a decide().
-    // Así los chunks de reasoning tienen un turno donde acumularse.
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "turn",
+      label: "AI TURN START",
+      icon: "ai",
+      details: { actor: "ai", turnNumber },
+    });
+
     gameSessionStore.addTurn(this._game.sessionId, {
       turnId: crypto.randomUUID(),
       turnNumber,
@@ -228,8 +246,6 @@ export class TurnBasedSessionManager implements GameSessionManager {
 
       if (this._cancelled) return;
 
-      // Providers may stream via onReasoning (mocks/future) or return reasoning in the action (CPU/AISlot).
-      // We finalize here so every provider's reasoning ends up in the store.
       const finalReasoning = action.reasoning ?? collectedReasoning.join("");
       gameSessionStore.finalizeTurnReasoning(
         this._game.sessionId,
@@ -251,13 +267,76 @@ export class TurnBasedSessionManager implements GameSessionManager {
       this._setKaliStatus(KaliStatus.IDLE);
       this._stateChanged();
 
-      // Si el juego sigue con el mismo slot AI (raro pero posible), continuar.
       await this._maybeTriggerAITurn();
     } catch (err) {
       this._activeProvider = null;
       if (this._cancelled) return;
-      this._setError(this._toKaliError(err));
+
+      const kaliError = this._toKaliError(err);
+
+      if (
+        (kaliError.code === KaliErrorCode.PARSE_ERROR ||
+          kaliError.code === KaliErrorCode.INVALID_MOVE ||
+          kaliError.code === KaliErrorCode.MODEL_ERROR) &&
+        kaliError.hasFallback()
+      ) {
+        this._applyCpuFallback(turnNumber);
+        return;
+      }
+
+      if (
+        kaliError.code === KaliErrorCode.MODEL_ERROR &&
+        !kaliError.hasFallback()
+      ) {
+        this._applyCpuFallback(turnNumber);
+        return;
+      }
+
+      this._setError(kaliError);
     }
+  }
+
+  private async _applyCpuFallback(turnNumber: number): Promise<void> {
+    const aiSlot = this._findAISlot();
+    if (!aiSlot) return;
+
+    const difficulty = (this._game.getState().data as { difficulty?: string }).difficulty ?? "medium";
+
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "turn",
+      label: "CPU FALLBACK",
+      icon: "ai",
+      details: { actor: "ai", turnNumber, difficulty },
+    });
+
+    const { TicTacToeCPUPlayer } = await import("../tic-tac-toe/tic-tac-toe-cpu");
+    const cpuPlayer = new TicTacToeCPUPlayer(difficulty as "easy" | "medium" | "hard");
+    this.fallbackToCPU(cpuPlayer);
+
+    const cpuAction = await cpuPlayer.decide(this._game.getState(), turnNumber);
+
+    gameSessionStore.finalizeTurnReasoning(
+      this._game.sessionId,
+      turnNumber,
+      "[Kali no respondio — CPU minimax applied]",
+    );
+
+    this._game.handleAction(cpuAction, aiSlot);
+
+    gameSessionStore.completeAITurn(
+      this._game.sessionId,
+      turnNumber,
+      cpuAction,
+      this._clone(this._game.getState().data),
+    );
+
+    this._retryCount = 0;
+    this._setKaliStatus(KaliStatus.IDLE);
+    this._stateChanged();
+
+    await this._maybeTriggerAITurn();
   }
 
   private _setKaliStatus(status: KaliStatusValue): void {
@@ -270,6 +349,16 @@ export class TurnBasedSessionManager implements GameSessionManager {
     this._kaliError = error;
     this._kaliStatus = KaliStatus.ERROR;
     this._callbacks.onAIStatusChange(KaliStatus.ERROR, error);
+
+    gameSessionStore.addLogEntry(this._game.sessionId, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      kind: "ws_error",
+      label: "AI FAILED",
+      icon: "error",
+      details: { errorMessage: error.message },
+    });
+
     this._notify();
   }
 

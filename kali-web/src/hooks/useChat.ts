@@ -96,6 +96,8 @@ export interface ChatState {
   isTurnActive: boolean;
   currentStep: number;
   turnStats: TurnStatsEvent | null;
+  /** True while the user explicitly requested a new session and we are waiting for the backend to assign an id. */
+  isCreatingSession: boolean;
   send: (text: string) => void;
   sendEvent: (event: IncomingEvent) => void;
   setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
@@ -176,6 +178,7 @@ export function useChat(): ChatState {
   const [turnStats, setTurnStats] = useState<TurnStatsEvent | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const clientRef = useRef<WSClient | null>(null);
   const ttsListeners = useRef<Array<(e: TtsAudioEvent) => void>>([]);
@@ -276,17 +279,22 @@ export function useChat(): ChatState {
           localStorage.removeItem("kali.sessionId");
         }
         setStatus("ready");
+        setIsCreatingSession(false);
         client?.send({ event: "list_sessions" });
       });
       client.on("connected", (p) => {
         const ev = p as ConnectedEvent;
         setError(null);
         setSessionId(ev.session_id || null);
+        setIsCreatingSession(false);
         if (ev.session_id) {
           localStorage.setItem("kali.sessionId", ev.session_id);
         } else {
           localStorage.removeItem("kali.sessionId");
         }
+        // Refresh the sessions list so a newly created or attached session
+        // appears immediately in the sidebar.
+        client?.send({ event: "list_sessions" });
       });
       client.on("session_list", (p) => {
         const ev = p as SessionListEvent;
@@ -708,6 +716,25 @@ export function useChat(): ChatState {
     setTtsSegment(0);
     setTtsTotal(0);
     setTurnStats(null);
+    // Clear any in-progress turn state so "Thinking" pills and step counters
+    // from the previous session do not linger in the new one.
+    setIsThinking(false);
+    setIsTurnActive(false);
+    setCurrentStep(0);
+    setStopped(false);
+    // Drop transient session-scoped collections so the new session starts clean.
+    setJobs(new Map());
+    setImageReadyKeys(new Set());
+    // Clear the active session synchronously so the UI stops bookmarking the
+    // previous session URL and the workspace reset effect can fire as soon as
+    // the backend assigns a new id.
+    setSessionId(null);
+    localStorage.removeItem("kali.sessionId");
+    consoleProvidersRef.current.clear();
+    // Mark that we are explicitly creating a new session. StageProvider uses
+    // this to navigate to the URL root and to suppress re-attachment to the old
+    // session URL while we wait for the backend to assign a new id.
+    setIsCreatingSession(true);
     clientRef.current?.send({ event: "new_session" });
   }, []);
 
@@ -864,11 +891,13 @@ export function useChat(): ChatState {
     markArtifactClosed,
     setArtifactContent,
     registerConsoleProvider,
+    isCreatingSession,
   }), [
     status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
     ttsPlaying, ttsSegment, ttsTotal, ttsFilteredRaw, ttsFilteredOut,
     error, systemStatus, consentRequest, toolEvents, isThinking, isTurnActive,
     currentStep, turnStats, stopped, downloadProgress, downloadError,
+    isCreatingSession,
     send, sendEvent, setSelectedArtifactsProvider, stop, newSession,
     listSessions, attachSession, deleteSession, clearAllSessions, updateSettings,
     respondConsent, subscribeTts, onTtsEnded, listJobs, cancelJob, getJobLogs,

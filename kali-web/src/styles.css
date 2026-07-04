@@ -1258,8 +1258,20 @@ html.kali-perf-low .kw {
   content-visibility: auto;
   contain-intrinsic-size: auto 400px;
 }
+/* Game windows need accurate, synchronous measurements from ResizeObserver
+   (see useGameViewport). content-visibility:auto can report stale 0/400 sizes
+   when offscreen, breaking the responsive scale calc. Force always-rendered. */
+.kw[data-window-type="game"] .kw-body {
+  content-visibility: visible;
+  contain-intrinsic-size: auto 0px;
+}
 .kw.minimized .kw-handle { display: none; }
 .kw.entering { animation: awEnter 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+/* Game windows need accurate, synchronous measurements from ResizeObserver
+   (see useGameViewport). The awEnter transform animation makes the initial
+   getBoundingClientRect return a scaled size, breaking the responsive fit.
+   Disable the entry animation for game windows so the first measure is exact. */
+.kw[data-window-type="game"].entering { animation: none; }
 @keyframes awEnter { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 @keyframes awLeave { to { opacity: 0; transform: scale(0.85); } }
 

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const ABANDONED_DELAY_MS = 1500;
+
 import {
   TwentyFortyEightGame,
   type BoardData,
@@ -10,9 +13,11 @@ import {
 import { GameStatus } from "../../games/core/constants/game-status";
 import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
+import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
 
 interface Props {
   game: TwentyFortyEightGame;
+  isMaximized?: boolean;
 }
 
 interface TileItem {
@@ -167,16 +172,24 @@ function AnimatedTile({
   );
 }
 
-export function TwentyFortyEightView({ game }: Props) {
+export function TwentyFortyEightView({ game, isMaximized }: Props) {
   const [statusVersion, setStatusVersion] = useState(0);
   void statusVersion;
   const statusRef = useRef<GameStatusValue>(game.getStatus());
   const containerRef = useRef<HTMLDivElement>(null);
   const [pendingSize, setPendingSize] = useState<BoardSize>(game.size);
+
+  const viewport = useGameViewport(containerRef, isMaximized);
+  const scale = fitScale(game.naturalWidth, game.naturalHeight, viewport.width, viewport.height);
+  const offsets = centerOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
   const animRef = useRef<BoardData | null>(null);
 
   const refresh = useCallback(() => {
-    statusRef.current = game.getStatus();
+    const next = game.getStatus();
+    statusRef.current = next;
+    if (next === GameStatus.WAITING) {
+      animRef.current = null;
+    }
     setStatusVersion((v) => v + 1);
   }, [game]);
 
@@ -226,7 +239,7 @@ export function TwentyFortyEightView({ game }: Props) {
         return;
       }
 
-      if (status === GameStatus.WON || status === GameStatus.LOST) {
+      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.ABANDONED) {
         if (e.key === "Enter") {
           e.preventDefault();
           send(game, GameCommand.PLAY_AGAIN);
@@ -248,6 +261,16 @@ export function TwentyFortyEightView({ game }: Props) {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [game, refresh, pendingSize, startNewGame]);
+
+  // Auto-reset to title screen after the player abandons the game.
+  useEffect(() => {
+    if (statusRef.current !== GameStatus.ABANDONED) return;
+    const t = setTimeout(() => {
+      send(game, GameCommand.TO_TITLE);
+      refresh();
+    }, ABANDONED_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [game, refresh, statusVersion]);
 
   const data = game.getState().data as BoardData | null;
   const cells = data?.cells ?? [];
@@ -278,20 +301,22 @@ export function TwentyFortyEightView({ game }: Props) {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col items-center justify-center flex-1 bg-[#02040a] relative py-4 select-none"
+      className="flex-1 w-full relative select-none overflow-hidden"
+      style={{ backgroundColor: isMaximized ? "#000" : "#02040a" }}
       tabIndex={-1}
     >
       <div
-        className="p-3 rounded-2xl border-2 relative inline-flex flex-col items-center"
+        className="p-3 rounded-2xl border-2 absolute top-0 left-0 inline-flex flex-col items-center"
         style={{
           backgroundColor: BOARD_BG,
           borderColor: BOARD_BORDER,
           boxShadow: `0 0 24px ${BOARD_BORDER_GLOW}, inset 0 0 18px rgba(56, 189, 248, 0.05)`,
-          flex: "0 0 auto",
           boxSizing: "border-box",
-          width: 364,
-          minWidth: 364,
-          maxWidth: 364,
+          width: game.naturalWidth,
+          height: game.naturalHeight,
+          transform: `translate(${offsets.x}px, ${offsets.y}px) scale(${scale})`,
+          transformOrigin: "top left",
+          visibility: viewport.ready ? "visible" : "hidden",
         }}
       >
         <div
@@ -388,7 +413,7 @@ export function TwentyFortyEightView({ game }: Props) {
             className="absolute overflow-hidden"
             style={{ top: GRID_PADDING, left: GRID_PADDING, width: GRID_AREA_SIZE - 2 * GRID_PADDING, height: GRID_AREA_SIZE - 2 * GRID_PADDING }}
           >
-            {tiles.map((tile) => {
+            {statusRef.current !== GameStatus.WAITING && tiles.map((tile) => {
               const prev = prevPositions[tile.id];
               const isNew = !prev;
               return (
@@ -541,6 +566,33 @@ export function TwentyFortyEightView({ game }: Props) {
         </div>
       )}
 
+      {statusRef.current === GameStatus.ABANDONED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2
+            className="text-lg mb-1 tracking-wider"
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              color: "#f43f5e",
+              textShadow: "0 0 16px rgba(244,63,94,0.7)",
+            }}
+          >
+            ABANDONED
+          </h2>
+          <p
+            className="text-xs mb-4"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#67e8f9" }}
+          >
+            SCORE: {score}
+          </p>
+          <p
+            className="text-[9px]"
+            style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}
+          >
+            Returning to title screen…
+          </p>
+        </div>
+      )}
+
       {(statusRef.current === GameStatus.WON || statusRef.current === GameStatus.LOST) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
           <h2
@@ -579,7 +631,7 @@ export function TwentyFortyEightView({ game }: Props) {
             </button>
             <button
               onClick={() => {
-                send(game, GameCommand.GIVE_UP);
+                send(game, GameCommand.TO_TITLE);
                 refresh();
               }}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
@@ -590,7 +642,7 @@ export function TwentyFortyEightView({ game }: Props) {
                 border: "1px solid #38bdf8",
               }}
             >
-              QUIT
+              TITLE SCREEN
             </button>
           </div>
           <p

@@ -138,20 +138,36 @@ export function StageProvider({ children }: { children: ReactNode }) {
   // URL -> state: attach to the session in the URL once ready.
   const lastAttachedRef = useRef<string | null>(null);
   useEffect(() => {
+    // While the user explicitly requested a new session, do not re-attach to the
+    // previous session URL. The effect below will move the URL to root and then
+    // to /session/<newId> once the backend responds.
+    if (chat.isCreatingSession) return;
     if (urlSid && chat.status === "ready" && urlSid !== chat.sessionId && urlSid !== lastAttachedRef.current) {
       lastAttachedRef.current = urlSid;
       chat.attachSession(urlSid);
     }
-  }, [urlSid, chat.status, chat.sessionId, chat.attachSession]);
+  }, [urlSid, chat.status, chat.sessionId, chat.attachSession, chat.isCreatingSession]);
 
   // State -> URL: bookmark the active session, or clear URL if no session.
   useEffect(() => {
+    if (chat.isCreatingSession && urlSid) {
+      // User pressed "new session"; move to the URL root immediately and record
+      // the old URL session id so the attach effect above does not pull us back.
+      lastAttachedRef.current = urlSid;
+      navigate("/", { replace: true });
+      return;
+    }
     if (chat.sessionId && !urlSid) {
       navigate(`/session/${chat.sessionId}`, { replace: true });
     } else if (!chat.sessionId && urlSid && chat.status === "ready") {
       navigate("/", { replace: true });
     }
-  }, [chat.sessionId, urlSid, chat.status, navigate]);
+    // When the active session is cleared (e.g. new session), forget the last
+    // attached id so navigating back to an old session URL can re-attach later.
+    if (!chat.sessionId && !chat.isCreatingSession) {
+      lastAttachedRef.current = null;
+    }
+  }, [chat.sessionId, urlSid, chat.status, chat.isCreatingSession, navigate]);
 
   // Wake-word barge-in: stop TTS + generation.
   const onWakeWord = useCallback(() => {
@@ -260,13 +276,12 @@ export function useStage(): StageContextValue {
   return ctx;
 }
 
-// Re-export a way to reset the "last attached" ref when starting a new session
-// from the URL root (used by the Stage when creating a new conversation).
+// Re-export a helper to start a new session. URL navigation is handled
+// centrally by StageProvider via chat.isCreatingSession, so callers only need
+// to invoke chat.newSession().
 export function useNewSessionNav() {
-  const navigate = useNavigate();
   const { chat } = useStage();
   return useCallback(() => {
-    navigate("/");
     chat.newSession();
-  }, [navigate, chat]);
+  }, [chat]);
 }

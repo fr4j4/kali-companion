@@ -35,11 +35,13 @@ game_ai_global_timeout_ms: int = int(
 # ── Game AI (kali-toys) ───────────────────────────────
 game_connection_id: str = os.getenv("KALI_GAME_CONNECTION_ID", "")
 game_model: str = os.getenv("KALI_GAME_MODEL", "")
-game_temperature: float = float(os.getenv("KALI_GAME_TEMPERATURE", "0.7"))
+game_temperature: float = float(os.getenv("KALI_GAME_TEMPERATURE", "0.4"))
 game_max_tokens: int = int(os.getenv("KALI_GAME_MAX_TOKENS", "256"))
 _game_retry_timeouts_raw: str = os.getenv("KALI_GAME_RETRY_TIMEOUTS", "12000,3000,2000")
 game_retry_timeouts: list[int] = [int(v.strip()) for v in _game_retry_timeouts_raw.split(",") if v.strip().isdigit()]
 game_max_retries: int = int(os.getenv("KALI_GAME_MAX_RETRIES", "2"))
+game_log_default_open: bool = _env_bool("KALI_GAME_LOG_DEFAULT_OPEN", False)
+game_reasoning_default_open: bool = _env_bool("KALI_GAME_REASONING_DEFAULT_OPEN", False)
 
 # ── LLM (kali-mind) ───────────────────────────────────────
 llm_provider: Literal["direct", "nanobot"] = os.getenv(
@@ -476,6 +478,8 @@ class _Settings:
     game_max_tokens = game_max_tokens
     game_retry_timeouts = game_retry_timeouts
     game_max_retries = game_max_retries
+    game_log_default_open = game_log_default_open
+    game_reasoning_default_open = game_reasoning_default_open
 
 
 settings = _Settings()

@@ -12,8 +12,18 @@ export abstract class BaseGame {
   abstract readonly slots: readonly PlayerSlot[];
   abstract readonly paradigm: "turn-based" | "realtime";
 
+  /** Intrinsic width of the game's content area in logical px. */
+  abstract readonly naturalWidth: number;
+  /** Intrinsic height of the game's content area in logical px. */
+  abstract readonly naturalHeight: number;
+
   abstract start(config?: GameConfig): GameState;
   abstract handleAction(action: GameAction, fromSlotId: string): GameState;
+
+  /** Aspect ratio of the game's content area (width / height). */
+  get aspectRatio(): number {
+    return this.naturalWidth / this.naturalHeight;
+  }
 
   pause(): void {}
   resume(): void {}
@@ -62,6 +72,19 @@ export abstract class BaseGame {
 
   getStatus(): GameStatusValue {
     return this._state.status;
+  }
+
+  /**
+   * Whether the game has ended and accepts no more moves.
+   *
+   * Default implementation returns `true` for any status that is not
+   * `playing`, `paused`, or `waiting`. Games may override this for
+   * more precise logic (e.g. checking an internal flag before the
+   * status field is updated).
+   */
+  isFinished(): boolean {
+    const s = this.state.status;
+    return s !== "playing" && s !== "paused" && s !== "waiting";
   }
 
   get version(): number {

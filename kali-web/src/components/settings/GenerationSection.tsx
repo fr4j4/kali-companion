@@ -1,6 +1,9 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Gauge } from "lucide-react";
 import type { StatusEvent, SettingsEvent } from "../../lib/protocol";
+import { SectionHeader } from "./SectionHeader";
+import { SettingsCard } from "./SettingsCard";
 
 interface Props {
   systemStatus: StatusEvent | null;
@@ -37,49 +40,53 @@ export function GenerationSection({ systemStatus, onUpdate }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-ai-label uppercase tracking-[0.15em]">
-              {t("settings.max_tokens")}
-            </span>
-            <span className="text-[10px] font-mono text-ai-label/60 italic mt-0.5">
-              {t("settings.max_tokens_hint")}
+      <SectionHeader
+        icon={Gauge}
+        title={t("settings.generation.title")}
+        description={t("settings.generation.description")}
+      />
+
+      <SettingsCard>
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted">{t("settings.max_tokens")}</span>
+              <span className="text-[11px] text-muted/60">{t("settings.max_tokens_hint")}</span>
+            </div>
+            <span className="text-xs font-mono text-ai-signal bg-ai-signal/10 border border-ai-signal/30 rounded px-2 py-1">
+              {formatTokens(value)}
             </span>
           </div>
-          <span className="text-xs font-mono text-ai-signal bg-ai-signal/10 border border-ai-signal/30 rounded px-2 py-1">
-            {formatTokens(value)}
-          </span>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="range"
-            min={MIN_TOKENS}
-            max={MAX_TOKENS}
-            step={STEP}
-            value={value}
-            onChange={(e) => handleChange(parseInt(e.target.value, 10))}
-            className="flex-1 accent-ai-signal"
-          />
-          <input
-            type="number"
-            min={MIN_TOKENS}
-            max={MAX_TOKENS}
-            step={STEP}
-            value={value}
-            onChange={(e) => handleChange(Number(e.target.value))}
-            className="w-24 bg-ai-panel border border-ai-rail rounded-lg px-2.5 py-2 text-sm font-mono text-ai-readout outline-none focus:border-ai-signal/60 transition-colors text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          />
-        </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={MIN_TOKENS}
+              max={MAX_TOKENS}
+              step={STEP}
+              value={value}
+              onChange={(e) => handleChange(parseInt(e.target.value, 10))}
+              className="flex-1 accent-ai-signal"
+            />
+            <input
+              type="number"
+              min={MIN_TOKENS}
+              max={MAX_TOKENS}
+              step={STEP}
+              value={value}
+              onChange={(e) => handleChange(Number(e.target.value))}
+              className="w-24 bg-ai-panel border border-ai-rail rounded-lg px-2.5 py-2 text-sm font-mono text-ai-readout outline-none focus:border-ai-signal/60 transition-colors text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
 
-        <div className="flex items-center justify-between text-[10px] font-mono text-ai-label/50">
-          <span>{formatTokens(MIN_TOKENS)}</span>
-          <span>{formatTokens(MAX_TOKENS)}</span>
-        </div>
-      </section>
+          <div className="flex items-center justify-between text-[10px] font-mono text-muted/60">
+            <span>{formatTokens(MIN_TOKENS)}</span>
+            <span>{formatTokens(MAX_TOKENS)}</span>
+          </div>
+        </section>
 
-      <p className="text-[10px] font-mono text-ai-label/60 italic">{t("ai.change_next_turn")}</p>
+        <p className="text-[10px] font-mono text-ai-label/60 italic">{t("ai.change_next_turn")}</p>
+      </SettingsCard>
     </div>
   );
 }

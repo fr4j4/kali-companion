@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+const ABANDONED_DELAY_MS = 1500;
 import { SnakeGame } from "../../games/snake/snake-game";
 import { GameStatus } from "../../games/core/constants/game-status";
 import type { GameStatusValue } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { useGameLoop } from "../../hooks/useGameLoop";
+import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
 
 const CELL = 24;
 const BOARD_W = 20;
@@ -40,6 +43,7 @@ const PALETTE = {
 
 interface Props {
   game: SnakeGame;
+  isMaximized?: boolean;
 }
 
 function send(game: SnakeGame, command: string) {
@@ -170,7 +174,8 @@ function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
-export function SnakeView({ game }: Props) {
+export function SnakeView({ game, isMaximized }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreSpanRef = useRef<HTMLSpanElement>(null);
   const levelSpanRef = useRef<HTMLSpanElement>(null);
@@ -180,12 +185,36 @@ export function SnakeView({ game }: Props) {
   const lastScoreRef = useRef(-1);
   const lastLevelRef = useRef(-1);
 
+  const viewport = useGameViewport(containerRef, isMaximized);
+  const scale = fitScale(game.naturalWidth, game.naturalHeight, viewport.width, viewport.height);
+  const offsets = centerOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
+
   const drawFrame = useCallback(
     (interp: number) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+
+      const dpr = viewport.dpr;
+
+      // Canvas backing store is fixed at logical 480x480 * dpr; the parent
+      // platform scales it visually via transform: scale(...).
+      const targetW = Math.max(1, Math.round(CANVAS_W * dpr));
+      const targetH = Math.max(1, Math.round(CANVAS_H * dpr));
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+        canvas.style.width = `${CANVAS_W}px`;
+        canvas.style.height = `${CANVAS_H}px`;
+      }
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Map logical 480x480 board coordinates to the canvas backing store.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const state = game.getState();
       const data = state.data as DrawState | null;
@@ -259,7 +288,7 @@ export function SnakeView({ game }: Props) {
         if (levelSpanRef.current) levelSpanRef.current.textContent = String(level);
       }
     },
-    [game],
+    [game, viewport.dpr, scale],
   );
 
   const handleStatusChange = useCallback(
@@ -274,11 +303,13 @@ export function SnakeView({ game }: Props) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.width = CANVAS_W;
-      canvas.height = CANVAS_H;
-    }
-  }, []);
+    if (!canvas) return;
+    const dpr = viewport.dpr;
+    canvas.width = Math.max(1, Math.round(CANVAS_W * dpr));
+    canvas.height = Math.max(1, Math.round(CANVAS_H * dpr));
+    canvas.style.width = `${CANVAS_W}px`;
+    canvas.style.height = `${CANVAS_H}px`;
+  }, [viewport.dpr]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -307,7 +338,7 @@ export function SnakeView({ game }: Props) {
         return;
       }
 
-      if (status === GameStatus.LOST) {
+      if (status === GameStatus.LOST || status === GameStatus.ABANDONED) {
         if (e.key === "Enter") {
           e.preventDefault();
           send(game, GameCommand.PLAY_AGAIN);
@@ -331,16 +362,34 @@ export function SnakeView({ game }: Props) {
   const status = statusRef.current;
   const state = game.getState();
 
+  // Auto-reset to title screen after the player abandons the game.
+  useEffect(() => {
+    if (status !== GameStatus.ABANDONED) return;
+    const t = setTimeout(() => {
+      send(game, GameCommand.TO_TITLE);
+    }, ABANDONED_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [game, status]);
+
   const pixelFont = { fontFamily: "'Press Start 2P', monospace" };
 
   return (
-    <div className="flex flex-col items-center justify-center flex-1 bg-[#020617] relative py-4">
+    <div
+      ref={containerRef}
+      className="flex-1 w-full relative overflow-hidden"
+      style={{ backgroundColor: isMaximized ? "#000" : "#020617" }}
+    >
         <div
-          className="p-2 rounded-xl border-2 relative"
+          className="p-2 rounded-xl border-2 absolute top-0 left-0"
           style={{
             backgroundColor: PALETTE.platform,
             borderColor: PALETTE.platformBorder,
             boxShadow: `0 0 18px ${PALETTE.gridGlow}, inset 0 0 14px rgba(56, 189, 248, 0.04)`,
+            width: game.naturalWidth,
+            height: game.naturalHeight,
+            transform: `translate(${offsets.x}px, ${offsets.y}px) scale(${scale})`,
+            transformOrigin: "top left",
+            visibility: viewport.ready ? "visible" : "hidden",
           }}
         >
         <canvas
@@ -421,6 +470,20 @@ export function SnakeView({ game }: Props) {
         </div>
       )}
 
+      {status === GameStatus.ABANDONED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
+            ABANDONED
+          </h2>
+          <p className="text-xs mb-4" style={{ ...pixelFont, color: PALETTE.head }}>
+            SCORE: {state.score}
+          </p>
+          <p className="text-[9px] mt-2" style={{ ...pixelFont, color: PALETTE.border }}>
+            Returning to title screen…
+          </p>
+        </div>
+      )}
+
       {status === GameStatus.LOST && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050b14]/90 rounded-xl z-10 backdrop-blur-[2px]">
           <h2 className="text-lg mb-1 tracking-wider" style={{ ...pixelFont, color: PALETTE.apple }}>
@@ -438,11 +501,11 @@ export function SnakeView({ game }: Props) {
               PLAY AGAIN
             </button>
             <button
-              onClick={() => send(game, GameCommand.GIVE_UP)}
+              onClick={() => send(game, GameCommand.TO_TITLE)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ ...pixelFont, color: PALETTE.buttonAltText, backgroundColor: PALETTE.platformBorder, border: `1px solid ${PALETTE.borderLight}` }}
             >
-              QUIT
+              TITLE SCREEN
             </button>
           </div>
           <p className="text-[9px] mt-4" style={{ ...pixelFont, color: PALETTE.border }}>

@@ -22,7 +22,7 @@ import { AISlot } from "../../games/ai/ai-slot";
 import { PlayerType } from "../../games/core/constants/player-types";
 import { Brain, Gamepad2 } from "lucide-react";
 
-interface GameContent {
+export interface GameContent {
   mode?: "launchpad" | "game" | "saved-games" | "saved-game-replay";
   gameType?: GameTypeValue;
   sessionId?: string;
@@ -49,12 +49,16 @@ export function GameWidget({ content, api, windowId }: Props) {
   const managerRef = useRef<GameSessionManager | null>(null);
   const [ready, setReady] = useState(false);
 
-  const { setSidePanelContent, setLeftSidePanelContent } = useSidePanel();
+  const { setSidePanelContent, openSidePanel, setLeftSidePanelContent, openLeftSidePanel } = useSidePanel();
   const wsClient = useGameWS();
   const { systemStatus } = useChat();
+  const systemStatusRef = useRef(systemStatus);
+  systemStatusRef.current = systemStatus;
   const { connections } = useStage();
   const hasKali = hasLLMIntegration(systemStatus, connections);
   const replaySessionId = parsed.sessionId;
+
+  const initialOpenDoneRef = useRef(false);
 
   const [, forceRender] = useState(0);
 
@@ -77,7 +81,13 @@ export function GameWidget({ content, api, windowId }: Props) {
     for (const slot of game.slots) {
       if (slot.type === PlayerType.AI) {
         const aiSlot = new AISlot(slot.id, wsClient, () => game.sessionId);
-        aiSlot.setGlobalTimeout(() => systemStatus?.game_ai_global_timeout_ms ?? 20_000);
+        aiSlot.setGlobalTimeout(() => systemStatusRef.current?.game_ai_global_timeout_ms ?? 20_000);
+        aiSlot.setGameAiConfig(() => ({
+          game_connection_id: systemStatusRef.current?.game_connection_id,
+          game_model: systemStatusRef.current?.game_model,
+          game_temperature: systemStatusRef.current?.game_temperature,
+          game_max_tokens: systemStatusRef.current?.game_max_tokens,
+        }));
         providers.set(slot.id, aiSlot);
       }
     }
@@ -89,12 +99,26 @@ export function GameWidget({ content, api, windowId }: Props) {
     managerRef.current = manager;
     setReady(true);
 
+    if (api && windowId != null) {
+      const headerOffset = 42; // measured in logical px; body scaling handles winScale
+      api.resizeWindow(windowId, {
+        width: game.naturalWidth,
+        height: game.naturalHeight + headerOffset,
+      });
+    }
+
+    const shouldOpenGameLog = systemStatusRef.current?.game_log_default_open ?? false;
+    const shouldOpenReasoning = systemStatusRef.current?.game_reasoning_default_open ?? false;
+
     setSidePanelContent({
       icon: <Gamepad2 size={14} />,
       title: "Game Log",
       onClear: () => gameSessionStore.clearSession(game.sessionId),
       content: <GameDebugPanel getSessionId={() => game.sessionId} />,
     });
+    if (shouldOpenGameLog && !initialOpenDoneRef.current) {
+      openSidePanel();
+    }
 
     setLeftSidePanelContent({
       icon: <Brain size={14} />,
@@ -102,6 +126,11 @@ export function GameWidget({ content, api, windowId }: Props) {
       onClear: () => gameSessionStore.clearSession(game.sessionId),
       content: <GameReasoningPanel getSessionId={() => game.sessionId} />,
     });
+    if (shouldOpenReasoning && !initialOpenDoneRef.current) {
+      openLeftSidePanel();
+    }
+
+    initialOpenDoneRef.current = true;
 
     return () => {
       managerRef.current?.destroy();
@@ -109,11 +138,12 @@ export function GameWidget({ content, api, windowId }: Props) {
       gameRef.current?.stop();
       gameRef.current = null;
       setReady(false);
+      initialOpenDoneRef.current = false;
       setSidePanelContent(null);
       setLeftSidePanelContent(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent, systemStatus?.game_ai_global_timeout_ms]);
+  }, [mode, gameType, wsClient, setSidePanelContent, setLeftSidePanelContent, systemStatus?.game_log_default_open, systemStatus?.game_reasoning_default_open]);
 
   const prevFocusedRef = useRef(false);
 
@@ -131,8 +161,10 @@ export function GameWidget({ content, api, windowId }: Props) {
     prevFocusedRef.current = isFocused;
   });
 
+  const isMaximized = (api?.windows ?? []).some((w) => w.id === windowId && w.maximized);
+
   if (mode === "game" && gameType && ready && gameRef.current && managerRef.current) {
-    return <GameRenderer game={gameRef.current} manager={managerRef.current} hasKali={hasKali} />;
+    return <GameRenderer game={gameRef.current} manager={managerRef.current} hasKali={hasKali} isMaximized={isMaximized} />;
   }
 
   if (mode === "saved-games") {

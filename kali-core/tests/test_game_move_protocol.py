@@ -32,21 +32,41 @@ from kali_core.voice.voice_config import VoiceConfigManager
 
 
 class FakeLLMProvider:
-    """LLM that returns a canned response for game_move tests."""
+    """LLM that returns a canned response for game_move tests.
+
+    Set ``responses`` to a list to cycle through different responses across
+    multiple ``stream()`` calls (used for retry tests).
+    """
 
     provider_name = "fake"
 
-    def __init__(self, response: dict | None = None) -> None:
+    def __init__(
+        self,
+        response: dict | None = None,
+        responses: list[dict] | None = None,
+    ) -> None:
         self._model = "fake-model"
-        self._response = response or {"text": '{"row": 1, "col": 2}'}
+        self._responses: list[dict] = responses or [response or {"text": '{"row": 1, "col": 2}'}]
+        self._call_count = 0
+
+    def _next_response(self) -> dict:
+        idx = self._call_count % len(self._responses)
+        self._call_count += 1
+        return self._responses[idx]
 
     async def stream(
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ):
-        text = self._response.get("text", "")
-        reasoning = self._response.get("reasoning", "")
+        resp = self._next_response()
+        text = resp.get("text", "")
+        reasoning = resp.get("reasoning", "")
         if reasoning:
             yield StreamEvent(kind="reasoning", text=reasoning)
         if text:
@@ -57,16 +77,26 @@ class FakeLLMProvider:
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict:
-        return self._response
+        return self._next_response()
 
 
 class ConnectionTestHelper(Connection):
     """Connection subclass that exposes _parse_game_action etc. for unit testing."""
 
-    def __init__(self, llm_response: dict | None = None) -> None:
+    def __init__(
+        self,
+        llm_response: dict | None = None,
+        *,
+        responses: list[dict] | None = None,
+    ) -> None:
         # Don't call super().__init__ — just set llm_provider directly
-        self.server = type("Srv", (), {"llm_provider": FakeLLMProvider(llm_response)})()
+        self.server = type("Srv", (), {"llm_provider": FakeLLMProvider(llm_response, responses)})()
         self.session_id = None
         self._sent: list[dict] = []
 
@@ -113,7 +143,7 @@ class TestParseGameAction:
         assert action is None
         assert error is not None
         assert error["code"] == "PARSE_ERROR"
-        assert error["fallback_action"] is not None
+        assert error["fallback_action"] is None
 
     def test_missing_col_is_invalid_move(self, conn):
         response = {"text": '{"row": 0}'}
@@ -121,6 +151,7 @@ class TestParseGameAction:
         action, error = conn._parse_game_action(response, game_state, {})
         assert action is None
         assert error["code"] == "INVALID_MOVE"
+        assert error["fallback_action"] is None
 
     def test_invalid_move_out_of_range(self, conn):
         response = {"text": '{"row": 5, "col": 5}'}
@@ -128,7 +159,7 @@ class TestParseGameAction:
         action, error = conn._parse_game_action(response, game_state, {})
         assert action is None
         assert error["code"] == "INVALID_MOVE"
-        assert error["fallback_action"] is not None
+        assert error["fallback_action"] is None
 
     def test_invalid_move_occupied_cell(self, conn):
         board = [["X", None, None], [None, None, None], [None, None, None]]
@@ -195,6 +226,7 @@ class TestHandleGameMove:
             "event": "game_move",
             "game_type": "tictactoe",
             "session_id": "test-session",
+            "game_session_id": "game-rt",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
@@ -204,42 +236,48 @@ class TestHandleGameMove:
         resp = conn._sent[0]
         assert resp["event"] == "game_move_response"
         assert resp["game_type"] == "tictactoe"
-        assert resp["session_id"] == "test-session"
+        assert resp["game_session_id"] == "game-rt"
         assert resp["action"] is not None
         assert resp["action"]["data"]["row"] == 1
         assert resp["action"]["data"]["col"] == 1
         assert resp["error"] is None
         assert resp.get("reasoning") == ""
 
-    async def test_returns_parse_error_with_fallback(self):
+    async def test_returns_model_error_after_retry_exhausted(self):
+        """On parse error the handler retries 3 times before returning MODEL_ERROR."""
         conn = ConnectionTestHelper({"text": "not json at all"})
         event = {
             "event": "game_move",
             "game_type": "tictactoe",
+            "game_session_id": "game-retry",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
         }
         await conn._handle_game_move(event)
         resp = conn._sent[0]
+        assert resp["game_session_id"] == "game-retry"
         assert resp["action"] is None
-        assert resp["error"]["code"] == "PARSE_ERROR"
-        assert resp["error"]["fallback_action"] is not None
+        assert resp["error"]["code"] == "MODEL_ERROR"
+        assert resp["error"]["fallback_action"] is None
 
-    async def test_returns_invalid_move_with_fallback(self):
+    async def test_returns_model_error_after_invalid_move_retry_exhausted(self):
+        """On invalid move the handler retries 3 times before returning MODEL_ERROR."""
         conn = ConnectionTestHelper({"text": '{"row": 9, "col": 9}'})
         event = {
             "event": "game_move",
             "game_type": "tictactoe",
+            "game_session_id": "game-invalid",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
         }
         await conn._handle_game_move(event)
         resp = conn._sent[0]
+        assert resp["game_session_id"] == "game-invalid"
         assert resp["action"] is None
-        assert resp["error"]["code"] == "INVALID_MOVE"
-        assert resp["error"]["fallback_action"] is not None
+        assert resp["error"]["code"] == "MODEL_ERROR"
+        assert resp["error"]["fallback_action"] is None
 
     async def test_streams_reasoning_before_response(self):
         """Reasoning chunks are emitted before the final response."""
@@ -267,6 +305,7 @@ class TestHandleGameMove:
 
         resp = conn._sent[1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-123"
         assert resp["action"]["data"]["row"] == 0
         assert resp["action"]["data"]["col"] == 0
         assert resp["reasoning"] == "I see the center is open. Taking it."
@@ -297,6 +336,7 @@ class TestHandleGameMove:
 
         resp = conn._sent[1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "g-789"
         assert resp["action"]["data"]["row"] == 0
         assert resp["action"]["data"]["col"] == 0
         assert resp["reasoning"] == "Taking center."
@@ -326,6 +366,7 @@ class TestHandleGameMove:
 
         resp = conn._sent[1]
         assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "g-101"
         assert resp["action"]["data"]["row"] == 1
         assert resp["action"]["data"]["col"] == 1
         assert resp["reasoning"] == "Center is open."
@@ -335,11 +376,29 @@ class TestHandleGameMove:
             provider_name = "failing"
             _model = "fail"
 
-            async def stream(self, messages, tools=None):
+            async def stream(
+                self,
+                messages,
+                tools=None,
+                *,
+                temperature=None,
+                max_tokens=None,
+                response_format=None,
+                reasoning_effort=None,
+            ):
                 raise RuntimeError("Connection refused")
                 yield  # pragma: no cover — makes this an async generator
 
-            async def complete(self, messages, tools=None):
+            async def complete(
+                self,
+                messages,
+                tools=None,
+                *,
+                temperature=None,
+                max_tokens=None,
+                response_format=None,
+                reasoning_effort=None,
+            ):
                 raise RuntimeError("Connection refused")
 
         conn = ConnectionTestHelper()
@@ -347,12 +406,190 @@ class TestHandleGameMove:
         event = {
             "event": "game_move",
             "game_type": "tictactoe",
+            "game_session_id": "game-fail",
             "rules": {"system_prompt": "You are Tic-Tac-Toe."},
             "game_state": {"board": [[None] * 3 for _ in range(3)]},
             "player_role": "opponent",
         }
         await conn._handle_game_move(event)
         resp = conn._sent[0]
+        assert resp["game_session_id"] == "game-fail"
         assert resp["action"] is None
         assert resp["error"]["code"] == "MODEL_ERROR"
         assert "Connection refused" in resp["error"]["message"]
+
+    async def test_retry_progressive_then_success(self):
+        """First attempt returns non-JSON; second attempt returns valid JSON."""
+        conn = ConnectionTestHelper(
+            responses=[
+                {"text": "I am thinking..."},
+                {"text": '{"row": 0, "col": 2}'},
+            ]
+        )
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "retry-test",
+            "game_session_id": "game-retry-prog",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None, None, None], [None, None, None], [None, None, None]]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+        resp = conn._sent[-1]
+        assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-retry-prog"
+        assert resp["action"] is not None
+        assert resp["action"]["data"]["row"] == 0
+        assert resp["action"]["data"]["col"] == 2
+
+    async def test_retry_3_attempts_all_fail_model_error(self):
+        """All 3 attempts fail -> MODEL_ERROR with no fallback."""
+        conn = ConnectionTestHelper(
+            responses=[
+                {"text": "thinking..."},
+                {"text": "still thinking..."},
+                {"text": "..."},
+            ]
+        )
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "fail-test",
+            "game_session_id": "game-3fail",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None] * 3 for _ in range(3)]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+        resp = conn._sent[-1]
+        assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-3fail"
+        assert resp["action"] is None
+        assert resp["error"]["code"] == "MODEL_ERROR"
+        assert resp["error"]["fallback_action"] is None
+
+    async def test_missing_game_session_id_returns_error(self):
+        """Missing game_session_id is rejected with MODEL_ERROR."""
+        conn = ConnectionTestHelper({"text": '{"row": 0, "col": 0}'})
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "session_id": "test-session",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": [[None] * 3 for _ in range(3)]},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+        assert len(conn._sent) == 1
+        resp = conn._sent[0]
+        assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] is None
+        assert resp["action"] is None
+        assert resp["error"]["code"] == "MODEL_ERROR"
+        assert "game_session_id" in resp["error"]["message"]
+
+    async def test_full_board_returns_no_legal_moves(self):
+        """A full board triggers NO_LEGAL_MOVES without calling the LLM."""
+        conn = ConnectionTestHelper({"text": '{"row": 0, "col": 0}'})
+        full_board = [["X", "O", "X"], ["X", "O", "O"], ["O", "X", "X"]]
+        event = {
+            "event": "game_move",
+            "game_type": "tictactoe",
+            "game_session_id": "game-full",
+            "rules": {"system_prompt": "You are Tic-Tac-Toe."},
+            "game_state": {"board": full_board},
+            "player_role": "opponent",
+        }
+        await conn._handle_game_move(event)
+        assert len(conn._sent) == 1
+        resp = conn._sent[0]
+        assert resp["event"] == "game_move_response"
+        assert resp["game_session_id"] == "game-full"
+        assert resp["action"] is None
+        assert resp["error"]["code"] == "NO_LEGAL_MOVES"
+        # The FakeLLMProvider should not have been called at all.
+        assert conn.server.llm_provider._call_count == 0
+
+
+class TestParseGameActionResilient:
+    """Tests for the resilient JSON parser in _parse_game_action."""
+
+    def test_parse_markdown_fenced_json(self, conn):
+        response = {"text": '```json\n{"row": 1, "col": 2}\n```'}
+        game_state = {"board": [[None] * 3 for _ in range(3)]}
+        action, error = conn._parse_game_action(response, game_state, {})
+        assert action is not None
+        assert action["data"]["row"] == 1
+        assert action["data"]["col"] == 2
+        assert error is None
+
+    def test_parse_json_surrounded_by_text(self, conn):
+        response = {"text": "I'll play here:\n{\"row\": 2, \"col\": 0}\nDone."}
+        game_state = {"board": [[None] * 3 for _ in range(3)]}
+        action, error = conn._parse_game_action(response, game_state, {})
+        assert action is not None
+        assert action["data"]["row"] == 2
+        assert action["data"]["col"] == 0
+        assert error is None
+
+    def test_parse_string_coords_coerced_to_int(self, conn):
+        response = {"text": '{"row": "1", "col": "2"}'}
+        game_state = {"board": [[None] * 3 for _ in range(3)]}
+        action, error = conn._parse_game_action(response, game_state, {})
+        assert action is not None
+        assert action["data"]["row"] == 1
+        assert action["data"]["col"] == 2
+        assert error is None
+
+    def test_parse_truncated_json_repaired(self, conn):
+        response = {"text": '{"row": 1, "col": 2'}
+        game_state = {"board": [[None] * 3 for _ in range(3)]}
+        action, error = conn._parse_game_action(response, game_state, {})
+        assert action is not None
+        assert action["data"]["row"] == 1
+        assert error is None
+
+    def test_parse_move_marker_then_json(self, conn):
+        response = {"text": "Center is taken.\n---MOVE---\n{\"row\": 0, \"col\": 0}"}
+        game_state = {"board": [[None] * 3 for _ in range(3)]}
+        action, error = conn._parse_game_action(response, game_state, {})
+        assert action is not None
+        assert action["data"]["row"] == 0
+        assert action["data"]["col"] == 0
+        assert error is None
+
+    def test_parse_reasoning_in_json(self, conn):
+        response = {"text": '{"reasoning": "Best move.", "row": 1, "col": 1}'}
+        game_state = {"board": [[None] * 3 for _ in range(3)]}
+        action, error = conn._parse_game_action(response, game_state, {})
+        assert action is not None
+        assert action["reasoning"] == "Best move."
+        assert action["data"]["row"] == 1
+        assert action["data"]["col"] == 1
+        assert error is None
+
+
+class TestBuildMinimalGameMessages:
+    def test_lists_empty_cells(self, conn):
+        game_state = {
+            "board": [["A", "B", "C"], [None, None, None], [None, None, None]]
+        }
+        messages = conn._build_minimal_game_messages(game_state)
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        content = messages[0]["content"]
+        assert "(1,0)" in content
+        assert "(1,1)" in content
+        assert "(1,2)" in content
+        assert "(2,0)" in content
+        assert "(2,1)" in content
+        assert "(2,2)" in content
+        assert "A" not in content
+        assert "B" not in content
+        assert "Output ONLY valid JSON" in content
+
+    def test_says_none_when_full(self, conn):
+        game_state = {"board": [["X", "O", "X"], ["O", "X", "O"], ["O", "X", "O"]]}
+        messages = conn._build_minimal_game_messages(game_state)
+        assert "Empty cells: none." in messages[0]["content"]

@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Check, Download, Loader, Loader2, Mic, Trash2 } from "lucide-react";
 import type { StatusEvent, SttProvider, ModelCatalogEntry } from "../../lib/protocol";
 import { STT_PROVIDERS } from "../../lib/stt-providers";
-import { SelectField, ToggleField } from "./fields";
+import { SelectField, SliderField, ToggleField } from "./fields";
 import { useStage } from "../../stage/StageProvider";
+import { SectionHeader } from "./SectionHeader";
+import { SettingsCard } from "./SettingsCard";
+import { MicLevelMeter } from "./MicLevelMeter";
 
 interface Props {
   systemStatus: StatusEvent | null;
@@ -73,7 +76,7 @@ async function getSidecarPort(): Promise<number | null> {
 
 export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadProgress, downloadError }: Props) {
   const { t } = useTranslation();
-  const { sttLanguage } = useStage();
+  const { sttLanguage, ptt } = useStage();
 
   const activeProvider = (systemStatus?.stt_provider ?? "vosk") as SttProvider;
   const sttLoaded = systemStatus?.stt_loaded ?? (activeProvider === "vosk");
@@ -82,6 +85,9 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   const sttStreaming = systemStatus?.stt_streaming ?? true;
   const sttModelsDir = systemStatus?.stt_models_dir ?? "";
   const sttEnabled = systemStatus?.stt_enabled ?? false;
+  const sttVadSilenceTimeout = systemStatus?.stt_vad_silence_timeout ?? 1.0;
+  const sttVadAutoCalibrate = systemStatus?.stt_vad_auto_calibrate ?? true;
+  const sttVadRmsThreshold = systemStatus?.stt_vad_rms_threshold ?? 0.015;
 
   const [tab, setTab] = useState<SttProvider>(activeProvider);
   const [models, setModels] = useState<SttModelInfo[]>([]);
@@ -100,9 +106,30 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   const [subTab, setSubTab] = useState<"installed" | "catalog">("installed");
   const mountedRef = useRef(true);
 
+  // Local state + debounce for VAD sliders (avoids WS chatter on drag).
+  const [localVadTimeout, setLocalVadTimeout] = useState(sttVadSilenceTimeout);
+  const [localVadRms, setLocalVadRms] = useState(sttVadRmsThreshold);
+  const vadTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const vadRmsRef = useRef<ReturnType<typeof setTimeout>>();
+
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    setLocalVadTimeout(sttVadSilenceTimeout);
+  }, [sttVadSilenceTimeout]);
+
+  useEffect(() => {
+    setLocalVadRms(sttVadRmsThreshold);
+  }, [sttVadRmsThreshold]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(vadTimeoutRef.current);
+      clearTimeout(vadRmsRef.current);
+    };
   }, []);
 
   const apiBase = useCallback(async () => {
@@ -189,6 +216,18 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
     setModelsDir(sttModelsDir || t("stt.models_dir_placeholder"));
     setSavedModelsDir(sttModelsDir || t("stt.models_dir_placeholder"));
   }, [sttModelsDir]);
+
+  const handleVadTimeoutChange = (v: number) => {
+    setLocalVadTimeout(v);
+    clearTimeout(vadTimeoutRef.current);
+    vadTimeoutRef.current = setTimeout(() => onUpdate({ stt_vad_silence_timeout: v }), 300);
+  };
+
+  const handleVadRmsChange = (v: number) => {
+    setLocalVadRms(v);
+    clearTimeout(vadRmsRef.current);
+    vadRmsRef.current = setTimeout(() => onUpdate({ stt_vad_rms_threshold: v }), 300);
+  };
 
   const handleLoadModel = async (modelId: string) => {
     setLoadingAction(true);
@@ -277,281 +316,353 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Active model bar — always visible */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border">
-        <span className={`w-2 h-2 rounded-full ${activeDotClass}`} />
-        <span className="text-xs text-foreground font-medium">{activeLabel}</span>
-        {loadingAction && <Loader size={12} className="animate-spin text-muted ml-auto" />}
-      </div>
-
-      {/* STT on/off toggle */}
-      <ToggleField
-        label={t("settings.stt_enabled")}
-        checked={sttEnabled}
-        onChange={(v) => onUpdate({ stt_enabled: v })}
+      <SectionHeader
+        icon={Mic}
+        title={t("settings.section.stt")}
+        description={t("settings.stt.description")}
       />
 
-      {/* Provider selector */}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted">{t("settings.stt_provider")}</label>
-        <div className="flex gap-1 p-1 bg-surface rounded-lg border border-border">
-          {(["vosk", "qwen3"] as SttProvider[]).map((p) => (
+      <SettingsCard title={t("settings.stt.status_group")}>
+        {/* Active model bar — always visible */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-elevated border border-border">
+          <span className={`w-2 h-2 rounded-full ${activeDotClass}`} />
+          <span className="text-xs text-foreground font-medium">{activeLabel}</span>
+          {loadingAction && <Loader size={12} className="animate-spin text-muted ml-auto" />}
+        </div>
+
+        {/* STT on/off toggle */}
+        <ToggleField
+          label={t("settings.stt_enabled")}
+          checked={sttEnabled}
+          onChange={(v) => onUpdate({ stt_enabled: v })}
+        />
+      </SettingsCard>
+
+      <SettingsCard title={t("settings.stt.provider_group")}>
+        {/* Provider selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted">{t("settings.stt_provider")}</label>
+          <div className="flex gap-1 p-1 bg-elevated rounded-lg border border-border">
+            {(["vosk", "qwen3"] as SttProvider[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => { setTab(p); setSubTab("installed"); }}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
+                  tab === p
+                    ? "bg-accent/15 text-accent border border-accent/40"
+                    : "text-muted hover:text-foreground border border-transparent"
+                }`}
+              >
+                <Mic size={13} />
+                {t(`stt.provider.${p}`)}
+                {activeProvider === p && (
+                  <span className="text-[9px] font-mono bg-ok/20 text-ok rounded px-1 py-0.5">
+                    {t("settings.stt_active")}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sub-tabs: Installed / Catalog */}
+        <div className="flex gap-4 border-b border-border mb-2">
+          {(["installed", "catalog"] as const).map((st) => (
             <button
-              key={p}
-              onClick={() => { setTab(p); setSubTab("installed"); }}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
-                tab === p
-                  ? "bg-accent/15 text-accent border border-accent/40"
-                  : "text-muted hover:text-foreground border border-transparent"
+              key={st}
+              onClick={() => setSubTab(st)}
+              className={`pb-2 text-xs font-medium transition-colors relative ${
+                subTab === st
+                  ? "text-foreground"
+                  : "text-muted hover:text-foreground"
               }`}
             >
-              <Mic size={13} />
-              {t(`stt.provider.${p}`)}
-              {activeProvider === p && (
-                <span className="text-[9px] font-mono bg-ok/20 text-ok rounded px-1 py-0.5">
-                  {t("settings.stt_active")}
-                </span>
+              {t(`models.${st}`)}
+              {subTab === st && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-dim" />
               )}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Sub-tabs: Installed / Catalog */}
-      <div className="flex gap-4 border-b border-border mb-2">
-        {(["installed", "catalog"] as const).map((st) => (
-          <button
-            key={st}
-            onClick={() => setSubTab(st)}
-            className={`pb-2 text-xs font-medium transition-colors relative ${
-              subTab === st
-                ? "text-foreground"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            {t(`models.${st}`)}
-            {subTab === st && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-dim" />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {subTab === "installed" && (
-        <div className="flex flex-col gap-3">
-          {/* Model list */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted">{t("settings.stt_model")}</label>
-            {loadingModels ? (
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-surface border border-border rounded-lg text-xs text-muted">
-                <Loader size={12} className="animate-spin" />
-                {t("ai.loading_models")}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {models.filter(m => m.available).length === 0 && (
-                  <div className="text-xs text-muted py-4 text-center">
-                    {t("models.no_results")}
-                  </div>
-                )}
-                {models.filter(m => m.available).map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface border border-border"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`w-1.5 h-1.5 rounded-full ${m.loaded ? "bg-ok" : "bg-muted"}`} />
-                      <span className="text-xs text-foreground">
-                        {m.display_name}
-                        {tab === "qwen3" && ` (${m.estimated_vram_mb} MB)`}
-                      </span>
+        {subTab === "installed" && (
+          <div className="flex flex-col gap-3">
+            {/* Model list */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted">{t("settings.stt_model")}</label>
+              {loadingModels ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-elevated border border-border rounded-lg text-xs text-muted">
+                  <Loader size={12} className="animate-spin" />
+                  {t("ai.loading_models")}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {models.filter(m => m.available).length === 0 && (
+                    <div className="text-xs text-muted py-4 text-center">
+                      {t("models.no_results")}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {m.loaded ? (
-                        <button
-                          onClick={() => handleUnloadModel(m.id)}
-                          disabled={loadingAction}
-                          className="text-[10px] font-medium text-err hover:text-err/80 transition-colors disabled:opacity-40"
-                        >
-                          {t("settings.stt_unload_model")}
-                        </button>
+                  )}
+                  {models.filter(m => m.available).map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-lg bg-elevated border border-border"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full ${m.loaded ? "bg-ok" : "bg-muted"}`} />
+                        <span className="text-xs text-foreground">
+                          {m.display_name}
+                          {tab === "qwen3" && ` (${m.estimated_vram_mb} MB)`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {m.loaded ? (
+                          <button
+                            onClick={() => handleUnloadModel(m.id)}
+                            disabled={loadingAction}
+                            className="text-[10px] font-medium text-err hover:text-err/80 transition-colors disabled:opacity-40"
+                          >
+                            {t("settings.stt_unload_model")}
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleLoadModel(m.id)}
+                              disabled={loadingAction}
+                              className="text-[10px] font-medium text-accent hover:text-accent/80 transition-colors disabled:opacity-40"
+                            >
+                              {t("settings.stt_load_model")}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteModel(m.id)}
+                              disabled={loadingAction}
+                              className="p-1.5 text-muted hover:text-err transition-colors"
+                              title={t("common.delete")}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Device selector for Qwen3 */}
+            {tab === "qwen3" && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted">{t("settings.stt_device")}</label>
+                {compatibleDevices.length === 0 ? (
+                  <p className="text-xs text-err">{t("settings.stt_no_device")}</p>
+                ) : (
+                  <select
+                    className="bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                    value={selectedDevice}
+                    onChange={(e) => setSelectedDevice(e.target.value)}
+                  >
+                    {compatibleDevices.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.id === "cpu"
+                          ? t("stt.device_cpu", {
+                              free: d.ram_free_mb != null ? ((d.ram_free_mb ?? 0) / 1024).toFixed(0) : "",
+                            })
+                          : t("stt.device_gpu", {
+                              id: d.id,
+                              name: d.name,
+                              free: ((d.vram_free_mb ?? 0) / 1024).toFixed(1),
+                              total: ((d.vram_total_mb ?? 0) / 1024).toFixed(1),
+                            })}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Use provider button */}
+            {activeProvider !== tab && (
+              <button
+                onClick={() => onUpdate({ stt_provider: tab })}
+                disabled={tab === "qwen3" && !qwenHasLoadedModel}
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-accent bg-accent/10 text-xs font-medium text-accent hover:bg-accent/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Check size={13} />
+                {t(`settings.stt_use_${tab}`)}
+              </button>
+            )}
+          </div>
+        )}
+
+        {subTab === "catalog" && (
+          <div className="flex flex-col gap-2">
+            {tab === "vosk" && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                  placeholder={t("models.search_placeholder")}
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                />
+                {catalogLanguages.length > 0 && (
+                  <select
+                    className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none"
+                    value={catalogLangFilter}
+                    onChange={(e) => setCatalogLangFilter(e.target.value)}
+                  >
+                    <option value="">{t("models.filter_all")}</option>
+                    {catalogLanguages.map((l) => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+            <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
+              {loadingCatalog && (
+                <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
+                  <Loader2 size={12} className="animate-spin" />
+                  {"Loading..."}
+                </div>
+              )}
+              {!loadingCatalog && catalog
+                .filter((m) => {
+                  const matchSearch = !catalogSearch
+                    || m.display_name.toLowerCase().includes(catalogSearch.toLowerCase())
+                    || m.language.toLowerCase().includes(catalogSearch.toLowerCase());
+                  const matchLang = !catalogLangFilter || m.language === catalogLangFilter;
+                  return matchSearch && matchLang;
+                })
+                .map((m) => {
+                  const isDownloaded = m.downloaded;
+                  return (
+                    <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs text-foreground truncate">{m.display_name}</span>
+                        <span className="text-[10px] text-muted">{m.language} · {m.quality} · {m.size_mb} MB</span>
+                      </div>
+                      {isDownloaded ? (
+                        <span className="text-[10px] text-ok shrink-0">✓ {t("models.downloaded")}</span>
+                      ) : downloadProgress[m.id] !== undefined ? (
+                        <span className="flex items-center gap-1 text-[10px] text-accent shrink-0">
+                          <Loader2 size={11} className="animate-spin" />
+                          {downloadProgress[m.id]}%
+                        </span>
                       ) : (
-                        <>
-                          <button
-                            onClick={() => handleLoadModel(m.id)}
-                            disabled={loadingAction}
-                            className="text-[10px] font-medium text-accent hover:text-accent/80 transition-colors disabled:opacity-40"
-                          >
-                            {t("settings.stt_load_model")}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteModel(m.id)}
-                            disabled={loadingAction}
-                            className="p-1.5 text-muted hover:text-err transition-colors"
-                            title={t("common.delete")}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </>
+                        <button
+                          onClick={() => downloadSttModel(m.id, tab === "qwen3" ? STT_PROVIDERS.QWEN3 : STT_PROVIDERS.VOSK)}
+                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
+                        >
+                          <Download size={10} />
+                          {t("models.download")}
+                        </button>
                       )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Device selector for Qwen3 */}
-          {tab === "qwen3" && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted">{t("settings.stt_device")}</label>
-              {compatibleDevices.length === 0 ? (
-                <p className="text-xs text-err">{t("settings.stt_no_device")}</p>
-              ) : (
-                <select
-                  className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
-                  value={selectedDevice}
-                  onChange={(e) => setSelectedDevice(e.target.value)}
-                >
-                  {compatibleDevices.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.id === "cpu"
-                        ? t("stt.device_cpu", {
-                            free: d.ram_free_mb != null ? ((d.ram_free_mb ?? 0) / 1024).toFixed(0) : "",
-                          })
-                        : t("stt.device_gpu", {
-                            id: d.id,
-                            name: d.name,
-                            free: ((d.vram_free_mb ?? 0) / 1024).toFixed(1),
-                            total: ((d.vram_total_mb ?? 0) / 1024).toFixed(1),
-                          })}
-                    </option>
-                  ))}
-                </select>
+                  );
+                })}
+              {!loadingCatalog && catalog.length === 0 && (
+                <div className="px-3 py-2 text-xs text-muted">{t("models.no_results")}</div>
               )}
             </div>
-          )}
-
-          {/* Use provider button */}
-          {activeProvider !== tab && (
-            <button
-              onClick={() => onUpdate({ stt_provider: tab })}
-              disabled={tab === "qwen3" && !qwenHasLoadedModel}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-accent bg-accent/10 text-xs font-medium text-accent hover:bg-accent/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Check size={13} />
-              {t(`settings.stt_use_${tab}`)}
-            </button>
-          )}
-        </div>
-      )}
-
-      {subTab === "catalog" && (
-        <div className="flex flex-col gap-2">
-          {tab === "vosk" && (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
-                placeholder={t("models.search_placeholder")}
-                value={catalogSearch}
-                onChange={(e) => setCatalogSearch(e.target.value)}
-              />
-              {catalogLanguages.length > 0 && (
-                <select
-                  className="bg-surface text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none"
-                  value={catalogLangFilter}
-                  onChange={(e) => setCatalogLangFilter(e.target.value)}
-                >
-                  <option value="">{t("models.filter_all")}</option>
-                  {catalogLanguages.map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
-          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
-            {loadingCatalog && (
-              <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
-                <Loader2 size={12} className="animate-spin" />
-                {"Loading..."}
-              </div>
-            )}
-            {!loadingCatalog && catalog
-              .filter((m) => {
-                const matchSearch = !catalogSearch
-                  || m.display_name.toLowerCase().includes(catalogSearch.toLowerCase())
-                  || m.language.toLowerCase().includes(catalogSearch.toLowerCase());
-                const matchLang = !catalogLangFilter || m.language === catalogLangFilter;
-                return matchSearch && matchLang;
-              })
-              .map((m) => {
-                const isDownloaded = m.downloaded;
-                return (
-                  <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs text-foreground truncate">{m.display_name}</span>
-                      <span className="text-[10px] text-muted">{m.language} · {m.quality} · {m.size_mb} MB</span>
-                    </div>
-                    {isDownloaded ? (
-                      <span className="text-[10px] text-ok shrink-0">✓ {t("models.downloaded")}</span>
-                    ) : downloadProgress[m.id] !== undefined ? (
-                      <span className="flex items-center gap-1 text-[10px] text-accent shrink-0">
-                        <Loader2 size={11} className="animate-spin" />
-                        {downloadProgress[m.id]}%
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => downloadSttModel(m.id, tab === "qwen3" ? STT_PROVIDERS.QWEN3 : STT_PROVIDERS.VOSK)}
-                        className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
-                      >
-                        <Download size={10} />
-                        {t("models.download")}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            {!loadingCatalog && catalog.length === 0 && (
-              <div className="px-3 py-2 text-xs text-muted">{t("models.no_results")}</div>
-            )}
           </div>
-        </div>
-      )}
+        )}
+      </SettingsCard>
 
       {/* Common settings for Qwen3 */}
       {tab === "qwen3" && (
-        <div className="flex flex-col gap-3">
-          <ToggleField
-            label={t("settings.stt_streaming")}
-            checked={sttStreaming}
-            onChange={(v) => onUpdate({ stt_streaming: v })}
-          />
-          <p className="text-[10px] text-muted/60 -mt-3">{t("settings.stt_streaming_desc")}</p>
+        <SettingsCard title={t("settings.stt.qwen_settings_group")}>
+          <div className="flex flex-col gap-3">
+            <ToggleField
+              label={t("settings.stt_streaming")}
+              checked={sttStreaming}
+              onChange={(v) => onUpdate({ stt_streaming: v })}
+            />
+            <p className="text-[10px] text-muted/60 -mt-3">{t("settings.stt_streaming_desc")}</p>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted">{t("settings.stt_models_dir")}</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="flex-1 bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
-                value={modelsDir}
-                onChange={(e) => handleModelsDirChange(e.target.value)}
-                placeholder={t("stt.models_dir_placeholder")}
-              />
-              <button
-                onClick={handleApplyModelsDir}
-                disabled={modelsDir === savedModelsDir}
-                className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {t("common.apply")}
-              </button>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted">{t("settings.stt_models_dir")}</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                  value={modelsDir}
+                  onChange={(e) => handleModelsDirChange(e.target.value)}
+                  placeholder={t("stt.models_dir_placeholder")}
+                />
+                <button
+                  onClick={handleApplyModelsDir}
+                  disabled={modelsDir === savedModelsDir}
+                  className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {t("common.apply")}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted/60">{t("settings.stt_models_dir_hint")}</p>
             </div>
-            <p className="text-[11px] text-muted/60">{t("settings.stt_models_dir_hint")}</p>
           </div>
-        </div>
+        </SettingsCard>
       )}
+
+      {/* VAD group */}
+      <SettingsCard
+        title={t("settings.stt_vad")}
+        description={t("settings.stt_vad.description")}
+        className={!sttEnabled ? "opacity-50 pointer-events-none" : ""}
+      >
+        <div className="flex flex-col gap-3">
+          <SliderField
+            label={t("settings.stt_vad_silence_timeout")}
+            value={localVadTimeout}
+            min={0.5}
+            max={3}
+            step={0.1}
+            onChange={handleVadTimeoutChange}
+            displayValue={`${localVadTimeout.toFixed(1)}${t("common.seconds_abbrev")}`}
+            disabled={!sttEnabled}
+          />
+
+          <ToggleField
+            label={t("settings.stt_vad_auto_calibrate")}
+            checked={sttVadAutoCalibrate}
+            onChange={(v) => onUpdate({ stt_vad_auto_calibrate: v })}
+            disabled={!sttEnabled}
+          />
+
+          <MicLevelMeter
+            micLevelRef={ptt.micLevelRef}
+            threshold={ptt.rmsThreshold}
+            calibrating={ptt.calibrating}
+          />
+
+          {!sttVadAutoCalibrate && (
+            <SliderField
+              label={t("settings.stt_vad_sensitivity")}
+              value={localVadRms}
+              min={0.001}
+              max={0.05}
+              step={0.001}
+              onChange={handleVadRmsChange}
+              displayValue={localVadRms.toFixed(3)}
+              disabled={!sttEnabled}
+            />
+          )}
+
+          <button
+            onClick={ptt.calibrate}
+            disabled={ptt.calibrating || !sttEnabled}
+            className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+              (ptt.calibrating || !sttEnabled)
+                ? "border-border opacity-50 cursor-not-allowed"
+                : "border-accent/40 text-accent hover:bg-accent/10"
+            }`}
+          >
+            {ptt.calibrating ? t("settings.stt_vad_calibrating") : t("settings.stt_vad_calibrate_now")}
+          </button>
+
+          <p className="text-[10px] text-muted/60">{t("settings.stt_vad_frontend_helper")}</p>
+        </div>
+      </SettingsCard>
 
       {/* Error display */}
       {(error || downloadError) && (
@@ -574,17 +685,19 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
       )}
 
       {/* STT Language selector (shared) */}
-      <SelectField
-        label={t("settings.stt_language")}
-        value={sttLanguage}
-        onChange={(v) => onUpdate({ stt_language: v })}
-      >
-        {STT_LANGS.map((l) => (
-          <option key={l.id} value={l.id}>
-            {t(l.labelKey)}
-          </option>
-        ))}
-      </SelectField>
+      <SettingsCard title={t("settings.stt.language_group")}>
+        <SelectField
+          label={t("settings.stt_language")}
+          value={sttLanguage}
+          onChange={(v) => onUpdate({ stt_language: v })}
+        >
+          {STT_LANGS.map((l) => (
+            <option key={l.id} value={l.id}>
+              {t(l.labelKey)}
+            </option>
+          ))}
+        </SelectField>
+      </SettingsCard>
     </div>
   );
 }

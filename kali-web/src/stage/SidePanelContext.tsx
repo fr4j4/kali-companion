@@ -12,9 +12,13 @@ interface SidePanelContextValue {
   setSidePanelContent: (content: SidePanelContent | null) => void;
   clearSidePanel: () => void;
   sidePanelContent: SidePanelContent | null;
+  openSidePanel: () => void;
+  closeSidePanel: () => void;
   setLeftSidePanelContent: (content: SidePanelContent | null) => void;
   clearLeftSidePanel: () => void;
   leftSidePanelContent: SidePanelContent | null;
+  openLeftSidePanel: () => void;
+  closeLeftSidePanel: () => void;
 }
 
 export const SidePanelContext = createContext<SidePanelContextValue | null>(null);
@@ -56,9 +60,13 @@ export function SidePanelProvider({ children, value }: SidePanelProviderProps) {
     setSidePanelContent,
     clearSidePanel,
     sidePanelContent: internalContent,
+    openSidePanel: () => {},
+    closeSidePanel: () => {},
     setLeftSidePanelContent,
     clearLeftSidePanel,
     leftSidePanelContent: internalLeftContent,
+    openLeftSidePanel: () => {},
+    closeLeftSidePanel: () => {},
   };
 
   return (

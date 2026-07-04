@@ -5,6 +5,7 @@ export const GameCommand = {
   RESUME: "resume",
   GIVE_UP: "give_up",
   PLAY_AGAIN: "play_again",
+  TO_TITLE: "to_title",
   REQUEST_HINT: "request_hint",
 } as const;
 

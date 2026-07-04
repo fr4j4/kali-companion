@@ -12,14 +12,15 @@ interface Props {
   game: BaseGame;
   manager?: GameSessionManager;
   hasKali?: boolean;
+  isMaximized?: boolean;
 }
 
-export function GameWindow({ game, manager, hasKali }: Props) {
+export function GameWindow({ game, manager, hasKali, isMaximized }: Props) {
   switch (game.type) {
     case GameType.SNAKE:
-      return <SnakeView game={game as SnakeGame} />;
+      return <SnakeView game={game as SnakeGame} isMaximized={isMaximized} />;
     case GameType.TWENTY_FORTY_EIGHT:
-      return <TwentyFortyEightView game={game as TwentyFortyEightGame} />;
+      return <TwentyFortyEightView game={game as TwentyFortyEightGame} isMaximized={isMaximized} />;
     case GameType.TIC_TAC_TOE:
       if (!manager) {
         return (
@@ -30,7 +31,7 @@ export function GameWindow({ game, manager, hasKali }: Props) {
           </div>
         );
       }
-      return <TicTacToeView game={game as TicTacToeGame} manager={manager} hasKali={hasKali ?? false} />;
+      return <TicTacToeView game={game as TicTacToeGame} manager={manager} hasKali={hasKali ?? false} isMaximized={isMaximized} />;
     default:
       return (
         <div className="flex flex-col flex-1 min-h-0">

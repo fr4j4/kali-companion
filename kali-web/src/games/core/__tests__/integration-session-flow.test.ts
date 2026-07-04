@@ -55,6 +55,7 @@ describe("Integration: session flow across restart", () => {
       },
       getState: () => ({ status, data, score: 0, winner: null }),
       getStatus: () => status as GameStatusValue,
+      isFinished: () => status !== "playing" && status !== "paused" && status !== "waiting",
       handleAction: (action: GameAction, fromSlotId: string) => {
         if (
           action.type === ActionType.MOVE &&

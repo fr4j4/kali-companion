@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const ABANDONED_DELAY_MS = 1500;
+
 import { TicTacToeGame, type TicTacToeData, type Difficulty } from "../../games/tic-tac-toe/tic-tac-toe-game";
 import { TicTacToeCPUPlayer } from "../../games/tic-tac-toe/tic-tac-toe-cpu";
 import type { GameSessionManager } from "../../games/core/game-session-manager";
@@ -6,11 +9,13 @@ import { GameStatus } from "../../games/core/constants/game-status";
 import { ActionType, GameCommand } from "../../games/core/constants/action-types";
 import { SlotId } from "../../games/core/constants/player-types";
 import { KaliStatus, GameMode, type KaliStatusValue, type GameModeValue } from "../../games/core/constants/game-ai";
+import { useGameViewport, fitScale, centerOffsets } from "./useGameViewport";
 
 interface Props {
   game: TicTacToeGame;
   manager: GameSessionManager;
   hasKali: boolean;
+  isMaximized?: boolean;
 }
 
 const PALETTE = {
@@ -28,8 +33,12 @@ const PALETTE = {
 
 type Starter = typeof SlotId.PLAYER | typeof SlotId.OPPONENT;
 
-export function TicTacToeView({ game, manager, hasKali }: Props) {
+export function TicTacToeView({ game, manager, hasKali, isMaximized }: Props) {
   const [tick, setTick] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewport = useGameViewport(containerRef, isMaximized);
+  const scale = fitScale(game.naturalWidth, game.naturalHeight, viewport.width, viewport.height);
+  const offsets = centerOffsets(game.naturalWidth, game.naturalHeight, scale, viewport.width, viewport.height);
 
   useEffect(() => {
     const unsub = manager.subscribe(() => setTick((v) => v + 1));
@@ -86,6 +95,15 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
     manager.giveUp();
   }, [manager]);
 
+  // Auto-reset to title screen after the player abandons the game.
+  useEffect(() => {
+    if (game.getStatus() !== GameStatus.ABANDONED) return;
+    const t = setTimeout(() => {
+      sendCommand(GameCommand.TO_TITLE);
+    }, ABANDONED_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [game, tick, sendCommand]);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const status = game.getStatus();
@@ -108,7 +126,7 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
         return;
       }
 
-      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) {
+      if (status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW || status === GameStatus.ABANDONED) {
         if (e.key === "Enter") {
           e.preventDefault();
           sendCommand(GameCommand.PLAY_AGAIN);
@@ -137,21 +155,30 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
 
   return (
     <div
-      className="relative rounded-2xl border-2"
-      style={{
-        backgroundColor: PALETTE.bg,
-        borderColor: PALETTE.border,
-        boxShadow: `0 0 24px ${PALETTE.borderGlow}, inset 0 0 18px rgba(56, 189, 248, 0.05)`,
-        width: 320,
-        minWidth: 320,
-        maxWidth: 320,
-        boxSizing: "border-box",
-      }}
+      ref={containerRef}
+      className="flex-1 w-full relative overflow-hidden"
+      style={{ backgroundColor: isMaximized ? "#000" : "transparent" }}
     >
+      <div
+        className="relative rounded-2xl border-2 absolute top-0 left-0 flex flex-col items-center"
+        style={{
+          backgroundColor: PALETTE.bg,
+          borderColor: PALETTE.border,
+          boxShadow: `0 0 24px ${PALETTE.borderGlow}, inset 0 0 18px rgba(56, 189, 248, 0.05)`,
+          width: game.naturalWidth,
+          height: game.naturalHeight,
+          transform: `translate(${offsets.x}px, ${offsets.y}px) scale(${scale})`,
+          transformOrigin: "top left",
+          boxSizing: "border-box",
+          visibility: viewport.ready ? "visible" : "hidden",
+          paddingTop: 14,
+          paddingBottom: 14,
+        }}
+      >
       {/* Header bar */}
       <div
-        className="flex items-end justify-between px-1 pb-3 pt-3"
-        style={{ width: 288, height: 46, margin: "0 auto", flex: "0 0 auto" }}
+        className="flex items-end justify-between"
+        style={{ width: 288, height: 46, flex: "0 0 auto" }}
       >
         <span
           className="text-sm tracking-widest font-bold"
@@ -178,7 +205,7 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
 
       {/* Board grid */}
       <div
-        className="grid rounded-xl p-2 mx-auto"
+        className="grid rounded-xl p-2"
         style={{
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gridTemplateRows: "repeat(3, minmax(0, 1fr))",
@@ -418,6 +445,25 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
         </div>
       )}
 
+      {/* Abandoned transition overlay */}
+      {status === GameStatus.ABANDONED && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
+          <h2
+            className="text-lg mb-1 tracking-wider"
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              color: "#f43f5e",
+              textShadow: "0 0 16px rgba(244,63,94,0.7)",
+            }}
+          >
+            ABANDONED
+          </h2>
+          <p className="text-[9px] mt-4" style={{ fontFamily: "'Press Start 2P', monospace", color: "#1e3a8a" }}>
+            Returning to title screen…
+          </p>
+        </div>
+      )}
+
       {/* Won/Lost/Draw overlay */}
       {(status === GameStatus.WON || status === GameStatus.LOST || status === GameStatus.DRAW) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#02040a]/92 rounded-xl z-10 backdrop-blur-[2px]">
@@ -440,15 +486,16 @@ export function TicTacToeView({ game, manager, hasKali }: Props) {
               PLAY AGAIN
             </button>
             <button
-              onClick={() => sendCommand(GameCommand.GIVE_UP)}
+              onClick={() => sendCommand(GameCommand.TO_TITLE)}
               className="px-5 py-2 rounded-lg transition-all text-xs tracking-wider hover:brightness-110 hover:scale-105"
               style={{ fontFamily: "'Press Start 2P', monospace", backgroundColor: "#1e3a8a", color: "#e0f2fe", border: "1px solid #38bdf8" }}
             >
-              QUIT
+              TITLE SCREEN
             </button>
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

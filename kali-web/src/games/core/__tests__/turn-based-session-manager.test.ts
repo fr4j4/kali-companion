@@ -30,6 +30,7 @@ function createMockGame(overrides?: Partial<BaseGame>): BaseGame {
     sessionId: "session-1",
     getState: () => ({ status, data, score: 0, winner: null }),
     getStatus: () => status as GameStatusValue,
+    isFinished: () => status !== "playing" && status !== "paused" && status !== "waiting",
     handleAction: (action: GameAction, fromSlotId: string) => {
       if (action.type === ActionType.MOVE && typeof action.data === "object" && action.data !== null) {
         const { row, col } = action.data as { row: number; col: number };
@@ -370,6 +371,39 @@ describe("TurnBasedSessionManager", () => {
       manager.retryAI();
       await vi.runAllTimersAsync();
       expect(manager.retryCount).toBe(1);
+    });
+  });
+
+  describe("isFinished guard", () => {
+    it("does not invoke provider.decide() when the game is finished", async () => {
+      const game = createMockGame({
+        getStatus: () => "won" as GameStatusValue,
+        isFinished: () => true,
+      });
+      const provider = createMockProvider();
+      const decideSpy = vi.spyOn(provider, "decide");
+      const { manager } = createManager(game, provider);
+
+      // Even if the AI slot is "current", the manager must not trigger a turn.
+      manager.submitPlayerAction({ type: ActionType.MOVE, data: { row: 0, col: 0 } });
+      await vi.runAllTimersAsync();
+
+      expect(decideSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not invoke provider.decide() on retryAI when the game is finished", async () => {
+      const game = createMockGame({
+        getStatus: () => "draw" as GameStatusValue,
+        isFinished: () => true,
+      });
+      const provider = createMockProvider();
+      const decideSpy = vi.spyOn(provider, "decide");
+      const { manager } = createManager(game, provider);
+
+      manager.retryAI();
+      await vi.runAllTimersAsync();
+
+      expect(decideSpy).not.toHaveBeenCalled();
     });
   });
 });

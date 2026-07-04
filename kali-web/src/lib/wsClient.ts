@@ -105,6 +105,7 @@ export class WSClient {
     options?: {
       onProgress?: () => void;
       globalTimeoutMs?: number;
+      matchFilter?: (response: T) => boolean;
     },
   ): Promise<T> & { __notifyProgress?: () => void } {
     if (abortSignal?.aborted) {
@@ -166,8 +167,10 @@ export class WSClient {
         abortSignal.addEventListener("abort", abortHandler);
       }
 
+      const matchFilter = options?.matchFilter;
       const handler = (response: OutgoingEvent) => {
         if (rejected) return;
+        if (matchFilter && !matchFilter(response as T)) return;
         rejected = true;
         clearTimeout(timer);
         this.off(responseEventName as IncomingEventName, handler as Listener);

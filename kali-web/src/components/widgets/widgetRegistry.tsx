@@ -21,6 +21,8 @@ export interface WidgetEntry {
   resizable: boolean;
   minW: number;
   minH: number;
+  /** Aspect ratio (width / height) that the widget body should preserve while resizing. */
+  aspectRatio?: number;
   sidePanel?: SidePanelConfig;
   leftSidePanel?: SidePanelConfig;
 }
@@ -241,6 +243,7 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
     resizable: true,
     minW: 320,
     minH: 300,
+    aspectRatio: 1,
     sidePanel: {
       position: "right",
       defaultWidth: 320,

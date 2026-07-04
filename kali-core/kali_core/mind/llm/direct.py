@@ -112,6 +112,21 @@ class DirectLLMProvider:
             is_400 = hasattr(exc, "status_code") and exc.status_code == 400
             is_tool_error = is_400 or "tool" in str(exc).lower()
 
+            # Reasoning-effort fallback: some backends reject the
+            # ``reasoning_effort`` kwarg / extra_body with a 400. Drop both
+            # and retry once before attempting tool-related fallbacks.
+            if is_400 and "reasoning_effort" in kwargs:
+                kwargs.pop("reasoning_effort", None)
+                kwargs.pop("extra_body", None)
+                logger.warning(
+                    "reasoning_effort rejected by '%s', retrying without it",
+                    self._model,
+                )
+                try:
+                    return await self._client.chat.completions.create(**kwargs)
+                except Exception:
+                    pass  # fall through to the next fallback
+
             # 1st fallback: try the deprecated ``functions`` format.
             if is_tool_error and "tools" in kwargs:
                 tools_raw = kwargs.pop("tools")
@@ -172,6 +187,8 @@ class DirectLLMProvider:
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         system_content = self._system_prompt
         if tools:
@@ -190,6 +207,19 @@ class DirectLLMProvider:
             if tools_param:
                 kwargs["tools"] = tools_param
                 kwargs["tool_choice"] = "auto"
+            if response_format:
+                try:
+                    kwargs["response_format"] = response_format
+                except Exception:
+                    pass
+            # Portable reasoning-effort hint: set as top-level kwarg (OpenAI
+            # o-series, GLM, some OpenAI-compatible endpoints) and also via
+            # extra_body as a safety net (ignored by backends that don't
+            # recognize it). _try_create falls back to dropping the kwarg on
+            # 400 errors, so unsupported backends degrade gracefully.
+            if reasoning_effort:
+                kwargs["reasoning_effort"] = reasoning_effort
+                kwargs["extra_body"] = {"reasoning_effort": reasoning_effort}
 
             stream = await self._try_create(kwargs)
 
@@ -444,6 +474,10 @@ class DirectLLMProvider:
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> dict:
         system_content = self._system_prompt
         if tools:
@@ -455,12 +489,17 @@ class DirectLLMProvider:
             kwargs: dict = {
                 "model": self._model,
                 "messages": full,
-                "temperature": 0.7,
-                "max_tokens": self._max_tokens,
+                "temperature": temperature if temperature is not None else 0.7,
+                "max_tokens": max_tokens if max_tokens is not None else self._max_tokens,
             }
             if tools_param:
                 kwargs["tools"] = tools_param
                 kwargs["tool_choice"] = "auto"
+            if response_format:
+                try:
+                    kwargs["response_format"] = response_format
+                except Exception:
+                    pass
             resp = await self._try_create(kwargs)
             msg = resp.choices[0].message
             # Include reasoning in the returned dict so callers can inspect it.

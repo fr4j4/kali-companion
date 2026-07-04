@@ -92,12 +92,30 @@ interface ResizeOpts {
   minW: number;
   minH: number;
   onResize: (id: number, size: Size, pos: Position) => void;
+  /** Maintain the content body aspect ratio. Provide the header logical height so the body can be locked. */
+  bodyAspectRatio?: number;
+  /** Logical height of the window header. Defaults to 0 (whole window). */
+  headerHeight?: number;
+  /** Current UI scale applied to the window element. Defaults to 1. */
+  winScale?: number;
+}
+
+function getHeaderLogical(
+  el: HTMLElement,
+  headerHeight: number | undefined,
+  winScale: number,
+): number {
+  if (headerHeight !== undefined) return headerHeight / winScale;
+  const header = el.querySelector(".kw-header") as HTMLElement | null;
+  if (!header) return 0;
+  return header.getBoundingClientRect().height / winScale;
 }
 
 export function startResize(opts: ResizeOpts) {
-  const { id, el, edge, startSize, startPos, startMouse, minW, minH, onResize } = opts;
+  const { id, el, edge, startSize, startPos, startMouse, minW, minH, onResize, bodyAspectRatio, winScale = 1 } = opts;
   const startH = startSize.height ?? 300;
   const startW = startSize.width;
+  const headerLogical = getHeaderLogical(el, opts.headerHeight, winScale);
 
   document.body.style.userSelect = "none";
   document.body.style.pointerEvents = "none";
@@ -118,6 +136,16 @@ export function startResize(opts: ResizeOpts) {
     el.releasePointerCapture(opts.pointerId);
   };
 
+  const applyAspectRatio = (nw: number, nh: number): { width: number; height: number } => {
+    if (!bodyAspectRatio || bodyAspectRatio <= 0 || nw <= 0 || nh <= 0) {
+      return { width: nw, height: nh };
+    }
+    // Lock body aspect ratio: (nw) / (nh - headerLogical) = bodyAspectRatio
+    const targetBodyH = nw / bodyAspectRatio;
+    const targetWindowH = targetBodyH + headerLogical;
+    return { width: nw, height: targetWindowH };
+  };
+
   const onPointerMove = (ev: PointerEvent) => {
     const dx = ev.clientX - startMouse.x;
     const dy = ev.clientY - startMouse.y;
@@ -126,6 +154,9 @@ export function startResize(opts: ResizeOpts) {
     let nh = startH;
     let nx = startPos.x;
     let ny = startPos.y;
+
+    const isHorizontalEdge = edge.includes("e") || edge.includes("w");
+    const isVerticalEdge = edge.includes("n") || edge.includes("s");
 
     if (edge.includes("e")) {
       nw = Math.max(minW, startW + dx);
@@ -140,6 +171,34 @@ export function startResize(opts: ResizeOpts) {
     if (edge.includes("n")) {
       nh = Math.max(minH, startH - dy);
       ny = startPos.y + (startH - nh);
+    }
+
+    if (bodyAspectRatio) {
+      if (isHorizontalEdge && !isVerticalEdge) {
+        // dragging horizontal handles: width drives height
+        const { height } = applyAspectRatio(nw, nh);
+        nh = height;
+      } else if (isVerticalEdge && !isHorizontalEdge) {
+        // dragging vertical handles: height drives width
+        const bodyH = Math.max(0, nh - headerLogical);
+        nw = Math.max(minW, bodyH * bodyAspectRatio);
+        if (edge.includes("w")) {
+          nx = startPos.x + (startW - nw);
+        }
+      } else {
+        // diagonal: pick the larger of width-driven / height-driven to keep pointer under the handle
+        const widthDrivenH = applyAspectRatio(nw, nh).height;
+        const bodyH = Math.max(0, nh - headerLogical);
+        const heightDrivenW = Math.max(minW, bodyH * bodyAspectRatio);
+        if (Math.abs(widthDrivenH - nh) <= Math.abs(heightDrivenW - nw)) {
+          nh = widthDrivenH;
+        } else {
+          nw = heightDrivenW;
+          if (edge.includes("w")) {
+            nx = startPos.x + (startW - nw);
+          }
+        }
+      }
     }
 
     onResize(id, { width: nw, height: nh }, { x: nx, y: ny });

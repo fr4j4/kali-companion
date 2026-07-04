@@ -25,6 +25,27 @@ export interface GameEventData {
   payload?: unknown;
 }
 
+export interface GameLogDetails {
+  actor?: "player" | "ai";
+  action?: GameAction;
+  turnNumber?: number;
+  gameType?: string;
+  model?: string;
+  difficulty?: string;
+  move?: { row: number; col: number };
+  errorMessage?: string;
+  durationMs?: number;
+}
+
+export interface GameLogEntry {
+  id: string;
+  timestamp: number;
+  kind: "turn" | "ws_request" | "ws_response" | "ws_error";
+  label: string;
+  icon: "player" | "ai" | "send" | "receive" | "error";
+  details: GameLogDetails;
+}
+
 export interface GameSessionData {
   sessionId: string;
   gameId: string;
@@ -34,6 +55,7 @@ export interface GameSessionData {
   endedAt?: number;
   turns?: GameTurnData[];
   events?: GameEventData[];
+  logEntries?: GameLogEntry[];
 }
 
 export interface GameSessionMeta {

@@ -551,7 +551,7 @@ class Server:
             "stt_streaming": getattr(self.stt_provider, "_streaming", True),
             "stt_models_dir": str(getattr(self.stt_provider, "_models_dir", "")),
             "tts_models_dir": str(getattr(self.tts_provider, "_talker_models_dir", settings.tts_models_dir)),
-            "game_session_path": settings.game_session_path,
+            "game_session_path": str(settings.game_session_path),
             "game_ai_global_timeout_ms": settings.game_ai_global_timeout_ms,
             "game_connection_id": settings.game_connection_id,
             "game_model": settings.game_model,
@@ -561,6 +561,8 @@ class Server:
             "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
             "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
             "game_max_retries": settings.game_max_retries,
+            "game_log_default_open": settings.game_log_default_open,
+            "game_reasoning_default_open": settings.game_reasoning_default_open,
         }
         if self._config_warnings:
             payload["config_warnings"] = list(self._config_warnings.values())
@@ -1342,6 +1344,8 @@ class Server:
         "game_retry_timeout_2_ms",
         "game_retry_timeout_3_ms",
         "game_max_retries",
+        "game_log_default_open",
+        "game_reasoning_default_open",
     )
 
     def _get_fallback(self, key: str):
@@ -1387,6 +1391,8 @@ class Server:
             "game_retry_timeout_2_ms": settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else 3000,
             "game_retry_timeout_3_ms": settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else 2000,
             "game_max_retries": settings.game_max_retries,
+            "game_log_default_open": settings.game_log_default_open,
+            "game_reasoning_default_open": settings.game_reasoning_default_open,
         }
         return mapping.get(key)
 
@@ -1525,6 +1531,10 @@ class Server:
                     settings.game_retry_timeouts[2] = int(value)
             elif key == "game_max_retries":
                 settings.game_max_retries = int(value)
+            elif key == "game_log_default_open":
+                settings.game_log_default_open = bool(value)
+            elif key == "game_reasoning_default_open":
+                settings.game_reasoning_default_open = bool(value)
             else:
                 return
             # Success — clear any previous warning for this key.
@@ -1699,6 +1709,8 @@ class Connection:
             if self.server.agent:
                 self.server.agent.reset_history(self.session_id)
             await self.send({"event": "connected", "session_id": self.session_id})
+            sessions = await self.server.session_store.list_sessions()
+            await self.send({"event": "session_list", "sessions": sessions})
 
         elif kind == "attach_session":
             sid = event.get("session_id", "")
@@ -1909,7 +1921,12 @@ class Connection:
 
     # ── Game AI (WebSocket) ───────────────────────────────────
 
-    async def _resolve_game_llm_provider(self) -> LLMProvider | None:
+    async def _resolve_game_llm_provider(
+        self,
+        connection_id: str | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+    ) -> LLMProvider | None:
         """Return an LLM provider for game moves.
 
         If game_connection_id is unset or 'active', reuse the server's active LLM.
@@ -1917,7 +1934,7 @@ class Connection:
         resolving the reference internally — never exposing connection properties
         in StatusEvent.
         """
-        gid = settings.game_connection_id
+        gid = connection_id if connection_id is not None else settings.game_connection_id
         if not gid or gid == "active":
             return self.server.llm_provider
 
@@ -1926,137 +1943,286 @@ class Connection:
             logger.warning("[game_move] game_connection_id=%s not found, falling back to active", gid)
             return self.server.llm_provider
 
-        model = settings.game_model or (conn.models[0] if conn.models else "")
-        if not model:
+        eff_model = model or settings.game_model or (conn.models[0] if conn.models else "")
+        if not eff_model:
             logger.warning("[game_move] no model available for connection %s, falling back to active", gid)
             return self.server.llm_provider
 
         return DirectLLMProvider(
             api_url=conn.api_url,
             api_key=conn.api_key,
-            model=model,
-            max_tokens=settings.game_max_tokens,
+            model=eff_model,
+            max_tokens=max_tokens if max_tokens is not None else settings.game_max_tokens,
         )
 
     async def _handle_game_move(self, event: dict[str, Any]) -> None:
         """Handle game_move: stream LLM with game state, emit reasoning chunks,
-        and return the final action."""
+        and return the final action.
+
+        Strategy: up to 3 progressive attempts.
+          1. Normal prompt + JSON mode + reasoning in JSON
+          2. Minimal prompt (list of empty cells) + temp=0 + max_tokens=64
+          3. Same as 2
+        On exhausting all attempts without a valid action, returns MODEL_ERROR
+        so the frontend can fall back to the CPU player (not a random move).
+        """
         game_type = event.get("game_type", "unknown")
-        session_id = event.get("session_id") or "no-session"
-        game_session_id = event.get("game_session_id") or session_id
+        session_id = self.session_id or event.get("session_id") or "no-session"
+        game_session_id = event.get("game_session_id")
         rules = event.get("rules", {})
         game_state = event.get("game_state", {})
-        player_role = event.get("player_role", "opponent")
+
+        if not game_session_id:
+            logger.warning(
+                "[game_move] missing required game_session_id | game=%s session=%s",
+                game_type, session_id,
+            )
+            await self.send({
+                "event": "game_move_response",
+                "game_type": game_type,
+                "game_session_id": None,
+                "action": None,
+                "error": {
+                    "code": "MODEL_ERROR",
+                    "message": "Missing required field: game_session_id",
+                    "fallback_action": None,
+                },
+                "reasoning": "",
+            })
+            return
+
+        # Per-event overrides for game AI params (fall back to global settings).
+        eff_temperature = event.get("game_temperature")
+        if eff_temperature is None:
+            eff_temperature = settings.game_temperature
+        eff_max_tokens = event.get("game_max_tokens")
+        if eff_max_tokens is None:
+            eff_max_tokens = settings.game_max_tokens
+        else:
+            eff_max_tokens = int(eff_max_tokens)
+        eff_connection_id = event.get("game_connection_id") or settings.game_connection_id
+        eff_model = event.get("game_model") or settings.game_model
 
         logger.info(
-            "[game_move] received | game=%s session=%s player=%s",
-            game_type, session_id, player_role,
+            "[game_move] received | game=%s session=%s game_session=%s player=%s",
+            game_type, session_id, game_session_id, event.get("player_role", "opponent"),
         )
 
-        messages = self._build_game_messages(rules, game_state)
+        # Guard: if the game state carries a 2D board with no empty cells,
+        # there are no legal moves — respond early without calling the LLM.
+        board = game_state.get("board")
+        if isinstance(board, list) and board and isinstance(board[0], list):
+            empties = [
+                (r, c)
+                for r, row in enumerate(board)
+                if isinstance(row, list)
+                for c, cell in enumerate(row)
+                if cell is None
+            ]
+            if not empties:
+                logger.info(
+                    "[game_move] no legal moves | game=%s session=%s game_session=%s",
+                    game_type, session_id, game_session_id,
+                )
+                await self.send({
+                    "event": "game_move_response",
+                    "game_type": game_type,
+                    "game_session_id": game_session_id,
+                    "action": None,
+                    "error": {
+                        "code": "NO_LEGAL_MOVES",
+                        "message": "Board is full — no legal moves available",
+                        "fallback_action": None,
+                    },
+                    "reasoning": "",
+                })
+                return
 
-        try:
-            llm = await self._resolve_game_llm_provider()
-            if llm is None:
-                raise RuntimeError("No LLM provider configured")
-            logger.info("[game_move] → LLM stream | game=%s session=%s", game_type, session_id)
+        base_messages = self._build_game_messages(rules, game_state)
+        minimal_messages = self._build_minimal_game_messages(game_state)
+
+        # Build attempts dynamically from settings.game_max_retries and
+        # settings.game_retry_timeouts. Attempt 1 is "normal" (with rules),
+        # attempts 2..N are "minimal" (only empty cells + strict JSON).
+        # max_tokens for minimal attempts is scaled up (1.5x) so reasoning
+        # models have headroom to think briefly AND emit the JSON answer.
+        n_attempts = max(1, settings.game_max_retries)
+        timeouts = settings.game_retry_timeouts or [12000, 3000, 2000]
+        minimal_max_tokens = int(eff_max_tokens * 1.5)
+
+        attempts = []
+        for i in range(n_attempts):
+            t_idx = min(i, len(timeouts) - 1)
+            timeout_ms = timeouts[t_idx]
+            if i == 0:
+                attempts.append({
+                    "label": "normal",
+                    "messages": base_messages,
+                    "temperature": float(eff_temperature),
+                    "max_tokens": eff_max_tokens,
+                    "response_format": {"type": "json_object"},
+                    "reasoning_effort": "low",
+                    "timeout_ms": timeout_ms,
+                })
+            else:
+                attempts.append({
+                    "label": f"minimal-{i}",
+                    "messages": minimal_messages,
+                    "temperature": 0.0,
+                    "max_tokens": minimal_max_tokens,
+                    "response_format": {"type": "json_object"},
+                    "reasoning_effort": "low",
+                    "timeout_ms": timeout_ms,
+                })
+
+        llm = await self._resolve_game_llm_provider(
+            connection_id=eff_connection_id,
+            model=eff_model,
+            max_tokens=eff_max_tokens,
+        )
+        if llm is None:
+            await self.send({
+                "event": "game_move_response",
+                "game_type": game_type,
+                "game_session_id": game_session_id,
+                "action": None,
+                "error": {
+                    "code": "MODEL_ERROR",
+                    "message": "No LLM provider configured",
+                    "fallback_action": None,
+                },
+            })
+            return
+
+        final_reasoning = ""
+        final_action: dict | None = None
+        final_error: dict | None = None
+
+        for idx, attempt in enumerate(attempts):
+            is_last_attempt = idx == len(attempts) - 1
+            logger.info(
+                "[game_move] attempt %d/%d (%s) | game=%s session=%s game_session=%s",
+                idx + 1, len(attempts), attempt["label"], game_type, session_id, game_session_id,
+            )
 
             reasoning_parts: list[str] = []
             text_parts: list[str] = []
             pre_marker_buf: list[str] = []
             seen_move_marker = False
 
-            async for event in llm.stream(
-                messages,
-                temperature=settings.game_temperature,
-                max_tokens=settings.game_max_tokens,
-            ):
-                if event.kind == "reasoning" and event.text:
-                    reasoning_parts.append(event.text)
-                    if game_session_id:
+            try:
+                async for ev in llm.stream(
+                    attempt["messages"],
+                    temperature=attempt["temperature"],
+                    max_tokens=attempt["max_tokens"],
+                    response_format=attempt["response_format"],
+                    reasoning_effort=attempt.get("reasoning_effort"),
+                ):
+                    if ev.kind == "reasoning" and ev.text:
+                        reasoning_parts.append(ev.text)
+                        if game_session_id:
+                            await self.send({
+                                "event": f"game_move_reasoning:{game_session_id}",
+                                "chunk": ev.text,
+                            })
+                    elif ev.kind == "delta" and ev.text:
+                        if not seen_move_marker:
+                            pre_marker_buf.append(ev.text)
+                            combined = "".join(pre_marker_buf)
+                            marker_idx = combined.find("---MOVE---")
+                            if marker_idx >= 0:
+                                seen_move_marker = True
+                                reasoning_text = combined[:marker_idx]
+                                json_text = combined[marker_idx + len("---MOVE---"):]
+                                if reasoning_text.strip():
+                                    reasoning_parts.append(reasoning_text.strip())
+                                    if game_session_id:
+                                        await self.send({
+                                            "event": f"game_move_reasoning:{game_session_id}",
+                                            "chunk": reasoning_text.strip(),
+                                        })
+                                if json_text.strip():
+                                    text_parts.append(json_text)
+                                pre_marker_buf = []
+                        else:
+                            text_parts.append(ev.text)
+                    elif ev.kind == "done":
+                        break
+
+                if not seen_move_marker:
+                    text_parts = pre_marker_buf + text_parts
+
+                full_reasoning = "".join(reasoning_parts)
+                full_text = "".join(text_parts)
+
+                logger.info(
+                    "[game_move] ← attempt %d done | game=%s session=%s game_session=%s | text=%r reasoning_len=%d",
+                    idx + 1, game_type, session_id, game_session_id, full_text[:200], len(full_reasoning),
+                )
+
+                action, error = self._parse_game_action({"text": full_text}, game_state, rules, game_type)
+
+                if not full_reasoning and action and action.get("reasoning"):
+                    full_reasoning = action["reasoning"]
+                    if game_session_id and full_reasoning:
                         await self.send({
                             "event": f"game_move_reasoning:{game_session_id}",
-                            "chunk": event.text,
+                            "chunk": full_reasoning,
+                            "done": True,
                         })
-                elif event.kind == "delta" and event.text:
-                    if not seen_move_marker:
-                        pre_marker_buf.append(event.text)
-                        combined = "".join(pre_marker_buf)
-                        marker_idx = combined.find("---MOVE---")
-                        if marker_idx >= 0:
-                            seen_move_marker = True
-                            reasoning_text = combined[:marker_idx]
-                            json_text = combined[marker_idx + len("---MOVE---"):]
-                            if reasoning_text.strip():
-                                reasoning_parts.append(reasoning_text.strip())
-                                if game_session_id:
-                                    await self.send({
-                                        "event": f"game_move_reasoning:{game_session_id}",
-                                        "chunk": reasoning_text.strip(),
-                                    })
-                            if json_text.strip():
-                                text_parts.append(json_text)
-                            pre_marker_buf = []
-                    else:
-                        text_parts.append(event.text)
-                elif event.kind == "done":
+
+                if action and full_reasoning:
+                    action["reasoning"] = full_reasoning
+
+                if action is not None:
+                    final_action = action
+                    final_reasoning = full_reasoning
                     break
 
-            # If marker was never seen, pre-marker buffer was JSON text all along
-            if not seen_move_marker:
-                text_parts = pre_marker_buf + text_parts
+                if error is not None and not is_last_attempt:
+                    logger.info(
+                        "[game_move] attempt %d failed with %s — retrying | game=%s session=%s game_session=%s",
+                        idx + 1, error["code"], game_type, session_id, game_session_id,
+                    )
+                    continue
 
-            full_reasoning = "".join(reasoning_parts)
-            full_text = "".join(text_parts)
+                if error is not None and is_last_attempt:
+                    final_error = {
+                        "code": "MODEL_ERROR",
+                        "message": (
+                            f"Model did not return valid JSON after {len(attempts)} attempts. "
+                            f"Last error: {error['message']}"
+                        ),
+                        "fallback_action": None,
+                    }
+                    final_reasoning = full_reasoning
 
-            logger.info(
-                "[game_move] ← LLM stream done | game=%s session=%s | text=%r | reasoning_len=%d",
-                game_type, session_id, full_text[:200], len(full_reasoning),
-            )
+            except Exception as ex:
+                logger.exception(
+                    "[game_move] attempt %d exception | game=%s session=%s game_session=%s",
+                    idx + 1, game_type, session_id, game_session_id,
+                )
+                if is_last_attempt:
+                    final_error = {
+                        "code": "MODEL_ERROR",
+                        "message": str(ex),
+                        "fallback_action": None,
+                    }
+                else:
+                    continue
 
-            action, error = self._parse_game_action({"text": full_text}, game_state, rules)
-
-            # Fallback: if no reasoning was streamed (non-CoT model) but the JSON
-            # has a reasoning field, extract it and emit as a single event.
-            if not full_reasoning and action and action.get("reasoning"):
-                full_reasoning = action["reasoning"]
-                if game_session_id and full_reasoning:
-                    await self.send({
-                        "event": f"game_move_reasoning:{game_session_id}",
-                        "chunk": full_reasoning,
-                        "done": True,
-                    })
-
-            # Attach reasoning to action if present
-            if action and full_reasoning:
-                action["reasoning"] = full_reasoning
-
-            logger.info(
-                "[game_move] → WS response | game=%s session=%s | action=%s error=%s",
-                game_type, session_id, action, error,
-            )
-            await self.send({
-                "event": "game_move_response",
-                "game_type": game_type,
-                "session_id": session_id,
-                "action": action,
-                "error": error,
-                "reasoning": full_reasoning,
-            })
-
-        except Exception as ex:
-            logger.exception("[game_move] LLM error | game=%s session=%s", game_type, session_id)
-            await self.send({
-                "event": "game_move_response",
-                "game_type": game_type,
-                "session_id": session_id,
-                "action": None,
-                "error": {
-                    "code": "MODEL_ERROR",
-                    "message": str(ex),
-                    "fallback_action": None,
-                },
-            })
+        logger.info(
+            "[game_move] → WS response | game=%s session=%s game_session=%s | action=%s error=%s",
+            game_type, session_id, game_session_id, final_action, final_error,
+        )
+        await self.send({
+            "event": "game_move_response",
+            "game_type": game_type,
+            "game_session_id": game_session_id,
+            "action": final_action,
+            "error": final_error,
+            "reasoning": final_reasoning,
+        })
 
     def _build_game_messages(self, rules: dict, game_state: dict) -> list[dict]:
         """Build a fresh user-only messages list. The provider's own system prompt is
@@ -2066,49 +2232,187 @@ class Connection:
         user_content = "SYSTEM INSTRUCTIONS:\n" + system_prompt + "\n\nGame state:\n" + json.dumps(game_state, indent=2)
         return [{"role": "user", "content": user_content}]
 
+    def _build_minimal_game_messages(self, game_state: dict) -> list[dict]:
+        """Build a minimal prompt for retry attempts: only list empty cells
+        and demand strict JSON output. No reasoning requested."""
+        board = game_state.get("board", [])
+        empties = [
+            f"({r},{c})"
+            for r, row in enumerate(board)
+            for c, cell in enumerate(row)
+            if cell is None
+        ]
+        empties_str = ",".join(empties) if empties else "none"
+        user_content = (
+            f"Empty cells: {empties_str}.\n"
+            "Output ONLY valid JSON, no text, no explanation, no markdown:\n"
+            '{"row":<0-2>,"col":<0-2>}'
+        )
+        return [{"role": "user", "content": user_content}]
+
+    def _extract_json_text(self, raw_text: str) -> str:
+        """Extract the JSON substring from an LLM response that may contain
+        extra text, markdown fences, or a ---MOVE--- marker.
+
+        Returns the best-effort JSON string. Does NOT parse — caller does.
+        """
+        text = raw_text.strip()
+        if not text:
+            return ""
+
+        marker = "---MOVE---"
+        marker_idx = text.find(marker)
+        if marker_idx >= 0:
+            candidate = text[marker_idx + len(marker):].strip()
+            if candidate:
+                return candidate
+            candidate = text[:marker_idx].strip()
+            if candidate:
+                return candidate
+            return ""
+
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            lines = stripped.split("\n")
+            json_lines: list[str] = []
+            in_code = False
+            for line in lines:
+                if line.strip().startswith("```"):
+                    in_code = not in_code
+                    continue
+                if in_code:
+                    json_lines.append(line)
+                elif json_lines and line.strip():
+                    json_lines.append(line)
+            if json_lines:
+                return "\n".join(json_lines).strip()
+
+        first_brace = text.find("{")
+        if first_brace < 0:
+            first_brace = text.find("[")
+        if first_brace < 0:
+            return text.strip()
+
+        last_brace = text.rfind("}")
+        last_bracket = text.rfind("]")
+        last_close = max(last_brace, last_bracket)
+        if last_close < 0:
+            return text[first_brace:].strip()
+
+        return text[first_brace:last_close + 1].strip()
+
+    def _repair_and_parse_json(self, raw: str) -> dict | None:
+        """Try to parse JSON, repairing truncated input by adding missing
+        closing braces/brackets. Returns None if repair fails."""
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        stripped = raw.strip()
+        if not stripped or stripped[0] not in "{[":
+            return None
+
+        opens = stripped.count("{") - stripped.count("}")
+        brackets = stripped.count("[") - stripped.count("]")
+        if opens <= 0 and brackets <= 0:
+            return None
+
+        candidate = stripped
+        if opens > 0:
+            candidate += "}" * opens
+        if brackets > 0:
+            candidate += "]" * brackets
+
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                logger.warning(
+                    "Repaired truncated JSON (added %d closing braces/brackets)",
+                    opens + brackets,
+                )
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        for end in range(len(stripped), 0, -1):
+            try:
+                candidate = stripped[:end]
+                e = candidate.count("{") - candidate.count("}")
+                b = candidate.count("[") - candidate.count("]")
+                if e > 0:
+                    candidate += "}" * e
+                if b > 0:
+                    candidate += "]" * b
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    logger.warning(
+                        "Repaired truncated JSON (truncated at len=%d, added %d close tokens)",
+                        end, e + b,
+                    )
+                    return parsed
+            except json.JSONDecodeError:
+                continue
+
+        return None
+
     def _parse_game_action(
         self,
         llm_response: dict,
         game_state: dict,
         rules: dict,
+        game_type: str = "unknown",
     ) -> tuple[dict | None, dict | None]:
         """
         Parse LLM response into a GameAction.
         Returns (action, error). One is always None.
         """
-        text = llm_response.get("text", "").strip()
+        raw_text = llm_response.get("text", "").strip()
+        json_text = self._extract_json_text(raw_text)
 
-        try:
-            data = json.loads(text)
-            row = data.get("row")
-            col = data.get("col")
-            reasoning = data.get("reasoning", "")
+        data = None
+        if json_text:
+            data = self._repair_and_parse_json(json_text)
 
-            if not self._is_legal_move(game_state, row, col):
-                fallback = self._get_fallback_move(game_state)
-                return None, {
-                    "code": "INVALID_MOVE",
-                    "message": f"Coordinates ({row}, {col}) are out of range or cell is occupied",
-                    "fallback_action": fallback,
-                }
-
-            action = {"type": "move", "data": {"row": row, "col": col}}
-            if reasoning:
-                action["reasoning"] = reasoning
-            return action, None
-
-        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        if data is None:
             logger.warning(
                 "game AI parse error | game_type=%s | raw_response=%r",
-                rules.get("game_type", "unknown"),
-                text[:500],
+                game_type,
+                raw_text[:500],
             )
-            fallback = self._get_fallback_move(game_state)
             return None, {
                 "code": "PARSE_ERROR",
-                "message": f"Could not parse JSON from model response: {text[:100]}",
-                "fallback_action": fallback,
+                "message": f"Could not parse valid JSON from model response: {raw_text[:100]}",
+                "fallback_action": None,
             }
+
+        row = data.get("row")
+        col = data.get("col")
+
+        if isinstance(row, str):
+            try:
+                row = int(row)
+            except (ValueError, TypeError):
+                pass
+        if isinstance(col, str):
+            try:
+                col = int(col)
+            except (ValueError, TypeError):
+                pass
+
+        reasoning = data.get("reasoning", "")
+
+        if not self._is_legal_move(game_state, row, col):
+            return None, {
+                "code": "INVALID_MOVE",
+                "message": f"Coordinates ({row}, {col}) are out of range or cell is occupied",
+                "fallback_action": None,
+            }
+
+        action = {"type": "move", "data": {"row": row, "col": col}}
+        if reasoning:
+            action["reasoning"] = reasoning
+        return action, None
 
     def _is_legal_move(self, game_state: dict, row: int | None, col: int | None) -> bool:
         """Check if the coordinates are within bounds and the cell is empty."""
@@ -2741,9 +3045,15 @@ class Connection:
         title = content[:50].strip()
         if len(content) > 50:
             title += "…"
-        await session_store.set_title_if_default(session_id, title)
+        title_changed = await session_store.set_title_if_default(session_id, title)
         if accumulated:
             await session_store.add_message(session_id, "assistant", accumulated)
+
+        # Notify the frontend when the session title changes so the sidebar
+        # updates without requiring a page refresh.
+        if title_changed:
+            sessions = await session_store.list_sessions()
+            await self.send({"event": "session_list", "sessions": sessions})
 
         await self.send({"event": "turn_end", "session_id": session_id})
 
@@ -3016,37 +3326,37 @@ class Connection:
         if "game_max_tokens" in event:
             try:
                 value = int(event["game_max_tokens"])
-                if value >= 16:
+                if 128 <= value <= 2048:
                     settings.game_max_tokens = value
                 else:
-                    await self.send({"event": "error", "detail": "game_max_tokens must be at least 16"})
+                    await self.send({"event": "error", "detail": "game_max_tokens must be between 128 and 2048"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_max_tokens"})
         if "game_retry_timeout_1_ms" in event:
             try:
                 v = int(event["game_retry_timeout_1_ms"])
-                if v >= 1000:
+                if v >= 2000:
                     settings.game_retry_timeouts[0] = v
                 else:
-                    await self.send({"event": "error", "detail": "game_retry_timeout_1_ms must be at least 1000"})
+                    await self.send({"event": "error", "detail": "game_retry_timeout_1_ms must be at least 2000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_retry_timeout_1_ms"})
         if "game_retry_timeout_2_ms" in event:
             try:
                 v = int(event["game_retry_timeout_2_ms"])
-                if v >= 1000:
+                if v >= 2000:
                     settings.game_retry_timeouts[1] = v
                 else:
-                    await self.send({"event": "error", "detail": "game_retry_timeout_2_ms must be at least 1000"})
+                    await self.send({"event": "error", "detail": "game_retry_timeout_2_ms must be at least 2000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_retry_timeout_2_ms"})
         if "game_retry_timeout_3_ms" in event:
             try:
                 v = int(event["game_retry_timeout_3_ms"])
-                if v >= 1000:
+                if v >= 2000:
                     settings.game_retry_timeouts[2] = v
                 else:
-                    await self.send({"event": "error", "detail": "game_retry_timeout_3_ms must be at least 1000"})
+                    await self.send({"event": "error", "detail": "game_retry_timeout_3_ms must be at least 2000"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_retry_timeout_3_ms"})
         if "game_max_retries" in event:
@@ -3058,6 +3368,10 @@ class Connection:
                     await self.send({"event": "error", "detail": "game_max_retries must be between 1 and 5"})
             except (TypeError, ValueError):
                 await self.send({"event": "error", "detail": "Invalid game_max_retries"})
+        if "game_log_default_open" in event:
+            settings.game_log_default_open = bool(event["game_log_default_open"])
+        if "game_reasoning_default_open" in event:
+            settings.game_reasoning_default_open = bool(event["game_reasoning_default_open"])
         if "artifact_diff_preview" in event:
             settings.artifact_diff_preview = bool(event["artifact_diff_preview"])
         # Qwen3 VoiceDesign settings
@@ -3109,6 +3423,8 @@ class Connection:
             game_retry_timeout_2_ms=settings.game_retry_timeouts[1] if len(settings.game_retry_timeouts) > 1 else None,
             game_retry_timeout_3_ms=settings.game_retry_timeouts[2] if len(settings.game_retry_timeouts) > 2 else None,
             game_max_retries=settings.game_max_retries,
+            game_log_default_open=settings.game_log_default_open,
+            game_reasoning_default_open=settings.game_reasoning_default_open,
             # Per-connection
             stt_enabled=self._stt_enabled,
             stt_language=self._stt_language,

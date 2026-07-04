@@ -45,6 +45,9 @@ export class TicTacToeGame extends BaseGame {
     { id: SlotId.OPPONENT, type: PlayerType.AI, name: "Oponente" },
   ] as const;
 
+  readonly naturalWidth = 320;
+  readonly naturalHeight = 362;
+
   private _board: (Mark | null)[][] = createEmptyBoard();
   private _currentSlot: string = SlotId.PLAYER;
   private _winner: string | null = null;
@@ -101,7 +104,7 @@ export class TicTacToeGame extends BaseGame {
 
   giveUp(): void {
     this.state = {
-      status: GameStatus.LOST,
+      status: GameStatus.ABANDONED,
       score: 0,
       data: this._serializeBoard(),
       winner: SlotId.OPPONENT,
@@ -126,6 +129,9 @@ export class TicTacToeGame extends BaseGame {
           return this.state;
         case GameCommand.GIVE_UP:
           this.giveUp();
+          return this.state;
+        case GameCommand.TO_TITLE:
+          this.start();
           return this.state;
         default:
           return this.state;
@@ -152,9 +158,11 @@ export class TicTacToeGame extends BaseGame {
     if (win) {
       this._winner = fromSlotId;
       this._winningLine = win;
+      // WON means the human player won; LOST means the opponent (CPU/Kali) won.
+      const humanWon = fromSlotId === SlotId.PLAYER;
       this.state = {
-        status: GameStatus.WON,
-        score: 0,
+        status: humanWon ? GameStatus.WON : GameStatus.LOST,
+        score: humanWon ? 1 : 0,
         data: this._serializeBoard(),
         winner: fromSlotId,
       };

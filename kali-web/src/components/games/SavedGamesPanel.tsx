@@ -76,7 +76,7 @@ export function SavedGamesPanel({ api }: Props) {
     });
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto">
+    <div className="flex flex-col flex-1 min-h-0 p-4 gap-4 overflow-y-auto scrollbar-thin">
       <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
         <span>{"\u{1F4CB}"}</span>
         {isEs ? "Partidas Guardadas" : "Saved Games"}

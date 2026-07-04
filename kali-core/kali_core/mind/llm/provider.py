@@ -54,6 +54,11 @@ class LLMProvider(Protocol):
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream the LLM response, yielding events as they arrive."""
         ...
@@ -62,6 +67,11 @@ class LLMProvider(Protocol):
         self,
         messages: list[dict],
         tools: list[ToolDef] | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict:
         """Get a complete (non-streamed) response."""
         ...

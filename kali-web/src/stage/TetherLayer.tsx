@@ -68,7 +68,10 @@ export function TetherLayer({ windows }: Props) {
       for (const id of lastPositionsRef.current.keys()) {
         if (!visibleIds.has(id)) lastPositionsRef.current.delete(id);
       }
-      if (changed) {
+      // Always update tethers when the visible window set changes so that
+      // stale tethers (e.g. after a session change clears the workspace) are
+      // removed immediately.
+      if (changed || tethers.length !== next.length) {
         setTethers(next);
       }
     };

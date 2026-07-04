@@ -3,6 +3,7 @@ import type {
   GameSessionData,
   GameTurnData,
   GameEventData,
+  GameLogEntry,
 } from "./game-session-types";
 import type { GameAction } from "./types/game-action";
 import { GAME_SESSION_WS_EVENT } from "./game-session-constants";
@@ -30,6 +31,7 @@ class GameSessionStore {
       paradigm,
       status: "active",
       startedAt: Date.now(),
+      logEntries: [],
       ...(paradigm === "turn-based" ? { turns: [] } : { events: [] }),
     };
     this.sessions.set(sessionId, session);
@@ -105,6 +107,27 @@ class GameSessionStore {
         sessionId,
         eventData: event,
       });
+    }
+  }
+
+  addLogEntry(sessionId: string, entry: GameLogEntry): void {
+    const s = this.sessions.get(sessionId);
+    if (s) {
+      if (!s.logEntries) s.logEntries = [];
+      s.logEntries.push(entry);
+      this.emit();
+    }
+  }
+
+  getLogEntries(sessionId: string): GameLogEntry[] {
+    return this.sessions.get(sessionId)?.logEntries ?? [];
+  }
+
+  clearLogEntries(sessionId: string): void {
+    const s = this.sessions.get(sessionId);
+    if (s) {
+      s.logEntries = [];
+      this.emit();
     }
   }
 

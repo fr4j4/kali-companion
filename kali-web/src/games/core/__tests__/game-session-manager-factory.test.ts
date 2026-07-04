@@ -14,6 +14,8 @@ function createMockGame(paradigm: "turn-based" | "realtime" | "unknown"): BaseGa
     slots: [],
     sessionId: "mock-session",
     getState: vi.fn((): GameState => ({ status: "waiting", score: 0, data: null, winner: null })),
+    getStatus: vi.fn(() => "waiting"),
+    isFinished: vi.fn(() => false),
     handleAction: vi.fn((_action: GameAction, _fromSlotId: string): GameState => ({
       status: "playing",
       score: 0,

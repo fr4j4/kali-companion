@@ -14,10 +14,21 @@ import {
   GAME_AI_GLOBAL_TIMEOUT_MS,
 } from "../core/constants/game-ai";
 import type { MoveProvider } from "./ai-slot-filler";
+import { gameSessionStore } from "../core/game-session-store";
+
+export interface GameAiConfig {
+  game_connection_id?: string;
+  game_model?: string;
+  game_temperature?: number;
+  game_max_tokens?: number;
+}
 
 export class AISlot implements MoveProvider {
+  private static readonly MAX_REASONING_WORDS = 50;
+
   private _abortController: AbortController | null = null;
   private _getGlobalTimeout: () => number = () => GAME_AI_GLOBAL_TIMEOUT_MS;
+  private _getGameAiConfig: () => GameAiConfig = () => ({});
 
   constructor(
     private _slotId: SlotIdValue,
@@ -39,6 +50,10 @@ export class AISlot implements MoveProvider {
 
   setGlobalTimeout(getter: () => number) {
     this._getGlobalTimeout = getter;
+  }
+
+  setGameAiConfig(getter: () => GameAiConfig) {
+    this._getGameAiConfig = getter;
   }
 
   abort(): void {
@@ -64,6 +79,7 @@ export class AISlot implements MoveProvider {
 
     const gameSessionId = this._getSessionId();
     const data = context.data as Record<string, unknown>;
+    const aiConfig = this._getGameAiConfig();
     const payload = {
       event: "game_move",
       game_type: "tictactoe",
@@ -74,6 +90,10 @@ export class AISlot implements MoveProvider {
       },
       game_state: data,
       player_role: this._slotId,
+      game_connection_id: aiConfig.game_connection_id,
+      game_model: aiConfig.game_model,
+      game_temperature: aiConfig.game_temperature,
+      game_max_tokens: aiConfig.game_max_tokens,
       difficulty: data[TttField.DIFFICULTY] as string | undefined,
       starter: data[TttField.STARTER] as string | undefined,
       player_marker: data[TttField.PLAYER_MARK] as string | undefined,
@@ -83,6 +103,20 @@ export class AISlot implements MoveProvider {
     const timeouts = [GAME_AI_TIMEOUT_MS, GAME_AI_TIMEOUT_2_MS, GAME_AI_TIMEOUT_3_MS];
     const globalTimeoutMs = this._getGlobalTimeout();
     let lastError: unknown;
+
+    const requestTimestamp = Date.now();
+    gameSessionStore.addLogEntry(gameSessionId, {
+      id: crypto.randomUUID(),
+      timestamp: requestTimestamp,
+      kind: "ws_request",
+      label: "AI THINKING",
+      icon: "send",
+      details: {
+        gameType: "tictactoe",
+        difficulty: data[TttField.DIFFICULTY] as string | undefined,
+        model: aiConfig.game_model,
+      },
+    });
 
     for (let attempt = 0; attempt < timeouts.length; attempt++) {
       const timeoutMs = timeouts[attempt]!;
@@ -114,6 +148,7 @@ export class AISlot implements MoveProvider {
               void lastChunkAt;
             },
             globalTimeoutMs,
+            matchFilter: (r) => r.game_session_id === gameSessionId,
           },
         );
 
@@ -122,6 +157,20 @@ export class AISlot implements MoveProvider {
         const reasoning = response.reasoning ?? reasoningChunks.join("");
 
         if (response.error) {
+          const durationMs = Date.now() - requestTimestamp;
+          gameSessionStore.addLogEntry(gameSessionId, {
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            kind: "ws_error",
+            label: "AI ERROR",
+            icon: "error",
+            details: {
+              gameType: response.game_type,
+              model: aiConfig.game_model,
+              errorMessage: response.error.message,
+              durationMs,
+            },
+          });
           throw fromGameMoveError(
             response.error.code,
             response.error.message,
@@ -130,6 +179,23 @@ export class AISlot implements MoveProvider {
         }
 
         if (response.action) {
+          const durationMs = Date.now() - requestTimestamp;
+          const moveData = response.action.data as { row?: number; col?: number } | undefined;
+          gameSessionStore.addLogEntry(gameSessionId, {
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            kind: "ws_response",
+            label: "AI MOVE",
+            icon: "receive",
+            details: {
+              gameType: response.game_type,
+              model: aiConfig.game_model,
+              move: moveData && typeof moveData.row === "number" && typeof moveData.col === "number"
+                ? { row: moveData.row, col: moveData.col }
+                : undefined,
+              durationMs,
+            },
+          });
           return {
             type: response.action.type as (typeof ActionType)[keyof typeof ActionType],
             data: response.action.data,
@@ -180,7 +246,8 @@ export class AISlot implements MoveProvider {
     const difficulty = (data[TttField.DIFFICULTY] as string) ?? "medium";
     const opponentMarker = (data[TttField.OPPONENT_MARK] as string) ?? "O";
     const playerMarker = (data[TttField.PLAYER_MARK] as string) ?? "X";
-    const starter = data[TttField.STARTER] as string;
+    const currentSlot = data[TttField.CURRENT_SLOT] as string;
+    const isMyTurn = currentSlot === this._slotId;
 
     const instructions: Record<string, string> = {
       easy: "You are a beginner. Make random but reasonable moves.",
@@ -190,6 +257,9 @@ export class AISlot implements MoveProvider {
     const instruction = instructions[difficulty] ?? instructions.medium;
 
     const board = data[TttField.BOARD] as (string | null)[][];
+    const empties = board
+      .flatMap((row, r) => row.map((cell, c) => (cell === null ? `(${r},${c})` : null)))
+      .filter((v): v is string => v !== null);
     const boardStr = board
       .map((row) => row.map((cell) => cell ?? "_").join(" | "))
       .map((line, r) => `row ${r}: ${line}`)
@@ -198,16 +268,15 @@ export class AISlot implements MoveProvider {
     return [
       "You are playing Tic-Tac-Toe.",
       `Your marker is ${opponentMarker}, opponent is ${playerMarker}.`,
-      starter === "opponent" ? "You go first." : "Opponent (X) goes first.",
+      isMyTurn
+        ? "It is YOUR turn. Choose an empty cell."
+        : "Wait for the opponent to move.",
       instruction,
       `Current board (row 0-2, col 0-2):`,
       boardStr,
-      "Think step by step. First, explain your reasoning in natural language.",
-      "Then output ---MOVE--- on its own line.",
-      "Then output ONLY valid JSON with row (0-2) and column (0-2).",
-      "",
-      "---MOVE---",
-      '{"row": <number>, "col": <number>}',
+      empties.length > 0 ? `Empty cells: ${empties.join(",")}.` : "No empty cells.",
+      `Think briefly about your move — a short paragraph of at most ${AISlot.MAX_REASONING_WORDS} words — in your reasoning channel, then respond with ONLY valid JSON, no markdown, no extra text:`,
+      `{"reasoning": "<one short sentence>", "row": <0-2>, "col": <0-2>}`,
     ].join("\n");
   }
 }

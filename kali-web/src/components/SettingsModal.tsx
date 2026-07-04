@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cpu, Volume2, Sliders, Palette, Gauge, Mic, Info, Gamepad2 } from "lucide-react";
+import { Cpu, Volume2, Sliders, Palette, Mic, Info, Gamepad2 } from "lucide-react";
 import type { StatusEvent, SettingsEvent } from "../lib/protocol";
 import { Modal } from "./ui/Modal";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -16,7 +16,7 @@ import { BehaviorSection } from "./settings/BehaviorSection";
 import { AppearanceSection } from "./settings/AppearanceSection";
 import { GenerationSection } from "./settings/GenerationSection";
 import { AboutSection } from "./settings/AboutSection";
-import { KaliToysSection } from "./settings/KaliToysSection";
+import { GamingSection } from "./settings/GamingSection";
 
 interface Props {
   open: boolean;
@@ -37,7 +37,7 @@ interface Props {
   downloadError: string | null;
 }
 
-type SectionId = "provider" | "voice" | "stt" | "behavior" | "kali_toys" | "generation" | "appearance" | "about";
+type SectionId = "ai" | "voice" | "stt" | "behavior" | "gaming" | "appearance" | "about";
 
 interface SectionDef {
   id: SectionId;
@@ -46,12 +46,11 @@ interface SectionDef {
 }
 
 const SECTIONS: SectionDef[] = [
-  { id: "provider", icon: Cpu, labelKey: "settings.section.provider" },
-  { id: "generation", icon: Gauge, labelKey: "settings.section.generation" },
+  { id: "ai", icon: Cpu, labelKey: "settings.section.ai" },
   { id: "voice", icon: Volume2, labelKey: "settings.section.voice" },
   { id: "stt", icon: Mic, labelKey: "settings.section.stt" },
   { id: "behavior", icon: Sliders, labelKey: "settings.section.behavior" },
-  { id: "kali_toys", icon: Gamepad2, labelKey: "settings.section.kali_toys" },
+  { id: "gaming", icon: Gamepad2, labelKey: "settings.section.gaming" },
   { id: "appearance", icon: Palette, labelKey: "settings.section.appearance" },
   { id: "about", icon: Info, labelKey: "settings.section.about" },
 ];
@@ -76,12 +75,12 @@ export function SettingsModal({
 }: Props) {
   const { t } = useTranslation();
   const { isMobile } = useBreakpoint();
-  const [active, setActive] = useState<SectionId>("provider");
+  const [active, setActive] = useState<SectionId>("ai");
 
   if (!open) return null;
 
-  // Teal AI accent applies to provider + generation (both LLM-related).
-  const isAISection = (id: SectionId) => id === "provider" || id === "generation";
+  // Teal AI accent applies to the unified AI engine section.
+  const isAISection = (id: SectionId) => id === "ai";
 
   const rail = (
     <nav className="flex gap-1" role="tablist">
@@ -111,20 +110,27 @@ export function SettingsModal({
   );
 
   return (
-    <Modal open={open} onClose={onClose} size="xl" bare title={t("settings.title")}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="xl"
+      bare
+      title={t("settings.title")}
+      panelClassName="h-[min(720px,90svh)] max-h-[90svh]"
+    >
       <div className="flex flex-col h-full">
         {isMobile ? (
-          <>
+          <div className="flex flex-col h-full">
             <div className="px-4 pt-3 pb-2 border-b border-border overflow-x-auto scrollbar-thin shrink-0">
               {rail}
             </div>
-            <div className="flex-1 overflow-y-auto stage-scroll p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto stage-scroll p-4">
               {renderSection()}
             </div>
-          </>
+          </div>
         ) : (
-          <div className="flex flex-1 overflow-hidden">
-            <aside className="w-60 border-r border-border p-3 shrink-0">
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            <aside className="w-52 border-r border-border p-3 shrink-0 overflow-y-auto scrollbar-thin">
               <div className="flex flex-col gap-1">
                 {SECTIONS.map((s) => {
                   const Icon = s.icon;
@@ -141,14 +147,14 @@ export function SettingsModal({
                           : "text-fg hover:bg-white/5"
                       }`}
                     >
-                      <Icon size={14} />
+                      <Icon size={16} />
                       {t(s.labelKey)}
                     </button>
                   );
                 })}
               </div>
             </aside>
-            <div className="flex-1 overflow-y-auto stage-scroll p-5">{renderSection()}</div>
+            <div className="flex-1 min-h-0 overflow-y-auto stage-scroll p-5">{renderSection()}</div>
           </div>
         )}
       </div>
@@ -156,12 +162,18 @@ export function SettingsModal({
   );
 
   function renderSection() {
-    if (active === "provider") return <ProviderSection systemStatus={systemStatus} />;
-    if (active === "generation") return <GenerationSection systemStatus={systemStatus} onUpdate={onUpdate} />;
+    if (active === "ai") {
+      return (
+        <div className="flex flex-col gap-5">
+          <ProviderSection systemStatus={systemStatus} />
+          <GenerationSection systemStatus={systemStatus} onUpdate={onUpdate} />
+        </div>
+      );
+    }
     if (active === "voice") return <TTSEngineSection systemStatus={systemStatus} onUpdate={onUpdate} downloadTtsModel={downloadTtsModel} downloadProgress={downloadProgress} downloadError={downloadError} />;
     if (active === "stt") return <STTSection systemStatus={systemStatus} onUpdate={onUpdate} downloadSttModel={downloadSttModel} downloadProgress={downloadProgress} downloadError={downloadError} />;
     if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
-    if (active === "kali_toys") return <KaliToysSection systemStatus={systemStatus} onUpdate={onUpdate} />;
+    if (active === "gaming") return <GamingSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "about") return <AboutSection />;
     return (
       <AppearanceSection
