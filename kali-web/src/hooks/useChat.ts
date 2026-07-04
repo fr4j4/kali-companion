@@ -716,6 +716,15 @@ export function useChat(): ChatState {
     setTtsSegment(0);
     setTtsTotal(0);
     setTurnStats(null);
+    // Clear any in-progress turn state so "Thinking" pills and step counters
+    // from the previous session do not linger in the new one.
+    setIsThinking(false);
+    setIsTurnActive(false);
+    setCurrentStep(0);
+    setStopped(false);
+    // Drop transient session-scoped collections so the new session starts clean.
+    setJobs(new Map());
+    setImageReadyKeys(new Set());
     // Clear the active session synchronously so the UI stops bookmarking the
     // previous session URL and the workspace reset effect can fire as soon as
     // the backend assigns a new id.

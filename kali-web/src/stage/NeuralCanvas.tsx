@@ -121,31 +121,47 @@ export function NeuralCanvas({ theme, onThemeChange, canvasAutoExpand, onCanvasA
     return () => window.removeEventListener("keydown", onKey);
   }, [typing, chat.isTurnActive, customizerOpen]);
 
-  const newSession = useCallback(() => {
+  const resetTransientUI = useCallback(() => {
+    // Close modals/panels that display session-scoped content and clear refs
+    // that point to windows from the previous session.
     setHistoryOpen(false);
-    // Reset the workspace immediately so open artifact windows disappear right
-    // away, without waiting for the backend round-trip that delivers the new
-    // session id. The session-change effect below will also reset once the new
-    // id arrives, but doing it here prevents stale windows from lingering.
+    setArtifactsOpen(false);
+    setConversationOpen(false);
+    setJobsOpen(false);
+    setTyping(false);
+    setOverrideEmotion(null);
+    firstCharRef.current = "";
+    reasoningWindowIdRef.current = null;
+  }, []);
+
+  const newSession = useCallback(() => {
+    resetTransientUI();
+    // Reset the workspace immediately so open artifact windows and their
+    // tethers disappear right away, without waiting for the backend round-trip
+    // that delivers the new session id. The session-change effect below will
+    // also reset once the new id arrives, but doing it here prevents stale
+    // windows from lingering.
     api.resetWorkspace();
     processedRef.current.clear();
     chat.newSession();
     // URL navigation is handled centrally by StageProvider via the
     // isCreatingSession flag set by chat.newSession(). Do not mutate
     // window.location.hash here to avoid racing React's state update.
-  }, [chat, api]);
+  }, [chat, api, resetTransientUI]);
 
   const deleteSession = useCallback((sid: string) => {
     chat.deleteSession(sid);
     if (sid === chat.sessionId) {
+      resetTransientUI();
       chat.newSession();
     }
-  }, [chat]);
+  }, [chat, resetTransientUI]);
 
   const clearAllSessions = useCallback(() => {
+    resetTransientUI();
     chat.clearAllSessions();
     chat.newSession();
-  }, [chat]);
+  }, [chat, resetTransientUI]);
 
   const onLanguageChange = useCallback((lang: string) => {
     void i18n.changeLanguage(lang);
