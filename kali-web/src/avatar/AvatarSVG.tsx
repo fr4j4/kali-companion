@@ -51,11 +51,23 @@ const SVG_MARKUP = `<svg id="avatar-svg" data-state="idle" data-mood="normal" vi
       <stop offset="65%" stop-color="var(--eye-main)" />
       <stop offset="100%" stop-color="var(--eye-dark)" />
     </radialGradient>
+    <radialGradient id="presence-halo-gradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.24" />
+      <stop offset="55%" stop-color="var(--accent)" stop-opacity="0.10" />
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+    </radialGradient>
+    <filter id="presence-halo-blur" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="22" />
+    </filter>
     <filter id="blur-siamese" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="35"/>
     </filter>
   </defs>
   <g class="avatar-animate">
+    <g class="presence-halo" aria-hidden="true">
+      <circle cx="500" cy="500" r="330" fill="url(#presence-halo-gradient)" filter="url(#presence-halo-blur)" />
+      <circle cx="500" cy="500" r="250" fill="none" stroke="var(--accent)" stroke-opacity="0.10" stroke-width="2" />
+    </g>
     <g id="head-pivot" class="head-tilt" data-animal="gato" data-ears="cat">
       <circle cx="500" cy="480" r="260" fill="var(--cat-base)" class="show-erizo" />
       <circle cx="500" cy="480" r="260" fill="none" stroke="var(--cat-spot2)" stroke-width="40" stroke-dasharray="1 60" stroke-linecap="round" class="show-erizo" />

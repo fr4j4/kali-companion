@@ -71,6 +71,7 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
   const [ttsText, setTtsText] = useState("");
   const [allExpanded, setAllExpanded] = useState(true);
   const [focused, setFocused] = useState(false);
+  const [forceEmotion, setForceEmotion] = useState(true);
 
   const elRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -220,22 +221,42 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
             </Section>
 
             <Section title="Avatar" forceOpen={allExpanded}>
-              <div className="w-full flex flex-wrap gap-1 mb-1">
+              <div className="w-full text-[11px] text-muted/80 mb-1">Estado</div>
+              <div className="w-full flex flex-wrap gap-1 mb-2">
+                <Button onClick={() => debug.clearAvatarStateOverride()}>Auto</Button>
                 <Button onClick={() => debug.setAvatarState("idle")}>Idle</Button>
                 <Button onClick={() => debug.setAvatarState("pensando")}>Pensando</Button>
                 <Button onClick={() => debug.setAvatarState("escuchando")}>Escuchando</Button>
                 <Button onClick={() => debug.setAvatarState("hablando")}>Hablar</Button>
               </div>
-              <div className="w-full flex flex-wrap gap-1">
-                <Button onClick={() => debug.setAvatarEmotion("normal")}>Normal</Button>
-                <Button onClick={() => debug.setAvatarEmotion("feliz")}>Feliz</Button>
-                <Button onClick={() => debug.setAvatarEmotion("enojado")}>Enojado</Button>
-                <Button onClick={() => debug.setAvatarEmotion("sorprendido")}>Sorprendido</Button>
+
+              <div className="w-full text-[11px] text-muted/80 mb-1">Emoción</div>
+              <div className="w-full flex flex-wrap gap-1 mb-2">
+                <Button onClick={() => debug.clearAvatarEmotionOverride()}>Auto</Button>
+                <Button onClick={() => debug.setAvatarEmotion("normal", forceEmotion)}>Normal</Button>
+                <Button onClick={() => debug.setAvatarEmotion("feliz", forceEmotion)}>Feliz</Button>
+                <Button onClick={() => debug.setAvatarEmotion("enojado", forceEmotion)}>Enojado</Button>
+                <Button onClick={() => debug.setAvatarEmotion("sorprendido", forceEmotion)}>Sorprendido</Button>
+                <Button onClick={() => debug.setAvatarEmotion("ronroneando", forceEmotion)}>Ronroneando</Button>
+                <Button onClick={() => debug.setAvatarEmotion("confundido", forceEmotion)}>Confundido</Button>
               </div>
-              <div className="w-full flex flex-wrap gap-1 mt-1">
-                <Button onClick={() => debug.setAvatarEmotion("ronroneando")}>Ronroneando</Button>
-                <Button onClick={() => debug.setAvatarEmotion("confundido")}>Confundido</Button>
-                <Button variant="accent" onClick={() => debug.resetAvatarOverride()}>Reset</Button>
+
+              <div className="w-full flex flex-wrap items-center gap-1">
+                <Button
+                  variant={forceEmotion ? "accent" : "default"}
+                  onClick={() => setForceEmotion((v) => !v)}
+                >
+                  Forzar emoción
+                </Button>
+                <Button
+                  variant="accent"
+                  onClick={() => {
+                    debug.resetAvatarOverride();
+                    setForceEmotion(true);
+                  }}
+                >
+                  Reset total
+                </Button>
               </div>
             </Section>
 

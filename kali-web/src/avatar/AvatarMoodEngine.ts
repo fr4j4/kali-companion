@@ -6,8 +6,9 @@
  *   - **Emotion** (normal/enojado/sorprendido/ronroneando/feliz/confundido) — contextual,
  *     derived from text analysis, tool events, consent, and click interactions.
  *
- * The emotion is only applied when the base state is `idle` or `hablando`;
- * `pensando` and `escuchando` always use `normal` emotion.
+ * The emotion normally follows the base state rules (`pensando` and
+ * `escuchando` stay neutral), but the debug panel can force a mood for
+ * direct visual testing.
  */
 
 import { useMemo, useEffect, useRef, useState } from "react";
@@ -84,8 +85,9 @@ export function useAvatarMoodEngine(
       return;
     }
 
-    // Debug state override takes priority
-    if (debugOverride.overrideEmotion) {
+    // Debug emotion forced through the panel. This bypasses the fixed-state
+    // neutralization used by thinking/listening so we can preview any mood.
+    if (debugOverride.overrideEmotion && debugOverride.forceEmotion) {
       setEmotion(debugOverride.overrideEmotion);
       return;
     }
@@ -93,6 +95,14 @@ export function useAvatarMoodEngine(
     // States with fixed emotion
     if (state === "pensando" || state === "escuchando") {
       setEmotion("normal");
+      return;
+    }
+
+    // Debug state override takes priority once the fixed states have been
+    // resolved. This keeps the panel useful while preserving the normal
+    // "thinking/listening = neutral" rule unless force mode is active.
+    if (debugOverride.overrideEmotion) {
+      setEmotion(debugOverride.overrideEmotion);
       return;
     }
 
