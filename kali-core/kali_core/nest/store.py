@@ -525,12 +525,12 @@ class SessionStore:
     async def get_or_create_active_untitled_session(
         self, chat_session_id: str
     ) -> dict:
-        """Find an existing active 'Untitled' session, or create a new one.
+        """Find an existing active auto-generated session, or create a new one.
 
-        This ensures multiple run_command calls without an explicit
-        terminal_session_id are grouped into a single session per turn
-        (the turn's session is closed at turn_end, so the next turn
-        gets a fresh one).
+        Uses the display_name 'Session' for auto-generated sessions. The
+        frontend renders the creation timestamp below the name in the
+        sidebar. If the agent calls create_terminal_session with a real
+        name, that session is separate and not reused here.
         """
         await self._ensure_db()
         async with aiosqlite.connect(self._db_path) as db:
@@ -538,14 +538,14 @@ class SessionStore:
             cursor = await db.execute(
                 """SELECT * FROM terminal_sessions
                    WHERE chat_session_id = ? AND status = 'active'
-                         AND display_name = 'Untitled'
+                         AND display_name = 'Session'
                    ORDER BY created DESC LIMIT 1""",
                 (chat_session_id,),
             )
             row = await cursor.fetchone()
             if row:
                 return dict(row)
-        return await self.create_terminal_session(chat_session_id, "Untitled")
+        return await self.create_terminal_session(chat_session_id, "Session")
 
     async def add_terminal_command(
         self,

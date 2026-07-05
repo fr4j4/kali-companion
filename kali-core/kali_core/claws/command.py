@@ -43,7 +43,7 @@ class RunCommandTool:
                 "type": "string",
                 "description": (
                     "ID from create_terminal_session to group this command. "
-                    "If omitted, commands are grouped in a shared 'Untitled' "
+                    "If omitted, commands are grouped in a shared 'Session' "
                     "session. Always pass this when running 2+ commands."
                 ),
             },

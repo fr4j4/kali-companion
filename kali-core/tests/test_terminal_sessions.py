@@ -144,17 +144,17 @@ async def test_delete_session_cleans_terminal_tables(store: SessionStore) -> Non
 
 @pytest.mark.asyncio
 async def test_get_or_create_active_untitled_creates_new(store: SessionStore) -> None:
-    """When no active Untitled session exists, a new one is created."""
+    """When no active Session exists, a new one is created."""
     chat = await store.create_session()
     ts = await store.get_or_create_active_untitled_session(chat["id"])
-    assert ts["display_name"] == "Untitled"
+    assert ts["display_name"] == "Session"
     assert ts["status"] == "active"
     assert ts["chat_session_id"] == chat["id"]
 
 
 @pytest.mark.asyncio
 async def test_get_or_create_active_untitled_reuses_existing(store: SessionStore) -> None:
-    """When an active Untitled session exists, it is reused (not duplicated)."""
+    """When an active Session exists, it is reused (not duplicated)."""
     chat = await store.create_session()
     ts1 = await store.get_or_create_active_untitled_session(chat["id"])
     ts2 = await store.get_or_create_active_untitled_session(chat["id"])

@@ -557,7 +557,7 @@ export function useChat(): ChatState {
           if (!sess) {
             sess = {
               id: ev.terminal_session_id,
-              display_name: "Untitled",
+              display_name: "Session",
               status: "active",
               created: new Date().toISOString(),
               commands: new Map(),
