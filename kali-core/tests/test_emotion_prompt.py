@@ -32,4 +32,4 @@ def test_emotion_prompt_is_a_string():
 
 def test_emotion_prompt_contains_instruction():
     fragment = build_emotion_prompt_fragment()
-    assert "Puedes expresar" in fragment
+    assert "EMOTION RULE" in fragment

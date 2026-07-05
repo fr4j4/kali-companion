@@ -1,5 +1,6 @@
 import type { AvatarEmotion } from "./avatarConfig";
 import type { EmotionProvider, EmotionResult, EmotionContext } from "./EmotionProvider";
+import { analyzeAssistantText } from "./textEmotionAnalyzer";
 
 const VALID_EMOTIONS: ReadonlySet<string> = new Set([
   "normal", "enojado", "sorprendido", "ronroneando",
@@ -9,13 +10,15 @@ const VALID_EMOTIONS: ReadonlySet<string> = new Set([
 export class LLMEmotionProvider implements EmotionProvider {
   async getEmotion(ctx: EmotionContext): Promise<EmotionResult> {
     const lastEvent = ctx.emotionEvents[ctx.emotionEvents.length - 1];
-    if (!lastEvent || !lastEvent.final) {
-      return { emotion: null, confidence: 0 };
+    if (lastEvent?.final && VALID_EMOTIONS.has(lastEvent.final)) {
+      return { emotion: lastEvent.final as AvatarEmotion, confidence: 0.9 };
     }
-    const raw = lastEvent.final;
-    if (!VALID_EMOTIONS.has(raw)) {
-      return { emotion: "normal", confidence: 0.5 };
+    if (ctx.lastAssistantText) {
+      const match = analyzeAssistantText(ctx.lastAssistantText);
+      if (match.confidence > 0.6 && match.emotion !== "normal") {
+        return { emotion: match.emotion, confidence: match.confidence };
+      }
     }
-    return { emotion: raw as AvatarEmotion, confidence: 0.9 };
+    return { emotion: null, confidence: 0 };
   }
 }

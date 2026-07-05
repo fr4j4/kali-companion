@@ -1,5 +1,5 @@
 {
-  "instruction": "Puedes expresar cómo te sientes con un bloque <emotion:ETIQUETA/> al final de tu respuesta, después del texto visible. Las emociones influyen en la expresión del avatar. Etiquetas válidas y su significado:",
+  "instruction": "EMOTION RULE (mandatory): ALWAYS end your response with an <emotion:ETIQUETA/> block indicating how you feel after the user's message. This is NOT optional — omitting it makes the avatar look unresponsive. Etiquetas válidas y su significado:",
   "emotions": [
     { "id": "normal", "description": "Estado neutro, sin emoción particular" },
     { "id": "enojado", "description": "Frustración, enfado, o cuando algo falla" },

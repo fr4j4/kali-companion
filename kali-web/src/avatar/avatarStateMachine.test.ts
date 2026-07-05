@@ -11,6 +11,7 @@ function makeCtx(overrides: Partial<AvatarContext> = {}): AvatarContext {
     toolEvents: [],
     chatError: null,
     now: NOW,
+    lastAssistantText: "",
     debug: { overrideState: null, overrideEmotion: null, forceEmotion: false },
     consentRequest: null,
     ttsPlaying: false,
@@ -203,6 +204,32 @@ describe("avatarStateMachine", () => {
         currentMood: "confundido",
       });
       expect(await deriveEmotion(ctx, "idle")).toBe("confundido");
+    });
+  });
+
+  describe("text analyzer fallback", () => {
+    it("returns enojado when LLM emotion is null and assistant text contains error words", async () => {
+      const ctx = makeCtx({
+        emotionProvider: mockProvider({ emotion: "enojado", confidence: 0.7 }),
+        lastAssistantText: "No pude completar la tarea, hubo un error.",
+      });
+      expect(await deriveEmotion(ctx, "idle")).toBe("enojado");
+    });
+
+    it("returns feliz when LLM emotion is null and assistant text contains success words", async () => {
+      const ctx = makeCtx({
+        emotionProvider: mockProvider({ emotion: "feliz", confidence: 0.7 }),
+        lastAssistantText: "¡Listo! He completado el archivo.",
+      });
+      expect(await deriveEmotion(ctx, "idle")).toBe("feliz");
+    });
+
+    it("LLM emotion takes priority over text analyzer fallback", async () => {
+      const ctx = makeCtx({
+        emotionProvider: mockProvider({ emotion: "sorprendido", confidence: 0.9 }),
+        lastAssistantText: "¡Listo! He completado el archivo.",
+      });
+      expect(await deriveEmotion(ctx, "idle")).toBe("sorprendido");
     });
   });
 });

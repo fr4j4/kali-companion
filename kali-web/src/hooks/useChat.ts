@@ -405,6 +405,7 @@ export function useChat(): ChatState {
         setCurrentStep(0);
         setStopped(false);
         setTurnStats(null);
+        setEmotionEvents([]);
       });
 
       client.on("step_start", (p) => {

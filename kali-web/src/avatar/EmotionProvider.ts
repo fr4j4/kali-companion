@@ -12,6 +12,7 @@ export interface EmotionContext {
   toolEvents: ToolEvent[];
   chatError: string | null;
   now: number;
+  lastAssistantText: string;
 }
 
 export interface EmotionProvider {

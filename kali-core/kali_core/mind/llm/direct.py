@@ -192,9 +192,9 @@ class DirectLLMProvider:
         reasoning_effort: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         system_content = self._system_prompt
-        system_content += "\n\n" + build_emotion_prompt_fragment()
         if tools:
             system_content += "\n\n" + self._tool_descriptions_system(tools)
+        system_content += "\n\n" + build_emotion_prompt_fragment()
         full = [{"role": "system", "content": system_content}]
         full += messages
         tools_param = self._build_tools_param(tools)

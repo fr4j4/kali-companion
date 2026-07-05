@@ -58,11 +58,20 @@ export function useAvatarMoodEngine(
     return chat.messages.some((m: ChatMessage) => m.streaming);
   }, [chat.messages]);
 
+  const lastAssistantText = useMemo(() => {
+    const msgs = chat.messages;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "assistant" && msgs[i].content) return msgs[i].content;
+    }
+    return "";
+  }, [chat.messages]);
+
   const avatarCtx = useMemo((): AvatarContext => ({
     emotionEvents: chat.emotionEvents,
     toolEvents: chat.toolEvents,
     chatError: chat.error,
     now: Date.now(),
+    lastAssistantText,
     debug: debugOverride,
     consentRequest: chat.consentRequest,
     ttsPlaying: chat.ttsPlaying,
@@ -73,7 +82,7 @@ export function useAvatarMoodEngine(
     currentMood,
     emotionProvider,
     staleToolKey,
-  }), [chat.emotionEvents, chat.toolEvents, chat.error, chat.consentRequest, chat.ttsPlaying, ptt.state, streaming, typing, overrideEmotion, currentMood, debugOverride, staleToolKey]);
+  }), [chat.emotionEvents, chat.toolEvents, chat.error, chat.consentRequest, chat.ttsPlaying, ptt.state, streaming, typing, overrideEmotion, currentMood, debugOverride, staleToolKey, lastAssistantText]);
 
   const state = useMemo(() => deriveState(avatarCtx), [avatarCtx]);
 

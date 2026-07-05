@@ -25,14 +25,31 @@ def _load_valid_emotions() -> set[str]:
     return {e["id"] for e in catalog["emotions"]}
 
 
+_MARKER_PREFIX = "<emotion:"
+
+
 def _find_incomplete_tag(text: str) -> int | None:
-    idx = text.rfind("<emotion:")
-    if idx == -1:
+    """Find the start of a potentially incomplete <emotion: tag at the end
+    of text. Returns the index where a partial prefix of ``<emotion:``
+    begins, or None if no partial prefix is found.
+
+    Handles blocks split across chunks where the LLM emits ``<em``,
+    ``<emo``, ``<emotion``, etc. in one chunk and the rest in the next.
+    """
+    # Check for the full marker prefix first (existing behavior).
+    idx = text.rfind(_MARKER_PREFIX)
+    if idx != -1:
+        rest = text[idx + len(_MARKER_PREFIX):]
+        if ">" not in rest:
+            return idx
         return None
-    rest = text[idx + len("<emotion:"):]
-    if ">" in rest:
-        return None
-    return idx
+    # Check for partial prefixes: the longest suffix of text that is a
+    # prefix of _MARKER_PREFIX (e.g. "<em", "<emotion", "<").
+    max_check = min(len(_MARKER_PREFIX) - 1, len(text))
+    for prefix_len in range(max_check, 0, -1):
+        if text[-prefix_len:] == _MARKER_PREFIX[:prefix_len]:
+            return len(text) - prefix_len
+    return None
 
 
 class EmotionStreamFilter:
@@ -92,4 +109,4 @@ class EmotionStreamFilter:
         return self._emotions
 
 
-__all__ = ["EmotionStreamFilter"]
+__all__ = ["EmotionStreamFilter", "_EMOTION_BLOCK_RE"]

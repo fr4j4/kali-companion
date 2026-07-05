@@ -20,11 +20,12 @@ def build_emotion_prompt_fragment() -> str:
     for e in emotions:
         lines.append(f"  - {e['id']}: {e['description']}")
     lines.append(
-        '\nEmite la emoción SIEMPRE al final de tu respuesta, incluso si fue breve.'
+        '\nSIEMPRE emite la emoción al final, incluso si la respuesta fue breve.'
         '\nEjemplos:'
         '\n  "¡Listo! He creado el archivo. <emotion:feliz/>"'
         '\n  "Mmm, no estoy seguro de entender. <emotion:confundido/>"'
         '\n  "¡Vaya, no esperaba ese resultado! <emotion:sorprendido/>"'
         '\n  "No pude completar la tarea, hubo un error. <emotion:enojado/>"'
+        '\nRecuerda: NUNCA omitas el bloque <emotion:.../> al final.'
     )
     return "\n".join(lines)

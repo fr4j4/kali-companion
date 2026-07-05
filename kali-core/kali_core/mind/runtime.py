@@ -31,7 +31,7 @@ from kali_core.lang_map import normalize
 from .llm.provider import LLMProvider, StreamEvent
 from .marker_suppressor import MarkerSuppressor
 from .artifact_stream import ArtifactStreamProcessor, ArtifactStreamEvent
-from .emotion_filter import EmotionStreamFilter
+from .emotion_filter import EmotionStreamFilter, _EMOTION_BLOCK_RE
 
 logger = logging.getLogger("kali_core.mind.runtime")
 
@@ -376,13 +376,21 @@ class AgentRuntime:
 
             # Flush any held-back text (kept in case a marker spanned the
             # chunk boundary). Suppressed tool-call blocks are not flushed.
+            #
+            # IMPORTANT: the flush must pass through the SAME filter chain
+            # as the streaming loop (delta_filter → emotion_filter →
+            # artifact_processor). Skipping a filter here causes blocks
+            # split across chunk boundaries to leak as visible text and
+            # their metadata (emotions) to be lost.
             tail = delta_filter.flush()
             if tail:
-                art_result = artifact_processor.feed(tail)
-                if art_result.chat_text:
-                    yield StreamEvent(kind="delta", text=art_result.chat_text)
-                for art_evt in art_result.artifact_events:
-                    await self._emit_artifact_event(art_evt, session_id)
+                emotion_tail = emotion_filter.feed(tail)
+                if emotion_tail:
+                    art_result = artifact_processor.feed(emotion_tail)
+                    if art_result.chat_text:
+                        yield StreamEvent(kind="delta", text=art_result.chat_text)
+                    for art_evt in art_result.artifact_events:
+                        await self._emit_artifact_event(art_evt, session_id)
             reasoning_tail = reasoning_filter.flush()
             if reasoning_tail:
                 yield StreamEvent(kind="reasoning", text=reasoning_tail)
@@ -404,6 +412,12 @@ class AgentRuntime:
             # calls after the stream completes.
             accumulated = delta_filter.buffer
             accumulated_reasoning = reasoning_filter.buffer
+
+            # Strip emotion blocks from the accumulated text so they do
+            # not contaminate the conversation history or TTS. The blocks
+            # were already extracted by the emotion_filter during streaming
+            # and the flush above; this is a defense-in-depth cleanup.
+            accumulated = _EMOTION_BLOCK_RE.sub("", accumulated).rstrip()
 
             # If no native tool call was made, check for prompt-based
             # tool calls in the accumulated text AND reasoning.
