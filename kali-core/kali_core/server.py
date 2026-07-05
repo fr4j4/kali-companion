@@ -532,6 +532,9 @@ class Server:
             "llm_connection_name": next(
                 (c.name for c in conns if c.id == cfg.connection_id), None
             ),
+            "llm_vendor_detected": next(
+                (c.vendor_detected for c in conns if c.id == cfg.connection_id), None
+            ),
             "connections": summaries,
             "tts_provider": self.tts_provider.provider_name,
             "voice": self.tts_pipeline.voice,

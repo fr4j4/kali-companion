@@ -3,11 +3,13 @@ import type { AvatarState, AvatarEmotion } from "./avatarConfig";
 export interface DebugAvatarState {
   overrideState: AvatarState | null;
   overrideEmotion: AvatarEmotion | null;
+  forceEmotion: boolean;
 }
 
 let debugAvatarState: DebugAvatarState = {
   overrideState: null,
   overrideEmotion: null,
+  forceEmotion: false,
 };
 
 const listeners = new Set<(state: DebugAvatarState) => void>();
@@ -22,7 +24,7 @@ export function setDebugAvatarState(state: Partial<DebugAvatarState>): void {
 }
 
 export function resetDebugAvatarState(): void {
-  debugAvatarState = { overrideState: null, overrideEmotion: null };
+  debugAvatarState = { overrideState: null, overrideEmotion: null, forceEmotion: false };
   listeners.forEach((listener) => listener(debugAvatarState));
 }
 

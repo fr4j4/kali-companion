@@ -81,9 +81,10 @@ export function HUD({
   const ttsDotClass = ttsError ? "bg-err" : (ttsLoaded && ttsAvailable) ? "bg-ok" : "bg-muted";
   const ttsProvider = chat.systemStatus?.tts_provider ?? "piper";
 
-  // Consolidated label
+  // Consolidated label: connection name → model → vendor → fallback
+  const s = chat.systemStatus!;
   const llmLabel = hasProvider
-    ? (chat.systemStatus!.llm_model || chat.systemStatus!.llm_provider)
+    ? (s.llm_connection_name || s.llm_model || s.llm_vendor_detected || s.llm_provider)
     : "—";
 
   const openArtifacts = artifactsOpenCount;
@@ -305,7 +306,7 @@ function ModelStatsPanel({
 
       <div className="p-3 space-y-3">
         <StatsSection title={t("stats.model")} icon={<Cpu size={12} />}>
-          <StatsRow label={t("stats.provider")} value={systemStatus.llm_provider || "—"} />
+          <StatsRow label={t("stats.provider")} value={systemStatus.llm_connection_name || systemStatus.llm_vendor_detected || systemStatus.llm_provider || "—"} />
           <StatsRow label={t("stats.model")} value={systemStatus.llm_model || "—"} mono />
           {systemStatus.llm_active && (
             <>
