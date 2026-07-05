@@ -31,6 +31,7 @@
   "consent.allow": "Allow",
   "consent.no_capture": "Continue without capture",
   "consent.cancel": "Cancel",
+  "consent.command_label": "Command to execute:",
   "consent.reason.screenshot": "Kali wants to see your screen to {{reason}}.",
   "consent.reason.screenshot.generic": "Kali wants to see your screen.",
   "consent.reason.list_monitors": "Kali needs to enumerate your monitors.",
