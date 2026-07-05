@@ -31,6 +31,7 @@ from kali_core.lang_map import normalize
 from .llm.provider import LLMProvider, StreamEvent
 from .marker_suppressor import MarkerSuppressor
 from .artifact_stream import ArtifactStreamProcessor, ArtifactStreamEvent
+from .emotion_filter import EmotionStreamFilter
 
 logger = logging.getLogger("kali_core.mind.runtime")
 
@@ -274,6 +275,7 @@ class AgentRuntime:
 
         accumulated = ""
         accumulated_reasoning = ""
+        turn_emotions: list[str] = []
         # Multi-step loop: keep going until no more tool calls.
         max_steps = 5
         for _step in range(max_steps):
@@ -296,6 +298,7 @@ class AgentRuntime:
             # flows through to delta as normal; artifact content goes to
             # the artifact window via _emit_artifact_event.
             artifact_processor = ArtifactStreamProcessor()
+            emotion_filter = EmotionStreamFilter()
 
             async for event in self.llm.stream(history, tools=self._tools):
                 if event.kind == "delta" and event.text:
@@ -303,8 +306,10 @@ class AgentRuntime:
                     safe_from_tc = delta_filter.feed(event.text)
                     if not safe_from_tc:
                         continue
+                    # Then through emotion filter (strips <emotion:.../> blocks).
+                    safe_from_emotion = emotion_filter.feed(safe_from_tc)
                     # Then through artifact stream processor.
-                    result = artifact_processor.feed(safe_from_tc)
+                    result = artifact_processor.feed(safe_from_emotion)
                     if result.chat_text:
                         yield StreamEvent(kind="delta", text=result.chat_text)
                     for art_evt in result.artifact_events:
@@ -388,6 +393,12 @@ class AgentRuntime:
                 yield StreamEvent(kind="delta", text=art_flush.chat_text)
             for art_evt in art_flush.artifact_events:
                 await self._emit_artifact_event(art_evt, session_id)
+
+            # Flush emotion filter and accumulate emotions for this step.
+            step_emotions = emotion_filter.flush()
+            if step_emotions:
+                logger.info("[emotion] step %d captured: %s", _step + 1, step_emotions)
+            turn_emotions.extend(step_emotions)
 
             # The full buffers (with markers) are what we parse for tool
             # calls after the stream completes.
@@ -476,6 +487,13 @@ class AgentRuntime:
 
             if not tool_call_pending:
                 break
+
+        # Emit accumulated emotions from all steps of this turn.
+        if turn_emotions:
+            logger.info("[emotion] turn total: %s", turn_emotions)
+            yield StreamEvent(kind="emotion", emotions=turn_emotions)
+        else:
+            logger.info("[emotion] turn produced no emotions")
 
         # Persist the assistant reply into history.
         # Fallback: if the LLM produced tool calls but no text response,

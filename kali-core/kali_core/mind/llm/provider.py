@@ -32,7 +32,7 @@ class StreamEvent:
     - `done`: the stream is complete
     - `step`: signals the start of a new step in the multi-step loop
     """
-    kind: Literal["delta", "tool_call", "reasoning", "done", "step", "usage"]
+    kind: Literal["delta", "tool_call", "reasoning", "done", "step", "usage", "emotion"]
     text: str | None = None
     tool_name: str | None = None
     tool_args: dict | None = None
@@ -41,6 +41,7 @@ class StreamEvent:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     reasoning_tokens: int | None = None
+    emotions: list[str] | None = None
 
 
 @runtime_checkable

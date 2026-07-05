@@ -24,6 +24,7 @@ import type {
   ConsentRequestEvent,
   ConsentDecision,
   ToolEvent,
+  EmotionEvent,
   JobStartEvent,
   JobProgressEvent,
   JobDoneEvent,
@@ -127,6 +128,7 @@ export interface ChatState {
   wsClient: WSClient | null;
   consentRequest: ConsentRequestEvent | null;
   toolEvents: ToolEvent[];
+  emotionEvents: EmotionEvent[];
   isThinking: boolean;
   isTurnActive: boolean;
   currentStep: number;
@@ -208,6 +210,7 @@ export function useChat(): ChatState {
   const [systemStatus, setSystemStatus] = useState<StatusEvent | null>(null);
   const [consentRequest, setConsentRequest] = useState<ConsentRequestEvent | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
+  const [emotionEvents, setEmotionEvents] = useState<EmotionEvent[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isTurnActive, setIsTurnActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -230,6 +233,7 @@ export function useChat(): ChatState {
   // request console logs on demand. Each entry is a getter that returns
   // the current ConsoleLogEntry[] from the widget's React state.
   const consoleProvidersRef = useRef<Map<string, () => ConsoleLogEntry[]>>(new Map());
+  const toolGcRef = useRef<number | null>(null);
 
   // ── Streaming delta batcher ───────────────────────────────
   // Deltas arrive token-by-token (potentially hundreds per second).
@@ -482,7 +486,39 @@ export function useChat(): ChatState {
 
       client.on("tool_event", (p) => {
         const ev = p as ToolEvent;
-        setToolEvents((prev) => [...prev, ev]);
+        setToolEvents((prev) => {
+          const key = `${ev.session_id}::${ev.tool}`;
+          if (ev.status === "running") {
+            const lastRunningIdx = [...prev].reverse().findIndex(
+              (e) => `${e.session_id}::${e.tool}` === key && e.status === "running"
+            );
+            if (lastRunningIdx >= 0) {
+              const realIdx = prev.length - 1 - lastRunningIdx;
+              const next = [...prev];
+              next[realIdx] = ev;
+              return next;
+            }
+            return [...prev, ev];
+          }
+          const lastRunningIdx = [...prev].reverse().findIndex(
+            (e) => `${e.session_id}::${e.tool}` === key && e.status === "running"
+          );
+          if (lastRunningIdx >= 0) {
+            const realIdx = prev.length - 1 - lastRunningIdx;
+            const next = [...prev];
+            next[realIdx] = ev;
+            return next;
+          }
+          return [...prev, ev];
+        });
+        // R1: without backend call_id, concurrent calls to same tool in same
+        // turn may overwrite each other.
+        if (ev.status !== "running") {
+          if (toolGcRef.current) clearTimeout(toolGcRef.current);
+          toolGcRef.current = window.setTimeout(() => {
+            setToolEvents((prev) => prev.filter((e) => e.status === "running"));
+          }, 3000);
+        }
         setMessages((prev) => {
           const existing = prev.find(
             (m) => m.toolEvent && m.toolEvent.session_id === ev.session_id && m.toolEvent.tool === ev.tool
@@ -499,6 +535,12 @@ export function useChat(): ChatState {
             toolEvent: ev,
           }];
         });
+      });
+
+      client.on("emotion_event", (p) => {
+        const ev = p as EmotionEvent;
+        console.log("[emotion] received emotion_event:", ev);
+        setEmotionEvents((prev) => [...prev, ev]);
       });
 
       // wake_word events are handled by usePTT (PCM-level detection via AudioWorklet).
@@ -936,6 +978,7 @@ export function useChat(): ChatState {
     setMessages([]);
     setArtifacts(new Map());
     setToolEvents([]);
+    setEmotionEvents([]);
     setTerminalSessions(new Map());
     setConsentRequest(null);
     setTtsPlaying(false);
@@ -972,6 +1015,7 @@ export function useChat(): ChatState {
     setMessages([]);
     setArtifacts(new Map());
     setToolEvents([]);
+    setEmotionEvents([]);
     setTerminalSessions(new Map());
     setConsentRequest(null);
     setTtsPlaying(false);
@@ -1093,6 +1137,7 @@ export function useChat(): ChatState {
     wsClient: clientRef.current,
     consentRequest,
     toolEvents,
+    emotionEvents,
     isThinking,
     isTurnActive,
     currentStep,
@@ -1128,7 +1173,7 @@ export function useChat(): ChatState {
   }), [
     status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
     ttsPlaying, ttsSegment, ttsTotal, ttsFilteredRaw, ttsFilteredOut,
-    error, systemStatus, consentRequest, toolEvents, isThinking, isTurnActive,
+    error, systemStatus, consentRequest, toolEvents, emotionEvents, isThinking, isTurnActive,
     currentStep, turnStats, stopped, downloadProgress, downloadError,
     isCreatingSession,
     terminalSessions, getTerminalSessionDetail,

@@ -3,6 +3,7 @@ import type {
   ArtifactEvent,
   ConsentRequestEvent,
   DeltaEvent,
+  EmotionEvent,
   ErrorEvent,
   JobDoneEvent,
   JobLogEvent,
@@ -61,6 +62,7 @@ export interface DebugAPI {
   simulateTurnStart: () => void;
   simulateTurnEnd: (cancelled?: boolean) => void;
   simulateStatus: (patch: Partial<StatusEvent>) => void;
+  simulateEmotion: (emotion: string) => void;
   clearAll: () => void;
   speakText: (text: string) => void;
   setAvatarState: (state: AvatarState) => void;
@@ -368,6 +370,16 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
     } as unknown as StatusEvent);
   }, []);
 
+  const simulateEmotion = useCallback((emotion: string) => {
+    if (!clientRef.current) return;
+    clientRef.current.simulate({
+      event: "emotion_event",
+      session_id: "debug",
+      emotions: [emotion],
+      final: emotion,
+    } as unknown as EmotionEvent);
+  }, []);
+
   const clearAll = useCallback(() => {
     if (!clientRef.current) return;
     clientRef.current.simulate({
@@ -431,6 +443,7 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
     simulateTurnStart,
     simulateTurnEnd,
     simulateStatus,
+    simulateEmotion,
     clearAll,
     speakText,
     setAvatarState,

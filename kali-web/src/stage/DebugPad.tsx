@@ -239,6 +239,8 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
                 <Button onClick={() => debug.setAvatarEmotion("sorprendido", forceEmotion)}>Sorprendido</Button>
                 <Button onClick={() => debug.setAvatarEmotion("ronroneando", forceEmotion)}>Ronroneando</Button>
                 <Button onClick={() => debug.setAvatarEmotion("confundido", forceEmotion)}>Confundido</Button>
+                <Button onClick={() => debug.setAvatarEmotion("concentrado", forceEmotion)}>Concentrado</Button>
+                <Button onClick={() => debug.setAvatarEmotion("esperando", forceEmotion)}>Esperando</Button>
               </div>
 
               <div className="w-full flex flex-wrap items-center gap-1">
@@ -258,6 +260,13 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
                   Reset total
                 </Button>
               </div>
+            </Section>
+
+            <Section title="Emociones LLM" forceOpen={allExpanded}>
+              <Button onClick={() => debug.simulateEmotion("feliz")}>Feliz</Button>
+              <Button onClick={() => debug.simulateEmotion("enojado")}>Enojado</Button>
+              <Button onClick={() => debug.simulateEmotion("sorprendido")}>Sorprendido</Button>
+              <Button onClick={() => debug.simulateEmotion("confundido")}>Confundido</Button>
             </Section>
 
             <Section title="Jobs" forceOpen={allExpanded}>

@@ -63,6 +63,7 @@ EventTypeOut = Literal[
     "command_end",
     "terminal_session_end",
     "terminal_session_list",
+    "emotion_event",
 ]
 
 

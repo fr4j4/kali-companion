@@ -3084,6 +3084,14 @@ class Connection:
                         "completion_tokens": event.completion_tokens,
                         "reasoning_tokens": event.reasoning_tokens,
                     }
+                elif event.kind == "emotion":
+                    logger.info("[emotion] sending emotion_event: %s", event.emotions)
+                    await self.send({
+                        "event": "emotion_event",
+                        "session_id": session_id,
+                        "emotions": event.emotions,
+                        "final": event.emotions[-1] if event.emotions else None,
+                    })
                 elif event.kind == "done":
                     break
         except asyncio.CancelledError:

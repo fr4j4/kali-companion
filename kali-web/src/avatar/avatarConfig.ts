@@ -28,7 +28,9 @@ export type AvatarEmotion =
   | "sorprendido"
   | "ronroneando"
   | "feliz"
-  | "confundido";
+  | "confundido"
+  | "concentrado"
+  | "esperando";
 
 /** Full avatar configuration (persistable). */
 export interface AvatarConfig {

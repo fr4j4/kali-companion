@@ -319,6 +319,13 @@ export interface ToolEvent {
   output: unknown;
 }
 
+export interface EmotionEvent {
+  event: "emotion_event";
+  session_id: string;
+  emotions: string[];
+  final: string | null;
+}
+
 export interface ConsentRequestEvent {
   event: "consent_request";
   id: string;
@@ -916,4 +923,5 @@ export type OutgoingEvent =
   | CommandOutputEvent
   | CommandEndEvent
   | TerminalSessionEndEvent
-  | TerminalSessionListEvent;
+  | TerminalSessionListEvent
+  | EmotionEvent;

@@ -18,7 +18,7 @@
  * re-renders — the SVG markup never changes after initial mount.
  */
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AvatarState, AvatarEmotion, AvatarConfig } from "./avatarConfig";
 import { ALL_PATTERNS } from "./avatarPresets";
@@ -487,6 +487,20 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
     }
   }, [typing]);
 
+  const [ariaMessage, setAriaMessage] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const stateLabels: Record<AvatarState, string> = {
+        idle: "Inactivo",
+        escuchando: "Escuchando",
+        pensando: "Pensando",
+        hablando: "Hablando",
+      };
+      setAriaMessage(stateLabels[state] ?? "");
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [state]);
+
   return (
     <div
       ref={containerRef}
@@ -495,6 +509,8 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
       style={{ cursor: "pointer", userSelect: "none" }}
       aria-label={t("avatar.aria_label")}
       role="img"
-    />
+    >
+      <span aria-live="polite" className="sr-only">{ariaMessage}</span>
+    </div>
   );
 }
