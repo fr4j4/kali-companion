@@ -330,7 +330,7 @@ export function NeuralCanvas({
           <div className="relative flex items-center justify-center" style={{
             width: avPx,
             height: avPx,
-            transform: typing ? "translateY(-20vh)" : "translateY(0)",
+            transform: typing ? "translateY(-35vh)" : "translateY(-18vh)",
             transition: "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
           }}>
           <div className="absolute rounded-full border border-accent/10 transition-all duration-500" style={{
@@ -709,16 +709,13 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
 
   // Throttle the visible text during streaming to one update per frame.
   // During streaming, `text` changes every rAF flush (from useChat's
-  // batcher), which is already ~60fps. But marked.parse on every frame
-  // is still expensive. Instead:
-  //   - Streaming: render escaped raw text (no marked), updated per frame.
-  //   - Not streaming: parse markdown once via useMemo.
+  // batcher), which is already ~60fps. We parse markdown on each update
+  // — marked is fast enough for typical response lengths at 60fps.
   const [streamingText, setStreamingText] = useState("");
   const streamingRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isStreaming) {
-      // Ensure any pending rAF is cancelled when streaming stops.
       if (streamingRafRef.current !== null) {
         cancelAnimationFrame(streamingRafRef.current);
         streamingRafRef.current = null;
@@ -726,7 +723,6 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
       setStreamingText("");
       return;
     }
-    // Schedule a single rAF to update the visible streaming text.
     if (streamingRafRef.current === null) {
       streamingRafRef.current = requestAnimationFrame(() => {
         streamingRafRef.current = null;
@@ -741,25 +737,21 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     };
   }, [text, isStreaming]);
 
-  // Parse markdown only when NOT streaming (final render).
-  const html = useMemo(() => {
-    if (isStreaming || !text) return null;
-    try {
-      return marked.parse(text, { async: false }) as string;
-    } catch {
-      return `<p>${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
-    }
-  }, [text, isStreaming]);
+  // Parse markdown — runs on final text when not streaming, or on
+  // throttled streaming text during active streaming.
+  const displayText = isStreaming ? streamingText : text;
 
-  // Escaped raw text for streaming display (no markdown, just safe text).
-  const escapedStreaming = useMemo(() => {
-    if (!streamingText) return "";
-    return streamingText
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\n/g, "<br/>");
-  }, [streamingText]);
+  const html = useMemo(() => {
+    if (!displayText) return null;
+    try {
+      // Collapse 3+ consecutive newlines into 2 to avoid excessive
+      // paragraph breaks when the LLM sends heavily-spaced output.
+      const normalized = displayText.replace(/\n{3,}/g, "\n\n");
+      return marked.parse(normalized, { async: false }) as string;
+    } catch {
+      return `<p>${displayText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
+    }
+  }, [displayText]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -767,7 +759,7 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     if (atBottom) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [html, isStreaming, escapedStreaming, atBottom]);
+  }, [html, atBottom]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -797,16 +789,9 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
         >
           {html && (
             <div
-              className="leading-relaxed text-sm"
-              style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          )}
-          {isStreaming && escapedStreaming && (
-            <div
               className="leading-relaxed text-sm whitespace-pre-wrap"
               style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
-              dangerouslySetInnerHTML={{ __html: escapedStreaming }}
+              dangerouslySetInnerHTML={{ __html: html }}
             />
           )}
           {isStreaming && (
