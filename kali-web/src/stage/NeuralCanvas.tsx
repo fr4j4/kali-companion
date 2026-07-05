@@ -94,6 +94,7 @@ export function NeuralCanvas({
   const [mobileSwitcherOpen, setMobileSwitcherOpen] = useState(false);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => loadAvatarConfig());
   const reasoningWindowIdRef = useRef<number | null>(null);
+  const terminalWindowIdRef = useRef<number | null>(null);
 
   // Click override — petting the avatar → brief "ronroneando"
   const [overrideEmotion, setOverrideEmotion] = useState<{ emotion: AvatarEmotion; until: number } | null>(null);
@@ -216,6 +217,7 @@ export function NeuralCanvas({
       prevSessionRef.current = chat.sessionId;
       api.resetWorkspace();
       processedRef.current.clear();
+      terminalWindowIdRef.current = null;
     }
   }, [chat.sessionId, api]);
 
@@ -248,6 +250,26 @@ export function NeuralCanvas({
       syncArtifactRef.current(event);
     }
   }, [chat.artifacts]);
+
+  // Auto-open a terminal window when terminal sessions exist and no
+  // terminal window is currently open. Follows the same pattern as the
+  // reasoning window (non-artifact window, tracked by ref).
+  useEffect(() => {
+    const hasTerminalSessions = chat.terminalSessions && chat.terminalSessions.size > 0;
+    if (!hasTerminalSessions) return;
+    const existing = terminalWindowIdRef.current !== null
+      ? api.windows.find(w => w.id === terminalWindowIdRef.current && !w.closed)
+      : null;
+    if (!existing) {
+      const id = api.createWindow("terminal", {
+        title: t("terminal.title"),
+        icon: "🖥️",
+        width: 520,
+        height: 400,
+      });
+      terminalWindowIdRef.current = id;
+    }
+  }, [chat.terminalSessions, api, t]);
 
   // Register a provider so useChat.send can include selected artifact
   // metadata (id, type, title) with each input event. The workspace owns
