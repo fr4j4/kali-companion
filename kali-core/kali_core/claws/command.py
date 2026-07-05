@@ -42,9 +42,9 @@ class RunCommandTool:
             "terminal_session_id": {
                 "type": "string",
                 "description": (
-                    "ID of a terminal session (from create_terminal_session) "
-                    "to group this command under. If omitted, an 'Untitled' "
-                    "session is created automatically."
+                    "ID from create_terminal_session to group this command. "
+                    "If omitted, commands are grouped in a shared 'Untitled' "
+                    "session. Always pass this when running 2+ commands."
                 ),
             },
         },
@@ -65,10 +65,10 @@ class RunCommandTool:
         store = ctx.session_store
         if store is not None and not terminal_session_id:
             try:
-                ts = await store.create_terminal_session(ctx.session_id, "Untitled")
+                ts = await store.get_or_create_active_untitled_session(ctx.session_id)
                 terminal_session_id = ts["id"]
             except Exception:
-                logger.warning("Failed to auto-create terminal session", exc_info=True)
+                logger.warning("Failed to get/create terminal session", exc_info=True)
 
         call_id = ctx.call_id or f"cmd_{id(self)}"
 

@@ -522,6 +522,31 @@ class SessionStore:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
 
+    async def get_or_create_active_untitled_session(
+        self, chat_session_id: str
+    ) -> dict:
+        """Find an existing active 'Untitled' session, or create a new one.
+
+        This ensures multiple run_command calls without an explicit
+        terminal_session_id are grouped into a single session per turn
+        (the turn's session is closed at turn_end, so the next turn
+        gets a fresh one).
+        """
+        await self._ensure_db()
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """SELECT * FROM terminal_sessions
+                   WHERE chat_session_id = ? AND status = 'active'
+                         AND display_name = 'Untitled'
+                   ORDER BY created DESC LIMIT 1""",
+                (chat_session_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+        return await self.create_terminal_session(chat_session_id, "Untitled")
+
     async def add_terminal_command(
         self,
         terminal_session_id: str,

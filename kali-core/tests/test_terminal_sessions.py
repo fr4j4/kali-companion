@@ -140,3 +140,36 @@ async def test_delete_session_cleans_terminal_tables(store: SessionStore) -> Non
     assert sessions == []
     full = await store.get_terminal_session_full(ts["id"])
     assert full is None
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_active_untitled_creates_new(store: SessionStore) -> None:
+    """When no active Untitled session exists, a new one is created."""
+    chat = await store.create_session()
+    ts = await store.get_or_create_active_untitled_session(chat["id"])
+    assert ts["display_name"] == "Untitled"
+    assert ts["status"] == "active"
+    assert ts["chat_session_id"] == chat["id"]
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_active_untitled_reuses_existing(store: SessionStore) -> None:
+    """When an active Untitled session exists, it is reused (not duplicated)."""
+    chat = await store.create_session()
+    ts1 = await store.get_or_create_active_untitled_session(chat["id"])
+    ts2 = await store.get_or_create_active_untitled_session(chat["id"])
+    assert ts1["id"] == ts2["id"]
+    sessions = await store.list_terminal_sessions(chat["id"])
+    assert len(sessions) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_active_untitled_after_close(store: SessionStore) -> None:
+    """After closing the active session, a new one is created on next call."""
+    chat = await store.create_session()
+    ts1 = await store.get_or_create_active_untitled_session(chat["id"])
+    await store.close_terminal_sessions_for_chat(chat["id"])
+    ts2 = await store.get_or_create_active_untitled_session(chat["id"])
+    assert ts1["id"] != ts2["id"]
+    sessions = await store.list_terminal_sessions(chat["id"])
+    assert len(sessions) == 2
