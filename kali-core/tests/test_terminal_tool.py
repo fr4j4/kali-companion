@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 import pytest_asyncio
 
 from kali_core.claws.base import ToolContext
+from kali_core.claws.command import RunCommandTool
 from kali_core.claws.terminal_session import CreateTerminalSessionTool
 from kali_core.nest.store import SessionStore
 
@@ -51,3 +53,163 @@ async def test_create_terminal_session_tool_missing_name(store: SessionStore) ->
     result = await tool.run({}, ctx)
     assert result.error is not None
     assert "display_name" in result.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_run_command_streams_output_lines() -> None:
+    """RunCommandTool emits command_start, command_output per line, command_end."""
+    tool = RunCommandTool()
+    emitted: list[dict] = []
+
+    async def fake_emit(payload: dict) -> None:
+        emitted.append(payload)
+
+    ctx = ToolContext(
+        session_id="test_session",
+        working_dir=".",
+        profile="dev",
+        emit=fake_emit,
+        call_id="cmd_test01",
+    )
+    result = await tool.run(
+        {"command": "echo line1\\necho line2", "timeout": 5},
+        ctx,
+    )
+    assert result.error is None
+    assert result.output["exit_code"] == 0
+
+    event_types = [e["event"] for e in emitted]
+    assert "command_start" in event_types
+    assert "command_end" in event_types
+
+    start_ev = next(e for e in emitted if e["event"] == "command_start")
+    assert start_ev["call_id"] == "cmd_test01"
+    assert start_ev["command"] == "echo line1\\necho line2"
+
+    end_ev = next(e for e in emitted if e["event"] == "command_end")
+    assert end_ev["call_id"] == "cmd_test01"
+    assert end_ev["exit_code"] == 0
+    assert end_ev["status"] == "done"
+
+    output_evs = [e for e in emitted if e["event"] == "command_output"]
+    all_text = " ".join(e["line"] for e in output_evs)
+    assert "line1" in all_text
+    assert "line2" in all_text
+
+
+@pytest.mark.asyncio
+async def test_run_command_emits_on_error() -> None:
+    """command_end is emitted with status=error on non-zero exit."""
+    tool = RunCommandTool()
+    emitted: list[dict] = []
+
+    async def fake_emit(payload: dict) -> None:
+        emitted.append(payload)
+
+    ctx = ToolContext(
+        session_id="test_session",
+        working_dir=".",
+        profile="dev",
+        emit=fake_emit,
+        call_id="cmd_test02",
+    )
+    result = await tool.run(
+        {"command": "exit 1", "timeout": 5},
+        ctx,
+    )
+    assert result.output["exit_code"] == 1
+    end_ev = next(e for e in emitted if e["event"] == "command_end")
+    assert end_ev["status"] == "error"
+    assert end_ev["exit_code"] == 1
+
+
+@pytest.mark.asyncio
+async def test_run_command_persists_to_store(store: SessionStore) -> None:
+    """Command and output are persisted to SQLite when session_store is available."""
+    chat = await store.create_session()
+    ts = await store.create_terminal_session(chat["id"], "Test")
+
+    tool = RunCommandTool()
+    emitted: list[dict] = []
+
+    async def fake_emit(payload: dict) -> None:
+        emitted.append(payload)
+
+    ctx = ToolContext(
+        session_id=chat["id"],
+        working_dir=".",
+        profile="dev",
+        emit=fake_emit,
+        call_id="cmd_persist01",
+        session_store=store,
+    )
+    result = await tool.run(
+        {"command": "echo hello", "timeout": 5, "terminal_session_id": ts["id"]},
+        ctx,
+    )
+    assert result.error is None
+
+    full = await store.get_terminal_session_full(ts["id"])
+    assert len(full["commands"]) == 1
+    cmd = full["commands"][0]
+    assert cmd["command"] == "echo hello"
+    assert cmd["status"] == "done"
+    assert cmd["exit_code"] == 0
+    assert len(cmd["output_lines"]) >= 1
+    assert any("hello" in line[1] for line in cmd["output_lines"])
+
+
+@pytest.mark.asyncio
+async def test_run_command_auto_creates_session(store: SessionStore) -> None:
+    """When terminal_session_id is not provided, a session is auto-created."""
+    chat = await store.create_session()
+
+    tool = RunCommandTool()
+    ctx = ToolContext(
+        session_id=chat["id"],
+        working_dir=".",
+        profile="dev",
+        call_id="cmd_auto01",
+        session_store=store,
+    )
+    result = await tool.run(
+        {"command": "echo test", "timeout": 5},
+        ctx,
+    )
+    assert result.error is None
+    sessions = await store.list_terminal_sessions(chat["id"])
+    assert len(sessions) == 1
+    full = await store.get_terminal_session_full(sessions[0]["id"])
+    assert len(full["commands"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_command_cancellation_kills_proc() -> None:
+    """When cancelled, the subprocess is killed and command_end with status=cancelled is emitted."""
+    import asyncio
+
+    tool = RunCommandTool()
+    emitted: list[dict] = []
+
+    async def fake_emit(payload: dict) -> None:
+        emitted.append(payload)
+
+    ctx = ToolContext(
+        session_id="test_session",
+        working_dir=".",
+        profile="dev",
+        emit=fake_emit,
+        call_id="cmd_cancel01",
+    )
+
+    task = asyncio.create_task(
+        tool.run({"command": "sleep 30", "timeout": 60}, ctx)
+    )
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+    end_ev = next((e for e in emitted if e["event"] == "command_end"), None)
+    assert end_ev is not None
+    assert end_ev["status"] == "cancelled"
