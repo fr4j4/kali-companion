@@ -44,6 +44,7 @@ class ToolContext:
     console_requester: Any = None  # ConsoleRequester for agent→frontend log requests
     emit: Any = None  # emit_callback for sending WS events directly
     language: str = "en"  # user's language code (e.g. "es", "en")
+    call_id: str = ""  # unique id for this tool call (e.g. "cmd_<hex>")
 
 
 @runtime_checkable

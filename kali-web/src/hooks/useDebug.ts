@@ -318,6 +318,7 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
     clientRef.current.simulate({
       event: "consent_request",
       id: nextId(),
+      session_id: "debug",
       tool,
       risk,
       reason_key: "debug_consent",

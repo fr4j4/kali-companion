@@ -16,6 +16,7 @@ interface Props {
   variant?: OverlayVariant;
   size?: "sm" | "md" | "lg" | "xl";
   bare?: boolean;
+  compact?: boolean;
   showHandle?: boolean;
   panelClassName?: string;
 }
@@ -59,6 +60,7 @@ export function Overlay({
   variant = "modal",
   size = "md",
   bare = false,
+  compact = false,
   showHandle = false,
   panelClassName,
 }: Props) {
@@ -112,8 +114,12 @@ export function Overlay({
 
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
+  const modalPanelClasses = compact
+    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
+    : `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`;
+
   const panelClasses = isModal
-    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`
+    ? modalPanelClasses
     : effectiveVariant === "sheet-bottom"
       ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] h-auto overflow-auto scrollbar-thin"
       : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-auto max-h-[85vh] overflow-auto scrollbar-thin ${
@@ -181,7 +187,15 @@ export function Overlay({
                   </button>
                 </div>
               )}
-              <div className={bare ? "flex-1 overflow-hidden min-h-0" : "flex-1 overflow-y-auto p-5 scrollbar-thin"}>
+              <div
+                className={
+                  bare
+                    ? "flex-1 overflow-hidden min-h-0"
+                    : compact
+                      ? "overflow-y-auto p-5 scrollbar-thin max-h-[60vh]"
+                      : "flex-1 overflow-y-auto p-5 scrollbar-thin"
+                }
+              >
                 {children}
               </div>
             </div>

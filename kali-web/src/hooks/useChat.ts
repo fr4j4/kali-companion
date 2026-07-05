@@ -22,6 +22,7 @@ import type {
   StatusEvent,
   ErrorEvent,
   ConsentRequestEvent,
+  ConsentDecision,
   ToolEvent,
   JobStartEvent,
   JobProgressEvent,
@@ -41,6 +42,12 @@ import type {
   DownloadSttModelProgressEvent,
   DownloadSttModelCompleteEvent,
   DownloadSttModelErrorEvent,
+  TerminalSessionStartEvent,
+  CommandStartEvent,
+  CommandOutputEvent,
+  CommandEndEvent,
+  TerminalSessionEndEvent,
+  TerminalSessionListEvent,
 } from "../lib/protocol";
 
 export interface ChatMessage {
@@ -72,6 +79,34 @@ export interface JobItem {
   logs?: string[];
 }
 
+export interface TerminalOutputLine {
+  stream: "stdout" | "stderr";
+  text: string;
+  seq: number;
+}
+
+export interface TerminalCommandEntry {
+  call_id: string;
+  command: string;
+  cwd: string;
+  exit_code: number | null;
+  status: "running" | "done" | "error" | "timeout" | "cancelled";
+  started: string;
+  finished: string | null;
+  lines: TerminalOutputLine[];
+  loaded: boolean;
+}
+
+export interface TerminalSessionData {
+  id: string;
+  display_name: string;
+  status: "active" | "completed";
+  created: string;
+  commands: Map<string, TerminalCommandEntry>;
+  commandOrder: string[];
+  detailLoaded: boolean;
+}
+
 export type ConnStatus = "connecting" | "ready" | "error" | "disconnected";
 
 export interface ChatState {
@@ -98,6 +133,8 @@ export interface ChatState {
   turnStats: TurnStatsEvent | null;
   /** True while the user explicitly requested a new session and we are waiting for the backend to assign an id. */
   isCreatingSession: boolean;
+  terminalSessions: Map<string, TerminalSessionData>;
+  getTerminalSessionDetail: (terminalSessionId: string) => void;
   send: (text: string) => void;
   sendEvent: (event: IncomingEvent) => void;
   setSelectedArtifactsProvider: (fn: (() => SelectedArtifactRef[]) | null) => void;
@@ -109,7 +146,7 @@ export interface ChatState {
   deleteSession: (sid: string) => void;
   clearAllSessions: () => void;
   updateSettings: (patch: Record<string, unknown>) => void;
-  respondConsent: (id: string, decision: "allow" | "no_capture" | "cancel") => void;
+  respondConsent: (id: string, decision: ConsentDecision) => void;
   subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void;
   onTtsEnded: (fn: () => void) => () => void;
   listJobs: () => void;
@@ -180,6 +217,11 @@ export function useChat(): ChatState {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
+  const [terminalSessions, setTerminalSessions] = useState<Map<string, TerminalSessionData>>(new Map());
+
+  const cmdOutputBufferRef = useRef<Map<string, TerminalOutputLine[]>>(new Map());
+  const cmdOutputRafRef = useRef<number | null>(null);
+
   const clientRef = useRef<WSClient | null>(null);
   const ttsListeners = useRef<Array<(e: TtsAudioEvent) => void>>([]);
   const ttsEndedListeners = useRef<Array<() => void>>([]);
@@ -243,6 +285,36 @@ export function useChat(): ChatState {
     if (deltaRafRef.current !== null) return;
     deltaRafRef.current = requestAnimationFrame(flushDeltas);
   }, [flushDeltas]);
+
+  const flushCommandOutput = useCallback(() => {
+    cmdOutputRafRef.current = null;
+    const buffer = cmdOutputBufferRef.current;
+    if (buffer.size === 0) return;
+    const entries = Array.from(buffer.entries());
+    buffer.clear();
+
+    setTerminalSessions((prev) => {
+      const next = new Map(prev);
+      for (const [callId, newLines] of entries) {
+        for (const [, sess] of next) {
+          const cmd = sess.commands.get(callId);
+          if (cmd) {
+            sess.commands.set(callId, {
+              ...cmd,
+              lines: [...cmd.lines, ...newLines],
+            });
+            break;
+          }
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const scheduleCommandOutputFlush = useCallback(() => {
+    if (cmdOutputRafRef.current !== null) return;
+    cmdOutputRafRef.current = requestAnimationFrame(flushCommandOutput);
+  }, [flushCommandOutput]);
 
   useEffect(() => {
     let client: WSClient | null = null;
@@ -432,6 +504,155 @@ export function useChat(): ChatState {
       // wake_word events are handled by usePTT (PCM-level detection via AudioWorklet).
       // useChat ignores them — no need to subscribe here.
       client.on("wake_word", () => {});
+
+      // ── Terminal session events ──────────────────────────
+
+      client.on("terminal_session_start", (p) => {
+        const ev = p as TerminalSessionStartEvent;
+        setTerminalSessions((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(ev.terminal_session_id);
+          if (existing && ev.commands) {
+            const cmdMap = new Map<string, TerminalCommandEntry>();
+            const order: string[] = [];
+            for (const c of ev.commands) {
+              cmdMap.set(c.call_id, {
+                call_id: c.call_id,
+                command: c.command,
+                cwd: c.cwd,
+                exit_code: c.exit_code,
+                status: c.status,
+                started: c.started,
+                finished: c.finished,
+                lines: c.output_lines.map(([stream, text, seq]) => ({ stream: stream as "stdout" | "stderr", text, seq })),
+                loaded: true,
+              });
+              order.push(c.call_id);
+            }
+            next.set(ev.terminal_session_id, {
+              ...existing,
+              commands: cmdMap,
+              commandOrder: order,
+              detailLoaded: true,
+            });
+          } else if (!existing) {
+            next.set(ev.terminal_session_id, {
+              id: ev.terminal_session_id,
+              display_name: ev.display_name,
+              status: ev.status as "active" | "completed",
+              created: new Date().toISOString(),
+              commands: new Map(),
+              commandOrder: [],
+              detailLoaded: !!ev.commands,
+            });
+          }
+          return next;
+        });
+      });
+
+      client.on("command_start", (p) => {
+        const ev = p as CommandStartEvent;
+        setTerminalSessions((prev) => {
+          const next = new Map(prev);
+          let sess = next.get(ev.terminal_session_id);
+          if (!sess) {
+            sess = {
+              id: ev.terminal_session_id,
+              display_name: "Session",
+              status: "active",
+              created: new Date().toISOString(),
+              commands: new Map(),
+              commandOrder: [],
+              detailLoaded: false,
+            };
+            next.set(ev.terminal_session_id, sess);
+          }
+          if (!sess.commands.has(ev.call_id)) {
+            sess.commands.set(ev.call_id, {
+              call_id: ev.call_id,
+              command: ev.command,
+              cwd: ev.cwd,
+              exit_code: null,
+              status: "running",
+              started: new Date().toISOString(),
+              finished: null,
+              lines: [],
+              loaded: false,
+            });
+            sess.commandOrder.push(ev.call_id);
+          }
+          return next;
+        });
+      });
+
+      client.on("command_output", (p) => {
+        const ev = p as CommandOutputEvent;
+        const line: TerminalOutputLine = { stream: ev.stream, text: ev.line, seq: Date.now() };
+        const buffer = cmdOutputBufferRef.current;
+        const existing = buffer.get(ev.call_id);
+        if (existing) {
+          existing.push(line);
+        } else {
+          buffer.set(ev.call_id, [line]);
+        }
+        scheduleCommandOutputFlush();
+      });
+
+      client.on("command_end", (p) => {
+        const ev = p as CommandEndEvent;
+        if (cmdOutputRafRef.current !== null) {
+          cancelAnimationFrame(cmdOutputRafRef.current);
+          cmdOutputRafRef.current = null;
+        }
+        flushCommandOutput();
+        setTerminalSessions((prev) => {
+          const next = new Map(prev);
+          for (const [, sess] of next) {
+            const cmd = sess.commands.get(ev.call_id);
+            if (cmd) {
+              sess.commands.set(ev.call_id, {
+                ...cmd,
+                exit_code: ev.exit_code,
+                status: ev.status,
+                finished: new Date().toISOString(),
+              });
+              break;
+            }
+          }
+          return next;
+        });
+      });
+
+      client.on("terminal_session_end", (p) => {
+        const ev = p as TerminalSessionEndEvent;
+        setTerminalSessions((prev) => {
+          const next = new Map(prev);
+          const sess = next.get(ev.terminal_session_id);
+          if (sess) {
+            next.set(ev.terminal_session_id, { ...sess, status: "completed" });
+          }
+          return next;
+        });
+      });
+
+      client.on("terminal_session_list", (p) => {
+        const ev = p as TerminalSessionListEvent;
+        setTerminalSessions(() => {
+          const next = new Map<string, TerminalSessionData>();
+          for (const s of ev.sessions) {
+            next.set(s.id, {
+              id: s.id,
+              display_name: s.display_name,
+              status: s.status as "active" | "completed",
+              created: s.created,
+              commands: new Map(),
+              commandOrder: [],
+              detailLoaded: false,
+            });
+          }
+          return next;
+        });
+      });
 
       client.on("artifact", (p) => {
         const ev = p as ArtifactEvent;
@@ -662,6 +883,10 @@ export function useChat(): ChatState {
         cancelAnimationFrame(deltaRafRef.current);
         deltaRafRef.current = null;
       }
+      if (cmdOutputRafRef.current !== null) {
+        cancelAnimationFrame(cmdOutputRafRef.current);
+        cmdOutputRafRef.current = null;
+      }
     };
   }, []);
 
@@ -711,6 +936,7 @@ export function useChat(): ChatState {
     setMessages([]);
     setArtifacts(new Map());
     setToolEvents([]);
+    setTerminalSessions(new Map());
     setConsentRequest(null);
     setTtsPlaying(false);
     setTtsSegment(0);
@@ -746,6 +972,7 @@ export function useChat(): ChatState {
     setMessages([]);
     setArtifacts(new Map());
     setToolEvents([]);
+    setTerminalSessions(new Map());
     setConsentRequest(null);
     setTtsPlaying(false);
     setTtsSegment(0);
@@ -769,7 +996,7 @@ export function useChat(): ChatState {
     clientRef.current?.send({ event: "settings", ...patch });
   }, []);
 
-  const respondConsent = useCallback((id: string, decision: "allow" | "no_capture" | "cancel") => {
+  const respondConsent = useCallback((id: string, decision: ConsentDecision) => {
     clientRef.current?.send({ event: "consent_response", id, decision });
     setConsentRequest(null);
   }, []);
@@ -798,6 +1025,10 @@ export function useChat(): ChatState {
   const downloadSttModel = useCallback((modelId: string, provider?: "vosk" | "qwen3-asr") => {
     setDownloadError(null);
     clientRef.current?.send({ event: "download_stt_model", model_id: modelId, provider });
+  }, []);
+
+  const getTerminalSessionDetail = useCallback((terminalSessionId: string) => {
+    clientRef.current?.send({ event: "get_terminal_session", terminal_session_id: terminalSessionId });
   }, []);
 
   /** Release the full content of an artifact, keeping only metadata + preview. */
@@ -891,6 +1122,8 @@ export function useChat(): ChatState {
     markArtifactClosed,
     setArtifactContent,
     registerConsoleProvider,
+    terminalSessions,
+    getTerminalSessionDetail,
     isCreatingSession,
   }), [
     status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
@@ -898,6 +1131,7 @@ export function useChat(): ChatState {
     error, systemStatus, consentRequest, toolEvents, isThinking, isTurnActive,
     currentStep, turnStats, stopped, downloadProgress, downloadError,
     isCreatingSession,
+    terminalSessions, getTerminalSessionDetail,
     send, sendEvent, setSelectedArtifactsProvider, stop, newSession,
     listSessions, attachSession, deleteSession, clearAllSessions, updateSettings,
     respondConsent, subscribeTts, onTtsEnded, listJobs, cancelJob, getJobLogs,

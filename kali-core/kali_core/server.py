@@ -65,6 +65,7 @@ from kali_core.claws.organize import OrganizeFolderTool
 from kali_core.claws.screenshot import ScreenshotTool
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
 from kali_core.claws.games import GameStartTool, GameActionTool, GameEndTool
+from kali_core.claws.terminal_session import CreateTerminalSessionTool
 from kali_core.claws.tests import RunTestsTool
 from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
@@ -340,6 +341,7 @@ def _register_tools() -> None:
     register(FsReadTool())
     register(FsListTool())
     register(RunCommandTool())
+    register(CreateTerminalSessionTool())
     register(WebSearchTool())
     register(WebFetchTool())
     # Phase 2 tools.
@@ -1769,6 +1771,17 @@ class Connection:
                         "language": art.get("language", ""),
                         "update": "create",
                     })
+                # Replay terminal sessions (metadata only — detail loaded on demand).
+                try:
+                    ts_list = await self.server.session_store.list_terminal_sessions(sid)
+                    if ts_list:
+                        await self.send({
+                            "event": "terminal_session_list",
+                            "session_id": sid,
+                            "sessions": ts_list,
+                        })
+                except Exception:
+                    logger.warning("Failed to replay terminal sessions", exc_info=True)
             else:
                 await self.send({"event": "connected", "session_id": ""})
 
@@ -1786,6 +1799,32 @@ class Connection:
         elif kind == "clear_all_sessions":
             await self.server.session_store.delete_all_sessions()
             await self.send({"event": "session_list", "sessions": []})
+
+        elif kind == "get_terminal_session":
+            ts_id = event.get("terminal_session_id", "")
+            if ts_id:
+                full = await self.server.session_store.get_terminal_session_full(ts_id)
+                if full:
+                    await self.send({
+                        "event": "terminal_session_start",
+                        "session_id": self.session_id,
+                        "terminal_session_id": full["id"],
+                        "display_name": full["display_name"],
+                        "status": full["status"],
+                        "commands": [
+                            {
+                                "call_id": c["id"],
+                                "command": c["command"],
+                                "cwd": c["cwd"],
+                                "exit_code": c["exit_code"],
+                                "status": c["status"],
+                                "started": c["started"],
+                                "finished": c["finished"],
+                                "output_lines": c["output_lines"],
+                            }
+                            for c in full.get("commands", [])
+                        ],
+                    })
 
         elif kind == "settings":
             await self._apply_settings(event)
@@ -1862,7 +1901,9 @@ class Connection:
         elif kind == "consent_response":
             # Resolve a pending consent request.
             request_id = event.get("id", "")
-            decision = event.get("decision", "cancel")
+            decision = event.get("decision", "deny")
+            if decision not in ("allow", "allow_session", "deny"):
+                decision = "deny"
             self.server.consent.respond(request_id, decision)
 
         elif kind == "console_response":
@@ -3048,6 +3089,18 @@ class Connection:
         except asyncio.CancelledError:
             elapsed = time.monotonic() - turn_start_ts
             logger.info("[turn] cancelled (%s) after %.1fs", session_id[:8], elapsed)
+            try:
+                closed_ts_ids = (
+                    await self.server.session_store.close_terminal_sessions_for_chat(session_id)
+                )
+                for ts_id in closed_ts_ids:
+                    await self.send({
+                        "event": "terminal_session_end",
+                        "session_id": session_id,
+                        "terminal_session_id": ts_id,
+                    })
+            except Exception:
+                logger.warning("Failed to close terminal sessions on cancel", exc_info=True)
             await self.send({"event": "turn_end", "session_id": session_id, "cancelled": True})
             return
         except Exception as exc:
@@ -3090,6 +3143,20 @@ class Connection:
         if title_changed:
             sessions = await session_store.list_sessions()
             await self.send({"event": "session_list", "sessions": sessions})
+
+        # Auto-close any active terminal sessions for this chat session.
+        try:
+            closed_ts_ids = (
+                await self.server.session_store.close_terminal_sessions_for_chat(session_id)
+            )
+            for ts_id in closed_ts_ids:
+                await self.send({
+                    "event": "terminal_session_end",
+                    "session_id": session_id,
+                    "terminal_session_id": ts_id,
+                })
+        except Exception:
+            logger.warning("Failed to close terminal sessions for turn end", exc_info=True)
 
         await self.send({"event": "turn_end", "session_id": session_id})
 

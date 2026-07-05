@@ -435,6 +435,18 @@ async def test_gateway_screenshot_reason_empty():
     assert decision.reason_params["reason"] == ""
 
 
+async def test_gateway_screenshot_always_needs_consent():
+    """Screenshot always needs consent, even when whitelisted by the profile."""
+    from kali_core.collar.gateway import PermissionGateway
+
+    gw = PermissionGateway()
+    # 'dev' and 'gaming' whitelist screenshot, but it should still require consent.
+    for profile in ("dev", "gaming", "general", "files"):
+        decision = gw.check("screenshot", "sensitive", {"reason": "x"}, profile)
+        assert decision.needs_consent, f"screenshot should require consent in '{profile}'"
+        assert not decision.allow, f"screenshot should not auto-allow in '{profile}'"
+
+
 async def test_gateway_list_monitors_needs_consent():
     """list_monitors is whitelisted in 'general' profile → no consent."""
     from kali_core.collar.gateway import PermissionGateway
