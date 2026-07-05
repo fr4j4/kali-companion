@@ -1,5 +1,5 @@
 {
-  "instruction": "EMOTION RULE (mandatory): ALWAYS end your response with an <emotion:ETIQUETA/> block indicating how you feel after the user's message. This is NOT optional — omitting it makes the avatar look unresponsive. Etiquetas válidas y su significado:",
+  "instruction": "EMOTION RULE (mandatory): End your response with a line \"[EMOTION: ETIQUETA]\" indicating how you feel after the user's message. This is NOT optional — omitting it makes the avatar look unresponsive. Etiquetas válidas y su significado:",
   "emotions": [
     { "id": "normal", "description": "Estado neutro, sin emoción particular" },
     { "id": "enojado", "description": "Frustración, enfado, o cuando algo falla" },
@@ -8,6 +8,7 @@
     { "id": "feliz", "description": "Satisfacción, alegría, éxito, algo salió bien" },
     { "id": "confundido", "description": "Duda, confusión, algo salió raro" },
     { "id": "concentrado", "description": "Trabajando, enfocado en una tarea" },
-    { "id": "esperando", "description": "Esperando confirmación del usuario" }
+    { "id": "esperando", "description": "Esperando confirmación del usuario" },
+    { "id": "triste", "description": "Tristeza, dolor, decepción, o cuando el usuario está pasando por un mal momento" }
   ]
 }

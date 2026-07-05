@@ -1366,6 +1366,25 @@
 #avatar-svg[data-mood="esperando"] .eyelid-left,
 #avatar-svg[data-mood="esperando"] .eyelid-right { transform: scaleY(0.9); animation: none; }
 
+/* Triste — sadness, pain, disappointment. Mouth inverted (smile → frown),
+   ears drooping, eyes half-closed, slow heavy breathing, slight head tilt.
+   Uses scaleY(-1) on .mouth-closed as a compromise (see AVATAR_EMOTIONS_PLAN
+   Gap 2); if visual quality is poor, add a dedicated .mouth-sad path. */
+@keyframes avatarSadBreath { 0%, 100% { transform: scale(0.998) translateY(1px); } 50% { transform: scale(1) translateY(0); } }
+#avatar-svg[data-mood="triste"] .angry-eyelid { display: none; }
+#avatar-svg[data-mood="triste"] .mouth-closed { display: block; transform: scaleY(-1); transform-origin: 500px 600px; }
+#avatar-svg[data-mood="triste"] .mouth-angry { display: none; }
+#avatar-svg[data-mood="triste"] .avatar-animate { animation: avatarSadBreath 5s ease-in-out infinite; }
+#avatar-svg[data-mood="triste"] .head-tilt { transform: rotate(-3deg); }
+#avatar-svg[data-mood="triste"] .brow-left { transform: translateY(-3px) rotate(-8deg); opacity: 0.65; }
+#avatar-svg[data-mood="triste"] .brow-right { transform: translateY(-3px) rotate(8deg); opacity: 0.65; }
+#avatar-svg[data-mood="triste"] .eyelid-left { transform: scaleY(0.6); animation: none; }
+#avatar-svg[data-mood="triste"] .eyelid-right { transform: scaleY(0.6); animation: none; }
+#avatar-svg[data-mood="triste"] .cheek-left,
+#avatar-svg[data-mood="triste"] .cheek-right { opacity: 0.03; }
+#avatar-svg[data-mood="triste"] .left-ear { transform: rotate(20deg) translateY(15px); animation: none; }
+#avatar-svg[data-mood="triste"] .right-ear { transform: rotate(-20deg) translateY(15px); animation: none; }
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1380,9 +1399,14 @@
 
 /* Sleeping state — after 5min idle, avatar closes eyes and breathes slower */
 @keyframes avatarSleep { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.005); } }
-#avatar-svg[data-state="sleeping"] .avatar-animate { animation: avatarSleep 6s ease-in-out infinite; }
-#avatar-svg[data-state="sleeping"] .eyelid-left, #avatar-svg[data-state="sleeping"] .eyelid-right { transform: scaleY(0.05); animation: none; }
-#avatar-svg[data-state="sleeping"] .left-ear, #avatar-svg[data-state="sleeping"] .right-ear { animation: none; }
+#avatar-svg[data-state="durmiendo"] .avatar-animate { animation: avatarSleep 6s ease-in-out infinite; }
+#avatar-svg[data-state="durmiendo"] .eyelid-left, #avatar-svg[data-state="durmiendo"] .eyelid-right { transform: scaleY(0.05); animation: none; }
+#avatar-svg[data-state="durmiendo"] .left-ear, #avatar-svg[data-state="durmiendo"] .right-ear { animation: none; }
+
+/* Relaxed idle — slower breathing + blinking after prolonged inactivity */
+#avatar-svg[data-relaxed="true"][data-state="idle"] .avatar-animate { animation-duration: 6s; }
+#avatar-svg[data-relaxed="true"][data-state="idle"] .eyelid-left,
+#avatar-svg[data-relaxed="true"][data-state="idle"] .eyelid-right { animation-duration: 8s; }
 
 /* Pattern visibility */
 .hidden-pattern { display: none; }
@@ -1413,6 +1437,7 @@
   #avatar-svg[data-mood="confundido"] .presence-halo,
   #avatar-svg[data-mood="concentrado"] .presence-halo,
   #avatar-svg[data-mood="esperando"] .presence-halo,
+  #avatar-svg[data-mood="triste"] .presence-halo,
   #avatar-svg[data-state="pensando"] .eye-shine,
   #avatar-svg[data-state="escuchando"] .avatar-animate,
   #avatar-svg[data-state="pensando"] .avatar-animate,
@@ -1423,7 +1448,8 @@
   #avatar-svg[data-mood="feliz"] .avatar-animate,
   #avatar-svg[data-mood="confundido"] .avatar-animate,
   #avatar-svg[data-mood="concentrado"] .avatar-animate,
-  #avatar-svg[data-mood="esperando"] .avatar-animate { animation: none !important; }
+  #avatar-svg[data-mood="esperando"] .avatar-animate,
+  #avatar-svg[data-mood="triste"] .avatar-animate { animation: none !important; }
   #avatar-svg .brow-left,
   #avatar-svg .brow-right,
   #avatar-svg .cheek-left,

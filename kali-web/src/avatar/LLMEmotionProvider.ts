@@ -4,7 +4,7 @@ import { analyzeAssistantText } from "./textEmotionAnalyzer";
 
 const VALID_EMOTIONS: ReadonlySet<string> = new Set([
   "normal", "enojado", "sorprendido", "ronroneando",
-  "feliz", "confundido", "concentrado", "esperando",
+  "feliz", "confundido", "concentrado", "esperando", "triste",
 ]);
 
 export class LLMEmotionProvider implements EmotionProvider {

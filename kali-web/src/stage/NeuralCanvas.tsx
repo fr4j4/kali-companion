@@ -108,7 +108,7 @@ export function NeuralCanvas({
   const innerPx = (isMobile ? (customizerOpen ? 300 : 160) : (customizerOpen ? 520 : 220)) * avScale;
 
   // Mood engine — derives state + emotion from runtime context
-  const { state: avatarState, emotion: avatarEmotion } = useAvatarMoodEngine(typing, overrideEmotion);
+  const { state: avatarState, emotion: avatarEmotion, relaxed: avatarRelaxed } = useAvatarMoodEngine(typing, overrideEmotion);
 
   useEffect(() => {
     document.documentElement.classList.toggle("kali-mobile-stage", isMobile);
@@ -375,6 +375,7 @@ export function NeuralCanvas({
             <AvatarSVG
               state={avatarState}
               emotion={avatarEmotion}
+              relaxed={avatarRelaxed}
               analyser={tts.analyser}
               config={avatarConfig}
               onClick={onAvatarClick}

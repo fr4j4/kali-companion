@@ -228,6 +228,7 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
                 <Button onClick={() => debug.setAvatarState("pensando")}>Pensando</Button>
                 <Button onClick={() => debug.setAvatarState("escuchando")}>Escuchando</Button>
                 <Button onClick={() => debug.setAvatarState("hablando")}>Hablar</Button>
+                <Button onClick={() => debug.setAvatarState("durmiendo")}>Dormir</Button>
               </div>
 
               <div className="w-full text-[11px] text-muted/80 mb-1">Emoción</div>
@@ -241,6 +242,7 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
                 <Button onClick={() => debug.setAvatarEmotion("confundido", forceEmotion)}>Confundido</Button>
                 <Button onClick={() => debug.setAvatarEmotion("concentrado", forceEmotion)}>Concentrado</Button>
                 <Button onClick={() => debug.setAvatarEmotion("esperando", forceEmotion)}>Esperando</Button>
+                <Button onClick={() => debug.setAvatarEmotion("triste", forceEmotion)}>Triste</Button>
               </div>
 
               <div className="w-full flex flex-wrap items-center gap-1">

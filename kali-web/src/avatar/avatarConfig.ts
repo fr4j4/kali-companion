@@ -21,7 +21,7 @@ export type GlassesType = "none" | "round" | "square";
 export type HatType = "none" | "gorro" | "copa" | "fiesta";
 
 /** Avatar visual state driven by the mood engine. */
-export type AvatarState = "idle" | "escuchando" | "pensando" | "hablando";
+export type AvatarState = "idle" | "escuchando" | "pensando" | "hablando" | "durmiendo";
 export type AvatarEmotion =
   | "normal"
   | "enojado"
@@ -30,7 +30,8 @@ export type AvatarEmotion =
   | "feliz"
   | "confundido"
   | "concentrado"
-  | "esperando";
+  | "esperando"
+  | "triste";
 
 /** Full avatar configuration (persistable). */
 export interface AvatarConfig {

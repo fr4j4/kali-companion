@@ -11,7 +11,7 @@ def build_emotion_prompt_fragment() -> str:
     """Return the emotion instruction text for the system prompt.
 
     Reads emotion_catalog.json and produces a human-readable list of
-    valid emotion tags the LLM can emit via <emotion:ETIQUETA/>.
+    valid emotion tags the LLM can emit via [EMOTION: ETIQUETA].
     """
     catalog = json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
     instruction = catalog["instruction"]
@@ -22,10 +22,12 @@ def build_emotion_prompt_fragment() -> str:
     lines.append(
         '\nSIEMPRE emite la emoción al final, incluso si la respuesta fue breve.'
         '\nEjemplos:'
-        '\n  "¡Listo! He creado el archivo. <emotion:feliz/>"'
-        '\n  "Mmm, no estoy seguro de entender. <emotion:confundido/>"'
-        '\n  "¡Vaya, no esperaba ese resultado! <emotion:sorprendido/>"'
-        '\n  "No pude completar la tarea, hubo un error. <emotion:enojado/>"'
-        '\nRecuerda: NUNCA omitas el bloque <emotion:.../> al final.'
+        '\n  "¡Listo! He creado el archivo. [EMOTION: feliz]"'
+        '\n  "Mmm, no estoy seguro de entender. [EMOTION: confundido]"'
+        '\n  "¡Vaya, no esperaba ese resultado! [EMOTION: sorprendido]"'
+        '\n  "No pude completar la tarea, hubo un error. [EMOTION: enojado]"'
+        '\n  "Lo siento mucho, entiendo cómo te sientes. [EMOTION: triste]"'
+        '\n  "¡Me alegra saber eso! [EMOTION: feliz]"'
+        '\nRecuerda: NUNCA omitas el bloque [EMOTION: ...] al final.'
     )
     return "\n".join(lines)

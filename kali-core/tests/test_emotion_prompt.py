@@ -5,7 +5,7 @@ from kali_core.mind.emotion_prompt import build_emotion_prompt_fragment
 
 def test_emotion_prompt_includes_all_catalog_emotions():
     fragment = build_emotion_prompt_fragment()
-    assert "<emotion:" in fragment
+    assert "[EMOTION:" in fragment
     for emotion_id in [
         "normal",
         "enojado",
@@ -15,6 +15,7 @@ def test_emotion_prompt_includes_all_catalog_emotions():
         "confundido",
         "concentrado",
         "esperando",
+        "triste",
     ]:
         assert emotion_id in fragment
 

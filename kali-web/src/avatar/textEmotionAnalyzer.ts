@@ -16,12 +16,16 @@ export interface EmotionMatch {
 
 /** Patterns for English + Spanish.  Order matters — first match wins. */
 const ASSISTANT_PATTERNS: Array<{ emotion: AvatarEmotion; regex: RegExp }> = [
-  // Surprise — wonder, unexpected results
-  { emotion: "sorprendido", regex: /\b(wow|increible|no esperaba|sorpresa|vaya|whoa|amazing|unexpected|remarkable|fascinante|alucinante)\b/i },
-  // Error / failure
-  { emotion: "enojado", regex: /\b(error|fallo|no funciona|problema|no puedo|imposible|failed|unable|cannot|broken|corrupt)\b/i },
-  // Success / completion
-  { emotion: "feliz", regex: /\b(listo|completado|hecho|exitoso|perfecto|resuelto|done|complete|success|finished|solved)\b/i },
+  // Tristeza / dolor — emoción intensa, detectar primero
+  { emotion: "triste", regex: /😔|😢|😭|\b(decepcionad[oa]|triste|desolad[oa]|abatid[oa]|heartbroken|devastated)\b/i },
+  // Sorpresa — asombro, resultado inesperado
+  { emotion: "sorprendido", regex: /\b(wow|increible|no esperaba|sorpresa|vaya|whoa|amazing|unexpected|remarkable|fascinante|alucinante|oooh)\b|\bah!|\bvaya!/i },
+  // Confusión / disculpa / duda
+  { emotion: "confundido", regex: /\b(me equivoqu[ée]|no entend[íi]|disculpa|mmm|no estoy seguro|confundido|confused|unsure|doubt)(?![a-záéíóúü])/i },
+  // Error / frustración / enfado (técnico)
+  { emotion: "enojado", regex: /\b(error|fallo|no funciona|problema|no puedo|imposible|failed|unable|cannot|broken|corrupt|frustrad|enojad|molesto|irritad)\b/i },
+  // Risa / diversión — patrones no ambiguos de alegría
+  { emotion: "feliz", regex: /😂|🤣|\b(jaja|ja ja|jeje|me encanta|divertido|genial|listo|completado|hecho|exitoso|perfecto|resuelto|done|complete|success|finished|solved)\b/i },
 ];
 
 const USER_PATTERNS: Array<{ emotion: AvatarEmotion; regex: RegExp }> = [

@@ -21,6 +21,9 @@ function makeCtx(overrides: Partial<AvatarContext> = {}): AvatarContext {
     overrideEmotion: null,
     currentMood: "normal",
     emotionProvider: mockProvider({ emotion: null, confidence: 0 }),
+    staleToolKey: null,
+    lastActivityTs: NOW,
+    sleepMs: 15 * 60_000,
     ...overrides,
   } as AvatarContext;
 }
@@ -93,6 +96,25 @@ describe("avatarStateMachine", () => {
     it("returns idle by default", () => {
       const ctx = makeCtx();
       expect(deriveState(ctx)).toBe("idle");
+    });
+
+    it("returns durmiendo after prolonged inactivity", () => {
+      const ctx = makeCtx({
+        now: NOW,
+        lastActivityTs: NOW - 16 * 60_000,
+        sleepMs: 15 * 60_000,
+      });
+      expect(deriveState(ctx)).toBe("durmiendo");
+    });
+
+    it("does not return durmiendo if ttsPlaying (TTS has priority)", () => {
+      const ctx = makeCtx({
+        ttsPlaying: true,
+        now: NOW,
+        lastActivityTs: NOW - 16 * 60_000,
+        sleepMs: 15 * 60_000,
+      });
+      expect(deriveState(ctx)).toBe("hablando");
     });
   });
 

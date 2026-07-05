@@ -9,7 +9,7 @@ class TestEmotionStreamFilter:
     def test_single_emotion_at_end(self):
         f = EmotionStreamFilter()
         assert f.feed("Hola mundo") == "Hola mundo"
-        assert f.feed(" <emotion:feliz/>") == ""
+        assert f.feed(" [EMOTION: feliz]") == ""
         assert f.flush() == ["feliz"]
 
     def test_no_emotion_block(self):
@@ -19,29 +19,29 @@ class TestEmotionStreamFilter:
 
     def test_invalid_emotion_discarded(self):
         f = EmotionStreamFilter()
-        assert f.feed("Hola <emotion:melancolico/> mundo") == "Hola mundo"
+        assert f.feed("Hola [EMOTION: melancolico] mundo") == "Hola mundo"
         assert f.flush() == []
 
     def test_emotion_in_middle(self):
         f = EmotionStreamFilter()
-        assert f.feed("Hola <emotion:feliz/> ¿Cómo estás?") == "Hola ¿Cómo estás?"
+        assert f.feed("Hola [EMOTION: feliz] ¿Cómo estás?") == "Hola ¿Cómo estás?"
         assert f.flush() == ["feliz"]
 
     def test_split_block_across_chunks(self):
         f = EmotionStreamFilter()
-        assert f.feed("texto <emotion:fe") == "texto "
-        assert f.feed("liz/> resto") == " resto"
+        assert f.feed("texto [EMOTION: fe") == "texto "
+        assert f.feed("liz] resto") == " resto"
         assert f.flush() == ["feliz"]
 
     def test_multiple_emotions(self):
         f = EmotionStreamFilter()
-        assert f.feed("<emotion:concentrado/> ... ") == " ... "
-        assert f.feed("<emotion:feliz/>") == ""
+        assert f.feed("[EMOTION: concentrado] ... ") == " ... "
+        assert f.feed("[EMOTION: feliz]") == ""
         assert f.flush() == ["concentrado", "feliz"]
 
     def test_flush_releases_residual(self):
         f = EmotionStreamFilter()
-        assert f.feed("texto <emotion:esperando") == "texto "
+        assert f.feed("texto [EMOTION: esperando") == "texto "
         assert f.flush() == []
 
     def test_empty_chunk(self):
@@ -52,62 +52,62 @@ class TestEmotionStreamFilter:
 
     def test_reset_clears_state(self):
         f = EmotionStreamFilter()
-        assert f.feed("Hola <emotion:feliz/>") == "Hola"
+        assert f.feed("Hola [EMOTION: feliz]") == "Hola"
         assert f.flush() == ["feliz"]
         f.reset()
-        assert f.feed("Otro <emotion:enojado/>") == "Otro"
+        assert f.feed("Otro [EMOTION: enojado]") == "Otro"
         assert f.flush() == ["enojado"]
 
     def test_valid_emotions_all_accepted(self):
-        valid = ["normal", "enojado", "sorprendido", "ronroneando", "feliz", "confundido", "concentrado", "esperando"]
+        valid = ["normal", "enojado", "sorprendido", "ronroneando", "feliz", "confundido", "concentrado", "esperando", "triste"]
         for emotion in valid:
             f = EmotionStreamFilter()
-            result = f.feed(f"texto <emotion:{emotion}/> fin")
+            result = f.feed(f"texto [EMOTION: {emotion}] fin")
             assert result == "texto fin", f"Failed for {emotion}"
             assert f.flush() == [emotion], f"Flush failed for {emotion}"
 
     def test_emotion_block_no_trailing_space(self):
         f = EmotionStreamFilter()
-        assert f.feed("Texto <emotion:feliz/>Fin") == "TextoFin"
+        assert f.feed("Texto [EMOTION: feliz]Fin") == "TextoFin"
         assert f.flush() == ["feliz"]
 
     def test_multiple_emotions_same_chunk(self):
         f = EmotionStreamFilter()
-        assert f.feed("a <emotion:concentrado/> b <emotion:feliz/> c") == "a b c"
+        assert f.feed("a [EMOTION: concentrado] b [EMOTION: feliz] c") == "a b c"
         assert f.flush() == ["concentrado", "feliz"]
 
     def test_block_split_before_full_prefix(self):
-        """Regression: LLM splits <emotion:ronroneando/> so that <em
+        """Regression: LLM splits [EMOTION: ronroneando] so that [EM
         arrives in one chunk and the rest in the next. The filter must
-        retain <em (a partial prefix of <emotion:) and not emit it."""
+        retain [EM (a partial prefix of [EMOTION:) and not emit it."""
         f = EmotionStreamFilter()
-        assert f.feed("Hola <em") == "Hola "
-        assert f.feed("otion:ronroneando/>") == ""
+        assert f.feed("Hola [EM") == "Hola "
+        assert f.feed("OTION: ronroneando]") == ""
         assert f.flush() == ["ronroneando"]
 
     def test_block_split_single_char_prefix(self):
-        """Regression: LLM emits just '<' then 'emotion:feliz/>'."""
+        """Regression: LLM emits just '[' then 'EMOTION: feliz]'."""
         f = EmotionStreamFilter()
-        assert f.feed("Texto <") == "Texto "
-        assert f.feed("emotion:feliz/>") == ""
+        assert f.feed("Texto [") == "Texto "
+        assert f.feed("EMOTION: feliz]") == ""
         assert f.flush() == ["feliz"]
 
     def test_block_split_mid_prefix(self):
-        """Regression: split at <emo."""
+        """Regression: split at [EMO."""
         f = EmotionStreamFilter()
-        assert f.feed("Test <emo") == "Test "
-        assert f.feed("tion:enojado/>") == ""
+        assert f.feed("Test [EMO") == "Test "
+        assert f.feed("TION: enojado]") == ""
         assert f.flush() == ["enojado"]
 
     def test_partial_prefix_not_emotion_is_released(self):
-        """If the buffer ends with <em but the next chunk is not 'otion:',
-        the <em should be released as visible text (it's not an emotion tag)."""
+        """If the buffer ends with [EM but the next chunk is not 'OTION:',
+        the [EM should be released as visible text (it's not an emotion marker)."""
         f = EmotionStreamFilter()
-        out1 = f.feed("Hola <em")
+        out1 = f.feed("Hola [EM")
         assert out1 == "Hola ", f"Expected 'Hola ', got {out1!r}"
         out2 = f.feed("ail me back")
-        # <em + ail = <email, not <emotion: → released as visible text
-        assert "<email" in out2 or out2.endswith("ail me back"), f"Got {out2!r}"
+        # [EM + ail = [Email, not [EMOTION: → released as visible text
+        assert "[Email" in out2 or out2.endswith("ail me back"), f"Got {out2!r}"
         assert f.flush() == []
 
 
@@ -116,13 +116,13 @@ class TestEmotionFilterWithMarkerSuppressor:
 
     Reproduces the real pipeline where MarkerSuppressor retains up to
     len(marker)-1 chars at the end of each chunk, which can split
-    <emotion:.../> blocks across chunk boundaries. The emotion_filter
+    [EMOTION: ...] blocks across chunk boundaries. The emotion_filter
     must still capture the emotion when the retained text is fed via
     flush().
     """
 
     def test_emotion_block_split_by_marker_suppressor_flush(self):
-        """Regression: <emotion:ronroneando/> at end of stream, split
+        """Regression: [EMOTION: ronroneando] at end of stream, split
         by MarkerSuppressor's hold-back. The flush must pass through
         the emotion_filter so the block is reassembled and captured."""
         marker = MarkerSuppressor("[TOOL_CALL:")
@@ -130,7 +130,7 @@ class TestEmotionFilterWithMarkerSuppressor:
 
         # Simulate the LLM emitting text + emotion block at the very end.
         # MarkerSuppressor will hold back the last 10 chars.
-        full_text = "¡Tu emprendimiento se merece una página tan única! <emotion:ronroneando/>"
+        full_text = "¡Tu emprendimiento se merece una página tan única! [EMOTION: ronroneando]"
 
         # Feed through MarkerSuppressor (simulates one big chunk from LLM).
         safe = marker.feed(full_text)
@@ -152,12 +152,12 @@ class TestEmotionFilterWithMarkerSuppressor:
         assert emotions == ["ronroneando"], f"Expected ['ronroneando'], got {emotions}"
 
     def test_emotion_block_not_leaked_as_visible_text(self):
-        """After the fix, no part of <emotion:.../> should appear in the
+        """After the fix, no part of [EMOTION: ...] should appear in the
         text that reaches the UI (the safe output)."""
         marker = MarkerSuppressor("[TOOL_CALL:")
         emo = EmotionStreamFilter()
 
-        full_text = "¡Quedó hermoso! <emotion:ronroneando/>"
+        full_text = "¡Quedó hermoso! [EMOTION: ronroneando]"
         safe = marker.feed(full_text)
         visible_during_stream = emo.feed(safe)
 
@@ -168,6 +168,6 @@ class TestEmotionFilterWithMarkerSuppressor:
             visible_from_flush = ""
 
         all_visible = visible_during_stream + visible_from_flush
-        assert "<emotion:" not in all_visible, f"Emotion block leaked: {all_visible!r}"
-        assert "ronroneando/>" not in all_visible, f"Emotion block leaked: {all_visible!r}"
+        assert "[EMOTION:" not in all_visible, f"Emotion block leaked: {all_visible!r}"
+        assert "ronroneando]" not in all_visible, f"Emotion block leaked: {all_visible!r}"
         assert emo.flush() == ["ronroneando"]

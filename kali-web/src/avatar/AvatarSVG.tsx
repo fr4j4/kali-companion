@@ -26,6 +26,8 @@ import { ALL_PATTERNS } from "./avatarPresets";
 interface Props {
   state: AvatarState;
   emotion: AvatarEmotion;
+  /** When true, the avatar is in a relaxed idle (slower animations). */
+  relaxed?: boolean;
   /**
    * Optional analyser to drive the mouth animation while speaking.
    * When provided and `state === "hablando"`, the component runs its own
@@ -153,7 +155,7 @@ const SVG_MARKUP = `<svg id="avatar-svg" data-state="idle" data-mood="normal" vi
   </g>
 </svg>`;
 
-export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClick, className, typing }: Props) {
+export function AvatarSVG({ state, emotion, relaxed, analyser, audioLevel, config, onClick, className, typing }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -181,7 +183,8 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
     if (!svgRef.current) return;
     svgRef.current.setAttribute("data-state", state);
     svgRef.current.setAttribute("data-mood", emotion);
-  }, [state, emotion]);
+    svgRef.current.setAttribute("data-relaxed", relaxed ? "true" : "false");
+  }, [state, emotion, relaxed]);
 
   // Drive mouth-open opacity/scale while speaking.
   //
@@ -495,6 +498,7 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
         escuchando: "Escuchando",
         pensando: "Pensando",
         hablando: "Hablando",
+        durmiendo: "Durmiendo",
       };
       setAriaMessage(stateLabels[state] ?? "");
     }, 500);

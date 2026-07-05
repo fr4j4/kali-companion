@@ -1,11 +1,11 @@
-"""EmotionStreamFilter — detects and strips <emotion:ETIQUETA/> blocks.
+"""EmotionStreamFilter — detects and strips [EMOTION: ETIQUETA] blocks.
 
-The LLM emits <emotion:ETIQUETA/> blocks to express emotion. This filter
+The LLM emits [EMOTION: ETIQUETA] blocks to express emotion. This filter
 removes them from the text stream (they are not visible to the user) while
 accumulating the emotion labels for later reporting.
 
 Handles blocks split across chunks by maintaining a buffer. Only holds back
-enough characters to capture a potentially split opening tag.
+enough characters to capture a potentially split opening marker.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 _CATALOG_PATH = Path(__file__).parent / "emotion_catalog.json"
 
-_EMOTION_BLOCK_RE = re.compile(r"<emotion:([a-zA-Z_-]+)/>")
+_EMOTION_BLOCK_RE = re.compile(r"\[EMOTION:\s*([a-zA-Z_-]+)\s*\]")
 _MAX_HOLD = 25
 
 
@@ -25,26 +25,26 @@ def _load_valid_emotions() -> set[str]:
     return {e["id"] for e in catalog["emotions"]}
 
 
-_MARKER_PREFIX = "<emotion:"
+_MARKER_PREFIX = "[EMOTION:"
 
 
 def _find_incomplete_tag(text: str) -> int | None:
-    """Find the start of a potentially incomplete <emotion: tag at the end
-    of text. Returns the index where a partial prefix of ``<emotion:``
+    """Find the start of a potentially incomplete [EMOTION: marker at the end
+    of text. Returns the index where a partial prefix of ``[EMOTION:``
     begins, or None if no partial prefix is found.
 
-    Handles blocks split across chunks where the LLM emits ``<em``,
-    ``<emo``, ``<emotion``, etc. in one chunk and the rest in the next.
+    Handles blocks split across chunks where the LLM emits ``[EM``,
+    ``[EMO``, ``[EMOTION``, etc. in one chunk and the rest in the next.
     """
     # Check for the full marker prefix first (existing behavior).
     idx = text.rfind(_MARKER_PREFIX)
     if idx != -1:
         rest = text[idx + len(_MARKER_PREFIX):]
-        if ">" not in rest:
+        if "]" not in rest:
             return idx
         return None
     # Check for partial prefixes: the longest suffix of text that is a
-    # prefix of _MARKER_PREFIX (e.g. "<em", "<emotion", "<").
+    # prefix of _MARKER_PREFIX (e.g. "[EM", "[EMOTION", "[").
     max_check = min(len(_MARKER_PREFIX) - 1, len(text))
     for prefix_len in range(max_check, 0, -1):
         if text[-prefix_len:] == _MARKER_PREFIX[:prefix_len]:

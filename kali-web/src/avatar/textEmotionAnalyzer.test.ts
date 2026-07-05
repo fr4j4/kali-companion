@@ -36,4 +36,39 @@ describe("textEmotionAnalyzer", () => {
       confidence: 0.5,
     });
   });
+
+  it("detects assistant sadness emoji", () => {
+    expect(analyzeAssistantText("Lo siento mucho 😔")).toEqual({
+      emotion: "triste",
+      confidence: 0.7,
+    });
+  });
+
+  it("detects assistant laughter as happy", () => {
+    expect(analyzeAssistantText("jaja, qué divertido 😂")).toEqual({
+      emotion: "feliz",
+      confidence: 0.7,
+    });
+  });
+
+  it("detects assistant confusion/apology", () => {
+    expect(analyzeAssistantText("Me equivoqué, no entendí bien")).toEqual({
+      emotion: "confundido",
+      confidence: 0.7,
+    });
+  });
+
+  it("detects assistant playful surprise", () => {
+    expect(analyzeAssistantText("oooh, no esperaba eso!")).toEqual({
+      emotion: "sorprendido",
+      confidence: 0.7,
+    });
+  });
+
+  it("does not match 'te quiero' as happy (ambiguous)", () => {
+    expect(analyzeAssistantText("ya no te quiero")).toEqual({
+      emotion: "normal",
+      confidence: 0.5,
+    });
+  });
 });

@@ -13,6 +13,8 @@ export interface AvatarContext extends EmotionContext {
   currentMood: AvatarEmotion;
   emotionProvider: EmotionProvider;
   staleToolKey: string | null;
+  lastActivityTs: number;
+  sleepMs: number;
 }
 
 function _toolKey(e: { session_id: string; tool: string }) {
@@ -29,6 +31,8 @@ export function deriveState(ctx: AvatarContext): AvatarState {
   if (ctx.ttsPlaying) return "hablando";
   if (ctx.pttState === "recording" || ctx.pttState === "listening") return "escuchando";
   if (ctx.streaming) return "pensando";
+  const idleTime = ctx.now - ctx.lastActivityTs;
+  if (idleTime > ctx.sleepMs) return "durmiendo";
   return "idle";
 }
 
