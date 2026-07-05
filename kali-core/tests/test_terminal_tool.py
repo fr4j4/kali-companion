@@ -213,3 +213,80 @@ async def test_run_command_cancellation_kills_proc() -> None:
     end_ev = next((e for e in emitted if e["event"] == "command_end"), None)
     assert end_ev is not None
     assert end_ev["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_full_terminal_session_flow(store: SessionStore) -> None:
+    """Create session → run command → verify persistence → close → verify completed."""
+    from kali_core.claws.base import register
+    from kali_core.collar.consent import ConsentManager
+    from kali_core.collar.gateway import PermissionGateway
+    from kali_core.mind.executor import Executor
+
+    chat = await store.create_session(title="Integration test")
+
+    register(CreateTerminalSessionTool())
+    register(RunCommandTool())
+
+    gw = PermissionGateway()
+    consent = ConsentManager(timeout=10)
+
+    async def auto_allow(payload):
+        consent.respond(payload["id"], "allow")
+
+    consent.set_send_callback(auto_allow)
+    executor = Executor(
+        gateway=gw, consent=consent, working_dir=".", profile="dev",
+        session_store=store,
+    )
+
+    create_result = await executor.execute(
+        "create_terminal_session",
+        {"display_name": "Integration test build"},
+        chat["id"],
+    )
+    assert create_result.error is None
+    ts_id = create_result.output["terminal_session_id"]
+
+    run_result = await executor.execute(
+        "run_command",
+        {"command": "echo integration-test", "timeout": 5, "terminal_session_id": ts_id},
+        chat["id"],
+    )
+    assert run_result.error is None
+    assert "integration-test" in run_result.output["stdout"]
+
+    full = await store.get_terminal_session_full(ts_id)
+    assert full["display_name"] == "Integration test build"
+    assert full["status"] == "active"
+    assert len(full["commands"]) == 1
+    assert full["commands"][0]["command"] == "echo integration-test"
+    assert any("integration-test" in line[1] for line in full["commands"][0]["output_lines"])
+
+    closed_ids = await store.close_terminal_sessions_for_chat(chat["id"])
+    assert ts_id in closed_ids
+
+    sessions = await store.list_terminal_sessions(chat["id"])
+    assert sessions[0]["status"] == "completed"
+
+    replay_list = await store.list_terminal_sessions(chat["id"])
+    assert len(replay_list) == 1
+    assert replay_list[0]["command_count"] == 1
+
+    replay_full = await store.get_terminal_session_full(ts_id)
+    assert replay_full["status"] == "completed"
+    assert len(replay_full["commands"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_chat_cleans_terminal_data(store: SessionStore) -> None:
+    """Deleting a chat session removes all terminal sessions, commands, and output."""
+    chat = await store.create_session()
+    ts = await store.create_terminal_session(chat["id"], "Build")
+    cmd = await store.add_terminal_command(ts["id"], "cmd_001", "npm install", ".")
+    await store.batch_add_terminal_output(cmd["id"], [("stdout", "hello", 0)])
+
+    await store.delete_session(chat["id"])
+
+    assert await store.list_terminal_sessions(chat["id"]) == []
+    assert await store.get_terminal_session_full(ts["id"]) is None
