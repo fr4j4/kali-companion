@@ -744,9 +744,12 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
   const html = useMemo(() => {
     if (!displayText) return null;
     try {
-      // Collapse 3+ consecutive newlines into 2 to avoid excessive
-      // paragraph breaks when the LLM sends heavily-spaced output.
-      const normalized = displayText.replace(/\n{3,}/g, "\n\n");
+      // 1. Collapse 3+ consecutive newlines into 2.
+      // 2. Collapse double newlines before list items so bullet lists
+      //    don't get excessive paragraph spacing.
+      const normalized = displayText
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/\n\n(?=\s*[-*]\s|\s*\d+\.\s)/g, "\n");
       return marked.parse(normalized, { async: false }) as string;
     } catch {
       return `<p>${displayText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
