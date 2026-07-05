@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, CheckCircle2, XCircle, Clock, Ban, Terminal as TerminalIcon } from "lucide-react";
 import { useStage } from "../../stage/StageProvider";
@@ -7,6 +7,10 @@ import { ansiToHtml } from "./utils/ansi";
 import { ScrollableWidget } from "./base/ScrollableWidget";
 
 const MAX_VISIBLE_LINES = 500;
+const DEFAULT_SIDEBAR_WIDTH = 210;
+const MIN_SIDEBAR_WIDTH = 160;
+const MAX_SIDEBAR_WIDTH = 360;
+const SIDEBAR_WIDTH_KEY = "terminalSidebarWidth";
 
 interface Props {
   content?: unknown;
@@ -170,6 +174,18 @@ export function TerminalWidget(_props: Props) {
   const sessions = chat.terminalSessions;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+      const parsed = saved ? parseInt(saved, 10) : DEFAULT_SIDEBAR_WIDTH;
+      return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, parsed || DEFAULT_SIDEBAR_WIDTH));
+    } catch {
+      return DEFAULT_SIDEBAR_WIDTH;
+    }
+  });
+  const draggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
 
   useEffect(() => {
     if (sessions.size === 0) {
@@ -195,6 +211,34 @@ export function TerminalWidget(_props: Props) {
       return b.created.localeCompare(a.created);
     });
   }, [sessions]);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    draggingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = sidebarWidth;
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    target.classList.add("bg-accent/50");
+  }, [sidebarWidth]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const delta = startXRef.current - e.clientX;
+    const next = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, startWidthRef.current + delta));
+    setSidebarWidth(next);
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    draggingRef.current = false;
+    const target = e.currentTarget as HTMLElement;
+    target.releasePointerCapture(e.pointerId);
+    target.classList.remove("bg-accent/50");
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+    } catch {
+      // ignore
+    }
+  }, [sidebarWidth]);
 
   if (sessions.size === 0) {
     return (
@@ -256,8 +300,24 @@ export function TerminalWidget(_props: Props) {
           )}
         </div>
 
+        {/* Draggable sidebar divider */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("terminal.resize_sidebar")}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+          className="w-1.5 shrink-0 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors border-l border-white/5"
+          style={{ touchAction: "none" }}
+        />
+
         {/* Sidebar — session history */}
-        <div className="w-[210px] shrink-0 border-l border-white/5 flex flex-col">
+        <div
+          className="shrink-0 border-l border-white/5 flex flex-col"
+          style={{ width: sidebarWidth }}
+        >
           <div className="px-3 py-2 border-b border-white/5 shrink-0">
             <span className="text-xs font-medium text-muted uppercase tracking-wider">
               {t("terminal.sessions.title")}

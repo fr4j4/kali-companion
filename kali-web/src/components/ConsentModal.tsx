@@ -13,6 +13,9 @@ interface Props {
   onRespond: (id: string, decision: "allow" | "no_capture" | "cancel") => void;
 }
 
+const LONG_COMMAND_THRESHOLD = 120;
+const MEDIUM_COMMAND_THRESHOLD = 60;
+
 export function ConsentModal({ request, onRespond }: Props) {
   const { t } = useTranslation();
   const [countdown, setCountdown] = useState(60);
@@ -45,16 +48,27 @@ export function ConsentModal({ request, onRespond }: Props) {
   const summaryText = t(request.summary_key, { defaultValue: request.tool });
   const isScreenshot = request.tool === "screenshot";
   const commandText = request.tool === "run_command" ? String(reasonParams.command || "") : "";
-  const modalSize = commandText.length > 120 ? "lg" : commandText.length > 60 ? "md" : "sm";
+  const isLongCommand = commandText.length > LONG_COMMAND_THRESHOLD;
+  const modalSize = isLongCommand ? "lg" : commandText.length > MEDIUM_COMMAND_THRESHOLD ? "md" : "sm";
 
   return (
-    <Modal open={!!request} onClose={() => request && onRespond(request.id, "cancel")} title={summaryText} size={modalSize}>
+    <Modal
+      open={!!request}
+      onClose={() => request && onRespond(request.id, "cancel")}
+      title={summaryText}
+      size={modalSize}
+      compact
+    >
       <>
         <p className="text-sm leading-relaxed my-0">{reasonText}</p>
         {commandText && (
           <div className="mt-3 mb-1">
             <div className="text-xs text-muted mb-1">{t("consent.command_label")}</div>
-            <pre className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-fg overflow-x-auto whitespace-pre-wrap break-all max-h-[120px] overflow-y-auto scrollbar-thin">
+            <pre
+              className={`bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-fg overflow-x-auto whitespace-pre-wrap break-all scrollbar-thin ${
+                isLongCommand ? "max-h-[240px] overflow-y-auto" : "max-h-[120px] overflow-y-auto"
+              }`}
+            >
               {commandText}
             </pre>
           </div>

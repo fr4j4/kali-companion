@@ -358,6 +358,7 @@
   "terminal.command_count": "{{count}} commands",
   "terminal.exit_code": "Exit code: {{code}}",
   "terminal.loading": "Loading...",
+  "terminal.resize_sidebar": "Resize sidebar",
   "widget.scrollable.search": "Search...",
   "widget.media.sample_track": "Sample Track",
   "widget.media.sample_video": "Sample Video",
