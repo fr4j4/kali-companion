@@ -1901,7 +1901,9 @@ class Connection:
         elif kind == "consent_response":
             # Resolve a pending consent request.
             request_id = event.get("id", "")
-            decision = event.get("decision", "cancel")
+            decision = event.get("decision", "deny")
+            if decision not in ("allow", "allow_session", "deny"):
+                decision = "deny"
             self.server.consent.respond(request_id, decision)
 
         elif kind == "console_response":

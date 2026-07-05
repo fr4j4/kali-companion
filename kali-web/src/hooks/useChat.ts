@@ -22,6 +22,7 @@ import type {
   StatusEvent,
   ErrorEvent,
   ConsentRequestEvent,
+  ConsentDecision,
   ToolEvent,
   JobStartEvent,
   JobProgressEvent,
@@ -145,7 +146,7 @@ export interface ChatState {
   deleteSession: (sid: string) => void;
   clearAllSessions: () => void;
   updateSettings: (patch: Record<string, unknown>) => void;
-  respondConsent: (id: string, decision: "allow" | "no_capture" | "cancel") => void;
+  respondConsent: (id: string, decision: ConsentDecision) => void;
   subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void;
   onTtsEnded: (fn: () => void) => () => void;
   listJobs: () => void;
@@ -995,7 +996,7 @@ export function useChat(): ChatState {
     clientRef.current?.send({ event: "settings", ...patch });
   }, []);
 
-  const respondConsent = useCallback((id: string, decision: "allow" | "no_capture" | "cancel") => {
+  const respondConsent = useCallback((id: string, decision: ConsentDecision) => {
     clientRef.current?.send({ event: "consent_response", id, decision });
     setConsentRequest(null);
   }, []);

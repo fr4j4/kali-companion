@@ -84,10 +84,12 @@ export interface SettingsEvent {
   game_reasoning_default_open?: boolean;
 }
 
+export type ConsentDecision = "allow" | "allow_session" | "deny";
+
 export interface ConsentResponseEvent {
   event: "consent_response";
   id: string;
-  decision: "allow" | "no_capture" | "cancel";
+  decision: ConsentDecision;
 }
 
 /** A single console log entry from an HTML artifact's iframe. */
@@ -320,6 +322,7 @@ export interface ToolEvent {
 export interface ConsentRequestEvent {
   event: "consent_request";
   id: string;
+  session_id: string;
   tool: string;
   risk: string;
   reason_key: string;

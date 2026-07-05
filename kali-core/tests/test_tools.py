@@ -180,7 +180,7 @@ async def test_executor_dangerous_denied_without_consent():
         "session1",
     )
     assert result.error is not None
-    assert "denied" in result.error.lower() or "cancel" in result.error.lower()
+    assert "denied" in result.error.lower() or "deny" in result.error.lower()
 
 
 @pytest.mark.asyncio
@@ -205,3 +205,77 @@ async def test_executor_consent_allow():
     )
     assert result.error is None
     assert "consented" in result.output["stdout"]
+
+
+@pytest.mark.asyncio
+async def test_executor_consent_allow_session_remembers():
+    """Executor remembers an 'allow_session' decision within the same chat session."""
+    from kali_core.collar.consent import ConsentManager
+    gw = PermissionGateway()
+    consent = ConsentManager(timeout=10)
+
+    responses = {"cmd1": "allow_session"}
+    async def auto_respond(payload):
+        responses.pop(payload["id"], None)
+        consent.respond(payload["id"], "allow_session")
+    consent.set_send_callback(auto_respond)
+
+    register(RunCommandTool())
+    executor = Executor(gateway=gw, consent=consent, working_dir=".", profile="general")
+
+    # First call: user chooses "allow_session".
+    result1 = await executor.execute(
+        "run_command",
+        {"command": "echo first", "timeout": 5},
+        "session1",
+    )
+    assert result1.error is None
+    assert "first" in result1.output["stdout"]
+
+    # Second call: same session, different arguments, same command base.
+    # No callback response is provided because it should be auto-granted.
+    async def noop(_p):
+        pass
+    consent.set_send_callback(noop)
+    result2 = await executor.execute(
+        "run_command",
+        {"command": "echo second", "timeout": 5},
+        "session1",
+    )
+    assert result2.error is None
+    assert "second" in result2.output["stdout"]
+    assert consent.session_grant_count("session1") == 1
+
+
+@pytest.mark.asyncio
+async def test_executor_consent_allow_session_not_shared_between_sessions():
+    """An 'allow_session' grant is scoped to one chat session."""
+    from kali_core.collar.consent import ConsentManager
+    gw = PermissionGateway()
+    consent = ConsentManager(timeout=0.5)
+
+    async def auto_respond(payload):
+        consent.respond(payload["id"], "allow_session")
+    consent.set_send_callback(auto_respond)
+
+    register(RunCommandTool())
+    executor = Executor(gateway=gw, consent=consent, working_dir=".", profile="general")
+
+    result1 = await executor.execute(
+        "run_command",
+        {"command": "echo a", "timeout": 5},
+        "session_a",
+    )
+    assert result1.error is None
+
+    # Different session: should require consent again and timeout (deny).
+    async def noop(_p):
+        pass
+    consent.set_send_callback(noop)
+    result2 = await executor.execute(
+        "run_command",
+        {"command": "echo b", "timeout": 5},
+        "session_b",
+    )
+    assert result2.error is not None
+    assert "denied" in result2.error.lower() or "deny" in result2.error.lower()

@@ -75,22 +75,38 @@ class Executor:
         decision = self.gateway.check(tool_name, tool.risk_level, params, self.profile)
 
         if not decision.allow and decision.needs_consent:
-            # Request consent from the user.
-            reason_params = decision.reason_params or {"tool": tool_name}
-            consent_decision = await self.consent.request(
-                tool=tool_name,
-                reason_key=decision.reason_key or "consent.reason.sensitive",
-                reason_params=reason_params,
-                summary_key=f"consent.summary.{tool_name}",
-                risk=tool.risk_level,
-            )
-
-            if consent_decision != "allow":
+            # If the user already granted permission for this session, allow.
+            permission_key = decision.permission_key or self.gateway.permission_key(tool_name, params)
+            if decision.permission_key and self.consent.is_granted(session_id, permission_key):
                 logger.info(
-                    "[consent] %s for tool '%s' (%s)",
-                    consent_decision, tool_name, session_id[:8],
+                    "[consent] session grant for '%s' matches '%s' (%s)",
+                    tool_name, permission_key, session_id[:8],
                 )
-                return ToolResult(error=f"Tool execution denied by user ({consent_decision}).")
+            else:
+                # Request consent from the user.
+                reason_params = decision.reason_params or {"tool": tool_name}
+                consent_decision = await self.consent.request(
+                    session_id=session_id,
+                    tool=tool_name,
+                    reason_key=decision.reason_key or "consent.reason.sensitive",
+                    reason_params=reason_params,
+                    summary_key=f"consent.summary.{tool_name}",
+                    risk=tool.risk_level,
+                )
+
+                if consent_decision not in ("allow", "allow_session"):
+                    logger.info(
+                        "[consent] %s for tool '%s' (%s)",
+                        consent_decision, tool_name, session_id[:8],
+                    )
+                    return ToolResult(error=f"Tool execution denied by user ({consent_decision}).")
+
+                if consent_decision == "allow_session" and decision.permission_key:
+                    self.consent.grant(session_id, decision.permission_key)
+                    logger.info(
+                        "[consent] granted '%s' for session '%s'",
+                        decision.permission_key, session_id[:8],
+                    )
 
         # Emit tool_event (running).
         tool_start = time.monotonic()
