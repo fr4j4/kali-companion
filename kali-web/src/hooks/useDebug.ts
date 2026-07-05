@@ -64,7 +64,9 @@ export interface DebugAPI {
   clearAll: () => void;
   speakText: (text: string) => void;
   setAvatarState: (state: AvatarState) => void;
-  setAvatarEmotion: (emotion: AvatarEmotion) => void;
+  setAvatarEmotion: (emotion: AvatarEmotion, force?: boolean) => void;
+  clearAvatarStateOverride: () => void;
+  clearAvatarEmotionOverride: () => void;
   resetAvatarOverride: () => void;
 }
 
@@ -385,8 +387,16 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
     setDebugAvatarState({ overrideState: state });
   }, []);
 
-  const setAvatarEmotion = useCallback((emotion: AvatarEmotion) => {
-    setDebugAvatarState({ overrideEmotion: emotion });
+  const setAvatarEmotion = useCallback((emotion: AvatarEmotion, force = false) => {
+    setDebugAvatarState({ overrideEmotion: emotion, forceEmotion: force });
+  }, []);
+
+  const clearAvatarStateOverride = useCallback(() => {
+    setDebugAvatarState({ overrideState: null });
+  }, []);
+
+  const clearAvatarEmotionOverride = useCallback(() => {
+    setDebugAvatarState({ overrideEmotion: null, forceEmotion: false });
   }, []);
 
   const resetAvatarOverride = useCallback(() => {
@@ -424,6 +434,8 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
     speakText,
     setAvatarState,
     setAvatarEmotion,
+    clearAvatarStateOverride,
+    clearAvatarEmotionOverride,
     resetAvatarOverride,
   };
 }
