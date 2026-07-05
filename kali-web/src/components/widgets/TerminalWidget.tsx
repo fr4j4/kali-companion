@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { Loader2, CheckCircle2, XCircle, Clock, Ban, Terminal as TerminalIcon } from "lucide-react";
 import { useStage } from "../../stage/StageProvider";
 import type { TerminalSessionData, TerminalCommandEntry } from "../../hooks/useChat";
 import { ansiToHtml } from "./utils/ansi";
@@ -11,26 +12,30 @@ interface Props {
   content?: unknown;
 }
 
-function StatusBadge({ status, t }: { status: string; t: (k: string) => string }) {
-  const styles: Record<string, string> = {
-    running: "text-accent animate-pulse",
-    done: "text-ok",
-    error: "text-err",
-    timeout: "text-warn",
-    cancelled: "text-muted",
-  };
-  const icons: Record<string, string> = {
-    running: "⟳",
-    done: "✓",
-    error: "✗",
-    timeout: "⏱",
-    cancelled: "⊘",
-  };
-  return (
-    <span className={`text-xs font-mono ${styles[status] || "text-muted"}`}>
-      {icons[status] || "?"} {t(`terminal.command.${status}`)}
-    </span>
-  );
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function StatusIcon({ status, size = 12 }: { status: string; size?: number }) {
+  switch (status) {
+    case "running":
+      return <Loader2 size={size} className="animate-spin text-accent" />;
+    case "done":
+      return <CheckCircle2 size={size} className="text-ok" />;
+    case "error":
+      return <XCircle size={size} className="text-err" />;
+    case "timeout":
+      return <Clock size={size} className="text-warn" />;
+    case "cancelled":
+      return <Ban size={size} className="text-muted" />;
+    default:
+      return null;
+  }
 }
 
 function SessionListItem({
@@ -46,10 +51,12 @@ function SessionListItem({
 }) {
   const isActive = session.status === "active";
   const cmdCount = session.commandOrder.length;
+  const isAuto = session.display_name === "Session";
+
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-2 rounded-lg transition border ${
+      className={`w-full text-left px-3 py-2.5 rounded-lg transition border ${
         isSelected
           ? "bg-accent/10 border-accent/30"
           : "bg-white/[0.02] border-transparent hover:bg-white/[0.05]"
@@ -61,11 +68,16 @@ function SessionListItem({
             isActive ? "bg-accent animate-pulse" : "bg-ok"
           }`}
         />
-        <span className="text-sm text-fg truncate flex-1">{session.display_name}</span>
+        <span className={`text-sm truncate flex-1 ${isAuto ? "text-muted" : "text-fg"}`}>
+          {session.display_name}
+        </span>
       </div>
-      <div className="text-xs text-muted mt-1 pl-4">
-        {t("terminal.command_count", { count: cmdCount })} ·{" "}
-        {isActive ? t("terminal.session.active") : t("terminal.session.completed")}
+      <div className="text-xs text-muted mt-1 pl-4 flex items-center gap-1.5">
+        <span>{t("terminal.command_count", { count: cmdCount })}</span>
+        <span className="text-muted/40">·</span>
+        <span>{formatTime(session.created)}</span>
+        <span className="text-muted/40">·</span>
+        <span>{isActive ? t("terminal.session.active") : t("terminal.session.completed")}</span>
       </div>
     </button>
   );
@@ -94,27 +106,57 @@ function CommandBlock({
   }, [visibleLines, cmd.status]);
 
   return (
-    <div className="border-b border-white/5 last:border-0 pb-2 mb-2">
-      <div className="flex items-center justify-between mb-1">
-        <code className="text-sm text-fg font-mono break-all">$ {cmd.command}</code>
-        <StatusBadge status={cmd.status} t={t} />
+    <div className="border-b border-white/5 last:border-0 pb-3 mb-3">
+      {/* Command header */}
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="min-w-0 flex-1">
+          <code className="text-sm text-fg font-mono break-all">
+            <span className="text-accent">$</span> {cmd.command}
+          </code>
+          {cmd.cwd && (
+            <div className="text-xs text-muted mt-0.5 font-mono truncate">{cmd.cwd}</div>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+          <StatusIcon status={cmd.status} />
+          <span className={`text-xs font-mono ${
+            cmd.status === "running" ? "text-accent" :
+            cmd.status === "done" ? "text-ok" :
+            cmd.status === "error" ? "text-err" :
+            cmd.status === "timeout" ? "text-warn" : "text-muted"
+          }`}>
+            {t(`terminal.command.${cmd.status}`)}
+          </span>
+          <span className="text-xs text-muted/50">{formatTime(cmd.started)}</span>
+        </div>
       </div>
-      <div ref={scrollRef} className="font-mono text-xs space-y-0.5 max-h-[300px] overflow-y-auto scrollbar-thin">
+
+      {/* Output */}
+      <div ref={scrollRef} className="font-mono text-xs space-y-0.5 max-h-[300px] overflow-y-auto scrollbar-thin bg-black/20 rounded-md p-2">
+        {visibleLines.length === 0 && cmd.status === "running" && (
+          <div className="text-muted italic">waiting for output...</div>
+        )}
         {visibleLines.map((line, i) => (
           <div
             key={i}
-            className={`whitespace-pre-wrap break-all ${
-              line.stream === "stderr" ? "text-err/80" : "text-fg/80"
+            className={`whitespace-pre-wrap break-all px-1.5 ${
+              line.stream === "stderr"
+                ? "border-l-2 border-err/40 text-err/80"
+                : "text-fg/75"
             }`}
             dangerouslySetInnerHTML={{ __html: ansiToHtml(line.text) }}
           />
         ))}
         {cmd.status === "running" && (
-          <div className="text-accent animate-pulse">▊</div>
+          <div className="text-accent animate-pulse px-1.5">▊</div>
         )}
       </div>
+
+      {/* Exit code */}
       {cmd.exit_code !== null && cmd.status !== "running" && (
-        <div className="text-xs text-muted mt-1">
+        <div className={`text-xs mt-1.5 font-mono ${
+          cmd.exit_code === 0 ? "text-ok/60" : "text-err/60"
+        }`}>
           {t("terminal.exit_code", { code: cmd.exit_code })}
         </div>
       )}
@@ -150,14 +192,15 @@ export function TerminalWidget(_props: Props) {
     return Array.from(sessions.values()).sort((a, b) => {
       if (a.status === "active" && b.status !== "active") return -1;
       if (a.status !== "active" && b.status === "active") return 1;
-      return a.created.localeCompare(b.created);
+      return b.created.localeCompare(a.created);
     });
   }, [sessions]);
 
   if (sessions.size === 0) {
     return (
       <ScrollableWidget searchable={false}>
-        <div className="flex-1 flex items-center justify-center p-8">
+        <div className="flex-1 flex flex-col items-center justify-center p-8 gap-2">
+          <TerminalIcon size={28} className="text-muted/40" />
           <p className="text-sm text-muted">{t("terminal.empty")}</p>
         </div>
       </ScrollableWidget>
@@ -167,6 +210,7 @@ export function TerminalWidget(_props: Props) {
   return (
     <ScrollableWidget searchable={false}>
       <div className="flex h-full min-h-0">
+        {/* Main panel */}
         <div className="flex-1 min-w-0 flex flex-col">
           {selectedSession && (
             <>
@@ -177,13 +221,16 @@ export function TerminalWidget(_props: Props) {
                       selectedSession.status === "active" ? "bg-accent animate-pulse" : "bg-ok"
                     }`}
                   />
-                  <span className="text-sm font-medium text-fg truncate">
+                  <span className={`text-sm font-medium truncate ${
+                    selectedSession.display_name === "Session" ? "text-muted" : "text-fg"
+                  }`}>
                     {selectedSession.display_name}
                   </span>
+                  <span className="text-xs text-muted/50">{formatTime(selectedSession.created)}</span>
                 </div>
                 <button
                   onClick={() => setAutoScroll((v) => !v)}
-                  className="text-xs text-muted hover:text-fg transition shrink-0"
+                  className="text-xs text-muted hover:text-fg transition shrink-0 px-2 py-0.5 rounded hover:bg-white/5"
                 >
                   {autoScroll ? t("terminal.autoscroll.on") : t("terminal.autoscroll.off")}
                 </button>
@@ -191,7 +238,7 @@ export function TerminalWidget(_props: Props) {
               <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-2">
                 {selectedSession.commandOrder.length === 0 && !selectedSession.detailLoaded ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                    <Loader2 size={16} className="animate-spin text-accent/50" />
                   </div>
                 ) : selectedSession.commandOrder.length === 0 ? (
                   <p className="text-sm text-muted text-center py-4">{t("terminal.no_sessions")}</p>
@@ -209,7 +256,8 @@ export function TerminalWidget(_props: Props) {
           )}
         </div>
 
-        <div className="w-[200px] shrink-0 border-l border-white/5 flex flex-col">
+        {/* Sidebar — session history */}
+        <div className="w-[210px] shrink-0 border-l border-white/5 flex flex-col">
           <div className="px-3 py-2 border-b border-white/5 shrink-0">
             <span className="text-xs font-medium text-muted uppercase tracking-wider">
               {t("terminal.sessions.title")}

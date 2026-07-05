@@ -6,7 +6,7 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   title?: string;
-  size?: "md" | "xl";
+  size?: "sm" | "md" | "lg" | "xl";
   bare?: boolean;
   panelClassName?: string;
 }

@@ -45,15 +45,16 @@ export function ConsentModal({ request, onRespond }: Props) {
   const summaryText = t(request.summary_key, { defaultValue: request.tool });
   const isScreenshot = request.tool === "screenshot";
   const commandText = request.tool === "run_command" ? String(reasonParams.command || "") : "";
+  const modalSize = commandText.length > 120 ? "lg" : commandText.length > 60 ? "md" : "sm";
 
   return (
-    <Modal open={!!request} onClose={() => request && onRespond(request.id, "cancel")} title={summaryText}>
+    <Modal open={!!request} onClose={() => request && onRespond(request.id, "cancel")} title={summaryText} size={modalSize}>
       <>
         <p className="text-sm leading-relaxed my-0">{reasonText}</p>
         {commandText && (
           <div className="mt-3 mb-1">
             <div className="text-xs text-muted mb-1">{t("consent.command_label")}</div>
-            <pre className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-fg overflow-x-auto whitespace-pre-wrap break-all">
+            <pre className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-fg overflow-x-auto whitespace-pre-wrap break-all max-h-[120px] overflow-y-auto scrollbar-thin">
               {commandText}
             </pre>
           </div>
