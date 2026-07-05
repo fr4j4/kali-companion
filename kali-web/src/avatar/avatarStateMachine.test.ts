@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { deriveState, deriveEmotion, type AvatarContext } from "./avatarStateMachine";
+import { resolveDecayMs } from "./AvatarMoodEngine";
+import type { AvatarEmotion } from "./avatarConfig";
 import type { EmotionProvider, EmotionResult } from "./EmotionProvider";
 import type { ToolEvent } from "../lib/protocol";
 
@@ -252,6 +254,48 @@ describe("avatarStateMachine", () => {
         lastAssistantText: "¡Listo! He completado el archivo.",
       });
       expect(await deriveEmotion(ctx, "idle")).toBe("sorprendido");
+    });
+  });
+
+  describe("resolveDecayMs", () => {
+    const CONFIG = {
+      successEmotionMs: 2_000,
+      errorEmotionMs: 3_000,
+      emotionDecayMs: {
+        enojado: 300_000,
+        triste: 120_000,
+        sorprendido: 8_000,
+        confundido: 20_000,
+        feliz: 45_000,
+        ronroneando: 3_000,
+      } as Partial<Record<AvatarEmotion, number>>,
+    } as const;
+
+    it("returns undefined when currentMood is normal", () => {
+      expect(resolveDecayMs("normal", undefined, false, CONFIG)).toBeUndefined();
+    });
+
+    it("returns undefined when ttsPlaying is true", () => {
+      expect(resolveDecayMs("feliz", undefined, true, CONFIG)).toBeUndefined();
+    });
+
+    it("returns successEmotionMs when last tool succeeded", () => {
+      expect(resolveDecayMs("feliz", "success", false, CONFIG)).toBe(2_000);
+    });
+
+    it("returns errorEmotionMs when last tool errored", () => {
+      expect(resolveDecayMs("enojado", "error", false, CONFIG)).toBe(3_000);
+    });
+
+    it("returns per-emotion lifetime when no recent tool and not speaking", () => {
+      expect(resolveDecayMs("feliz", undefined, false, CONFIG)).toBe(45_000);
+      expect(resolveDecayMs("ronroneando", undefined, false, CONFIG)).toBe(3_000);
+      expect(resolveDecayMs("enojado", undefined, false, CONFIG)).toBe(300_000);
+    });
+
+    it("returns undefined when emotion has no configured lifetime and no recent tool", () => {
+      expect(resolveDecayMs("concentrado", undefined, false, CONFIG)).toBeUndefined();
+      expect(resolveDecayMs("esperando", undefined, false, CONFIG)).toBeUndefined();
     });
   });
 });

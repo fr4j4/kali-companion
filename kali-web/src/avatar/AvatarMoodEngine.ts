@@ -38,6 +38,41 @@ interface EmotionOverride {
   until: number;
 }
 
+/** Status of the most recent tool event, or undefined if none. */
+export type ToolStatus = "running" | "success" | "error" | "cancelled" | undefined;
+
+/**
+ * Pure helper: decide how long the current emotion should last before decaying
+ * to "normal". Returns the duration in ms, or undefined if no decay timer should
+ * be scheduled.
+ *
+ * Rules (evaluated in order):
+ * 1. normal mood → no decay (undefined).
+ * 2. TTS playing → pause decay (undefined); the unified effect re-schedules
+ *    when TTS stops.
+ * 3. Recent tool success/error → use the short tool lifetime so the tool
+ *    result's emotion fades quickly, overriding the LLM emotion's lifetime.
+ * 4. Otherwise → use the per-emotion lifetime from EMOTION_CONFIG.emotionDecayMs.
+ *    Emotions without a configured lifetime (concentrado, esperando, normal)
+ *    return undefined — they are programmatic and clear via context, not timers.
+ */
+export function resolveDecayMs(
+  currentMood: AvatarEmotion,
+  lastToolStatus: ToolStatus,
+  ttsPlaying: boolean,
+  config: {
+    successEmotionMs: number;
+    errorEmotionMs: number;
+    emotionDecayMs: Partial<Record<AvatarEmotion, number>>;
+  },
+): number | undefined {
+  if (currentMood === "normal") return undefined;
+  if (ttsPlaying) return undefined;
+  if (lastToolStatus === "success") return config.successEmotionMs;
+  if (lastToolStatus === "error") return config.errorEmotionMs;
+  return config.emotionDecayMs[currentMood];
+}
+
 export function useAvatarMoodEngine(
   typing: boolean,
   overrideEmotion?: EmotionOverride | null,
@@ -53,7 +88,7 @@ export function useAvatarMoodEngine(
   const microCheckRef = useRef<number | null>(null);
   const microTimer = useRef<number | null>(null);
   const lastActivityRef = useRef(Date.now());
-  const wasTtsPlaying = useRef(false);
+  const prevSessionRef = useRef<string | null>(chat.sessionId);
 
   const emotionProvider = useMemo(() =>
     getEmotionProviderSetting() === "local"
@@ -65,6 +100,19 @@ export function useAvatarMoodEngine(
   useEffect(() => {
     return subscribeDebugAvatarState(setDebugOverride);
   }, []);
+
+  // Reset avatar state when the chat session changes (new session or attach).
+  useEffect(() => {
+    if (chat.sessionId === prevSessionRef.current) return;
+    prevSessionRef.current = chat.sessionId;
+    setCurrentMood("normal");
+    setStaleToolKey(null);
+    if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
+    if (staleTimer.current) { clearTimeout(staleTimer.current); staleTimer.current = null; }
+    if (microCheckRef.current) { clearTimeout(microCheckRef.current); microCheckRef.current = null; }
+    if (microTimer.current) { clearTimeout(microTimer.current); microTimer.current = null; }
+    lastActivityRef.current = Date.now();
+  }, [chat.sessionId]);
 
   const streaming = useMemo(() => {
     return chat.messages.some((m: ChatMessage) => m.streaming);
@@ -151,63 +199,34 @@ export function useAvatarMoodEngine(
     };
   }, [chat.toolEvents, state]);
 
+  // Unified decay timer — single source of truth.
+  // Decides the duration via resolveDecayMs and manages one timer.
+  // Replaces the three competing effects that previously overwrote each other.
   useEffect(() => {
+    if (currentMood === "normal" || chat.ttsPlaying) {
+      if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
+      return;
+    }
+
     const lastTool = chat.toolEvents[chat.toolEvents.length - 1];
-    if (lastTool && (lastTool.status === "success" || lastTool.status === "error")) {
-      const ms = lastTool.status === "success" ? EMOTION_CONFIG.successEmotionMs : EMOTION_CONFIG.errorEmotionMs;
-      if (decayTimer.current) clearTimeout(decayTimer.current);
-      decayTimer.current = window.setTimeout(() => {
-        setCurrentMood("normal");
-        decayTimer.current = null;
-      }, ms);
+    const lastToolStatus = lastTool?.status as ToolStatus;
+
+    const ms = resolveDecayMs(currentMood, lastToolStatus, chat.ttsPlaying, EMOTION_CONFIG);
+    if (!ms) {
+      if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
+      return;
     }
 
-    return () => {
-      if (decayTimer.current) {
-        clearTimeout(decayTimer.current);
-        decayTimer.current = null;
-      }
-    };
-  }, [chat.toolEvents]);
-
-  useEffect(() => {
-    if (chat.ttsPlaying === wasTtsPlaying.current) return;
-    wasTtsPlaying.current = chat.ttsPlaying;
-
-    if (chat.ttsPlaying) {
-      if (decayTimer.current) {
-        clearTimeout(decayTimer.current);
-        decayTimer.current = null;
-      }
-    } else {
-      const lifetime = EMOTION_CONFIG.emotionDecayMs[currentMood];
-      if (lifetime && currentMood !== "normal") {
-        if (decayTimer.current) clearTimeout(decayTimer.current);
-        decayTimer.current = window.setTimeout(() => {
-          setCurrentMood("normal");
-          decayTimer.current = null;
-        }, lifetime);
-      }
-    }
-  }, [chat.ttsPlaying, currentMood]);
-
-  useEffect(() => {
-    if (currentMood === "normal" || chat.ttsPlaying) return;
-    const lifetime = EMOTION_CONFIG.emotionDecayMs[currentMood];
-    if (!lifetime) return;
     if (decayTimer.current) clearTimeout(decayTimer.current);
     decayTimer.current = window.setTimeout(() => {
       setCurrentMood("normal");
       decayTimer.current = null;
-    }, lifetime);
+    }, ms);
 
     return () => {
-      if (decayTimer.current) {
-        clearTimeout(decayTimer.current);
-        decayTimer.current = null;
-      }
+      if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
     };
-  }, [currentMood, chat.ttsPlaying]);
+  }, [currentMood, chat.ttsPlaying, chat.toolEvents]);
 
   useEffect(() => {
     const interval = setInterval(() => {
