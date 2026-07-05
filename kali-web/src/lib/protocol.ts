@@ -550,6 +550,78 @@ export interface TurnStatsEvent {
   };
 }
 
+// ── Terminal session events ────────────────────────────────────────────────
+
+export interface TerminalCommandDetail {
+  call_id: string;
+  command: string;
+  cwd: string;
+  exit_code: number | null;
+  status: "running" | "done" | "error" | "timeout" | "cancelled";
+  started: string;
+  finished: string | null;
+  output_lines: [string, string, number][]; // [stream, text, seq]
+}
+
+export interface TerminalSessionStartEvent {
+  event: "terminal_session_start";
+  session_id: string;
+  terminal_session_id: string;
+  display_name: string;
+  status: "active" | "completed";
+  /** Only present on lazy-load (get_terminal_session response). */
+  commands?: TerminalCommandDetail[];
+}
+
+export interface CommandStartEvent {
+  event: "command_start";
+  session_id: string;
+  terminal_session_id: string;
+  call_id: string;
+  command: string;
+  cwd: string;
+}
+
+export interface CommandOutputEvent {
+  event: "command_output";
+  session_id: string;
+  call_id: string;
+  stream: "stdout" | "stderr";
+  line: string;
+}
+
+export interface CommandEndEvent {
+  event: "command_end";
+  session_id: string;
+  call_id: string;
+  exit_code: number;
+  status: "done" | "error" | "timeout" | "cancelled";
+}
+
+export interface TerminalSessionEndEvent {
+  event: "terminal_session_end";
+  session_id: string;
+  terminal_session_id: string;
+}
+
+export interface TerminalSessionListEvent {
+  event: "terminal_session_list";
+  session_id: string;
+  sessions: Array<{
+    id: string;
+    chat_session_id: string;
+    display_name: string;
+    status: string;
+    created: string;
+    command_count: number;
+  }>;
+}
+
+export interface GetTerminalSessionEvent {
+  event: "get_terminal_session";
+  terminal_session_id: string;
+}
+
 export interface AttachSessionEvent {
   event: "attach_session";
   session_id: string;
@@ -793,7 +865,8 @@ export type IncomingEvent =
   | GameSessionEndEvent
   | GameSessionListEvent
   | GameSessionLoadEvent
-  | GameSessionDeleteEvent;
+  | GameSessionDeleteEvent
+  | GetTerminalSessionEvent;
 
 export type OutgoingEvent =
   | ReadyEvent
@@ -834,4 +907,10 @@ export type OutgoingEvent =
   | DownloadSttModelCompleteEvent
   | DownloadSttModelErrorEvent
   | GameMoveResponseEvent
-  | GameMoveReasoningEvent;
+  | GameMoveReasoningEvent
+  | TerminalSessionStartEvent
+  | CommandStartEvent
+  | CommandOutputEvent
+  | CommandEndEvent
+  | TerminalSessionEndEvent
+  | TerminalSessionListEvent;
