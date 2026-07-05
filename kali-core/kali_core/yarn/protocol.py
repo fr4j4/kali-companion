@@ -27,6 +27,7 @@ EventType = Literal[
     "get_job_logs",
     "request_image",
     "tts_speak",
+    "get_terminal_session",
 ]
 
 # Outgoing (core → web)
@@ -56,6 +57,12 @@ EventTypeOut = Literal[
     "job_list",
     "image_ready",
     "turn_stats",
+    "terminal_session_start",
+    "command_start",
+    "command_output",
+    "command_end",
+    "terminal_session_end",
+    "terminal_session_list",
 ]
 
 
