@@ -94,6 +94,7 @@ class Executor:
 
         # Emit tool_event (running).
         tool_start = time.monotonic()
+        call_id = f"cmd_{uuid.uuid4().hex[:8]}"
         logger.info("[tool] running: %s (%s) args=%s", tool_name, session_id[:8], json.dumps(params))
         if emit_event:
             await emit_event({
@@ -103,6 +104,7 @@ class Executor:
                 "status": "running",
                 "params": params,
                 "output": None,
+                "call_id": call_id,
             })
 
         # Build context and run.
@@ -119,6 +121,7 @@ class Executor:
             console_requester=getattr(self, "console_requester", None),
             emit=emit_event,
             language=language,
+            call_id=call_id,
         )
 
         try:
@@ -145,6 +148,7 @@ class Executor:
                 "status": status,
                 "params": params,
                 "output": output,
+                "call_id": call_id,
             })
 
         # Emit artifact event if the tool produced one.
