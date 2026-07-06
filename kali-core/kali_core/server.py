@@ -3114,6 +3114,7 @@ class Connection:
         except Exception as exc:
             logger.exception("agent turn error")
             await self.send({"event": "error", "detail": str(exc)})
+            await self.send({"event": "turn_end", "session_id": session_id})
             return
 
         elapsed = time.monotonic() - turn_start_ts

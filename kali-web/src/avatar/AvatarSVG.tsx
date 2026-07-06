@@ -207,6 +207,7 @@ export function AvatarSVG({ state, emotion, relaxed, analyser, audioLevel, confi
   }, []);
 
   useEffect(() => {
+    console.log("[mouth] effect fired:", { state, hasAnalyser: !!analyser, audioLevel });
     if (state !== "hablando") {
       // Stop any running mouth loop and close the mouth.
       if (mouthRafRef.current) {
@@ -223,33 +224,50 @@ export function AvatarSVG({ state, emotion, relaxed, analyser, audioLevel, confi
       return;
     }
 
-    if (!analyser) {
-      // Fallback path: use the audioLevel prop (still no rAF here; the
-      // parent is responsible for updating it — ideally at low freq).
-      if (audioLevel !== undefined) updateMouth(audioLevel);
-      else updateMouth(0.5);
-      return;
+    if (analyser) {
+      // Primary path: rAF loop reading the analyser.
+      // When the analyser has real audio data, the mouth follows it.
+      // When the analyser is silent (suspended context, audio not started,
+      // low volume), the mouth animates with a natural sinusoidal
+      // oscillation so it always moves while speaking.
+      if (!mouthDataRef.current) {
+        mouthDataRef.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+      }
+      const data = mouthDataRef.current;
+      let logCount = 0;
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < 16; i++) sum += data[i];
+        const level = sum / (16 * 255);
+        if (logCount < 5) {
+          console.log("[mouth] tick:", { level: level.toFixed(4), sum });
+          logCount++;
+        }
+        if (level > 0.005) {
+          updateMouth(level);
+        } else {
+          updateMouth(0.2 + Math.sin(Date.now() / 130) * 0.2);
+        }
+        mouthRafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+      return () => {
+        if (mouthRafRef.current) {
+          cancelAnimationFrame(mouthRafRef.current);
+          mouthRafRef.current = null;
+        }
+      };
     }
 
-    // Primary path: self-driven rAF loop reading the analyser.
-    if (!mouthDataRef.current) {
-      mouthDataRef.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
-    }
-    const data = mouthDataRef.current;
-    const tick = () => {
-      analyser.getByteFrequencyData(data);
-      let sum = 0;
-      for (let i = 0; i < 16; i++) sum += data[i];
-      updateMouth(sum / (16 * 255));
-      mouthRafRef.current = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => {
-      if (mouthRafRef.current) {
-        cancelAnimationFrame(mouthRafRef.current);
-        mouthRafRef.current = null;
-      }
-    };
+    // Fallback: no analyser available — animate with a timer.
+    console.log("[mouth] using fallback timer (no analyser)");
+    let open = false;
+    const fallbackTimer = window.setInterval(() => {
+      open = !open;
+      updateMouth(open ? 0.55 : 0.15);
+    }, 140);
+    return () => clearInterval(fallbackTimer);
   }, [state, analyser, audioLevel, updateMouth]);
 
   // Apply config whenever it changes

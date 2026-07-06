@@ -5,6 +5,8 @@ export const EMOTION_CONFIG = {
   toolGcMs: 3_000,
   successEmotionMs: 2_000,
   errorEmotionMs: 3_000,
+  /** Timeout de seguridad: si streaming es true por más de esto sin actividad, tratar como false. */
+  streamingTimeoutMs: 90_000,
   /** Lifetime por emoción antes de decaer a normal (ms). Ausente = no decae. */
   emotionDecayMs: {
     enojado: 300_000,

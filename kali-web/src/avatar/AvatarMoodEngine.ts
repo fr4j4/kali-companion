@@ -114,9 +114,14 @@ export function useAvatarMoodEngine(
     lastActivityRef.current = Date.now();
   }, [chat.sessionId]);
 
-  const streaming = useMemo(() => {
+  const rawStreaming = useMemo(() => {
     return chat.messages.some((m: ChatMessage) => m.streaming);
   }, [chat.messages]);
+
+  // Safety timeout: if streaming is true but no activity for a long time
+  // (turn_end was lost, TTS failed, WS disconnected), treat as not streaming
+  // so the avatar doesn't get stuck in "pensando" forever.
+  const streaming = rawStreaming && (Date.now() - lastActivityRef.current < EMOTION_CONFIG.streamingTimeoutMs);
 
   const lastAssistantText = useMemo(() => {
     const msgs = chat.messages;
@@ -230,12 +235,14 @@ export function useAvatarMoodEngine(
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (state === "idle" && !chat.ttsPlaying && !streaming) {
+      // Tick when idle (for sleep detection) OR when rawStreaming is stuck
+      // (for the streaming safety timeout to fire).
+      if (state === "idle" || rawStreaming) {
         setTick((t) => t + 1);
       }
     }, 10_000);
     return () => clearInterval(interval);
-  }, [state, chat.ttsPlaying, streaming]);
+  }, [state, rawStreaming]);
 
   useEffect(() => {
     const isIdleNormal = state === "idle" && currentMood === "normal"
