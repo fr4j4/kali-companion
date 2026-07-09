@@ -1262,7 +1262,8 @@
 /* During speaking, mouth-opened takes priority over emotion-based mouth styles */
 #avatar-svg[data-state="hablando"] .mouth-opened { opacity: 1 !important; }
 #avatar-svg[data-state="hablando"] .mouth-closed { opacity: 0 !important; }
-#avatar-svg[data-state="hablando"] .mouth-angry { display: none; }
+#avatar-svg[data-state="hablando"] .mouth-angry,
+#avatar-svg[data-state="hablando"][data-mood="enojado"] .mouth-angry { display: none; }
 
 /* Emotions — with smooth transitions */
 #avatar-svg .pupil-core,
