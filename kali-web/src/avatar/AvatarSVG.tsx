@@ -207,7 +207,6 @@ export function AvatarSVG({ state, emotion, relaxed, analyser, audioLevel, confi
   }, []);
 
   useEffect(() => {
-    console.log("[mouth] effect fired:", { state, hasAnalyser: !!analyser, audioLevel });
     if (state !== "hablando") {
       // Stop any running mouth loop and close the mouth.
       if (mouthRafRef.current) {
@@ -234,16 +233,11 @@ export function AvatarSVG({ state, emotion, relaxed, analyser, audioLevel, confi
         mouthDataRef.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
       }
       const data = mouthDataRef.current;
-      let logCount = 0;
       const tick = () => {
         analyser.getByteFrequencyData(data);
         let sum = 0;
         for (let i = 0; i < 16; i++) sum += data[i];
         const level = sum / (16 * 255);
-        if (logCount < 5) {
-          console.log("[mouth] tick:", { level: level.toFixed(4), sum });
-          logCount++;
-        }
         if (level > 0.005) {
           updateMouth(level);
         } else {
@@ -261,7 +255,6 @@ export function AvatarSVG({ state, emotion, relaxed, analyser, audioLevel, confi
     }
 
     // Fallback: no analyser available — animate with a timer.
-    console.log("[mouth] using fallback timer (no analyser)");
     let open = false;
     const fallbackTimer = window.setInterval(() => {
       open = !open;

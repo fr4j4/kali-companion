@@ -77,7 +77,7 @@ export function useAvatarMoodEngine(
   typing: boolean,
   overrideEmotion?: EmotionOverride | null,
 ): MoodResult {
-  const { chat, ptt } = useStage();
+  const { chat, ptt, tts } = useStage();
   const [currentMood, setCurrentMood] = useState<AvatarEmotion>("normal");
   const [staleToolKey, setStaleToolKey] = useState<string | null>(null);
   const [debugOverride, setDebugOverride] = useState(getDebugAvatarState());
@@ -132,7 +132,7 @@ export function useAvatarMoodEngine(
   }, [chat.messages]);
 
   const hasLiveTool = chat.toolEvents.some((e) => e.status === "running" && `${e.session_id}::${e.tool}` !== staleToolKey);
-  const isActivity = chat.messages.length > 0 || chat.ttsPlaying || ptt.state !== "idle"
+  const isActivity = chat.messages.length > 0 || tts.playing || ptt.state !== "idle"
     || typing || hasLiveTool || overrideEmotion != null || streaming;
   if (isActivity) lastActivityRef.current = Date.now();
 
@@ -144,7 +144,7 @@ export function useAvatarMoodEngine(
     lastAssistantText,
     debug: debugOverride,
     consentRequest: chat.consentRequest,
-    ttsPlaying: chat.ttsPlaying,
+    ttsPlaying: tts.playing,
     pttState: ptt.state,
     streaming,
     typing,
@@ -154,7 +154,7 @@ export function useAvatarMoodEngine(
     staleToolKey,
     lastActivityTs: lastActivityRef.current,
     sleepMs: EMOTION_CONFIG.sleepMs,
-  }), [chat.emotionEvents, chat.toolEvents, chat.error, chat.consentRequest, chat.ttsPlaying, ptt.state, streaming, typing, overrideEmotion, currentMood, debugOverride, staleToolKey, lastAssistantText]);
+  }), [chat.emotionEvents, chat.toolEvents, chat.error, chat.consentRequest, tts.playing, ptt.state, streaming, typing, overrideEmotion, currentMood, debugOverride, staleToolKey, lastAssistantText]);
 
   const rawState = useMemo(() => deriveState(avatarCtx), [avatarCtx]);
   const state: AvatarState = rawState === "durmiendo" && currentMood !== "normal" ? "idle" : rawState;
@@ -208,7 +208,7 @@ export function useAvatarMoodEngine(
   // Decides the duration via resolveDecayMs and manages one timer.
   // Replaces the three competing effects that previously overwrote each other.
   useEffect(() => {
-    if (currentMood === "normal" || chat.ttsPlaying) {
+    if (currentMood === "normal" || tts.playing) {
       if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
       return;
     }
@@ -216,7 +216,7 @@ export function useAvatarMoodEngine(
     const lastTool = chat.toolEvents[chat.toolEvents.length - 1];
     const lastToolStatus = lastTool?.status as ToolStatus;
 
-    const ms = resolveDecayMs(currentMood, lastToolStatus, chat.ttsPlaying, EMOTION_CONFIG);
+    const ms = resolveDecayMs(currentMood, lastToolStatus, tts.playing, EMOTION_CONFIG);
     if (!ms) {
       if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
       return;
@@ -231,7 +231,7 @@ export function useAvatarMoodEngine(
     return () => {
       if (decayTimer.current) { clearTimeout(decayTimer.current); decayTimer.current = null; }
     };
-  }, [currentMood, chat.ttsPlaying, chat.toolEvents]);
+  }, [currentMood, tts.playing, chat.toolEvents]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -246,7 +246,7 @@ export function useAvatarMoodEngine(
 
   useEffect(() => {
     const isIdleNormal = state === "idle" && currentMood === "normal"
-      && !chat.ttsPlaying && !streaming && !typing
+      && !tts.playing && !streaming && !typing
       && !chat.toolEvents.some((e) => e.status === "running");
 
     if (!isIdleNormal) {
@@ -279,7 +279,7 @@ export function useAvatarMoodEngine(
       if (microCheckRef.current) { clearTimeout(microCheckRef.current); microCheckRef.current = null; }
       if (microTimer.current) { clearTimeout(microTimer.current); microTimer.current = null; }
     };
-  }, [state, currentMood, chat.ttsPlaying, streaming, typing, chat.toolEvents]);
+  }, [state, currentMood, tts.playing, streaming, typing, chat.toolEvents]);
 
   useEffect(() => {
     return () => {
