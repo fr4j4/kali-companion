@@ -62,19 +62,6 @@ async function fetchWithRetry(
   return null;
 }
 
-async function getSidecarPort(): Promise<number | null> {
-  try {
-    const resp = await fetch("/api/sidecar-port");
-    if (resp.ok) {
-      const data = await resp.json();
-      return data.port ?? null;
-    }
-  } catch {
-    // not running in Tauri shell
-  }
-  return null;
-}
-
 export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadProgress, downloadError }: Props) {
   const { t } = useTranslation();
   const { sttLanguage, ptt } = useStage();
@@ -134,9 +121,10 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   }, []);
 
   const apiBase = useCallback(async () => {
-    const port = await getSidecarPort();
-    const host = window.location.hostname;
-    return `http://${host}:${port ?? 8900}`;
+    // Ruta relativa: el browser usa el scheme/origen de la página actual.
+    // Esto evita mixed active content (HTTPS → HTTP). El proxy de Vite
+    // y/o nginx dev se encargan de rutear /stt/* al kali-core.
+    return "";
   }, []);
 
   const fetchModels = useCallback(async (forProvider?: string) => {
