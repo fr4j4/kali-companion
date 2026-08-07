@@ -1,0 +1,185 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# Kali — AI Voice Companion (GPU + DEV hot-reload)
+# =============================================================================
+# Variante de Dockerfile.gpu que además incluye los archivos de dev
+# (entrypoint-dev.sh, nginx-dev.conf, dev-in-docker.sh) para habilitar
+# el modo hot-reload vía docker-compose.override.yml.
+#
+# Build:
+#   docker build -f docker/Dockerfile.gpu.dev -t kali:gpu-dev .
+#
+# Levantar con dev + GPU:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.gpu.dev.yml \
+#                  -f docker/docker-compose.override.yml up -d --build
+#
+# Hot-reload:
+#   - Python: uvicorn --reload --reload-dir /app/kali-core/kali_core
+#   - React:  Vite HMR vía /ws en :5173
+# =============================================================================
+
+# ── Stage 1: Builder ────────────────────────────────────────────────────────
+FROM nvidia/cuda:12.6.0-devel-ubuntu24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Build deps: cmake, g++, git, OpenBLAS, Python, Node
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    g++ \
+    git \
+    make \
+    pkg-config \
+    nodejs \
+    npm \
+    libopenblas-dev \
+    python3 \
+    python3-venv \
+    python3-pip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Clone and build Qwen3 C++ server (CUDA)
+ARG QWEN_REPO=https://github.com/fr4j4/qwen-tts-cpp-server.git
+ARG QWEN_BRANCH=voicedesign
+RUN git clone --branch ${QWEN_BRANCH} --depth 1 ${QWEN_REPO} qwen-cpp \
+    && cd qwen-cpp \
+    && git submodule update --init --recursive
+
+WORKDIR /build/qwen-cpp
+
+# libcuda.so.1 stub for linking (real driver comes from nvidia-container-toolkit at runtime)
+RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/lib/x86_64-linux-gnu/libcuda.so.1
+
+# Build GPU version — common architectures (75=Turing, 86=Ampere, 89=Ada)
+ARG GPU_ARCHS="75;86;89"
+RUN mkdir build-gpu && cd build-gpu \
+    && cmake .. \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES="${GPU_ARCHS}" \
+    && cmake --build . --config Release -j "$(nproc)"
+
+# Remove stub symlink
+RUN rm -f /usr/lib/x86_64-linux-gnu/libcuda.so.1
+
+# Also build CPU as fallback
+RUN mkdir build && cd build \
+    && cmake .. -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS \
+    && cmake --build . --config Release -j "$(nproc)"
+
+# Build kali-web frontend (production bundle, served as fallback)
+WORKDIR /build/kali-web
+COPY kali-web/package.json kali-web/package-lock.json* ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
+COPY kali-web/ ./
+RUN npm run build
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM nvidia/cuda:12.6.0-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Runtime deps: nginx, audio, BLAS, Python, download tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    build-essential \
+    libopenblas0 \
+    libasound2t64 \
+    libpulse0 \
+    pulseaudio-utils \
+    alsa-utils \
+    python3 \
+    python3-dev \
+    python3-venv \
+    python3-pip \
+    curl \
+    wget \
+    unzip \
+    ca-certificates \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user (remove default ubuntu user to free UID 1000)
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && useradd --create-home --uid 1000 --shell /bin/bash kali
+
+# App directories
+RUN mkdir -p /app/kali-core /app/kali-web /app/models /app/data /app/audio /app/logs /app/.cache \
+    && chown -R kali:kali /app
+
+# Nginx tmp dir (logs go to stdout/stderr, pid+temps to /tmp/nginx)
+RUN mkdir -p /tmp/nginx && chown kali:kali /tmp/nginx
+
+# Set HOME so Path.home() resolves to /home/kali.
+# The entrypoint symlinks ~/.local/share/kali → /app/data for persistence.
+ENV HOME=/home/kali
+
+WORKDIR /app
+
+# Copy Qwen3 C++ binaries from builder (GPU + CPU fallback)
+COPY --from=builder --chown=kali:kali /build/qwen-cpp/build-gpu/tts-server /app/qwen-cpp/build-gpu/tts-server
+COPY --from=builder --chown=kali:kali /build/qwen-cpp/build/tts-server /app/qwen-cpp/build/tts-server
+
+# Copy kali-web dist from builder (production fallback if dev launcher isn't used)
+COPY --from=builder --chown=kali:kali /build/kali-web/dist /app/kali-web/dist
+
+# Copy kali-core source
+COPY --chown=kali:kali kali-core/ /app/kali-core/
+
+# Copy scripts for model downloads
+COPY --chown=kali:kali scripts/ /app/scripts/
+
+# README needed by hatchling build metadata (pyproject.toml: readme = "../README.md")
+COPY --chown=kali:kali README.md /app/README.md
+
+# Install kali-core + deps (incl. qwen-stt extras for torch + HF transformers GPU STT)
+#
+# Pin setuptools<81 because webrtcvad (transitively used by VAD in STT) does
+# `import pkg_resources` at module top — and setuptools 81+ removed it.
+# See https://setuptools.pypa.io/en/latest/pkg_resources.html
+RUN pip install --no-cache-dir --break-system-packages \
+    "setuptools<81" \
+    "/app/kali-core[qwen-stt]" \
+    piper-tts \
+    numpy \
+    scipy \
+    vosk
+
+# Copy and configure nginx (non-root: logs to stdout/stderr, pid+temps to /tmp)
+COPY docker/nginx-main.conf /etc/nginx/nginx.conf
+COPY docker/nginx.conf /etc/nginx/sites-available/default
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# Copy nginx-main.conf for dev entrypoint (ensambles nginx-main + nginx-dev at runtime)
+COPY --chown=kali:kali docker/nginx-main.conf /app/docker/nginx-main.conf
+
+# Copy entrypoints (prod + dev) and dev scripts
+COPY --chown=kali:kali docker/entrypoint.sh /app/entrypoint.sh
+COPY --chown=kali:kali docker/entrypoint-dev.sh /app/docker/entrypoint-dev.sh
+COPY --chown=kali:kali docker/nginx-dev.conf /app/docker/nginx-dev.conf
+COPY --chown=kali:kali docker/scripts/dev-in-docker.sh /app/docker/scripts/dev-in-docker.sh
+RUN chmod +x /app/entrypoint.sh \
+    /app/docker/entrypoint-dev.sh \
+    /app/docker/scripts/dev-in-docker.sh
+
+# Expose ports
+EXPOSE 8900 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -sf http://localhost:8900/health || exit 1
+
+STOPSIGNAL SIGTERM
+
+# Default to CUDA backend for GPU image
+ENV KALI_QWEN_BACKEND=CUDA0
+
+USER kali
+ENTRYPOINT ["/app/entrypoint.sh"]

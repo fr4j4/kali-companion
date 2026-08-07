@@ -1,0 +1,50 @@
+# =============================================================================
+# Kali — Docker Compose Override (GPU + DESARROLLO con hot-reload)
+# =============================================================================
+# Combina el override de dev (monta código fuente para hot-reload) con
+# soporte GPU NVIDIA (--gpus all + build con Dockerfile.gpu.dev).
+#
+# Uso:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.gpu.dev.yml \
+#                  -f docker/docker-compose.override.yml up -d --build
+#
+# Una vez arriba:
+#   - http://companion.local:8080  (vía mDNS, desde la LAN)
+#   - http://localhost:8080        (en el propio host)
+#
+# HMR de Vite funciona en ambas URLs. kali-core recarga con uvicorn --reload
+# cuando se edita /app/kali-core dentro del contenedor (bind mount del repo).
+# =============================================================================
+
+services:
+  kali:
+    # Construye con la imagen GPU + dev (incluye archivos de dev).
+    # Dockerfile.gpu.dev es una variante de Dockerfile.gpu que además copia
+    # entrypoint-dev.sh, nginx-dev.conf y dev-in-docker.sh.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gpu.dev
+
+    # Acceso a la GPU NVIDIA del host.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # Variables de entorno para GPU.
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      # KALI_QWEN_BACKEND ya viene en CUDA0 desde el Dockerfile, pero lo
+      # dejamos explícito acá por si el override prod lo cambia.
+      - KALI_QWEN_BACKEND=CUDA0
+      # TTS por default en GPU: Qwen3 con backend CUDA.
+      # Cambiar a 'inproc' (Piper CPU) si querés arrancar más liviano.
+      - KALI_TTS_PROVIDER=qwen3
+
+    # Los volúmenes (binds), el entrypoint de dev, los ports y los
+    # devices de audio los maneja docker-compose.override.yml.
