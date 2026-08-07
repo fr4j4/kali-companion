@@ -74,3 +74,7 @@ Thumbs.db
 .agents/
 skills-lock.json
 .opencode/
+
+# Backup files (NUNCA commitear)
+*.bak
+*.bak.*
