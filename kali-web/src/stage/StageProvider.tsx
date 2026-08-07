@@ -8,7 +8,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useChat, getSidecarPort, type ChatState } from "../hooks/useChat";
+import { useChat, type ChatState } from "../hooks/useChat";
 import { useTTS, type TtsPlaybackState } from "../hooks/useTTS";
 import { usePTT, type PTTControls } from "../hooks/usePTT";
 import type {
@@ -20,6 +20,7 @@ import {
   listConnections,
   listCloudProviders,
 } from "../lib/api/connections";
+import { apiBase } from "../lib/api/http";
 
 interface StageContextValue {
   chat: ChatState;
@@ -224,10 +225,9 @@ export function StageProvider({ children }: { children: ReactNode }) {
         setCustomVoices([]);
         return;
       }
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetchWithRetry(
-        `http://${host}:${port ?? 8900}/voices/custom?provider=qwen3`,
+        `${base}/voices/custom?provider=qwen3`,
       );
       if (!resp) return;
       try {

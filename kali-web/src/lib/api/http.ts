@@ -1,25 +1,13 @@
-export async function getSidecarPort(): Promise<number | null> {
-  const w = window as unknown as { kali?: { getSidecarPort?: () => Promise<number | null> } };
-  if (w.kali?.getSidecarPort) {
-    return await w.kali.getSidecarPort();
-  }
-  const envPort = import.meta.env.VITE_KALI_PORT;
-  if (envPort) return Number(envPort);
-  try {
-    const resp = await fetch("/api/sidecar-port");
-    if (resp.ok) {
-      const data = await resp.json();
-      return data.port ?? 8900;
-    }
-  } catch {
-  }
-  return 8900;
-}
+import { getSidecarPort } from "./sidecar";
 
 export async function apiBase(): Promise<string> {
-  const port = await getSidecarPort();
-  const host = window.location.hostname;
-  return `http://${host}:${port ?? 8900}`;
+  // Devuelve ruta vacía (URL relativa) para que el browser use el mismo
+  // scheme/origen que la página. Esto evita mixed active content cuando
+  // la página está en HTTPS (e.g. https://companion.local/) y el backend
+  // está en HTTP interno. Vite/nginx proxy se encargan de rutear /stt, /api,
+  // /voices, /llm etc. hacia kali-core.
+  await getSidecarPort();
+  return "";
 }
 
 export async function fetchWithRetry(
