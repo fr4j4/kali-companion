@@ -119,7 +119,12 @@ COPY --chown=kali:kali scripts/ /app/scripts/
 COPY --chown=kali:kali README.md /app/README.md
 
 # Install kali-core + deps
+#
+# Pin setuptools<81 because webrtcvad (transitively used by VAD in STT) does
+# `import pkg_resources` at module top — and setuptools 81+ removed it.
+# See https://setuptools.pypa.io/en/latest/pkg_resources.html
 RUN pip install --no-cache-dir \
+    "setuptools<81" \
     /app/kali-core \
     piper-tts \
     numpy \
@@ -132,9 +137,12 @@ COPY docker/nginx.conf /etc/nginx/sites-available/default
 RUN rm -f /etc/nginx/sites-enabled/default \
     && ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
-# Copy entrypoint
+# Copy entrypoints (prod + dev) and dev scripts
 COPY --chown=kali:kali docker/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+COPY --chown=kali:kali docker/entrypoint-dev.sh /app/docker/entrypoint-dev.sh
+COPY --chown=kali:kali docker/nginx-dev.conf /app/docker/nginx-dev.conf
+COPY --chown=kali:kali docker/scripts/dev-in-docker.sh /app/docker/scripts/dev-in-docker.sh
+RUN chmod +x /app/entrypoint.sh /app/docker/entrypoint-dev.sh /app/docker/scripts/dev-in-docker.sh
 
 # Expose ports
 # 8900 = kali-core WebSocket + HTTP API
