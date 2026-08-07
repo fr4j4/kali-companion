@@ -27,13 +27,22 @@ services:
       - "${KALI_WEB_PORT:-8080}:8080"  # nginx (kali-web frontend)
 
     volumes:
-      # Modelos (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host para persistencia
-      - ${HOME}/.local/share/kali/models:/app/models
+      # ── Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes) ──
+      - ${HOME}/kali_data/data:/app/data
 
-      # Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes)
-      - kali-data:/app/data
+      # ── Modelos TTS/STT (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host ──
+      - ${HOME}/kali_data/models:/app/models
 
-      # Audio: PulseAudio socket (para compartir audio con el host)
+      # ── Audio cache (TTS renderizado, grabaciones STT) ──
+      - ${HOME}/kali_data/audio:/app/audio
+
+      # ── Logs persistentes del contenedor ──
+      - ${HOME}/kali_data/logs:/app/logs
+
+      # ── Cache general (pip, huggingface, etc.) ──
+      - ${HOME}/kali_data/cache:/app/.cache
+
+      # ── PulseAudio socket (compartir audio con el host) ──
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse:${XDG_RUNTIME_DIR:-/run/user/1000}/pulse
 
     environment:
@@ -89,7 +98,3 @@ services:
     # Bridge network + host access (Ollama, etc.)
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-volumes:
-  kali-data:
-    name: kali-data
