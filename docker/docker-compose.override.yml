@@ -27,11 +27,11 @@ services:
       - ../kali-web:/app/kali-web
 
       # ── Estado persistente (binds explícitos, mismo path que en prod) ──
-      - ${HOME}/kali_data/data:/app/data
-      - ${HOME}/kali_data/models:/app/models
-      - ${HOME}/kali_data/audio:/app/audio
-      - ${HOME}/kali_data/logs:/app/logs
-      - ${HOME}/kali_data/cache:/app/.cache
+      - /mnt/data2/data:/app/data
+      - /mnt/data2/models/voice:/app/models
+      - /mnt/data2/audio:/app/audio
+      - /mnt/data2/logs:/app/logs
+      - /mnt/data2/cache:/app/.cache
 
       # ── Audio (ALSA + PulseAudio) ──
       - /dev/snd:/dev/snd

@@ -28,19 +28,19 @@ services:
 
     volumes:
       # ── Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes) ──
-      - ${HOME}/kali_data/data:/app/data
+      - /mnt/data2/data:/app/data
 
       # ── Modelos TTS/STT (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host ──
-      - ${HOME}/kali_data/models:/app/models
+      - /mnt/data2/models/voice:/app/models
 
       # ── Audio cache (TTS renderizado, grabaciones STT) ──
-      - ${HOME}/kali_data/audio:/app/audio
+      - /mnt/data2/audio:/app/audio
 
       # ── Logs persistentes del contenedor ──
-      - ${HOME}/kali_data/logs:/app/logs
+      - /mnt/data2/logs:/app/logs
 
       # ── Cache general (pip, huggingface, etc.) ──
-      - ${HOME}/kali_data/cache:/app/.cache
+      - /mnt/data2/cache:/app/.cache
 
       # ── PulseAudio socket (compartir audio con el host) ──
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse:${XDG_RUNTIME_DIR:-/run/user/1000}/pulse
