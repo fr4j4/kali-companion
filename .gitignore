@@ -78,3 +78,6 @@ skills-lock.json
 # Backup files (NUNCA commitear)
 *.bak
 *.bak.*
+
+# Clon embebido del server TTS C++ (repo propio, Docker lo clona aparte)
+kali-core/kali_core/voice/qwen_cpp/
