@@ -41,27 +41,16 @@ if [ -f "$CORE_DIR/.env" ]; then
   set +a
 fi
 
-# ── Crear venv si no existe (primera corrida) ───────────────────────────────
-# NOTA: $VENV vive en el bind mount del host, por lo que puede existir un venv
-# creado FUERA del contenedor (distinto python, p.ej. /usr/bin/python3.12 del
-# host). Si su intérprete no resuelve aquí, es basura para este entorno: se
-# reconstruye in-container.
-if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c "import sys" >/dev/null 2>&1; then
+# ── Venv + deps (automático) ────────────────────────────────────────────────
+# Si el venv del flavor NO existe (clon fresco) o existe pero es incompatible
+# con este entorno (host / otra base, symlinks muertos, pip roto), se crea o
+# recrea desde cero y se instalan las deps. Nada manual.
+if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -m uvicorn --version >/dev/null 2>&1; then
   if [ -d "$VENV" ]; then
-    log "venv existente está roto para este entorno; reconstruyendo..."
+    log "venv $FLAVOR existente está roto/incompatible; recreando..."
     rm -rf "$VENV"
   fi
-  log "creando venv en $VENV"
-  python3 -m venv "$VENV"
-fi
-
-# ── Instalar deps python si hace falta ──────────────────────────────────────
-# Chequeo FUNCIONAL (uvicorn importable). El venv vive en el bind mount y
-# puede haber sido creado por otro entorno (host / base Ubuntu vs Debian),
-# incluso con pip roto. En ese caso se RECREA desde cero, no se parchea.
-if ! "$VENV/bin/python" -m uvicorn --version >/dev/null 2>&1; then
-  log "venv ausente o incompatible con este entorno; reconstruyendo desde cero"
-  rm -rf "$VENV"
+  log "creando venv en $VENV e instalando deps de kali-core..."
   python3 -m venv "$VENV"
   "$VENV/bin/pip" install --quiet --upgrade pip
   "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy
