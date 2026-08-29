@@ -109,15 +109,21 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 `tts-server` GPU binary baked in) with device reservations and
 `KALI_TTS_PROVIDER=qwen3`, `KALI_QWEN_BACKEND=CUDA0`.
 
-> **Note (GPU + dev):** in dev the TTS binary runs from the **bind-mounted
-> source tree** (`kali_core/voice/qwen_cpp/build-gpu/`), not from the image.
-> That folder is gitignored — if it's missing, extract it from the image's
-> builder stage:
+> **Note (GPU + dev):** in dev the TTS binaries run from the **bind-mounted
+> source tree** (`kali_core/voice/qwen_cpp/{build,build-gpu}/tts-server`),
+> not from the image. Those folders are gitignored — if missing, extract
+> them from the image's **builder stage** (binaries AND the `libggml*.so`
+> next to them; the final image only carries the bare binaries, which won't
+> load without their libs):
 > ```bash
-> CID=$(docker create kali:gpu-dev)
-> docker cp "$CID:/app/qwen-cpp/build-gpu/." kali-core/kali_core/voice/qwen_cpp/build-gpu/
+> docker build --target builder -f docker/Dockerfile.gpu.dev -t kali:gpu-dev-builder .
+> CID=$(docker create kali:gpu-dev-builder)
+> docker cp "$CID:/build/qwen-cpp/build-gpu/." kali-core/kali_core/voice/qwen_cpp/build-gpu/
+> docker cp "$CID:/build/qwen-cpp/build/."     kali-core/kali_core/voice/qwen_cpp/build/
 > docker rm "$CID"
 > ```
+> Alternatively run `scripts/build-qwen-cpp.sh cuda|cpu` inside a GPU-dev
+> container (it has the CUDA dev toolchain in its builder stage).
 > `providers/qwen.py` sets `LD_LIBRARY_PATH` to the binary's folder
 > automatically (the `libggml*.so` live next to it).
 
