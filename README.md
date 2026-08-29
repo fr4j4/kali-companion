@@ -111,8 +111,13 @@ try, no Docker) or fully containerized with Docker (recommended for
 always-on deployment). Both use the same code and the same `.env` settings.
 
 > **Requirements:** Python 3.12+ and Node 20+ (native), or Docker 24+ +
-> Compose 2.x (containerized). NVIDIA GPU + `nvidia-container-toolkit` only
-> if you want Qwen3-TTS voice on GPU.
+> Compose 2.x with the **buildx plugin** (containerized) — the GPU
+> Dockerfiles use BuildKit-only features (`RUN --mount=type=cache`), and
+> distro Docker packages often ship without the `buildx` plugin: if
+> `docker buildx version` says *unknown command*, install
+> `docker-buildx` (Ubuntu) / `docker-buildx-plugin` (official repo), or
+> builds fall back to the legacy builder and fail. NVIDIA GPU +
+> `nvidia-container-toolkit` only if you want Qwen3-TTS voice on GPU.
 
 ### Choose your mode
 
