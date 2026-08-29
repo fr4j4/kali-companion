@@ -82,6 +82,15 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml up 
 Requires `nvidia-container-toolkit` on the host. Verify inside the container:
 `docker exec kali nvidia-smi`.
 
+> If startup fails with `could not select device driver "nvidia"`: the
+> toolkit is missing (install it) or the daemon wasn't restarted after
+> installing/configuring it. Full setup:
+> ```bash
+> sudo apt-get install -y nvidia-container-toolkit
+> sudo nvidia-ctk runtime configure --runtime=docker
+> sudo systemctl restart docker
+> ```
+
 ### 4) Dev GPU (HMR + CUDA) — for working on TTS/voice
 
 ```bash
