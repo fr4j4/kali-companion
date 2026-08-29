@@ -88,6 +88,15 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 
 ## Engines (TTS / STT)
 
+> **How defaults work:** the `.env`/image only set the *starting* provider
+> (Piper + Vosk on CPU — fully offline). The **real choice is made in the
+> UI** (Settings → Voice): switch provider (Piper/Qwen3/HTTP) and pick the
+> device (CPU / CUDA0…) from the hardware actually available in the
+> container. That choice is **persisted** in `user_config.json` and survives
+> restarts — afterwards it takes precedence over `KALI_*` env vars.
+> The image defines the *ceiling*: in `kali:latest`/`kali-dev` only CPU is
+> visible; the `kali:gpu*` images expose CUDA devices in the UI.
+
 ### TTS (`KALI_TTS_PROVIDER`)
 
 | Value | Engine | Notes |
