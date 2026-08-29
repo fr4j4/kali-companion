@@ -24,7 +24,11 @@ services:
 
     ports:
       - "${KALI_PORT:-8900}:8900"   # kali-core WebSocket + HTTP API
-      - "${KALI_WEB_PORT:-8080}:8080"  # nginx (kali-web frontend)
+      # nginx: 8080 = HTTP (o TLS si KALI_TLS=true reemplaza ese listener).
+      # 8444 = listener TLS alternativo/publicado siempre; nginx solo lo
+      # atiende si KALI_TLS=true (si no, conexión rechazada, inocuo).
+      - "${KALI_WEB_PORT:-8080}:8080"
+      - "${KALI_TLS_PORT:-8444}:8444"
 
     volumes:
       # ── Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes) ──

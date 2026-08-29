@@ -45,13 +45,31 @@ err()  { echo -e "${RED}[kali-dev]${NC} $*" >&2; }
 log "configurando nginx en modo dev (proxy a Vite :5173 + WS a kali-core)..."
 NGINX_CONF=/tmp/nginx.conf
 
+# TLS opcional por .env: generar cert si KALI_TLS=true (idempotente)
+if [ -f /app/docker/tls-init.sh ]; then
+    # shellcheck disable=SC1091
+    source /app/docker/tls-init.sh
+    kali_tls_init
+    TLS_ENABLED="$([ "${KALI_TLS:-false}" = "true" ] && [ -f /app/certs/kali.crt ] && echo 1 || echo 0)"
+    TLS_LISTEN=""
+    if [ "$TLS_ENABLED" = "1" ]; then
+        TLS_LISTEN="listen ${KALI_TLS_PORT:-8444} ssl;
+    http2 on;
+    ssl_certificate     /app/certs/kali.crt;
+    ssl_certificate_key /app/certs/kali.key;"
+    fi
+else
+    TLS_LISTEN=""
+fi
+
 # Ensamblar nginx.conf en /tmp (escribible por kali). Usamos python en vez
 # de `cat ... ; echo }` porque bash dentro de este container tiene un bug
 # bizarro que duplica lineas al concatenar. Python es predecible.
-python3 - "$NGINX_CONF" << 'PYEOF'
+python3 - "$NGINX_CONF" "$TLS_LISTEN" << 'PYEOF'
 import re
 import sys
 out = sys.argv[1]
+tls_listen = sys.argv[2] if len(sys.argv) > 2 else ""
 with open("/app/docker/nginx-main.conf") as f:
     main = f.read()
 # nginx-main.conf es un archivo completo (sirve también como /etc/nginx/
@@ -63,6 +81,19 @@ main = re.sub(r"\n[ \t]*include /etc/nginx/(?:conf\.d|sites-enabled)/[^;]+;", ""
 main = re.sub(r"\}[ \t]*\n?[ \t]*$", "\n", main)
 with open("/app/docker/nginx-dev.conf") as f:
     dev = f.read()
+# Modo TLS opcional (KALI_TLS=true): el listen 8080 se sustituye por el
+# bloque ssl (puerto KALI_TLS_PORT, cert en /app/certs). Sin TLS queda
+# byte a byte igual que antes.
+if tls_listen:
+    dev = re.sub(r"listen 8080 default_server;\n(\s*)listen \[::\]:8080 default_server;",
+                 tls_listen, dev, count=1)
+    dev = dev.replace('ssl_certificate     /app/certs/kali.crt;',
+                      'ssl_certificate     /app/certs/kali.crt;')
+# Servir el cert público para fácil import en clientes (solo TLS)
+if tls_listen:
+    dev = dev.replace(
+        "    # ── SPA",
+        "    location /kali.crt { alias /app/certs/kali.crt; default_type application/pkix-cert; }\n\n    # ── SPA", 1)
 # nginx-dev.conf ya cierra el server{}. Agregamos solo el cierre del http{.
 combined = main + dev + "}\n"
 with open(out, "w") as f:
