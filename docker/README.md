@@ -12,6 +12,11 @@ Full deployment of Kali (kali-core + kali-web) in Docker, with support for multi
   - Check: `echo $DOCKER_BUILDKIT` — if it prints `0`, remove that export
     from your shell profile (`~/.zshrc` / `~/.bashrc` / `/etc/environment`)
     or force it to `1` per build: `DOCKER_BUILDKIT=1 docker build ...`
+  - If `docker buildx version` says *unknown command*, the **buildx plugin
+    is missing** (common with distro Docker packages): install it with
+    `sudo apt-get install docker-buildx` (Ubuntu) or
+    `docker-buildx-plugin` (official Docker repo). Without it, `docker
+    build` falls back to the legacy builder even on a modern engine.
 - **Docker Compose 2.x** (the `docker compose` plugin, not the legacy
   `docker-compose` binary)
 - **nvidia-container-toolkit** (only for the GPU stacks) — driver 525+;
