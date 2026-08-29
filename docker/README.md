@@ -99,6 +99,12 @@ Requires `nvidia-container-toolkit` on the host. Verify inside the container:
 
 ### 4) Dev GPU (HMR + CUDA) — for working on TTS/voice
 
+> ⏱️ **First-run timing:** the full GPU-dev stack takes **~20-30 min on a
+> fresh clone** (~10-15 min building the CUDA image, ~5-10 min installing
+> the Python venv incl. torch for the ASR extra, then startup). Later
+> runs start in seconds. During the first venv install nginx shows 502
+> for the frontend — that's the Vite upstream not started yet, not a hang.
+
 ```bash
 docker compose -f docker/docker-compose.yml \
                -f docker/docker-compose.gpu.dev.yml \
@@ -111,12 +117,25 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 
 > **Note (GPU + dev):** in dev the TTS binaries run from the **bind-mounted
 > source tree** (`kali_core/voice/qwen_cpp/{build,build-gpu}/tts-server`),
-> not from the image. Those folders are gitignored — if missing, extract
-> them from the image's **builder stage** (binaries AND the `libggml*.so`
-> next to them; the final image only carries the bare binaries, which won't
-> load without their libs):
+> not from the image. Those folders are gitignored — populating them from
+> the image happens automatically at startup (see below); only if the image
+> is too old to carry them, extract from the **builder stage**.
+>
+> ⚠️ **Two different images, two tags.** The image that RUNS the dev stack
+> must always be built **without** `--target`:
 > ```bash
+> docker build -f docker/Dockerfile.gpu.dev -t kali:gpu-dev .   # ← the stack image
+> ```
+> `--target builder` produces a **parallel extraction-only image**
+> (compile toolchain + artefacts, no entrypoint/Vite) — if you tag it as
+> `kali:gpu-dev` the stack fails to start with
+> `no such file or directory: /app/docker/entrypoint-dev.sh`.
+> ```bash
+> # extraction-only image (does NOT run the dev stack):
 > docker build --target builder -f docker/Dockerfile.gpu.dev -t kali:gpu-dev-builder .
+> ```
+> From it you can manually copy binaries+libs if ever needed:
+> ```bash
 > CID=$(docker create kali:gpu-dev-builder)
 > docker cp "$CID:/build/qwen-cpp/build-gpu/." kali-core/kali_core/voice/qwen_cpp/build-gpu/
 > docker cp "$CID:/build/qwen-cpp/build/."     kali-core/kali_core/voice/qwen_cpp/build/
@@ -126,6 +145,8 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 > container (it has the CUDA dev toolchain in its builder stage).
 > `providers/qwen.py` sets `LD_LIBRARY_PATH` to the binary's folder
 > automatically (the `libggml*.so` live next to it).
+> On a fresh clone none of this is manual: the dev launcher copies the
+> binaries from the image on first `up`.
 
 ## Engines (TTS / STT)
 
