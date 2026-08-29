@@ -106,7 +106,26 @@ Read these in order:
 
 ## Running Kali
 
-### Without Docker (native development)
+There are **two ways to run Kali**: locally with the dev scripts (fastest to
+try, no Docker) or fully containerized with Docker (recommended for
+always-on deployment). Both use the same code and the same `.env` settings.
+
+> **Requirements:** Python 3.12+ and Node 20+ (native), or Docker 24+ +
+> Compose 2.x (containerized). NVIDIA GPU + `nvidia-container-toolkit` only
+> if you want Qwen3-TTS voice on GPU.
+
+### Choose your mode
+
+| You want to... | Use |
+|---|---|
+| Try Kali / hack on the frontend & brain | **Native** (`scripts/dev.sh`) — no Docker, no compile |
+| Run it always-on (second monitor appliance) | **Docker** (`docker compose`) |
+| Work on TTS/voice with GPU | **Docker dev GPU** stack or native + `build-qwen-cpp.sh gpu` |
+| Full native shell (Electron, screen capture) on the desktop | **Native** (`scripts/prod.sh`) |
+
+---
+
+### Option 1 — Native (no Docker)
 
 **Quick start (Piper TTS, no compilation required):**
 
@@ -144,7 +163,8 @@ Both share a common 12 kHz audio codec tokenizer
 (`qwen-tokenizer-12hz-Q4_K_M.gguf`, ~255 MB). GPU acceleration:
 `cpu`, `cuda0`, `cuda1` (pass to `build-qwen-cpp.sh`).
 
-Voice design mode: `./scripts/dev-qwen-vd.sh` / `./scripts/prod-qwen-vd.sh`.
+VoiceDesign mode: set `KALI_TTS_PROVIDER=qwen3-voicedesign` (GPU strongly
+recommended for the 1.7B model).
 
 **Production mode (Electron + screen capture):**
 
@@ -156,18 +176,54 @@ Voice design mode: `./scripts/dev-qwen-vd.sh` / `./scripts/prod-qwen-vd.sh`.
 `prod.sh` builds the production frontend, compiles the Electron shell, and
 launches kali as a native window.
 
-### With Docker
+---
+
+### Option 2 — Docker (recommended for always-on)
+
+Four stacks, one image tag per variant — pick yours:
+
+| Stack | Image | Command |
+|---|---|---|
+| **Prod CPU** | `kali:latest` | base file only |
+| **Dev CPU** (HMR) | `kali-dev` | + `override.yml` |
+| **Prod GPU** (Qwen3) | `kali:gpu` | + `gpu.yml` |
+| **Dev GPU** (HMR+CUDA) | `kali:gpu-dev` | + `override.yml` + `gpu.dev.yml` |
 
 ```bash
+# 1. Configure
 cp docker/.env.example docker/.env
-# Edit KALI_LLM_API_URL in docker/.env
+# Edit KALI_LLM_API_URL / KALI_LLM_API_KEY / KALI_LLM_MODEL — without them
+# Kali runs but the chat cannot answer (no LLM configured).
 
+# 2. Prod CPU (the default stack)
 docker compose -f docker/docker-compose.yml up -d --build
-# → Open http://localhost:8080 in your browser
+
+# 3. Open
+# → http://localhost:8080   (or :${KALI_WEB_PORT})
 ```
 
-See [docker/README.md](docker/README.md) for GPU support, engine selection,
-microphone setup, and advanced configuration.
+Dev with hot-reload (edit code on the host, reload in-container):
+
+```bash
+docker compose -f docker/docker-compose.yml \
+               -f docker/docker-compose.override.yml up -d --build
+```
+
+GPU (Qwen3-TTS on CUDA — see `docker/README.md` for model download and the
+per-flavor venv notes):
+
+```bash
+docker build -f docker/Dockerfile.gpu -t kali:gpu .
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml up -d
+```
+
+**→ Full Docker guide with all four stacks, engine tables, venv-by-flavor,
+ports and persistence: [docker/README.md](docker/README.md)**
+
+> Quick orientation: **nginx** serves the frontend (from `kali-web/dist` in
+> prod, proxying Vite on :5173 in dev) and **kali-core** is the Python
+> sidecar on :8900 (WebSocket + REST API). In dev both are bind-mounted, so
+> edits reload without rebuilding the image.
 
 <img src="screenshots/kali_user_typing_code_snippet_prompt.png" width="700" />
 
