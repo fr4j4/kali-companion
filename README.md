@@ -110,14 +110,30 @@ There are **two ways to run Kali**: locally with the dev scripts (fastest to
 try, no Docker) or fully containerized with Docker (recommended for
 always-on deployment). Both use the same code and the same `.env` settings.
 
-> **Requirements:** Python 3.12+ and Node 20+ (native), or Docker 24+ +
-> Compose 2.x with the **buildx plugin** (containerized) — the GPU
-> Dockerfiles use BuildKit-only features (`RUN --mount=type=cache`), and
-> distro Docker packages often ship without the `buildx` plugin: if
-> `docker buildx version` says *unknown command*, install
-> `docker-buildx` (Ubuntu) / `docker-buildx-plugin` (official repo), or
-> builds fall back to the legacy builder and fail. NVIDIA GPU +
-> `nvidia-container-toolkit` only if you want Qwen3-TTS voice on GPU.
+> [!IMPORTANT]
+> **Docker path requires BuildKit.** The Dockerfiles use `RUN --mount=type=cache`
+> (npm/pip cache), which only the BuildKit builder supports. Distro packages
+> (Ubuntu/Debian `docker.io`, `docker-ce` without extras) often **ship without
+> the `buildx` plugin** — without it, `docker build` silently falls back to
+> the legacy builder and GPU builds **fail** with
+> `the --mount option requires BuildKit`.
+>
+> Check before building:
+> ```bash
+> docker buildx version   # "unknown command" = plugin missing
+> ```
+> Install it if missing:
+> ```bash
+> sudo apt-get install -y docker-buildx          # Ubuntu/Debian distro package
+> # or, with Docker's official repo already configured:
+> sudo apt-get install -y docker-buildx-plugin
+> ```
+> Also make sure `DOCKER_BUILDKIT=0` is **not** exported in your shell
+> profile.
+
+**Requirements:** Python **3.12+** and Node **20+** (native path);
+Docker **24+**, Compose **2.x** and the buildx plugin (Docker path);
+NVIDIA GPU + `nvidia-container-toolkit` only for Qwen3-TTS on GPU.
 
 ### Choose your mode
 
