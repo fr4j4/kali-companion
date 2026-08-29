@@ -46,8 +46,13 @@ if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c "import sys" >/dev/nul
 fi
 
 # ── Instalar deps python si hace falta ──────────────────────────────────────
-if [ ! -d "$VENV/lib/python"*/site-packages/kali_core ] && [ ! -d "$VENV/lib/python"*/site-packages/kali_core* ]; then
-  log "instalando deps de kali-core (primera corrida)"
+# Chequeo FUNCIONAL (uvicorn importable). El venv vive en el bind mount y
+# puede haber sido creado por otro entorno (host / base Ubuntu vs Debian),
+# incluso con pip roto. En ese caso se RECREA desde cero, no se parchea.
+if ! "$VENV/bin/python" -m uvicorn --version >/dev/null 2>&1; then
+  log "venv ausente o incompatible con este entorno; reconstruyendo desde cero"
+  rm -rf "$VENV"
+  python3 -m venv "$VENV"
   "$VENV/bin/pip" install --quiet --upgrade pip
   "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy
 fi
