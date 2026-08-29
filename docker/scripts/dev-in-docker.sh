@@ -56,6 +56,15 @@ if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -m uvicorn --version >/de
   # setuptools<81: webrtcvad hace `import pkg_resources` al importar (VAD de
   # STT) y setuptools 81+ lo eliminó. Mismo pin que el Dockerfile de prod.
   "$VENV/bin/pip" install --quiet 'setuptools<81'
+  # Flavor gpu: incluir el extra qwen-stt (torch + transformers +
+  # huggingface_hub) — necesario para Qwen3-ASR desde la UI; sin él, el
+  # download de modelos da ModuleNotFoundError huggingface_hub. La imagen
+  # GPU asume el costo de disco; en CPU lo dejamos fuera (torch ligero no
+  # compensa) — quien lo quiera en cpu usa KALI_DEV_QWEN_STT=1.
+  if [ "$FLAVOR" = "gpu" ] || [ "${KALI_DEV_QWEN_STT:-0}" = "1" ]; then
+    log "instalando extra qwen-stt (torch/transformers/huggingface_hub)..."
+    "$VENV/bin/pip" install --quiet -e "$CORE_DIR[qwen-stt]"
+  fi
   "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy
 fi
 
