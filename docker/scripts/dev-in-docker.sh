@@ -32,7 +32,15 @@ if [ -f "$CORE_DIR/.env" ]; then
 fi
 
 # ── Crear venv si no existe (primera corrida) ───────────────────────────────
-if [ ! -d "$VENV" ]; then
+# NOTA: $VENV vive en el bind mount del host, por lo que puede existir un venv
+# creado FUERA del contenedor (distinto python, p.ej. /usr/bin/python3.12 del
+# host). Si su intérprete no resuelve aquí, es basura para este entorno: se
+# reconstruye in-container.
+if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c "import sys" >/dev/null 2>&1; then
+  if [ -d "$VENV" ]; then
+    log "venv existente está roto para este entorno; reconstruyendo..."
+    rm -rf "$VENV"
+  fi
   log "creando venv en $VENV"
   python3 -m venv "$VENV"
 fi

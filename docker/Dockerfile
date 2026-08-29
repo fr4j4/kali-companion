@@ -84,6 +84,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     wget \
     unzip \
+    nodejs \
+    npm \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -140,6 +142,7 @@ RUN rm -f /etc/nginx/sites-enabled/default \
 # Copy entrypoints (prod + dev) and dev scripts
 COPY --chown=kali:kali docker/entrypoint.sh /app/entrypoint.sh
 COPY --chown=kali:kali docker/entrypoint-dev.sh /app/docker/entrypoint-dev.sh
+COPY --chown=kali:kali docker/nginx-main.conf /app/docker/nginx-main.conf
 COPY --chown=kali:kali docker/nginx-dev.conf /app/docker/nginx-dev.conf
 COPY --chown=kali:kali docker/scripts/dev-in-docker.sh /app/docker/scripts/dev-in-docker.sh
 RUN chmod +x /app/entrypoint.sh /app/docker/entrypoint-dev.sh /app/docker/scripts/dev-in-docker.sh

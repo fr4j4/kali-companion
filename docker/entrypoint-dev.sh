@@ -49,10 +49,18 @@ NGINX_CONF=/tmp/nginx.conf
 # de `cat ... ; echo }` porque bash dentro de este container tiene un bug
 # bizarro que duplica lineas al concatenar. Python es predecible.
 python3 - "$NGINX_CONF" << 'PYEOF'
+import re
 import sys
 out = sys.argv[1]
 with open("/app/docker/nginx-main.conf") as f:
     main = f.read()
+# nginx-main.conf es un archivo completo (sirve también como /etc/nginx/
+# nginx.conf en prod), por lo que cierra http{} e incluye sites-enabled/*.
+# Para dev: quitamos esos includes (traerían el server de prod) y su llave
+# de cierre final, dejando http{} ABIERTO para que nginx-dev.conf aporte
+# el server{} y cerremos nosotros.
+main = re.sub(r"\n[ \t]*include /etc/nginx/(?:conf\.d|sites-enabled)/[^;]+;", "", main)
+main = re.sub(r"\}[ \t]*\n?[ \t]*$", "\n", main)
 with open("/app/docker/nginx-dev.conf") as f:
     dev = f.read()
 # nginx-dev.conf ya cierra el server{}. Agregamos solo el cierre del http{.
@@ -63,9 +71,12 @@ import os
 os.chown(out, 1000, 1000)
 PYEOF
 
-# Validar antes de arrancar
-if ! nginx -t -c "$NGINX_CONF" 2>&1 | tee /tmp/nginx-test.log | grep -q "syntax is ok"; then
+# Validar antes de arrancar. Usamos el exit code de nginx -t directamente:
+# con `set -o pipefail`, un `grep -q` en el pipe mataba a tee con SIGPIPE
+# (grep -q corta apenas encuentramatch) y daba falso negativo con la config OK.
+if ! nginx -t -c "$NGINX_CONF" >/tmp/nginx-test.log 2>&1; then
   err "configuración de nginx inválida (ver /tmp/nginx-test.log)"
+  cat /tmp/nginx-test.log >&2
   exit 1
 fi
 log "nginx -t OK, arrancando..."
