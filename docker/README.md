@@ -86,6 +86,32 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 > `providers/qwen.py` sets `LD_LIBRARY_PATH` to the binary's folder
 > automatically (the `libggml*.so` live next to it).
 
+## Engines (TTS / STT)
+
+### TTS (`KALI_TTS_PROVIDER`)
+
+| Value | Engine | Notes |
+|---|---|---|
+| `inproc` (default) | Piper, in-process | Local, CPU, voices in `/app/models/piper-voices` |
+| `qwen3` | Qwen3-TTS C++ server | Needs the GPU stack (prod `kali:gpu` / dev `kali:gpu-dev`); spawns `tts-server` on :8870 |
+| `qwen3-voicedesign` | Qwen3-TTS VoiceDesign | Custom voice cloning (1.7B model), same GPU requirements |
+| `http` | External OpenAI-compatible TTS | Point it at `KALI_TTS_HTTP_URL` service |
+
+### STT (`KALI_STT_PROVIDER`)
+
+| Value | Engine | Notes |
+|---|---|---|
+| `vosk` (default) | Vosk, fully offline | Models in `/app/models/vosk/` |
+| `qwen3` | Qwen3-ASR | GPU-only, shares the Qwen C++ server stack |
+
+## Microphone & audio
+
+The container needs host audio hardware:
+- **ALSA**: `/dev/snd` device mount (dev stack)
+- **PulseAudio**: `${XDG_RUNTIME_DIR}/pulse` socket (both stacks)
+- On this host, user 1000 owns the socket; the container runs as UID 1000
+  (`kali` user), so it matches without extra config.
+
 ## Python venvs in dev (per flavor, automatic)
 
 The repo is bind-mounted into containers with **different bases** (host, CPU
