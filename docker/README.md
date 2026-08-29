@@ -7,10 +7,11 @@ Full deployment of Kali (kali-core + kali-web) in Docker, with support for multi
 - **Docker 23+ with BuildKit** (default since Docker 23.x) — the GPU
   Dockerfiles use `RUN --mount=type=cache`, which **only works with
   BuildKit**. If a build fails with
-  `the --mount option requires BuildKit`, enable it:
-  - Per session: `export DOCKER_BUILDKIT=1`
-  - Permanent: in `/etc/docker/daemon.json` set
-    `"features": { "buildkit": true }` and restart Docker
+  `the --mount option requires BuildKit` on a modern Docker (you are on the
+  legacy builder), something is explicitly disabling it:
+  - Check: `echo $DOCKER_BUILDKIT` — if it prints `0`, remove that export
+    from your shell profile (`~/.zshrc` / `~/.bashrc` / `/etc/environment`)
+    or force it to `1` per build: `DOCKER_BUILDKIT=1 docker build ...`
 - **Docker Compose 2.x** (the `docker compose` plugin, not the legacy
   `docker-compose` binary)
 - **nvidia-container-toolkit** (only for the GPU stacks) — driver 525+;
