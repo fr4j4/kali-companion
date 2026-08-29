@@ -123,8 +123,13 @@ ENV HOME=/home/kali
 WORKDIR /app
 
 # Copy Qwen3 C++ binaries from builder (GPU + CPU fallback)
-COPY --from=builder --chown=kali:kali /build/qwen-cpp/build-gpu/tts-server /app/qwen-cpp/build-gpu/tts-server
-COPY --from=builder --chown=kali:kali /build/qwen-cpp/build/tts-server /app/qwen-cpp/build/tts-server
+# Copy Qwen3 C++ artifacts from builder (GPU + CPU fallback) — BINARIES AND
+# their shared libs together. The dev launcher copies these into the
+# bind-mounted source tree when missing (dev mode runs the binary from the
+# repo); without the libggml*.so the binary alone fails at load time
+# ("error while loading shared libraries: libggml.so.0").
+COPY --from=builder --chown=kali:kali /build/qwen-cpp/build-gpu/ /app/qwen-cpp/build-gpu/
+COPY --from=builder --chown=kali:kali /build/qwen-cpp/build/ /app/qwen-cpp/build/
 
 # Copy kali-web dist from builder (production fallback if dev launcher isn't used)
 COPY --from=builder --chown=kali:kali /build/kali-web/dist /app/kali-web/dist

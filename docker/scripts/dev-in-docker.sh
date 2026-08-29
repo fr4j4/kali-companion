@@ -68,6 +68,25 @@ if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -m uvicorn --version >/de
   "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy
 fi
 
+# ── TTS Qwen3: poblar binarios si faltan (flavor gpu) ───────────────────────
+# En dev los binarios corren desde el tree bindeado del repo (providers/
+# qwen.py busca qwen_cpp/{build,build-gpu}/tts-server), que NO viaja en el
+# clon (gitignored, ~2 GB). La imagen GPU-dev ya trae copia completa
+# (binarios + libggml*.so) en /app/qwen-cpp/ → se copian al primer arranque,
+# sin compilar ni pasos manuales. Cualquier PC nuevo queda operacional.
+if [ "$FLAVOR" = "gpu" ]; then
+  _qcpp="$CORE_DIR/kali_core/voice/qwen_cpp"
+  if [ ! -x "$_qcpp/build-gpu/tts-server" ] && [ -x /app/qwen-cpp/build-gpu/tts-server ]; then
+    log "copiando binaries Qwen3-TTS (gpu+cpu+libs) desde la imagen al repo..."
+    mkdir -p "$_qcpp"
+    cp -r /app/qwen-cpp/build-gpu "$_qcpp/build-gpu"
+    cp -r /app/qwen-cpp/build     "$_qcpp/build"
+  elif [ ! -x /app/qwen-cpp/build-gpu/tts-server ]; then
+    warn() { echo "[dev-in-docker] WARNING: $*" >&2; }
+    warn "imagen sin /app/qwen-cpp/build-gpu/tts-server; Qwen3-TTS no estará disponible (¿imagen vieja? rebuild con docker/Dockerfile.gpu.dev)"
+  fi
+fi
+
 # ── Instalar deps node si hace falta ────────────────────────────────────────
 if [ ! -d "$WEB_DIR/node_modules" ]; then
   log "instalando deps de kali-web (primera corrida)"
