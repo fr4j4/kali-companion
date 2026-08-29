@@ -2,6 +2,20 @@
 
 Full deployment of Kali (kali-core + kali-web) in Docker, with support for multiple TTS/STT engines and GPU acceleration.
 
+## Requirements
+
+- **Docker 23+ with BuildKit** (default since Docker 23.x) — the GPU
+  Dockerfiles use `RUN --mount=type=cache`, which **only works with
+  BuildKit**. If a build fails with
+  `the --mount option requires BuildKit`, enable it:
+  - Per session: `export DOCKER_BUILDKIT=1`
+  - Permanent: in `/etc/docker/daemon.json` set
+    `"features": { "buildkit": true }` and restart Docker
+- **Docker Compose 2.x** (the `docker compose` plugin, not the legacy
+  `docker-compose` binary)
+- **nvidia-container-toolkit** (only for the GPU stacks) — driver 525+;
+  verified with RTX 3060 / driver 595.x
+
 ## The four stacks (all verified)
 
 | Stack | Image | Compose files | Use for |
