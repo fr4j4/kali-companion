@@ -19,6 +19,12 @@
 
 services:
   kali:
+    # Tag explícito: sin esto, compose hereda `image: kali:latest` del archivo
+    # base y un `up --build` con este overlay SOBREESCRIBE la imagen CPU con
+    # la GPU (misma pantalla, distinto Dockerfile). Un tag por variante:
+    # kali:latest (prod/dev CPU) | kali:gpu (prod GPU) | kali:gpu-dev (dev GPU).
+    image: kali:gpu-dev
+
     # Construye con la imagen GPU + dev (incluye archivos de dev).
     # Dockerfile.gpu.dev es una variante de Dockerfile.gpu que además copia
     # entrypoint-dev.sh, nginx-dev.conf y dev-in-docker.sh.
