@@ -8,6 +8,8 @@ __pycache__/
 *.egg
 *.egg-info/
 .venv/
+.venv-cpu/
+.venv-gpu/
 venv/
 env/
 .virtualenvs/

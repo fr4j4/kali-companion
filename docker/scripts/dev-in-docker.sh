@@ -18,7 +18,17 @@ set -euo pipefail
 
 CORE_DIR="/app/kali-core"
 WEB_DIR="/app/kali-web"
-VENV="$CORE_DIR/.venv"
+
+# ── Venv POR FLAVOR: el repo se bindea a distintos entornos (host, contenedor
+# CPU Debian, contenedor GPU Ubuntu+CUDA) y un venv único se rompe al cambiar
+# de base (symlinks de python a rutas inexistentes, deps incompatibles).
+# Cada flavor mantiene el suyo, ignorable por git: .venv-cpu / .venv-gpu
+if [ -d /usr/local/cuda ] || [ -d /opt/cuda ]; then
+  FLAVOR="gpu"
+else
+  FLAVOR="cpu"
+fi
+VENV="$CORE_DIR/.venv-$FLAVOR"
 
 log() { echo "[dev-in-docker] $*"; }
 
