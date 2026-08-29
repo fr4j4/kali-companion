@@ -53,6 +53,9 @@ if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -m uvicorn --version >/de
   log "creando venv en $VENV e instalando deps de kali-core..."
   python3 -m venv "$VENV"
   "$VENV/bin/pip" install --quiet --upgrade pip
+  # setuptools<81: webrtcvad hace `import pkg_resources` al importar (VAD de
+  # STT) y setuptools 81+ lo eliminó. Mismo pin que el Dockerfile de prod.
+  "$VENV/bin/pip" install --quiet 'setuptools<81'
   "$VENV/bin/pip" install --quiet -e "$CORE_DIR" piper-tts numpy scipy
 fi
 
