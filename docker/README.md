@@ -8,11 +8,13 @@ Full deployment of Kali (kali-core + kali-web) in Docker, with support for multi
 |---|---|---|---|
 | **Prod CPU** | `kali:latest` | base | Running Kali normally (Piper TTS on CPU) |
 | **Prod GPU** | `kali:gpu` | base + `gpu.yml` | Production with Qwen3-TTS on CUDA |
-| **Dev CPU** | `kali:latest` | base + `override.yml` | Developing with HMR + hot reload |
-| **Dev GPU** | `kali:gpu-dev` | base + `gpu.dev.yml` + `override.yml` | Developing **and** testing TTS on GPU |
+| **Dev CPU** | `kali-dev` | base + `override.yml` | Developing with HMR + hot reload |
+| **Dev GPU** | `kali:gpu-dev` | base + `override.yml` + `gpu.dev.yml` | Developing **and** testing TTS on GPU |
 
-One tag per variant — overlays pin their own `image:` so a rebuild in one
-stack can never overwrite another stack's image.
+One name/tag per variant — overlays pin their own `image:` so a rebuild in
+one stack can never overwrite another stack's image. Overlay order matters:
+`override.yml` (pins `kali-dev`) must come **before** `gpu.dev.yml` (pins
+`kali:gpu-dev`) in the `-f` sequence.
 
 ### 1) Prod CPU (default)
 

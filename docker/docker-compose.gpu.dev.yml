@@ -19,10 +19,11 @@
 
 services:
   kali:
-    # Tag explícito: sin esto, compose hereda `image: kali:latest` del archivo
-    # base y un `up --build` con este overlay SOBREESCRIBE la imagen CPU con
-    # la GPU (misma pantalla, distinto Dockerfile). Un tag por variante:
-    # kali:latest (prod/dev CPU) | kali:gpu (prod GPU) | kali:gpu-dev (dev GPU).
+    # Tag explícito: sin esto, compose heredaría la imagen del archivo
+    # anterior en los -f (p.ej. kali-dev del override). Un tag por variante:
+    # kali:latest (prod CPU) | kali-dev (dev CPU) | kali:gpu (prod GPU)
+    # | kali:gpu-dev (dev GPU). Este overlay SIEMPRE debe ir DESPUÉS de
+    # docker-compose.override.yml en los -f.
     image: kali:gpu-dev
 
     # Construye con la imagen GPU + dev (incluye archivos de dev).
