@@ -1,15 +1,17 @@
-// AuthGate — login modal shown when the core has KALI_API_TOKEN enabled but
-// the browser has no token saved (or the saved one is wrong).
+// AuthGate — full-screen login shown when the core has KALI_API_TOKEN
+// enabled but the browser has no token saved (or the saved one is wrong).
 //
-// Flow: WS receives {event: "auth_required"} → core emits a global event →
-// AuthGate opens. The user pastes the token (same value as the server's
-// KALI_API_TOKEN); it is stored in localStorage (kali.apiToken) and the page
+// While locked, the ENTIRE app is replaced by the login screen (nothing
+// renders behind it) so no data, history, or settings are reachable.
+//
+// Flow: WS receives {event: "auth_required"} → window event kali:auth-required
+// → AuthGate locks. The user pastes the token (same value as the server's
+// KALI_API_TOKEN); stored in localStorage (kali.apiToken) and the page
 // reloads so WSClient + authHeaders pick it up everywhere.
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
-import { Overlay } from "../components/ui/Overlay";
 
 const LS_KEY = "kali.apiToken";
 export const AUTH_REQUIRED_EVT = "kali:auth-required";
@@ -18,17 +20,23 @@ export function readApiToken(): string {
   return localStorage.getItem(LS_KEY) || "";
 }
 
-export function AuthGate() {
+export function AuthGate({ onLocked }: { onLocked?: (locked: boolean) => void }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [token, setToken] = useState("");
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Notify the app shell so it can unmount everything behind the gate.
+  useEffect(() => {
+    onLocked?.(locked);
+  }, [locked, onLocked]);
 
   useEffect(() => {
     const handler = () => {
       setError(readApiToken() !== "");
-      setOpen(true);
+      setLocked(true);
     };
     window.addEventListener(AUTH_REQUIRED_EVT, handler);
     return () => window.removeEventListener(AUTH_REQUIRED_EVT, handler);
@@ -40,19 +48,31 @@ export function AuthGate() {
       setError(true);
       return;
     }
+    setBusy(true);
     localStorage.setItem(LS_KEY, trimmed);
+    // Full reload so EVERY consumer (authHeaders, WSClient) boots with the
+    // new token and the app renders from scratch behind a verified session.
     window.location.reload();
   };
 
-  if (!open) return null;
+  if (!locked) return null;
 
   return (
-    <Overlay open={true} onClose={() => {}} bare={true}>
+    <div className="fixed inset-0 z-[9999] bg-bg flex items-center justify-center p-4 overflow-hidden">
+      {/* Backdrop glow */}
       <div
-        className="w-full max-w-md mx-4 rounded-2xl border border-fg/10 bg-bg p-6 shadow-2xl"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          background:
+            "radial-gradient(60% 50% at 50% 40%, rgba(120,160,255,0.10), transparent 70%)",
+        }}
+      />
+      <div
+        className="relative w-full max-w-md rounded-2xl border border-fg/10 bg-bg p-6 shadow-2xl"
         role="dialog"
         aria-modal="true"
-        aria-label="Token requerido"
+        aria-label={t("authgate.title", "Acceso protegido")}
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-xl bg-accent/15 text-accent">
@@ -90,7 +110,7 @@ export function AuthGate() {
               setToken(e.target.value);
               setError(false);
             }}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
+            onKeyDown={(e) => e.key === "Enter" && !busy && submit()}
             placeholder="openssl rand -hex 32"
             autoComplete="off"
             spellCheck={false}
@@ -110,10 +130,13 @@ export function AuthGate() {
 
         <button
           type="button"
+          disabled={busy}
           onClick={submit}
-          className="mt-4 w-full px-3 py-2 text-sm rounded-lg bg-accent/90 hover:bg-accent text-bg font-medium"
+          className="mt-4 w-full px-3 py-2 text-sm rounded-lg bg-accent/90 hover:bg-accent text-bg font-medium disabled:opacity-60"
         >
-          {t("authgate.connect", "Conectar")}
+          {busy
+            ? t("authgate.connecting", "Verificando…")
+            : t("authgate.connect", "Conectar")}
         </button>
 
         <p className="mt-3 text-[11px] text-muted leading-relaxed flex items-start gap-1.5">
@@ -124,6 +147,6 @@ export function AuthGate() {
           )}
         </p>
       </div>
-    </Overlay>
+    </div>
   );
 }

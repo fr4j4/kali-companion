@@ -799,5 +799,6 @@
   "authgate.subtitle": "This server requires an API token",
   "authgate.wrong_token": "The saved token was rejected. Enter the correct one (the server's KALI_API_TOKEN).",
   "authgate.connect": "Connect",
+  "authgate.connecting": "Verifying…",
   "authgate.hint": "The token travels over HTTPS and is stored only in this browser (localStorage)."
 }
