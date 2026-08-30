@@ -80,7 +80,7 @@ function buildHtml(ev: ArtifactEvent): { html: string; isCode: boolean } {
   }
   if (wt === "image" || wt === "media") {
     const url = (d.url as string) || (d.src as string) || (d.image as string) || raw;
-    const inner = `<div style=\"text-align:center\"><img src=\"${esc(url)}\" style=\"max-width:100%;max-height:240px;object-fit:contain;border-radius:6px;border:1px solid #1e293b\" crossorigin=\"anonymous\" /><div style=\"margin-top:8px;font-size:11px;color:#94a3b8\">${esc(url.slice(0, 70))}</div>${d.caption ? `<div style=\"margin-top:4px;font-size:12px;color:#e2e8f0\">${esc(String(d.caption).slice(0, 80))}</div>` : ""}</div>`;
+    const inner = `<div style=\"text-align:center;padding:12px\"><div style=\"width:100%;height:180px;background:#1e293b;border:1px solid #334155;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px\">[imagen] ${esc(url.slice(0, 44))}</div><div style=\"margin-top:8px;font-size:11px;color:#94a3b8;word-break:break-all\">${esc(url.slice(0, 70))}</div>${d.caption ? `<div style=\"margin-top:4px;font-size:12px;color:#e2e8f0\">${esc(String(d.caption).slice(0, 80))}</div>` : ""}</div>`;
     return { html: wrap(inner), isCode: false };
   }
   if (wt === "entity" || wt === "resource" || wt === "place") {
@@ -164,6 +164,39 @@ export function HtmlTexturePanel({ ev, widthMeters = 0.86, heightMeters = 0.58, 
     let cancelled = false;
     let host: HTMLDivElement | null = null;
     let tex: THREE.CanvasTexture | null = null;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const makeFallback = () => {
+      if (cancelled || tex) return;
+      console.warn("[HtmlTexturePanel] fallback forzado canvas2D");
+      setFailed(true);
+      const out = document.createElement("canvas");
+      out.width = canvasW;
+      out.height = canvasH;
+      const ctx = out.getContext("2d");
+      if (!ctx) return;
+      const s = canvasW / 600;
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.fillStyle = "#111827";
+      ctx.fillRect(0, 0, canvasW, 28 * s);
+      ctx.fillStyle = "#f59e0b";
+      ctx.font = `600 ${12 * s}px system-ui, sans-serif`;
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${ev.title || wt} · ${wt} — fallback`, 10 * s, 14 * s);
+      ctx.font = `${11 * s}px system-ui, sans-serif`;
+      ctx.fillStyle = "#e2e8f0";
+      const tmp = document.createElement("div");
+      tmp.innerHTML = htmlToRaster;
+      const txt = (tmp.textContent || tmp.innerText || ev.content || "").replace(/\s+/g, " ").trim();
+      const lines = txt.match(/.{1,68}(?:\s|$)/g)?.slice(0, 20) || [txt.slice(0, 68)];
+      lines.forEach((l, i) => ctx.fillText(l.trim().slice(0, 74), 10 * s, 36 * s + i * 14 * s));
+      if (!cancelled) { tex = new THREE.CanvasTexture(out); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true; setTexture(tex); }
+      if (host && host.parentNode) host.parentNode.removeChild(host);
+      host = null;
+    };
+
+    fallbackTimer = setTimeout(makeFallback, 900);
 
     const run = async () => {
       // 1) crear host offscreen
@@ -174,24 +207,20 @@ export function HtmlTexturePanel({ ev, widthMeters = 0.86, heightMeters = 0.58, 
       host.style.width = "520px";
       host.style.background = "#0b0f14";
       host.style.overflow = "hidden";
-      // paginado simple: si page>0, translate
       host.innerHTML = htmlToRaster;
-      // si hay paginación, envolvemos en scroller
       if (page > 0) {
         host.firstElementChild && ((host.firstElementChild as HTMLElement).style.transform = `translateY(-${page * 300}px)`);
       }
       document.body.appendChild(host);
-      // esperar un frame para que carguen imágenes/fuentes
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      // pequeño delay para imágenes
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 50));
 
       if (cancelled) return;
       try {
         const canvas = await Promise.race([
-          toCanvas(host, { pixelRatio: 1, cacheBust: true, width: 520, height: Math.min(520, host.scrollHeight || 360) }),
-          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("raster timeout")), 3500)),
+          toCanvas(host, { pixelRatio: 1, cacheBust: true, width: 520, height: Math.min(420, host.scrollHeight || 360) }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("raster timeout")), 2200)),
         ]);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
         if (cancelled) return;
         // escalar al tamaño de textura VR
         const out = document.createElement("canvas");
@@ -257,6 +286,7 @@ export function HtmlTexturePanel({ ev, widthMeters = 0.86, heightMeters = 0.58, 
     run();
     return () => {
       cancelled = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       if (host && host.parentNode) host.parentNode.removeChild(host);
       tex?.dispose();
     };
