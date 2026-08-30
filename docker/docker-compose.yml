@@ -82,6 +82,11 @@ services:
       # ── Permissions ──
       - KALI_PROFILE=${KALI_PROFILE:-dev}
 
+      # ── TLS opcional (para getUserMedia en navegadores remotos) ──
+      - KALI_TLS=${KALI_TLS:-false}
+      - KALI_TLS_HOSTS=${KALI_TLS_HOSTS:-companion.local,localhost}
+      - KALI_TLS_PORT=${KALI_TLS_PORT:-8444}
+
       # ── Kali Toys / Game AI ──
       - KALI_GAME_SESSION_PATH=${KALI_GAME_SESSION_PATH:-}
       - KALI_GAME_AI_GLOBAL_TIMEOUT_MS=${KALI_GAME_AI_GLOBAL_TIMEOUT_MS:-20000}
