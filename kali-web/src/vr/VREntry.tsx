@@ -113,9 +113,11 @@ function PlayerRig({
       if (source.handedness === "left") {
         mx = source.gamepad.axes[2] ?? 0;
         my = source.gamepad.axes[3] ?? 0;
-        // Quest: button 6 = botón de MENÚ (el pequeño, bajo X/Y).
-        // button 4 = X y button 5 = Y — no son el de menú.
-        menuPressed = Boolean(source.gamepad.buttons[6]?.pressed);
+        // Mapeo xr-standard en Quest: 0=trigger 1=grip 2=touchpad(-)
+        // 3=stick-click 4=X 5=Y. El botón FÍSICO de menú está RESERVADO
+        // por el OS (abre el menú universal de Quest) y NUNCA llega al
+        // navegador (W3C WebXR Gamepads §3.4) — por eso usamos Y (5).
+        menuPressed = Boolean(source.gamepad.buttons[5]?.pressed);
       } else if (source.handedness === "right") {
         tx = source.gamepad.axes[2] ?? 0;
       }
