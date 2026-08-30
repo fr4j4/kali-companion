@@ -644,6 +644,55 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   return <group ref={groupRef}>{children}</group>;
 }
 
+/* ── teclado 3D nativo (visible sin dom-overlay) ──────────────── */
+
+/** Filas QWERTY compactas: [{label, x, w}] con posiciones ya centradas. */
+function VRKeyboardRows(): Array<Array<{ label: string; x: number; w: number }>> {
+  const row = (keys: string[], w = 0.052): Array<{ label: string; x: number; w: number }> => {
+    const total = keys.length * (w + 0.006);
+    return keys.map((label, i) => ({ label, x: -total / 2 + i * (w + 0.006) + w / 2, w }));
+  };
+  return [
+    row(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]),
+    row(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"]),
+    row(["a", "s", "d", "f", "g", "h", "j", "k", "l", "ñ"]),
+    row(["z", "x", "c", "v", "b", "n", "m", ".", ",", "?"]),
+  ];
+}
+
+/** Tecla individual del teclado VR. */
+function KeyboardKey({
+  x, y = 0, w = 0.052, label, sound, onKey,
+}: {
+  x: number;
+  y?: number;
+  w?: number;
+  label: string;
+  sound: { hover: () => void; select: () => void };
+  onKey: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Interactive
+      onSelect={() => { sound.select(); onKey(); }}
+      onHover={() => { setHovered(true); sound.hover(); }}
+      onBlur={() => setHovered(false)}
+    >
+      <group position={[x, y, 0.002]} scale={hovered ? 1.15 : 1}>
+        <mesh>
+          <planeGeometry args={[w, 0.03]} />
+          <meshBasicMaterial color={hovered ? "#38bdf8" : "#1e293b"} transparent opacity={hovered ? 0.9 : 0.85} depthWrite={false} />
+        </mesh>
+        <group position={[0, 0, 0.002]}>
+          <Text fontSize={0.016} color="#e2e8f0" anchorX="center" anchorY="middle">
+            {label}
+          </Text>
+        </group>
+      </group>
+    </Interactive>
+  );
+}
+
 /* ── comandos: voz (PTT) + chat de texto con respuestas ───────── */
 
 /**
@@ -660,6 +709,7 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
   const [draft, setDraft] = useState("");
   const [tab, setTab] = useState<"chat" | "artifacts" | "config">("chat");
   const [shown, setShown] = useState<Set<string>>(new Set());
+  const [showKeyboard, setShowKeyboard] = useState(false);
   const sound = useUISounds();
 
   useEffect(() => {
@@ -752,117 +802,168 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
           </Interactive>
         ))}
 
-        {/* ═══ TAB CHAT ═══ */}
+        {/* ═══ TAB CHAT — layout con bandas duras (sin superposición) ═══
+            ventana 1.0×0.72 centrada en 0,0 → Y de -0.36 a +0.36
+            tabs (fijas): +0.24 ± 0.025 → contenido desde +0.19 hacia abajo
+            banda burbujas: +0.19 a -0.13 (6 burbujas de 0.052)
+            banda mic/estado: -0.145 a -0.195
+            banda input+enviar: -0.22 a -0.27
+            teclado 3D: -0.30 hacia abajo                                          */}
         {tab === "chat" && (
           <group position={[0, -0.02, 0.002]}>
-            {/* burbujas — estilo app de mensajería */}
-            {last.map((m, i) => {
+            {/* burbujas — máx 6, banda +0.19..-0.13 */}
+            {last.slice(0, 6).map((m, i) => {
               const mine = m.role === "user";
               return (
-                <group key={m.id} position={[mine ? 0.24 : -0.26, 0.26 - i * 0.068, 0.002]}>
+                <group key={m.id} position={[mine ? 0.24 : -0.26, 0.165 - i * 0.062, 0.002]}>
                   <mesh>
-                    <planeGeometry args={[0.44, 0.058]} />
+                    <planeGeometry args={[0.42, 0.05]} />
                     <meshBasicMaterial
                       color={mine ? "#0369a1" : "#1e293b"}
                       transparent opacity={0.85} depthWrite={false}
                     />
                   </mesh>
                   <group position={[0, 0, 0.002]}>
-                    <Text fontSize={0.015} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.42}>
-                      {`${mine ? "tú" : "Kali"}: ${m.content.slice(0, 75)}`}
+                    <Text fontSize={0.014} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.4}>
+                      {`${mine ? "tú" : "Kali"}: ${m.content.slice(0, 70)}`}
                     </Text>
                   </group>
                 </group>
               );
             })}
 
-            {/* zona de voz (review sobre el input) */}
+            {/* overlay de revisión de voz (reemplaza burbujas bajas) */}
             {phase === "review" && (
-              <group position={[0, -0.235, 0.002]}>
+              <group position={[0, -0.075, 0.004]}>
                 <mesh>
-                  <planeGeometry args={[0.9, 0.1]} />
-                  <meshBasicMaterial color="#020617" transparent opacity={0.75} depthWrite={false} />
+                  <planeGeometry args={[0.94, 0.115]} />
+                  <meshBasicMaterial color="#020617" transparent opacity={0.9} depthWrite={false} />
                 </mesh>
-                <group position={[0, 0, 0.002]}>
-                  <Text fontSize={0.019} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.85}>
-                    {`"${ptt.finalText}"`}
+                <group position={[0, 0.032, 0.002]}>
+                  <Text fontSize={0.018} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.88}>
+                    {`"${ptt.finalText.slice(0, 90)}"`}
                   </Text>
                 </group>
-                <MenuItem y={-0.075} w={0.2} color="#38bdf8" text="▶ Enviar" sound={sound} onSelect={sendTranscript} />
-                <MenuItem x={0.24} y={-0.075} w={0.2} color="#fb7185" text="✕ Descartar" sound={sound}
+                <MenuItem y={-0.032} x={-0.2} w={0.17} color="#38bdf8" text="▶ Enviar" sound={sound} onSelect={sendTranscript} />
+                <MenuItem y={-0.032} x={0.2} w={0.17} color="#fb7185" text="✕ Descartar" sound={sound}
                   onSelect={discardTranscript} />
               </group>
             )}
 
-            {/* barra inferior: input + mic */}
-            <group position={[0, -0.3, 0.01]}>
-              <Html transform distanceFactor={0.6} occlude={false} style={{ width: 560 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && draft.trim()) {
-                        sound.select();
-                        chat.send(draft);
-                        setDraft("");
-                      }
-                    }}
-                    placeholder="Escribe a Kali…"
-                    style={{
-                      flex: 1, padding: "10px 12px", borderRadius: 22,
-                      border: "1px solid #334155", background: "#0b0f14",
-                      color: "#e2e8f0", fontSize: 15, outline: "none",
-                    }}
+            {/* banda mic + estado: -0.145..-0.195 */}
+            <Interactive
+              onSelect={() => {
+                if (phase === "recording") { ptt.stop(); sound.close(); }
+                else if (phase === "idle") { void ptt.start(); sound.rec(); }
+              }}
+              onHover={() => sound.hover()}
+            >
+              <group position={[-0.36, -0.17, 0.004]}>
+                <mesh>
+                  <planeGeometry args={[0.14, 0.045]} />
+                  <meshBasicMaterial
+                    color={phase === "recording" ? "#fbbf24" : "#22c55e"}
+                    transparent opacity={0.75} depthWrite={false}
                   />
-                  <button
-                    type="button"
-                    title={phase === "recording" ? "Terminar" : "Grabar voz"}
-                    onClick={() => {
-                      if (phase === "recording") { ptt.stop(); sound.close(); }
-                      else { void ptt.start(); sound.rec(); }
-                    }}
-                    style={{
-                      width: 42, height: 42, borderRadius: "50%",
-                      border: "none", cursor: "pointer",
-                      background: phase === "recording" ? "#fbbf24" : "#22c55e",
-                      color: "#0b0f14", fontSize: 18,
-                    }}
-                  >
-                    {phase === "recording" ? "■" : "🎤"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!draft.trim()) return;
-                      sound.select();
-                      chat.send(draft);
-                      setDraft("");
-                    }}
-                    style={{
-                      padding: "10px 16px", borderRadius: 22, border: "none",
-                      background: "#38bdf8", color: "#0b0f14",
-                      fontWeight: 700, fontSize: 15,
-                    }}
-                  >
-                    ➤
-                  </button>
-                </div>
-              </Html>
-            </group>
-
-            {/* estado de voz bajo la barra (recording / errores) */}
-            <group position={[0, -0.345, 0.002]}>
-              <Text fontSize={0.018} color={phase === "recording" ? "#34d399" : sttOff ? "#fb7185" : "#64748b"} anchorX="center" anchorY="middle" maxWidth={0.9}>
+                </mesh>
+                <group position={[0, 0, 0.002]}>
+                  <Text fontSize={0.02} color="#04070a" anchorX="center" anchorY="middle">
+                    {phase === "recording" ? "■ stop" : "🎤 mic"}
+                  </Text>
+                </group>
+              </group>
+            </Interactive>
+            <group position={[0.02, -0.17, 0.004]}>
+              <Text fontSize={0.017} color={phase === "recording" ? "#34d399" : sttOff ? "#fb7185" : "#64748b"} anchorX="left" anchorY="middle" maxWidth={0.5}>
                 {phase === "recording"
-                  ? `● grabando — ${ptt.partialText || "habla…"}`
+                  ? `● ${ptt.partialText || "habla…"}`
                   : sttOff
                     ? "⚠ STT deshabilitado (Settings 2D)"
                     : ptt.error
-                      ? `⚠ ${ptt.error.slice(0, 55)}`
-                      : "mic: pulsa 🎤 para hablar"}
+                      ? `⚠ ${ptt.error.slice(0, 45)}`
+                      : "pulsa 🎤 y habla"}
               </Text>
             </group>
+
+            {/* banda input + enviar: -0.22..-0.27 (nativo 3D) */}
+            <Interactive
+              onSelect={() => {
+                if (draft.trim()) {
+                  sound.select();
+                  chat.send(draft);
+                  setDraft("");
+                } else {
+                  sound.open(); // sin texto: abre la pista del teclado
+                }
+              }}
+              onHover={() => sound.hover()}
+            >
+              <group position={[-0.06, -0.245, 0.004]}>
+                <mesh>
+                  <planeGeometry args={[0.6, 0.05]} />
+                  <meshBasicMaterial color="#020617" transparent opacity={0.85} depthWrite={false} />
+                </mesh>
+                <group position={[-0.28, 0, 0.002]}>
+                  <Text fontSize={0.018} color={draft ? "#e2e8f0" : "#475569"} anchorX="left" anchorY="middle" maxWidth={0.54}>
+                    {draft ? draft.slice(-38) : "toca aquí y usa el teclado →"}
+                  </Text>
+                </group>
+              </group>
+            </Interactive>
+            <Interactive onSelect={() => {
+              if (!draft.trim()) return;
+              sound.select();
+              chat.send(draft);
+              setDraft("");
+            }} onHover={() => sound.hover()}>
+              <group position={[0.33, -0.245, 0.004]}>
+                <mesh>
+                  <planeGeometry args={[0.12, 0.05]} />
+                  <meshBasicMaterial color="#38bdf8" transparent opacity={draft ? 0.9 : 0.3} depthWrite={false} />
+                </mesh>
+                <group position={[0, 0, 0.002]}>
+                  <Text fontSize={0.02} color="#04070a" anchorX="center" anchorY="middle">➤</Text>
+                </group>
+              </group>
+            </Interactive>
+
+            {/* teclado 3D — pista QWERTY compacta (nativo, siempre visible) */}
+            {showKeyboard && (
+              <group position={[0, -0.52, 0.01]} scale={0.92}>
+                {VRKeyboardRows().map((row, r) => (
+                  <group key={r} position={[0, -r * 0.038, 0]}>
+                    {row.map((k) => (
+                      <KeyboardKey
+                        key={k.label}
+                        x={k.x}
+                        w={k.w}
+                        label={k.label}
+                        sound={sound}
+                        onKey={() => setDraft((d) => d + k.label)}
+                      />
+                    ))}
+                  </group>
+                ))}
+                <KeyboardKey x={-0.28} y={-0.19} w={0.1} label="ESPACIO" sound={sound} onKey={() => setDraft((d) => d + " ")} />
+                <KeyboardKey x={0.02} y={-0.19} w={0.09} label="←" sound={sound} onKey={() => setDraft((d) => d.slice(0, -1))} />
+                <KeyboardKey x={0.15} y={-0.19} w={0.1} label="ENviar" sound={sound}
+                  onKey={() => { if (draft.trim()) { chat.send(draft); setDraft(""); } }} />
+                <KeyboardKey x={0.3} y={-0.19} w={0.07} label="✕" sound={sound} onKey={() => setShowKeyboard(false)} />
+              </group>
+            )}
+            {!showKeyboard && (
+              <Interactive onSelect={() => { sound.open(); setShowKeyboard(true); }} onHover={() => sound.hover()}>
+                <group position={[0.33, -0.29, 0.004]}>
+                  <mesh>
+                    <planeGeometry args={[0.12, 0.032]} />
+                    <meshBasicMaterial color="#a78bfa" transparent opacity={0.5} depthWrite={false} />
+                  </mesh>
+                  <group position={[0, 0, 0.002]}>
+                    <Text fontSize={0.016} color="#e2e8f0" anchorX="center" anchorY="middle">ABC…</Text>
+                  </group>
+                </group>
+              </Interactive>
+            )}
           </group>
         )}
 
