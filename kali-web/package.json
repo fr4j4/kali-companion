@@ -14,7 +14,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@types/dompurify": "^3.0.5",
     "ansi-to-html": "^0.7.2",
+    "dompurify": "^3.4.14",
     "framer-motion": "^11.3.0",
     "highlight.js": "^11.11.1",
     "i18next": "^23.11.0",

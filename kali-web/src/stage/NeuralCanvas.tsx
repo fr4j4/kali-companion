@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
-import { marked } from "marked";
+import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { useAvatarMoodEngine } from "../avatar/AvatarMoodEngine";
 import { AvatarSVG } from "../avatar/AvatarSVG";
@@ -765,17 +765,13 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
 
   const html = useMemo(() => {
     if (!displayText) return null;
-    try {
       // 1. Collapse 3+ consecutive newlines into 2.
       // 2. Collapse double newlines before list items so bullet lists
       //    don't get excessive paragraph spacing.
       const normalized = displayText
         .replace(/\n{3,}/g, "\n\n")
         .replace(/\n\n(?=\s*[-*]\s|\s*\d+\.\s)/g, "\n");
-      return marked.parse(normalized, { async: false }) as string;
-    } catch {
-      return `<p>${displayText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
-    }
+      return renderMarkdown(normalized);
   }, [displayText]);
 
   useEffect(() => {
