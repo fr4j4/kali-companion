@@ -18,12 +18,14 @@ Content formats per type (what the frontend expects):
 - json      → raw JSON string (JSON-as-text, not a parsed object)
 - table     → JSON string: {"rows": [{col: val, ...}, ...]}
 - checklist → JSON string: {"items": [{"text": str, "done": bool}, ...]}
+- ui3d      → JSON string: {"elements": {id: {type, ...}}, "root": id}
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from kali_core.canvas import (
@@ -40,8 +42,91 @@ logger = logging.getLogger("kali_core.claws.create_artifact")
 # "raw" types use html/markdown builders with raw string content.
 # "json" types use widget_artifact with JSON-string content.
 _RAW_TYPES = frozenset({"document", "mermaid", "code", "html", "json"})
-_JSON_TYPES = frozenset({"table", "checklist", "chart"})
+_JSON_TYPES = frozenset({"table", "checklist", "chart", "ui3d"})
 _VALID_TYPES = _RAW_TYPES | _JSON_TYPES
+
+# ── ui3d scene validation (v0 catalog: box | sphere | group) ──────────
+_UI3D_ELEMENT_TYPES = frozenset({"box", "sphere", "group"})
+_UI3D_MAX_ELEMENTS = 64
+_UI3D_MAX_DEPTH = 4
+_UI3D_MAX_CHILDREN = 16
+_VEC3_RE = re.compile(r"^-?\d+(\.\d+)?$")
+
+
+def _validate_ui3d_scene(data: Any) -> str | None:
+    """Validate a parsed ui3d scene; return an error string or None if OK.
+
+    The ui3d contract: {"elements": {id: {type, position?, rotation?,
+    scale?, color?, children?}}, "root"?}. Mirrors Ui3dWidget.tsx (v0).
+    """
+    if not isinstance(data, dict):
+        return "ui3d content must be a JSON object"
+    elements = data.get("elements")
+    if not isinstance(elements, dict) or not elements:
+        return 'ui3d requires a non-empty "elements" object'
+    if len(elements) > _UI3D_MAX_ELEMENTS:
+        return f"ui3d scene too large: {len(elements)} elements (max {_UI3D_MAX_ELEMENTS})"
+
+    def _vec3_ok(v: Any) -> bool:
+        return (
+            isinstance(v, (list, tuple))
+            and len(v) == 3
+            and all(_VEC3_RE.match(str(n)) for n in v)
+        )
+
+    for el_id, el in elements.items():
+        if not isinstance(el, dict):
+            return f"ui3d element '{el_id}' must be an object"
+        if el.get("type") not in _UI3D_ELEMENT_TYPES:
+            return (
+                f"ui3d element '{el_id}' has invalid type {el.get('type')!r}. "
+                f"Valid: {sorted(_UI3D_ELEMENT_TYPES)}"
+            )
+        for field in ("position", "rotation", "scale"):
+            if field in el and not _vec3_ok(el[field]):
+                return f"ui3d element '{el_id}': {field} must be [x, y, z] numbers"
+        color = el.get("color")
+        if color is not None and not (
+            isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{3,8}", color)
+        ):
+            return f"ui3d element '{el_id}': color must be a #RRGGBB(AA) hex string"
+
+    # Validate the parent→children graph: cycle-free, resolvable, bounded.
+    def _visit(el_id: str, path: frozenset[str]) -> str | None:
+        if el_id not in elements:
+            return f"ui3d references unknown element '{el_id}'"
+        if el_id in path:
+            return f"ui3d element cycle detected at '{el_id}'"
+        el = elements[el_id]
+        children = el.get("children")
+        if children is None:
+            return None
+        if not isinstance(children, list):
+            return f"ui3d element '{el_id}': children must be a list of ids"
+        if len(children) > _UI3D_MAX_CHILDREN:
+            return (
+                f"ui3d element '{el_id}': too many children "
+                f"({len(children)} > {_UI3D_MAX_CHILDREN})"
+            )
+        if len(path) >= _UI3D_MAX_DEPTH:
+            return f"ui3d scene nested too deep (max {_UI3D_MAX_DEPTH})"
+        for child in children:
+            err = _visit(str(child), path | {el_id})
+            if err:
+                return err
+        return None
+
+    root = data.get("root")
+    if root is not None and root not in elements:
+        return f"ui3d 'root' id '{root}' not found in elements"
+    # Validate every element's subgraph so cycles/ghosts can't hide
+    # behind a missing or unrelated "root" (a cycle is strongly
+    # connected, so visiting from any member detects it).
+    for el_id in elements:
+        err = _visit(el_id, frozenset())
+        if err:
+            return err
+    return None
 
 
 class CreateArtifactTool:
@@ -58,8 +143,11 @@ class CreateArtifactTool:
         "- 'html': raw HTML (rendered in a sandboxed iframe)\n"
         "- 'json': a JSON string (rendered as an expandable tree)\n"
         "- 'table': JSON {\"rows\": [{\"col\": val, ...}]} (sortable table)\n"
-        "- 'checklist': JSON {\"items\": [{\"text\": str, \"done\": bool}]}\n\n"
-        "For 'table' and 'checklist', content must be a valid JSON string.\n"
+        "- 'checklist': JSON {\"items\": [{\"text\": str, \"done\": bool}]}\n"
+        "- 'ui3d': JSON 3D scene {\"elements\": {id: {type: box|sphere|group, "
+        "position, rotation, scale, color}}, \"root\": id} (rendered as an "
+        "interactive 3D scene)\n\n"
+        "For 'table', 'checklist' and 'ui3d', content must be a valid JSON string.\n"
         "For other types, content is raw text."
     )
     schema = {
@@ -68,11 +156,12 @@ class CreateArtifactTool:
             "artifact_type": {
                 "type": "string",
                 "enum": ["document", "mermaid", "code", "html", "json",
-                         "table", "checklist"],
+                         "table", "checklist", "ui3d"],
                 "description": (
                     "document=markdown text, mermaid=diagram syntax, "
                     "code=source code, html=HTML, json=JSON string, "
-                    'table=JSON {"rows":[...]}, checklist=JSON {"items":[...]}'
+                    'table=JSON {"rows":[...]}, checklist=JSON {"items":[...]}, '
+                    "ui3d=JSON 3D scene"
                 ),
             },
             "title": {
@@ -119,12 +208,16 @@ class CreateArtifactTool:
         # Validate JSON types have valid JSON content before building.
         if atype in _JSON_TYPES:
             try:
-                json.loads(content)
+                parsed_json = json.loads(content)
             except (json.JSONDecodeError, TypeError) as e:
                 return ToolResult(
                     error=f"Invalid JSON for {atype}: {e}. "
                           f"Content must be valid JSON."
                 )
+            if atype == "ui3d":
+                scene_error = _validate_ui3d_scene(parsed_json)
+                if scene_error:
+                    return ToolResult(error=scene_error)
 
         envelope = _build_envelope(atype, title, content, language)
         if envelope is None:
@@ -148,7 +241,7 @@ def _build_envelope(
     builder with the content as a raw string. The registry resolves
     windowType from the artifact type.
 
-    JSON-structured types (table, checklist, chart) use widget_artifact
+    JSON-structured types (table, checklist, chart, ui3d) use widget_artifact
     with the JSON content wrapped in the {items:[{data:...}]} envelope that
     the frontend's parseContent expects.
     """

@@ -49,6 +49,7 @@ const LazyPlaceholder = React.lazy(() => import("./PlaceholderWidget").then((m) 
 const LazyHtml = React.lazy(() => import("./HtmlWidget").then((m) => ({ default: m.HtmlWidget })));
 const LazyReasoning = React.lazy(() => import("./ReasoningWidget").then((m) => ({ default: m.ReasoningWidget })));
 const LazyGame = React.lazy(() => import("./GameWidget").then((m) => ({ default: m.GameWidget })));
+const LazyUi3d = React.lazy(() => import("./Ui3dWidget").then((m) => ({ default: m.Ui3dWidget })));
 
 function sz(type: WindowType) {
   return DEFAULT_SIZES[type] || { width: 340, height: null };
@@ -262,6 +263,15 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
       minHeight: 120,
       toggleIcon: <Brain size={14} />,
     },
+  },
+  ui3d: {
+    component: LazyUi3d,
+    width: sz("ui3d").width,
+    height: sz("ui3d").height,
+    icon: WINDOW_ICONS.ui3d,
+    resizable: true,
+    minW: 360,
+    minH: 300,
   },
   html: {
     component: LazyHtml,

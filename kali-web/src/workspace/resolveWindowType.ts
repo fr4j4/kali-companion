@@ -5,7 +5,7 @@ const VALID_TYPES = new Set<WindowType>([
   "code", "link", "mermaid", "qr", "chart", "json",
   "terminal", "checklist", "quiz", "diff", "table", "controls",
   "html", "widget", "entity", "resource", "place", "media",
-  "document", "image",
+  "document", "image", "ui3d",
 ]);
 
 /**
