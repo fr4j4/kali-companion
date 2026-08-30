@@ -340,75 +340,101 @@ function ArtifactPanels({ sessionId, live }: { sessionId: string | null; live: A
   );
 }
 
-/* ── menú de salida en el controlador izquierdo ───────────────── */
+/* ── wrist menu (menú de muñeca) ──────────────────────────────── */
 
 /**
- * Panel "SALIR" anclado al grip izquierdo que SIEMPRE mira a la cabeza
- * (lookAt a la cámara) — arregla el panel invertido: antes copiábamos la
- * quaternion del grip, que apunta hacia abajo/atrás según el control.
+ * Menú estilo "wrist menu" VR: un reloj en la muñeca/antebrazo del
+ * controlador izquierdo. No flota encima — está ANCLADO al grip y gira
+ * con él, inmerso. Panel semitransparente con acciones reales de la UI:
+ * Nueva sesión, Detener generación, cerrar menú y SALIR de VR.
+ * Se abre/cierra con el botón de MENÚ físico del control izquierdo
+ * (gamepad button 4 en Quest — no un trigger principal).
  */
-function ExitMenuOnLeftController({ onExit, open }: { onExit: () => void; open: boolean }) {
+function WristMenu({
+  open,
+  onExit,
+  onClose,
+}: {
+  open: boolean;
+  onExit: () => void;
+  onClose: () => void;
+}) {
   const controllers = useXR((s) => s.controllers);
-  const camera = useThree((s) => s.camera);
   const left = controllers.find((c) => c.inputSource?.handedness === "left");
+  const { chat } = useStage();
   const groupRef = useRef<THREE.Group>(null);
-  const tmp = useRef({
-    pos: new THREE.Vector3(),
-    cam: new THREE.Vector3(),
-    dir: new THREE.Vector3(),
-  });
 
+  // Anclado rígido al grip: posición+rotación locales (no lookAt —
+  // gira con la muñeca como un reloj de verdad, "inmerso").
   useFrame(() => {
     if (!left || !groupRef.current) return;
-    left.grip.getWorldPosition(tmp.current.pos);
-    camera.getWorldPosition(tmp.current.cam);
-    tmp.current.dir.copy(tmp.current.cam).sub(tmp.current.pos).normalize();
-    // Separado del control hacia la cabeza + orientado de frente.
-    groupRef.current.position.copy(tmp.current.pos).addScaledVector(tmp.current.dir, 0.08);
-    groupRef.current.lookAt(tmp.current.cam);
+    groupRef.current.position.copy(left.grip.position);
+    groupRef.current.quaternion.copy(left.grip.quaternion);
   });
 
   if (!left || !open) return null;
 
-  return (
-    <group ref={groupRef} scale={0.55}>
-      <mesh>
-        <planeGeometry args={[0.58, 0.32]} />
-        <meshBasicMaterial color="#0b0f14" transparent opacity={0.94} side={THREE.DoubleSide} />
-      </mesh>
-      <Text
-        position={[0, 0.09, 0.005]}
-        fontSize={0.05}
-        color="#38bdf8"
-        anchorX="center"
-        anchorY="middle"
-      >
-        MENU VR
-      </Text>
-      <Text
-        position={[0, 0.035, 0.005]}
-        fontSize={0.032}
-        color="#94a3b8"
-        anchorX="center"
-        anchorY="middle"
-      >
-        apunta y presiona
-      </Text>
-      <Interactive onSelect={onExit}>
-        <mesh position={[0, -0.06, 0.005]}>
-          <planeGeometry args={[0.44, 0.13]} />
-          <meshBasicMaterial color="#fb7185" side={THREE.DoubleSide} />
+  const label = (t: string) => (
+    <Text
+      fontSize={0.024}
+      color="#e2e8f0"
+      anchorX="center"
+      anchorY="middle"
+      maxWidth={0.2}
+    >
+      {t}
+    </Text>
+  );
+
+  const item = (y: number, color: string, text: string, action: () => void) => (
+    <Interactive onSelect={action}>
+      <group position={[0, y, 0.001]}>
+        <mesh>
+          <planeGeometry args={[0.2, 0.052]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.35}
+            depthWrite={false}
+          />
         </mesh>
-        <Text
-          position={[0, -0.06, 0.02]}
-          fontSize={0.06}
-          color="#0b0f14"
-          anchorX="center"
-          anchorY="middle"
-        >
-          SALIR
-        </Text>
-      </Interactive>
+        <group position={[0, 0, 0.002]}>{label(text)}</group>
+      </group>
+    </Interactive>
+  );
+
+  return (
+    <group ref={groupRef} scale={0.9}>
+      {/* placa base semitransparente, inclinada hacia la cara */}
+      <group rotation={[0.5, 0, 0]}>
+        <mesh position={[0, 0.05, -0.005]}>
+          <planeGeometry args={[0.23, 0.32]} />
+          <meshBasicMaterial
+            color="#0b0f14"
+            transparent
+            opacity={0.55}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+
+        <group position={[0, 0.05, 0]}>
+          {/* header */}
+          <group position={[0, 0.125, 0.001]}>
+            <Text fontSize={0.026} color="#38bdf8" anchorX="center" anchorY="middle">
+              KALI VR
+            </Text>
+          </group>
+
+          {/* acciones de la UI 2D */}
+          {item(0.07, "#38bdf8", "Nueva sesión", () => chat.newSession())}
+          {item(0.012, "#fbbf24", "Detener Kali", () => chat.stop())}
+          {item(-0.046, "#94a3b8", "Cerrar menú", onClose)}
+
+          {/* salir de VR */}
+          {item(-0.105, "#fb7185", "Salir de VR", onExit)}
+        </group>
+      </group>
     </group>
   );
 }
@@ -511,7 +537,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
           <PlayerRig onToggleMenu={toggleMenu}>
             <Controllers />
             <Hands />
-            <ExitMenuOnLeftController onExit={exitVR} open={menuOpen} />
+            <WristMenu open={menuOpen} onExit={exitVR} onClose={() => setMenuOpen(false)} />
           </PlayerRig>
           <MatrixFloor />
           <VRDebugCompass />
