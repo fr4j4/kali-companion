@@ -1376,6 +1376,9 @@ function VRLobbyInner() {
   const live = useMemoLive(chat.artifacts);
 
   // On session attach: metadata-only replays need a REST fetch each.
+  // Cualquier artefacto vivo sin contenido (2D o ui3d) se completa por
+  // REST — no solo ui3d (los 2D preexistentes no aparecían: el filtro
+  // anterior los excluía del fetch).
   useEffect(() => {
     const sid = chat.sessionId;
     if (!sid) {
@@ -1384,8 +1387,9 @@ function VRLobbyInner() {
     }
     let alive = true;
     const missing = [...chat.artifacts.values()].filter(
-      (ev) => ev.windowType === "ui3d" && ev.content == null,
+      (ev) => ev.update !== "close" && ev.content == null,
     );
+    if (missing.length === 0) return;
     Promise.all(
       missing.map((ev) =>
         fetchArtifact(sid, ev.id)
@@ -1394,7 +1398,12 @@ function VRLobbyInner() {
       ),
     ).then((results) => {
       if (!alive) return;
-      setFetched(results.filter((x): x is ArtifactEvent => x != null));
+      const ok = results.filter((x): x is ArtifactEvent => x != null);
+      setFetched((prev) => {
+        const byId = new Map(prev.map((p) => [p.id, p]));
+        for (const p of ok) byId.set(p.id, p);
+        return [...byId.values()];
+      });
     });
     return () => { alive = false; };
   }, [chat.sessionId, chat.artifacts]);
