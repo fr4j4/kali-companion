@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { StageProvider } from "./stage/StageProvider";
+import { AuthGate } from "./components/AuthGate";
 import { NeuralCanvas } from "./stage/NeuralCanvas";
 import { useUIScale } from "./hooks/useUIScale";
 
@@ -98,6 +99,7 @@ export default function App() {
 
   return (
     <StageProvider>
+      <AuthGate />
       <NeuralCanvas
         theme={theme}
         onThemeChange={setTheme}

@@ -47,6 +47,14 @@ export class WSClient {
       try {
         const payload = JSON.parse(ev.data) as OutgoingEvent;
         const event = (payload.event as IncomingEventName) ?? "";
+        if (event === "auth_required") {
+          // Server rejected our token (or none was sent) with auth enabled.
+          // Surface the login gate; stop reconnecting until the user acts
+          // (submit reloads the page with the new token in localStorage).
+          this.shouldReconnect = false;
+          window.dispatchEvent(new CustomEvent("kali:auth-required"));
+          return;
+        }
         this.dispatch(event, payload);
       } catch {
         // ignore malformed frames
