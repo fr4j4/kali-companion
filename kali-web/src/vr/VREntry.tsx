@@ -24,7 +24,7 @@ import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { WindowType } from "../workspace/types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
-import { Container, Text as UIKitText } from "@react-three/uikit";
+import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -1249,28 +1249,26 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
           </mesh>
           {/* DEBUG: si ves este texto rojo, el panel está bien colocado/escala */}
           <Text position={[0, 0.34, 0.011]} fontSize={0.04} color="#ff3b30" anchorX="center" anchorY="middle">VR PANEL DEBUG</Text>
-          <group scale={[0.002, 0.002, 0.002]}>
-            <Container flexDirection="column" gap={6} width={420}>
-              <Container width={420} height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
-                <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " · " + ev.windowType}</UIKitText>
-                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
-                  <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
-                </Container>
-              </Container>
-              <Container
-                width={420}
-                height={320}
-                backgroundColor="#0b0f14"
-                borderRadius={8}
-                padding={8}
-                overflow="scroll"
-                scrollbarWidth={4}
-                flexDirection="column"
-              >
-                <VrWidgetRenderer ev={ev} />
+          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6}>
+            <Container width="100%" height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
+              <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " · " + ev.windowType}</UIKitText>
+              <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
+                <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
               </Container>
             </Container>
-          </group>
+            <Container
+              width="100%"
+              flexGrow={1}
+              backgroundColor="#0b0f14"
+              borderRadius={8}
+              padding={8}
+              overflow="scroll"
+              scrollbarWidth={4}
+              flexDirection="column"
+            >
+              <VrWidgetRenderer ev={ev} />
+            </Container>
+          </Root>
         </group>
       </GripGrab>
     );
