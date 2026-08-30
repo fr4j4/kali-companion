@@ -646,8 +646,6 @@ class Server:
         _FILE_SERVE_ROOTS = [
             Path(settings.data_dir).resolve(),
             Path.home() / "Pictures",
-            Path.home() / "Downloads",
-            Path.cwd(),
         ]
 
         @self.app.get("/file")
