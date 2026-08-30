@@ -53,10 +53,18 @@ if [ -f /app/docker/tls-init.sh ]; then
     TLS_ENABLED="$([ "${KALI_TLS:-false}" = "true" ] && [ -f /app/certs/kali.crt ] && echo 1 || echo 0)"
     TLS_LISTEN=""
     if [ "$TLS_ENABLED" = "1" ]; then
-        TLS_LISTEN="listen ${KALI_TLS_PORT:-8444} ssl;
+        # "http2 on" (sintaxis moderna) no existe en el nginx de Ubuntu 24.04
+        # (1.24); ahí http2 va como flag del listen. Detectamos y usamos una.
+        if nginx -v 2>&1 | grep -qE "/1\.(2[5-9]|[3-9][0-9])"; then
+            TLS_LISTEN="listen ${KALI_TLS_PORT:-8444} ssl;
     http2 on;
     ssl_certificate     /app/certs/kali.crt;
     ssl_certificate_key /app/certs/kali.key;"
+        else
+            TLS_LISTEN="listen ${KALI_TLS_PORT:-8444} ssl http2;
+    ssl_certificate     /app/certs/kali.crt;
+    ssl_certificate_key /app/certs/kali.key;"
+        fi
     fi
 else
     TLS_LISTEN=""

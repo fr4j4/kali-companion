@@ -19,11 +19,15 @@ kali_tls_init() {
     local cert_dir="${KALI_CERT_DIR:-/app/certs}"
     local crt="$cert_dir/kali.crt"
     local key="$cert_dir/kali.key"
-    # Regenerar si falta o vence en < 30 días
-    if [ -f "$crt" ] && openssl x509 -enddate -noout -in "$crt" 2>/dev/null | \
-        awk -v now="$(date +%s)" '{ cmd="date -d \"" $4 " " $3 " " $6 "\" +%s"; cmd | getline t; close(cmd); if (t - now > 2592000) exit 1 }'; then
-        log "cert TLS vigente en $crt"
-        return 0
+    # Regenerar si falta o vence en < 30 días (parseo robusto con openssl)
+    if [ -f "$crt" ]; then
+        end=$(openssl x509 -enddate -noout -in "$crt" 2>/dev/null | cut -d= -f2)
+        end_s=$(date -d "${end:-invalid}" +%s 2>/dev/null) || end_s=0
+        if [ -n "$end_s" ] && [ "$end_s" -gt $(( $(date +%s) + 2592000 )) ]; then
+            log "cert TLS vigente en $crt"
+            return 0
+        fi
+        warn "cert TLS ausente o vence pronto; regenerando..."
     fi
 
     local hosts="${KALI_TLS_HOSTS:-companion.local,localhost}"
