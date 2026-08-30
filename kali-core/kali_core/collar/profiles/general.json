@@ -3,6 +3,6 @@
   "name": "General",
   "description": "Profile for general assistance. Whitelists web and read-only tools.",
   "allowed_tools": ["fs_read", "fs_list", "web_search", "web_fetch", "list_monitors"],
-  "working_dirs": ["~/**"],
+  "working_dirs": ["~/projects/**", "/mnt/data2/projects/**", "/app/kali-core/**", "/app/kali-web/**"],
   "command_whitelist": []
 }

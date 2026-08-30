@@ -1,8 +1,7 @@
-"""Filesystem tools — fs_read.
+"""Filesystem tools — fs_read / fs_list.
 
-fs_read reads a file within the working directory (safe risk level).
-The working_dir is provided by the ToolContext and must match a
-working_dirs entry in the active profile.
+Both enforce the active profile's working_dirs (see paths.py): paths
+outside the allowed roots are rejected regardless of risk level.
 """
 
 from __future__ import annotations
@@ -10,6 +9,26 @@ from __future__ import annotations
 from pathlib import Path
 
 from .base import ToolContext, ToolResult
+from . import paths as _paths
+
+
+def _resolve_or_error(path_str: str, ctx: ToolContext) -> tuple[Path | None, ToolResult | None]:
+    if not path_str:
+        return None, ToolResult(error="Missing 'path' parameter.")
+    path = Path(path_str).expanduser()
+    if not path.is_absolute():
+        path = Path(ctx.working_dir) / path
+    try:
+        path = path.resolve()
+    except (OSError, ValueError) as e:
+        return None, ToolResult(error=f"Invalid path: {e}")
+    return path, None
+
+
+def _check_allowed(path: Path, ctx: ToolContext) -> ToolResult | None:
+    if not _paths.path_allowed(path, ctx):
+        return _paths.denial_result(path)
+    return None
 
 
 class FsReadTool:
@@ -30,20 +49,13 @@ class FsReadTool:
     risk_level = "safe"
 
     async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
-        path_str = params.get("path", "")
+        path, err = _resolve_or_error(params.get("path", ""), ctx)
+        if err:
+            return err
+        assert path is not None
+        if (denied := _check_allowed(path, ctx)) is not None:
+            return denied
         max_lines = int(params.get("max_lines", 200))
-
-        if not path_str:
-            return ToolResult(error="Missing 'path' parameter.")
-
-        path = Path(path_str).expanduser()
-        if not path.is_absolute():
-            path = Path(ctx.working_dir) / path
-
-        try:
-            path = path.resolve()
-        except (OSError, ValueError) as e:
-            return ToolResult(error=f"Invalid path: {e}")
 
         if not path.exists():
             return ToolResult(error=f"File not found: {path}")
@@ -80,18 +92,12 @@ class FsListTool:
     risk_level = "safe"
 
     async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
-        path_str = params.get("path", "")
-        if not path_str:
-            return ToolResult(error="Missing 'path' parameter.")
-
-        path = Path(path_str).expanduser()
-        if not path.is_absolute():
-            path = Path(ctx.working_dir) / path
-
-        try:
-            path = path.resolve()
-        except (OSError, ValueError) as e:
-            return ToolResult(error=f"Invalid path: {e}")
+        path, err = _resolve_or_error(params.get("path", ""), ctx)
+        if err:
+            return err
+        assert path is not None
+        if (denied := _check_allowed(path, ctx)) is not None:
+            return denied
 
         if not path.exists():
             return ToolResult(error=f"Directory not found: {path}")
