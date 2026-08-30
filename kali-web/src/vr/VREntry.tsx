@@ -405,8 +405,9 @@ function useUISounds() {
 
 /** Item de menú con feedback visual (hover: brillo+escala) + sonido. */
 function MenuItem({
-  y, w, color, text, sound, onSelect, onHover,
+  x = 0, y, w, color, text, sound, onSelect, onHover,
 }: {
+  x?: number;
   y: number;
   w: number;
   color: string;
@@ -422,7 +423,7 @@ function MenuItem({
       onBlur={() => { setHovered(false); onHover?.(false); }}
       onSelect={() => { sound.select(); onSelect(); }}
     >
-      <group position={[0, y, 0.001]} scale={hovered ? 1.06 : 1}>
+      <group position={[x, y, 0.001]} scale={hovered ? 1.06 : 1}>
         <mesh>
           <planeGeometry args={[w, 0.042]} />
           <meshBasicMaterial
@@ -646,10 +647,10 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
 /* ── comandos: voz (PTT) + chat de texto con respuestas ───────── */
 
 /**
- * Barra de comandos flotante (equivalente VR de la barra inferior del
- * canvas 2D). Voz en dos pasos explícitos (grabar → revisar → ENVIAR o
- * DESCARTAR — el envío automático del canvas 2D no sirve para revisar).
- * Chat con layout estilo mensajería y input DOM (teclado nativo Quest).
+ * Palette — paleta de comandos con 3 tabs: Chat / Artefactos / Config.
+ * Ventana agarrable (grip) estilo app móvil. El chat replica una app de
+ * mensajería: burbujas, input abajo (teclado Quest) y botón de mic con
+ * flujo grabar→revisar→enviar/descartar (descartar resetea de verdad).
  */
 function CommandsPanel({ onClose }: { onClose: () => void }) {
   const { chat, ptt } = useStage();
@@ -657,10 +658,10 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
   const [draft, setDraft] = useState("");
-  const [tab, setTab] = useState<"chat" | "voice">("voice");
+  const [tab, setTab] = useState<"chat" | "artifacts" | "config">("chat");
+  const [shown, setShown] = useState<Set<string>>(new Set());
   const sound = useUISounds();
 
-  // Spawn 1.4 m frente al usuario; luego queda donde lo dejes (RayGrab).
   useEffect(() => {
     if (placed || !groupRef.current) return;
     const camPos = new THREE.Vector3();
@@ -675,7 +676,7 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
     setPlaced(true);
   }, [placed, camera]);
 
-  // ── flujo de voz en 2 pasos ──
+  // ── voz: idle → recording → review → (send | discard) ──
   const phase: "idle" | "recording" | "review" =
     ptt.state === "recording" || ptt.state === "listening"
       ? "recording"
@@ -687,139 +688,116 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
     if (cleaned) chat.send(cleaned);
     sound.select();
   }, [ptt.finalText, chat, sound]);
+  // Descartar: termina la sesión de grabación y vuelve a idle. El hook
+  // limpia finalText al iniciar la próxima grabación (startRecording hace
+  // setFinalText("")). El bug anterior era llamar ptt.stop() dos veces.
+  const discardTranscript = useCallback(() => {
+    if (ptt.state === "recording" || ptt.state === "listening") ptt.stop();
+    sound.close();
+  }, [ptt, sound]);
+
+  const sttOff = chat.systemStatus?.stt_enabled === false;
 
   const last = [...chat.messages].slice(-8);
+  const artifacts = [...chat.artifacts.values()];
+
+  const openInWorld = (ev: ArtifactEvent) => {
+    setShown((prev) => new Set(prev).add(ev.id));
+    sound.select();
+  };
 
   return (
     <GripGrab>
       <group ref={groupRef}>
+        {/* marco de la ventana */}
         <mesh>
-          <planeGeometry args={[0.95, 0.68]} />
-          <meshBasicMaterial color="#0b0f14" transparent opacity={0.85} depthWrite={false} side={THREE.DoubleSide} />
+          <planeGeometry args={[1.0, 0.72]} />
+          <meshBasicMaterial color="#0b0f14" transparent opacity={0.88} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* header */}
-        <group position={[0, 0.3, 0.002]}>
-          <Text fontSize={0.03} color="#38bdf8" anchorX="center" anchorY="middle">
-            COMANDOS · KALI
+        {/* header + cerrar */}
+        <group position={[0, 0.315, 0.002]}>
+          <Text fontSize={0.028} color="#38bdf8" anchorX="center" anchorY="middle">
+            KALI
           </Text>
         </group>
+        <Interactive onSelect={() => { sound.close(); onClose(); }} onHover={() => sound.hover()}>
+          <group position={[0.435, 0.315, 0.002]}>
+            <mesh>
+              <planeGeometry args={[0.09, 0.05]} />
+              <meshBasicMaterial color="#fb7185" transparent opacity={0.45} depthWrite={false} />
+            </mesh>
+            <group position={[0, 0, 0.002]}>
+              <Text fontSize={0.024} color="#e2e8f0" anchorX="center" anchorY="middle">✕</Text>
+            </group>
+          </group>
+        </Interactive>
 
         {/* tabs */}
-        {[
-          { x: -0.26, label: "Voz", t: "voice" as const, color: "#34d399" },
-          { x: -0.05, label: "Chat", t: "chat" as const, color: "#38bdf8" },
-        ].map(({ x, label, t, color }) => (
+        {([
+          { x: -0.3, label: "Chat", t: "chat" as const, color: "#38bdf8" },
+          { x: -0.06, label: "Artefactos", t: "artifacts" as const, color: "#a78bfa" },
+          { x: 0.2, label: "Config", t: "config" as const, color: "#fbbf24" },
+        ]).map(({ x, label, t, color }) => (
           <Interactive key={t} onSelect={() => { sound.select(); setTab(t); }} onHover={() => sound.hover()}>
-            <group position={[x, 0.215, 0.002]}>
+            <group position={[x, 0.24, 0.002]}>
               <mesh>
-                <planeGeometry args={[0.17, 0.055]} />
-                <meshBasicMaterial color={color} transparent opacity={tab === t ? 0.7 : 0.2} depthWrite={false} />
+                <planeGeometry args={[0.21, 0.05]} />
+                <meshBasicMaterial color={color} transparent opacity={tab === t ? 0.75 : 0.18} depthWrite={false} />
               </mesh>
               <group position={[0, 0, 0.002]}>
-                <Text fontSize={0.026} color="#e2e8f0" anchorX="center" anchorY="middle">{label}</Text>
+                <Text fontSize={0.022} color={tab === t ? "#ffffff" : "#94a3b8"} anchorX="center" anchorY="middle">{label}</Text>
               </group>
             </group>
           </Interactive>
         ))}
 
-        {/* cerrar */}
-        <Interactive onSelect={() => { sound.close(); onClose(); }} onHover={() => sound.hover()}>
-          <group position={[0.4, 0.215, 0.002]}>
-            <mesh>
-              <planeGeometry args={[0.09, 0.055]} />
-              <meshBasicMaterial color="#fb7185" transparent opacity={0.4} depthWrite={false} />
-            </mesh>
-            <group position={[0, 0, 0.002]}>
-              <Text fontSize={0.026} color="#e2e8f0" anchorX="center" anchorY="middle">✕</Text>
-            </group>
-          </group>
-        </Interactive>
-
-        {tab === "voice" ? (
+        {/* ═══ TAB CHAT ═══ */}
+        {tab === "chat" && (
           <group position={[0, -0.02, 0.002]}>
-            {/* transcripción en vivo / revisión */}
-            <mesh>
-              <planeGeometry args={[0.86, 0.24]} />
-              <meshBasicMaterial color="#020617" transparent opacity={0.6} depthWrite={false} />
-            </mesh>
-            <group position={[0, 0, 0.002]}>
-              <Text
-                fontSize={0.024}
-                color={phase === "recording" ? "#34d399" : "#e2e8f0"}
-                anchorX="center" anchorY="middle" maxWidth={0.8}
-              >
-                {phase === "recording"
-                  ? (ptt.partialText || "● grabando…")
-                  : phase === "review"
-                    ? (ptt.finalText || "(vacío)")
-                    : "Pulsa GRABAR y habla"}
-              </Text>
-            </group>
-
-            {/* diagnóstico: si el server reporta STT apagado, el botón
-                no puede grabar — muéstralo en vez de fallar en silencio */}
-            {chat.systemStatus?.stt_enabled === false && (
-              <group position={[0, -0.13, 0.002]}>
-                <Text fontSize={0.02} color="#fb7185" anchorX="center" anchorY="middle" maxWidth={0.8}>
-                  ⚠ STT deshabilitado — actívalo en Settings del canvas 2D
-                </Text>
-              </group>
-            )}
-            {ptt.error && (
-              <group position={[0, chat.systemStatus?.stt_enabled === false ? -0.17 : -0.13, 0.002]}>
-                <Text fontSize={0.02} color="#fbbf24" anchorX="center" anchorY="middle" maxWidth={0.8}>
-                  {`⚠ ${ptt.error.slice(0, 60)}`}
-                </Text>
-              </group>
-            )}
-
-            {/* botones según fase — uno por pulso, revisión explícita */}
-            {phase === "idle" && (
-              <MenuItem y={-0.22} w={0.3} color="#34d399" text="● GRABAR" sound={sound}
-                onSelect={() => { void ptt.start(); }} />
-            )}
-            {phase === "recording" && (
-              <MenuItem y={-0.22} w={0.3} color="#fbbf24" text="■ TERMINAR" sound={sound}
-                onSelect={() => ptt.stop()} />
-            )}
-            {phase === "review" && (
-              <>
-                <MenuItem y={-0.19} w={0.32} color="#38bdf8" text="▶ ENVIAR a Kali" sound={sound}
-                  onSelect={sendTranscript} />
-                <MenuItem y={-0.26} w={0.32} color="#fb7185" text="✕ DESCARTAR" sound={sound}
-                  onSelect={() => { ptt.stop(); }} />
-              </>
-            )}
-          </group>
-        ) : (
-          <group position={[0, -0.02, 0.002]}>
-            {/* historial estilo chat — burbujas alineadas por rol */}
+            {/* burbujas — estilo app de mensajería */}
             {last.map((m, i) => {
               const mine = m.role === "user";
               return (
-                <group key={m.id} position={[mine ? 0.22 : -0.24, 0.28 - i * 0.07, 0.002]}>
-                  <Interactive>
-                    <mesh>
-                      <planeGeometry args={[0.42, 0.06]} />
-                      <meshBasicMaterial
-                        color={mine ? "#0369a1" : "#1e293b"}
-                        transparent opacity={0.75} depthWrite={false}
-                      />
-                    </mesh>
-                    <group position={[0, 0, 0.002]}>
-                      <Text fontSize={0.017} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.4}>
-                        {`${mine ? "tú" : "Kali"}: ${m.content.slice(0, 70)}`}
-                      </Text>
-                    </group>
-                  </Interactive>
+                <group key={m.id} position={[mine ? 0.24 : -0.26, 0.26 - i * 0.068, 0.002]}>
+                  <mesh>
+                    <planeGeometry args={[0.44, 0.058]} />
+                    <meshBasicMaterial
+                      color={mine ? "#0369a1" : "#1e293b"}
+                      transparent opacity={0.85} depthWrite={false}
+                    />
+                  </mesh>
+                  <group position={[0, 0, 0.002]}>
+                    <Text fontSize={0.015} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.42}>
+                      {`${mine ? "tú" : "Kali"}: ${m.content.slice(0, 75)}`}
+                    </Text>
+                  </group>
                 </group>
               );
             })}
-            {/* input DOM — teclado nativo de Quest */}
-            <group position={[0, -0.28, 0.01]}>
-              <Html transform distanceFactor={0.6} occlude={false} style={{ width: 520 }}>
-                <div style={{ display: "flex", gap: 8 }}>
+
+            {/* zona de voz (review sobre el input) */}
+            {phase === "review" && (
+              <group position={[0, -0.235, 0.002]}>
+                <mesh>
+                  <planeGeometry args={[0.9, 0.1]} />
+                  <meshBasicMaterial color="#020617" transparent opacity={0.75} depthWrite={false} />
+                </mesh>
+                <group position={[0, 0, 0.002]}>
+                  <Text fontSize={0.019} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.85}>
+                    {`"${ptt.finalText}"`}
+                  </Text>
+                </group>
+                <MenuItem y={-0.075} w={0.2} color="#38bdf8" text="▶ Enviar" sound={sound} onSelect={sendTranscript} />
+                <MenuItem x={0.24} y={-0.075} w={0.2} color="#fb7185" text="✕ Descartar" sound={sound}
+                  onSelect={discardTranscript} />
+              </group>
+            )}
+
+            {/* barra inferior: input + mic */}
+            <group position={[0, -0.3, 0.01]}>
+              <Html transform distanceFactor={0.6} occlude={false} style={{ width: 560 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -832,11 +810,27 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
                     }}
                     placeholder="Escribe a Kali…"
                     style={{
-                      flex: 1, padding: "10px 12px", borderRadius: 10,
+                      flex: 1, padding: "10px 12px", borderRadius: 22,
                       border: "1px solid #334155", background: "#0b0f14",
                       color: "#e2e8f0", fontSize: 15, outline: "none",
                     }}
                   />
+                  <button
+                    type="button"
+                    title={phase === "recording" ? "Terminar" : "Grabar voz"}
+                    onClick={() => {
+                      if (phase === "recording") { ptt.stop(); sound.close(); }
+                      else { void ptt.start(); sound.rec(); }
+                    }}
+                    style={{
+                      width: 42, height: 42, borderRadius: "50%",
+                      border: "none", cursor: "pointer",
+                      background: phase === "recording" ? "#fbbf24" : "#22c55e",
+                      color: "#0b0f14", fontSize: 18,
+                    }}
+                  >
+                    {phase === "recording" ? "■" : "🎤"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -846,15 +840,101 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
                       setDraft("");
                     }}
                     style={{
-                      padding: "10px 16px", borderRadius: 10, border: "none",
+                      padding: "10px 16px", borderRadius: 22, border: "none",
                       background: "#38bdf8", color: "#0b0f14",
                       fontWeight: 700, fontSize: 15,
                     }}
                   >
-                    Enviar
+                    ➤
                   </button>
                 </div>
               </Html>
+            </group>
+
+            {/* estado de voz bajo la barra (recording / errores) */}
+            <group position={[0, -0.345, 0.002]}>
+              <Text fontSize={0.018} color={phase === "recording" ? "#34d399" : sttOff ? "#fb7185" : "#64748b"} anchorX="center" anchorY="middle" maxWidth={0.9}>
+                {phase === "recording"
+                  ? `● grabando — ${ptt.partialText || "habla…"}`
+                  : sttOff
+                    ? "⚠ STT deshabilitado (Settings 2D)"
+                    : ptt.error
+                      ? `⚠ ${ptt.error.slice(0, 55)}`
+                      : "mic: pulsa 🎤 para hablar"}
+              </Text>
+            </group>
+          </group>
+        )}
+
+        {/* ═══ TAB ARTEFACTOS ═══ */}
+        {tab === "artifacts" && (
+          <group position={[0, -0.03, 0.002]}>
+            {artifacts.length === 0 && (
+              <Text fontSize={0.022} color="#64748b" anchorX="center" anchorY="middle">
+                Sin artefactos aún — pídele algo a Kali
+              </Text>
+            )}
+            {artifacts.slice(0, 7).map((ev, i) => {
+              const inWorld = shown.has(ev.id) || ev.windowType === "ui3d";
+              return (
+                <group key={ev.id} position={[0, 0.24 - i * 0.075, 0.002]}>
+                  <Interactive onSelect={() => openInWorld(ev)} onHover={() => sound.hover()}>
+                    <mesh>
+                      <planeGeometry args={[0.86, 0.062]} />
+                      <meshBasicMaterial color="#1e293b" transparent opacity={inWorld ? 0.35 : 0.8} depthWrite={false} />
+                    </mesh>
+                    <group position={[-0.36, 0, 0.003]}>
+                      <Text fontSize={0.02} color={inWorld ? "#64748b" : "#a78bfa"} anchorX="left" anchorY="middle">
+                        {inWorld ? "◉ en el mundo" : "◎ mostrar"}
+                      </Text>
+                    </group>
+                    <group position={[0.015, 0, 0.003]}>
+                      <Text fontSize={0.02} color="#e2e8f0" anchorX="left" anchorY="middle" maxWidth={0.55}>
+                        {`${ev.title || ev.windowType} · ${ev.windowType}`}
+                      </Text>
+                    </group>
+                  </Interactive>
+                </group>
+              );
+            })}
+            <group position={[0, -0.32, 0.002]}>
+              <Text fontSize={0.016} color="#64748b" anchorX="center" anchorY="middle">
+                los nuevos de Kali aparecen solos frente a ti
+              </Text>
+            </group>
+          </group>
+        )}
+
+        {/* ═══ TAB CONFIG ═══ */}
+        {tab === "config" && (
+          <group position={[0, -0.03, 0.002]}>
+            {(() => {
+              const s = chat.systemStatus;
+              const rows: Array<[string, string]> = [
+                ["LLM", `${s?.llm_active ? "●" : "○"} ${s?.llm_model || s?.llm_provider || "—"}`],
+                ["Conexión", s?.llm_connection_name || "activa"],
+                ["API key", s?.llm_api_key_set ? "✓ configurada" : "✗ no"],
+                ["TTS", `${s?.tts_provider || "—"} · ${s?.voice || "—"}`],
+                ["STT", `${s?.stt_provider || "—"} · ${s?.stt_enabled ? "on" : "off"}`],
+                ["VAD", s?.stt_vad_enabled ? `on (${s?.stt_vad_silence_timeout ?? 1}s)` : "off"],
+                ["Idioma", s?.stt_language || "—"],
+                ["Perfil", s?.profile || "—"],
+              ];
+              return rows.map(([k, v], i) => (
+                <group key={k} position={[0, 0.26 - i * 0.075, 0.002]}>
+                  <Text fontSize={0.02} color="#94a3b8" anchorX="left" anchorY="middle">
+                    {k}
+                  </Text>
+                  <Text fontSize={0.02} color="#e2e8f0" anchorX="right" anchorY="middle" position={[0.43, 0, 0.001]}>
+                    {v.slice(0, 28)}
+                  </Text>
+                </group>
+              ));
+            })()}
+            <group position={[0, -0.33, 0.002]}>
+              <Text fontSize={0.016} color="#64748b" anchorX="center" anchorY="middle">
+                solo lectura — edición en Settings del canvas 2D
+              </Text>
             </group>
           </group>
         )}
