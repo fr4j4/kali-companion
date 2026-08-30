@@ -1247,6 +1247,8 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
             <planeGeometry args={[0.92, 0.74]} />
             <meshBasicMaterial color="#0b0f14" transparent opacity={0.98} side={THREE.DoubleSide} />
           </mesh>
+          {/* DEBUG: si ves este texto rojo, el panel está bien colocado/escala */}
+          <Text position={[0, 0.34, 0.011]} fontSize={0.04} color="#ff3b30" anchorX="center" anchorY="middle">VR PANEL DEBUG</Text>
           <group scale={[0.002, 0.002, 0.002]}>
             <Container flexDirection="column" gap={6} width={420}>
               <Container width={420} height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
