@@ -89,39 +89,65 @@ async function requestVRSession(gl: unknown): Promise<unknown> {
  * causa del bug: mi rig propio y el player de la lib peleaban por la
  * cámara, y los controllers quedaban en coordenadas del reference space.
  */
-function PlayerRig({ children }: { children?: React.ReactNode }) {
+function PlayerRig({
+  children,
+  onToggleMenu,
+}: {
+  children?: React.ReactNode;
+  onToggleMenu?: () => void;
+}) {
   const player = useXR((s) => s.player);
   const camera = useThree((s) => s.camera);
   const dir = useRef(new THREE.Vector3());
-  const strafe = useRef(new THREE.Vector3());
   const snapArmed = useRef(true);
-  const forward = useRef(new THREE.Vector3());
+  const menuArmed = useRef(true);
 
   useFrame((_, delta) => {
     const session = glXRSessionRef.current as XRSession | null;
     if (!session || !player) return;
 
-    let mx = 0; let my = 0; let tx = 0;
+    let mx = 0; let my = 0; let tx = 0; let menuPressed = false;
     for (const source of session.inputSources) {
       if (!source.gamepad) continue;
       if (source.handedness === "left") {
         mx = source.gamepad.axes[2] ?? 0;
         my = source.gamepad.axes[3] ?? 0;
+        // Quest: button 4 = botón de menú del control izquierdo.
+        menuPressed = Boolean(source.gamepad.buttons[4]?.pressed);
       } else if (source.handedness === "right") {
         tx = source.gamepad.axes[2] ?? 0;
       }
     }
 
-    // Stick izq: avanzar/retroceder + strafe, en la dirección de la vista.
+    // Botón menú: alterna el panel (con rearme para un toggle por pulso).
+    if (onToggleMenu && menuPressed && menuArmed.current) {
+      onToggleMenu();
+      menuArmed.current = false;
+    } else if (!menuPressed) {
+      menuArmed.current = true;
+    }
+
+    // Stick izq: avanzar/retroceder + strafe RELATIVO A LA MIRADA.
+    // Dir = forward local de la cámara (pose XR, local al player)
+    // rotada por la orientación del player — determinístico, sin
+    // depender de matrixWorld (que está stale dentro de useFrame:
+    // por eso antes el avance quedaba clavado al ángulo inicial).
     if (Math.abs(mx) > 0.15 || Math.abs(my) > 0.15) {
-      camera.getWorldDirection(dir.current);
+      dir.current.set(0, 0, -1).applyQuaternion(camera.quaternion);
       dir.current.y = 0;
+      if (dir.current.lengthSq() < 1e-6) {
+        // Mirando recto arriba/abajo: usa el norte del player.
+        dir.current.set(0, 0, -1).applyQuaternion(player.quaternion);
+        dir.current.y = 0;
+      }
       dir.current.normalize();
-      forward.current.copy(dir.current).multiplyScalar(-my);
-      strafe.current.set(-dir.current.z, 0, dir.current.x).multiplyScalar(mx);
+      // El snap-turn rota `player`; combinar ambos giros explícitamente.
+      dir.current.applyQuaternion(player.quaternion);
+
       const speed = 2.4 * delta; // m/s — caminata cómoda
-      player.position.addScaledVector(forward.current, speed);
-      player.position.addScaledVector(strafe.current, speed);
+      const fwd = dir.current.clone().multiplyScalar(-my * speed);
+      const strafe = new THREE.Vector3(-dir.current.z, 0, dir.current.x).multiplyScalar(mx * speed);
+      player.position.add(fwd).add(strafe);
     }
 
     // Stick der (X): snap-turn de 30° con rearme para no girar en ráfaga.
@@ -322,7 +348,7 @@ function ArtifactPanels({ sessionId, live }: { sessionId: string | null; live: A
  * (lookAt a la cámara) — arregla el panel invertido: antes copiábamos la
  * quaternion del grip, que apunta hacia abajo/atrás según el control.
  */
-function ExitMenuOnLeftController({ onExit }: { onExit: () => void }) {
+function ExitMenuOnLeftController({ onExit, open }: { onExit: () => void; open: boolean }) {
   const controllers = useXR((s) => s.controllers);
   const camera = useThree((s) => s.camera);
   const left = controllers.find((c) => c.inputSource?.handedness === "left");
@@ -343,7 +369,7 @@ function ExitMenuOnLeftController({ onExit }: { onExit: () => void }) {
     groupRef.current.lookAt(tmp.current.cam);
   });
 
-  if (!left) return null;
+  if (!left || !open) return null;
 
   return (
     <group ref={groupRef} scale={0.55}>
@@ -405,7 +431,9 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const vrSupport = useVRSupport();
   const [vrError, setVrError] = useState("");
   const [vrBusy, setVrBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const exitVR = useExitVR();
+  const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
 
   const enterVR = useCallback(async () => {
     setVrError("");
@@ -457,10 +485,10 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
         <XR>
           {/* Controllers/Hands/menú viven DENTRO del rig: heredan el
               transform del jugador y viajan con él al caminar/girar. */}
-          <PlayerRig>
+          <PlayerRig onToggleMenu={toggleMenu}>
             <Controllers />
             <Hands />
-            <ExitMenuOnLeftController onExit={exitVR} />
+            <ExitMenuOnLeftController onExit={exitVR} open={menuOpen} />
           </PlayerRig>
           <MatrixFloor />
           <InteractivePrimitives />
