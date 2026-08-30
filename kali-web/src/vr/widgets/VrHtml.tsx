@@ -1,0 +1,2 @@
+import { Container, Text } from "@react-three/uikit"; import type { ArtifactEvent } from "../../lib/protocol"; 
+export function VrHtml({ev}:{ev:ArtifactEvent}){ const raw=ev.content??""; const isHtml=raw.trim().startsWith("<"); return <Container flexDirection="column" padding={8} gap={6} backgroundColor="white" borderRadius={6}><Text fontSize={9} color="#64748b">{ev.title||"html"} · {isHtml?"preview":"texto"}</Text><Text fontSize={10} color="#111">{raw.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,500)}</Text></Container> }
