@@ -109,6 +109,16 @@ export default function App() {
     <StageProvider>
       <AuthGate onLocked={setAuthLocked} />
       {!authLocked && (
+      <>
+      <a
+        href="/#/vr"
+        target="_blank"
+        rel="noreferrer"
+        className="fixed bottom-3 right-3 z-50 px-3 py-1.5 rounded-md text-xs font-medium border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+        title="Abrir el entorno inmersivo VR (escena predeterminada)"
+      >
+        🥽 VR
+      </a>
       <NeuralCanvas
         theme={theme}
         onThemeChange={setTheme}
@@ -122,6 +132,7 @@ export default function App() {
         uiScale={scale}
         onUIScaleChange={setScale}
       />
+      </>
       )}
     </StageProvider>
   );

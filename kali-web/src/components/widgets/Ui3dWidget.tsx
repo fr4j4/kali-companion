@@ -34,7 +34,7 @@ interface Props {
 
 type Vec3 = [number, number, number];
 
-interface Ui3dElement {
+export interface Ui3dElement {
   type: "box" | "sphere" | "group";
   position?: Vec3;
   rotation?: Vec3;
@@ -43,7 +43,7 @@ interface Ui3dElement {
   children?: string[];
 }
 
-interface Ui3dScene {
+export interface Ui3dScene {
   elements: Record<string, Ui3dElement>;
   root?: string;
 }
@@ -170,6 +170,26 @@ async function requestVRSession(gl: unknown): Promise<void> {
   };
   renderer.xr.setReferenceSpaceType("local-floor");
   await renderer.xr.setSession(session);
+}
+
+/* ── scene renderer (shared with the /vr room) ────────────────── */
+
+export function Ui3dSceneNodes({ scene }: { scene: Ui3dScene }) {
+  const elementIds = Object.keys(scene.elements ?? {});
+  if (elementIds.length === 0) return null;
+  if (scene.root && scene.elements?.[scene.root]) {
+    return <SceneNode id={scene.root} scene={scene} depth={0} />;
+  }
+  return (
+    <>
+      {elementIds
+        .filter((id) => scene.elements[id].type !== "group")
+        .slice(0, MAX_ROOT_CHILDREN)
+        .map((id) => (
+          <SceneNode key={id} id={id} scene={scene} depth={0} />
+        ))}
+    </>
+  );
 }
 
 /* ── widget ───────────────────────────────────────────────────── */
