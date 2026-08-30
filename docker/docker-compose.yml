@@ -33,6 +33,8 @@ services:
     volumes:
       # ── Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes) ──
       - /mnt/data2/data:/app/data
+      # KALI_DATA_DIR apunta aquí (docker/.env): kali.db con conexiones IA,
+      # API keys y settings TTS/STT sobrevive a recreaciones del contenedor.
 
       # ── Modelos TTS/STT (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host ──
       - /mnt/data2/models/voice:/app/models
@@ -53,6 +55,8 @@ services:
       # ── Core ──
       - KALI_PORT=${KALI_PORT:-8900}
       - KALI_HOST=0.0.0.0
+      # Persistencia: kali.db (conexiones IA/API keys, settings) en el mount.
+      - KALI_DATA_DIR=${KALI_DATA_DIR:-/app/data}
 
       # ── TTS Engine ──
       - KALI_TTS_PROVIDER=${KALI_TTS_PROVIDER:-inproc}
