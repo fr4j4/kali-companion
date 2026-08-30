@@ -1163,10 +1163,7 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
     return (
       <GripGrab>
         <group ref={groupRef}>
-          {/* header nativo 3D + textura fiel del widget */}
-          <Text position={[0, 0.29, 0.012]} fontSize={0.022} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={0.78}>
-            {(ev.title || ev.windowType) + " · " + ev.windowType}
-          </Text>
+          {/* En HMD el header va pintado dentro del CanvasTexture (evita duplicado); aquí solo botón cerrar */}
           <Interactive onSelect={onClose}>
             <group position={[0.38, 0.29, 0.013]}>
               <mesh>
@@ -1259,14 +1256,15 @@ function Widget2DPanels({
   worldIds: Set<string>;
   onClose: (id: string) => void;
 }) {
-  const twoD = live.filter((ev) => worldIds.has(ev.id) || ev.windowType === "ui3d");
+  const inWorld = live.filter((ev) => worldIds.has(ev.id));
+  const twoD = inWorld.filter((ev) => ev.windowType !== "ui3d");
   return (
     <>
-      {twoD.filter((ev) => ev.windowType !== "ui3d").slice(0, 6).map((ev, i) => (
+      {twoD.slice(0, 6).map((ev, i) => (
         <Widget2DPanel key={ev.id} ev={ev} index={i} onClose={() => onClose(ev.id)} />
       ))}
       {/* los ui3d siguen por su camino propio (ScenePanel) */}
-      {live.filter((ev) => ev.windowType === "ui3d" && worldIds.has(ev.id)).slice(0, 9).map((ev, i) => (
+      {inWorld.filter((ev) => ev.windowType === "ui3d").slice(0, 9).map((ev, i) => (
         <ScenePanel key={ev.id} ev={ev} index={i} sessionId={sessionId} />
       ))}
     </>

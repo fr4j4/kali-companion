@@ -97,8 +97,12 @@ export function HtmlTexturePanel({ ev, widthMeters = 0.86, heightMeters = 0.58, 
     const txt = typeof data === "string" ? data : (d.content ? String(d.content) : raw);
     const isHtmlRaw = txt.trim().startsWith("<") && txt.includes("</");
     if (wt === "html") {
-      // para html guardamos ambos y el modo decide qué mostrar en el draw
-      return { lines: isHtmlRaw ? [txt] : txt.split("\n").slice(0, 80), isCode: false, title: tt, isHtml: true };
+      if (isHtmlRaw) {
+        const stripped = txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        const preview = stripped.match(/.{1,72}(?:\s|$)/g)?.map((s) => s.trim()).slice(0, 80) || [stripped.slice(0, 72) || "(vacío)"];
+        return { lines: preview, isCode: false, title: tt, isHtml: true };
+      }
+      return { lines: txt.split("\n").slice(0, 80), isCode: false, title: tt, isHtml: true };
     }
     if (isHtmlRaw) {
       const stripped = txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -191,22 +195,29 @@ export function HtmlTexturePanel({ ev, widthMeters = 0.86, heightMeters = 0.58, 
       ctx.fillText(hint, canvasW / 2, canvasH - 8 * s);
       ctx.textAlign = "left";
     }
-    // chart mini viz (barras) si es chart y hay datos numéricos
-    if (wt === "chart" && visible.length > 1) {
-      const barX = 10 * s, barY = canvasH - 60 * s, barW = canvasW - 20 * s, barH = 40 * s;
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(barX, barY, barW, barH);
-      const vals = visible.slice(1, 6).map((l) => {
-        const m = l.match(/(\d+(?:\.\d+)?)/);
-        return m ? parseFloat(m[1]) : 0;
-      });
-      const max = Math.max(1, ...vals);
-      vals.forEach((v, i) => {
-        const w = barW / vals.length - 4 * s;
-        const h = (v / max) * barH * 0.85;
-        ctx.fillStyle = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399", "#f472b6"][i % 5];
-        ctx.fillRect(barX + i * (barW / vals.length) + 2 * s, barY + barH - h, w, h);
-      });
+    // chart mini viz — usa datos originales, no strings visibles truncadas
+    if (wt === "chart") {
+      try {
+        const { data: cData } = parseContent(ev);
+        const cd = (typeof cData === "object" && cData ? cData as Record<string, unknown> : {}) as Record<string, unknown>;
+        const cRows = (cd.rows as Array<Record<string, unknown>> | undefined) || (cd.data as Array<Record<string, unknown>> | undefined) || [];
+        if (cRows.length) {
+          const nums = cRows.slice(0, 5).map((r) => {
+            const v = Object.values(r).find((x) => typeof x === "number") as number | undefined;
+            return typeof v === "number" ? v : parseFloat(String(Object.values(r)[1] ?? 0)) || 0;
+          });
+          const max = Math.max(1, ...nums);
+          const barX = 10 * s, barY = canvasH - 60 * s, barW = canvasW - 20 * s, barH = 40 * s;
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(barX, barY, barW, barH);
+          nums.forEach((v, i) => {
+            const w = barW / nums.length - 4 * s;
+            const h = (v / max) * barH * 0.85;
+            ctx.fillStyle = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399", "#f472b6"][i % 5];
+            ctx.fillRect(barX + i * (barW / nums.length) + 2 * s, barY + barH - h, w, h);
+          });
+        }
+      } catch { /* ignore */ }
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -214,7 +225,7 @@ export function HtmlTexturePanel({ ev, widthMeters = 0.86, heightMeters = 0.58, 
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.needsUpdate = true;
-    setTexture((prev) => { prev?.dispose(); return tex; });
+    setTexture(tex);
     return () => { tex.dispose(); };
   }, [ev, visible, isCode, safePage, pageCount, canvasW, canvasH, backgroundColor, wt, title, mode]);
 
