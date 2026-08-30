@@ -8,6 +8,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { authHeaders } from "../lib/api/http";
 import { useChat, type ChatState } from "../hooks/useChat";
 import { useTTS, type TtsPlaybackState } from "../hooks/useTTS";
 import { usePTT, type PTTControls } from "../hooks/usePTT";
@@ -56,7 +57,7 @@ async function fetchWithRetry(
   const baseDelay = opts.baseDelay ?? 400;
   for (let attempt = 1; attempt <= tries; attempt += 1) {
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { headers: authHeaders() });
       if (resp.ok || resp.status >= 400) return resp; // 4xx/5xx won't fix themselves
       return resp;
     } catch (err) {

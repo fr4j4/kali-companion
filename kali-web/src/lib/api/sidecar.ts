@@ -11,6 +11,8 @@
 // content cuando la página entra por HTTPS. Mantener este helper para
 // futura consolidación de las N variantes dispersas por el codebase.
 
+import { authHeaders } from "./http";
+
 export async function getSidecarPort(): Promise<number | null> {
   const w = window as unknown as { kali?: { getSidecarPort?: () => Promise<number | null> } };
   if (w.kali?.getSidecarPort) {
@@ -19,7 +21,7 @@ export async function getSidecarPort(): Promise<number | null> {
   const envPort = import.meta.env.VITE_KALI_PORT;
   if (envPort) return Number(envPort);
   try {
-    const resp = await fetch("/api/sidecar-port");
+    const resp = await fetch("/api/sidecar-port", { headers: authHeaders() });
     if (resp.ok) {
       const data = await resp.json();
       return data.port ?? 8900;
