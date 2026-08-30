@@ -586,8 +586,8 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
   };
 
   const samples: Array<{ wt: string; label: string; color: string; make: () => [string, string] }> = [
-    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Demo HTML", `<div style=\"font-family:sans-serif;padding:16px;background:#fff;color:#111\"><h1 style=\"color:#0ea5e9\">Hola VR — Kali</h1><p>Este es un <b>preview real</b> con <i>formato</i> y un <a href=\"#\">link</a>.</p><ul><li>item 1</li><li>item 2 — preview fiel</li></ul><code>const x=1</code></div>`] },
-    { wt: "document", label: "doc", color: "#38bdf8", make: () => ["Doc MD", "# Guía Kali VR\n\nEste **documento** prueba el render markdown en VR.\n\n- Punto 1: fidelidad 1:1\n- Punto 2: paginado\n\n> Cita de ejemplo\n\n`código inline`"] },
+    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Demo HTML", `<div style=\"font-family:sans-serif;padding:16px;background:#fff;color:#111\"><h1 style=\"color:#0ea5e9\">Hola VR — Kali áéíóú ñ ü</h1><p>Este es un <b>preview real</b> con <i>formato</i> y un <a href=\"#\">link</a>.</p><ul><li>item 1</li><li>item 2 — preview fiel</li></ul><code>const x=1</code></div>`] },
+    { wt: "document", label: "doc", color: "#38bdf8", make: () => ["Doc MD", "# Guía Kali VR — tildes áéíóú ñ ü ¿cómo estás?\n\nEste **documento** prueba el render markdown en VR.\n\n- Punto 1: fidelidad 1:1\n- Punto 2: paginado\n\n> Cita de ejemplo\n\n`código inline`"] },
     { wt: "code", label: "code", color: "#a78bfa", make: () => ["Código", "function holaVR() {\n  console.log('Kali en VR — fidelidad 1:1');\n  return 42;\n}\nholaVR();"] },
     { wt: "json", label: "json", color: "#fbbf24", make: () => ["JSON", JSON.stringify({ name: "Kali", version: 2, vr: true, items: [1,2,3], nested: { a: 1 } }, null, 2)] },
     { wt: "table", label: "table", color: "#22d3ee", make: () => ["Tabla", JSON.stringify({ rows: [{ nombre: "Kali", tipo: "IA", estado: "activo" }, { nombre: "Yami", tipo: "humano", estado: "en VR" }, { nombre: "Quest 3", tipo: "HMD", estado: "conectado" }] })] },
@@ -1222,10 +1222,15 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
       camera.getWorldDirection(camDir);
       camDir.y = 0;
       camDir.normalize();
-      const angle = (index % 3 - 1) * 0.55;
+      // Distribuir en abanico frontal 180° sin pisarse: para n<=6, ángulos equidistantes; para spawn todos (6) quedan 30° separados
+      // Usamos total estimado 6 (max visibles) si index<6, si no wrap. Altura escalonada para segunda fila.
+      const totalHint = 6;
+      const span = 1.6; // ~92° a cada lado
+      const angle = totalHint > 1 ? -span/2 + (span * (index % totalHint)) / (totalHint - 1) : 0;
+      const radius = 2.0 + (Math.floor(index / 3) * 0.45); // segunda fila 0.45m más atrás
       const dirRot = camDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-      groupRef.current.position.copy(camPos).addScaledVector(dirRot, 2.2);
-      groupRef.current.position.y = 1.6;
+      groupRef.current.position.copy(camPos).addScaledVector(dirRot, radius);
+      groupRef.current.position.y = 1.55 + (index % 2) * 0.18;
       groupRef.current.lookAt(camPos);
       setPlaced(true);
     };
