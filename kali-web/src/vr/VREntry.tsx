@@ -99,8 +99,10 @@ function PlayerRig({
   const player = useXR((s) => s.player);
   const camera = useThree((s) => s.camera);
   const dir = useRef(new THREE.Vector3());
+  const strafe = useRef(new THREE.Vector3());
   const snapArmed = useRef(true);
   const menuArmed = useRef(true);
+  const tmpQ = useRef(new THREE.Quaternion());
 
   useFrame((_, delta) => {
     const session = glXRSessionRef.current as XRSession | null;
@@ -128,12 +130,13 @@ function PlayerRig({
     }
 
     // Stick izq: avanzar/retroceder + strafe RELATIVO A LA MIRADA.
-    // Dir = forward local de la cámara (pose XR, local al player)
-    // rotada por la orientación del player — determinístico, sin
-    // depender de matrixWorld (que está stale dentro de useFrame:
-    // por eso antes el avance quedaba clavado al ángulo inicial).
+    // Lectura simple y robusta: quaternion de MUNDO de la cámara
+    // (getWorldQuaternion — incluye la pose XR y el transform del player
+    // sin asumir nada sobre el parenting; matrixWorld viene del último
+    // render, 1 frame de delay, estándar en locomotion VR).
     if (Math.abs(mx) > 0.15 || Math.abs(my) > 0.15) {
-      dir.current.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      camera.getWorldQuaternion(tmpQ.current);
+      dir.current.set(0, 0, -1).applyQuaternion(tmpQ.current);
       dir.current.y = 0;
       if (dir.current.lengthSq() < 1e-6) {
         // Mirando recto arriba/abajo: usa el norte del player.
@@ -141,13 +144,10 @@ function PlayerRig({
         dir.current.y = 0;
       }
       dir.current.normalize();
-      // El snap-turn rota `player`; combinar ambos giros explícitamente.
-      dir.current.applyQuaternion(player.quaternion);
-
       const speed = 2.4 * delta; // m/s — caminata cómoda
-      const fwd = dir.current.clone().multiplyScalar(-my * speed);
-      const strafe = new THREE.Vector3(-dir.current.z, 0, dir.current.x).multiplyScalar(mx * speed);
-      player.position.add(fwd).add(strafe);
+      player.position.addScaledVector(dir.current, -my * speed);
+      strafe.current.set(-dir.current.z, 0, dir.current.x);
+      player.position.addScaledVector(strafe.current, mx * speed);
     }
 
     // Stick der (X): snap-turn de 30° con rearme para no girar en ráfaga.
