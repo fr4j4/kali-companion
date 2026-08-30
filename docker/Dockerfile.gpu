@@ -142,7 +142,12 @@ COPY --chown=kali:kali scripts/ /app/scripts/
 COPY --chown=kali:kali README.md /app/README.md
 
 # Install kali-core + deps (incl. qwen-stt extras for torch + HF transformers GPU STT)
+#
+# Pin setuptools<81 because webrtcvad (transitively used by VAD in STT) does
+# `import pkg_resources` at module top — and setuptools 81+ removed it.
+# See https://setuptools.pypa.io/en/latest/pkg_resources.html
 RUN pip install --no-cache-dir --break-system-packages \
+    "setuptools<81" \
     "/app/kali-core[qwen-stt]" \
     piper-tts \
     numpy \

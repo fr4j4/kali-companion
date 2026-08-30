@@ -8,6 +8,8 @@ __pycache__/
 *.egg
 *.egg-info/
 .venv/
+.venv-cpu/
+.venv-gpu/
 venv/
 env/
 .virtualenvs/
@@ -74,3 +76,10 @@ Thumbs.db
 .agents/
 skills-lock.json
 .opencode/
+
+# Backup files (NUNCA commitear)
+*.bak
+*.bak.*
+
+# Clon embebido del server TTS C++ (repo propio, Docker lo clona aparte)
+kali-core/kali_core/voice/qwen_cpp/

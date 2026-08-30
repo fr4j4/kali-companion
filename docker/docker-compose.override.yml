@@ -1,28 +1,54 @@
 # =============================================================================
-# Kali — Docker Compose Override (Desarrollo)
+# Kali — Docker Compose Override (Desarrollo con hot-reload)
 # =============================================================================
-# Monta el código fuente como volumen para hot-reload durante desarrollo.
-# No usar en producción.
+# Monta el código fuente como volumen para iteración rápida.
+# Arranca kali-core con --reload (uvicorn) y Vite dev server con HMR.
 #
 # Uso:
-#   docker compose -f docker-compose.yml -f docker-compose.override.yml --profile piper up
+#   docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --build
+#
+# Una vez arriba:
+#   - http://companion.local:8080  (vía mDNS, desde la LAN)
+#   - http://localhost:8080        (en el propio host)
+#
+# HMR de Vite funciona en ambas URLs (Vite escucha en 0.0.0.0:5173 dentro
+# del contenedor y nginx proxia el tráfico hacia él).
 # =============================================================================
 
 services:
   kali:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      target: builder  # usa la etapa builder para tener herramientas de compilación
+    # Tag propio del stack dev CPU. Sin esto heredaría kali:latest (prod CPU)
+    # y un 'up --build' pisaría la imagen de producción. Un tag por variante:
+    # kali:latest (prod CPU) | kali-dev (dev CPU) | kali:gpu (prod GPU)
+    # | kali:gpu-dev (dev GPU).
+    # NOTA: este archivo debe ir ANTES de docker-compose.gpu.dev.yml en los -f
+    # para que el GPU stack conserve su tag.
+    image: kali-dev
+
+    # Sustituye el entrypoint de prod por el de dev (que arranca nginx
+    # en modo proxy→Vite y lanza el dev launcher con uvicorn --reload).
+    entrypoint: ["/app/docker/entrypoint-dev.sh"]
 
     volumes:
-      # Montar código fuente para iteración rápida
+      # ── Código fuente montado como volumen → hot-reload ──
       - ../kali-core:/app/kali-core
-      - ../kali-web/src:/app/kali-web/src
-      - kali-models:/app/models
-      - kali-data:/app/data
+      - ../kali-web:/app/kali-web
+
+      # ── Estado persistente (binds explícitos, mismo path que en prod) ──
+      - /mnt/data2/data:/app/data
+      - /mnt/data2/models/voice:/app/models
+      - /mnt/data2/audio:/app/audio
+      - /mnt/data2/logs:/app/logs
+      - /mnt/data2/cache:/app/.cache
+
+      # ── Audio (ALSA + PulseAudio) ──
       - /dev/snd:/dev/snd
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse:${XDG_RUNTIME_DIR:-/run/user/1000}/pulse
 
     environment:
       - KALI_PROFILE=dev
+      - KALI_DEV=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      # uvicorn --reload detecta cambios en /app/kali-core
+      - KALI_DEV_RELOAD=1

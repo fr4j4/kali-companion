@@ -24,16 +24,29 @@ services:
 
     ports:
       - "${KALI_PORT:-8900}:8900"   # kali-core WebSocket + HTTP API
-      - "${KALI_WEB_PORT:-8080}:8080"  # nginx (kali-web frontend)
+      # nginx: 8080 = HTTP (o TLS si KALI_TLS=true reemplaza ese listener).
+      # 8444 = listener TLS alternativo/publicado siempre; nginx solo lo
+      # atiende si KALI_TLS=true (si no, conexión rechazada, inocuo).
+      - "${KALI_WEB_PORT:-8080}:8080"
+      - "${KALI_TLS_PORT:-8444}:8444"
 
     volumes:
-      # Modelos (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host para persistencia
-      - ${HOME}/.local/share/kali/models:/app/models
+      # ── Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes) ──
+      - /mnt/data2/data:/app/data
 
-      # Datos persistentes (SQLite sessions, ai_config.json, snapshots, imágenes)
-      - kali-data:/app/data
+      # ── Modelos TTS/STT (Piper .onnx, Vosk, Qwen3 .gguf) — carpeta del host ──
+      - /mnt/data2/models/voice:/app/models
 
-      # Audio: PulseAudio socket (para compartir audio con el host)
+      # ── Audio cache (TTS renderizado, grabaciones STT) ──
+      - /mnt/data2/audio:/app/audio
+
+      # ── Logs persistentes del contenedor ──
+      - /mnt/data2/logs:/app/logs
+
+      # ── Cache general (pip, huggingface, etc.) ──
+      - /mnt/data2/cache:/app/.cache
+
+      # ── PulseAudio socket (compartir audio con el host) ──
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse:${XDG_RUNTIME_DIR:-/run/user/1000}/pulse
 
     environment:
@@ -69,6 +82,11 @@ services:
       # ── Permissions ──
       - KALI_PROFILE=${KALI_PROFILE:-dev}
 
+      # ── TLS opcional (para getUserMedia en navegadores remotos) ──
+      - KALI_TLS=${KALI_TLS:-false}
+      - KALI_TLS_HOSTS=${KALI_TLS_HOSTS:-companion.local,localhost}
+      - KALI_TLS_PORT=${KALI_TLS_PORT:-8444}
+
       # ── Kali Toys / Game AI ──
       - KALI_GAME_SESSION_PATH=${KALI_GAME_SESSION_PATH:-}
       - KALI_GAME_AI_GLOBAL_TIMEOUT_MS=${KALI_GAME_AI_GLOBAL_TIMEOUT_MS:-20000}
@@ -89,7 +107,3 @@ services:
     # Bridge network + host access (Ollama, etc.)
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-volumes:
-  kali-data:
-    name: kali-data

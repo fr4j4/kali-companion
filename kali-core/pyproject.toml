@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Kali companion core — the Python sidecar that hosts the agent, tools, voice, and permissions."
 license = "MIT"
 requires-python = ">=3.12"
-readme = "../README.md"
 
 dependencies = [
     # Web server. Same stack as the legacy ai-voice-companion prototype.

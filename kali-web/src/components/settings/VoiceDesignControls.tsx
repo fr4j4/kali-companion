@@ -5,7 +5,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getSidecarPort } from "../../hooks/useChat";
+import { apiBase } from "../../lib/api/http";
 import type { CustomVoice, VoiceDesignPreset } from "../../lib/protocol";
 import { Select } from "../ui/Select";
 
@@ -60,10 +60,9 @@ export function VoiceDesignControls({
     setPreviewLoading(true);
     setPlaying(false);
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/api/tts/voice-design`,
+        `${base}/api/tts/voice-design`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -155,8 +154,7 @@ export function VoiceDesignControls({
     if (!trimmedName || !instructions?.trim()) return;
     setSaving(true);
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
 
       let currentInstructions: string;
       let currentSeed: number;
@@ -171,7 +169,7 @@ export function VoiceDesignControls({
       }
 
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/voices/custom`,
+        `${base}/voices/custom`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -199,10 +197,9 @@ export function VoiceDesignControls({
   const handleDeleteVoice = useCallback(async (id: string) => {
     setDeletingId(id);
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/voices/custom/${id}`,
+        `${base}/voices/custom/${id}`,
         { method: "DELETE" },
       );
       if (resp.ok) {
