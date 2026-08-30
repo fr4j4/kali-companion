@@ -594,9 +594,9 @@ function DebugPanel({ onClose }: { onClose: () => void }) {
 
 /**
  * Barra de comandos flotante (equivalente VR de la barra inferior del
- * canvas 2D): graba voz vía el mismo pipeline STT del canvas (ptt), y
- * ofrece un input de texto + historial de mensajes con drei <Html
- * transform>. Las respuestas de Kali se leen en el mismo panel.
+ * canvas 2D). Voz en dos pasos explícitos (grabar → revisar → ENVIAR o
+ * DESCARTAR — el envío automático del canvas 2D no sirve para revisar).
+ * Chat con layout estilo mensajería y input DOM (teclado nativo Quest).
  */
 function CommandsPanel({ onClose }: { onClose: () => void }) {
   const { chat, ptt } = useStage();
@@ -607,8 +607,7 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<"chat" | "voice">("voice");
   const sound = useUISounds();
 
-  // Spawn 1.4 m frente al usuario, altura de pecho; luego queda donde
-  // lo dejes (RayGrab).
+  // Spawn 1.4 m frente al usuario; luego queda donde lo dejes (RayGrab).
   useEffect(() => {
     if (placed || !groupRef.current) return;
     const camPos = new THREE.Vector3();
@@ -623,18 +622,31 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
     setPlaced(true);
   }, [placed, camera]);
 
-  const last = [...chat.messages].slice(-6);
+  // ── flujo de voz en 2 pasos ──
+  const phase: "idle" | "recording" | "review" =
+    ptt.state === "recording" || ptt.state === "listening"
+      ? "recording"
+      : ptt.finalText
+        ? "review"
+        : "idle";
+  const sendTranscript = useCallback(() => {
+    const cleaned = ptt.finalText.replace(/\b(kali|cali)[\s,.;!?]*/gi, "").trim();
+    if (cleaned) chat.send(cleaned);
+    sound.select();
+  }, [ptt.finalText, chat, sound]);
+
+  const last = [...chat.messages].slice(-8);
 
   return (
     <RayGrab>
       <group ref={groupRef}>
         <mesh>
-          <planeGeometry args={[0.9, 0.62]} />
-          <meshBasicMaterial color="#0b0f14" transparent opacity={0.82} depthWrite={false} side={THREE.DoubleSide} />
+          <planeGeometry args={[0.95, 0.68]} />
+          <meshBasicMaterial color="#0b0f14" transparent opacity={0.85} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
 
         {/* header */}
-        <group position={[0, 0.27, 0.002]}>
+        <group position={[0, 0.3, 0.002]}>
           <Text fontSize={0.03} color="#38bdf8" anchorX="center" anchorY="middle">
             COMANDOS · KALI
           </Text>
@@ -642,17 +654,13 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
 
         {/* tabs */}
         {[
-          { x: -0.25, label: "Voz", tab: "voice" as const, color: "#34d399" },
-          { x: -0.05, label: "Chat", tab: "chat" as const, color: "#38bdf8" },
-        ].map(({ x, label, tab: t, color }) => (
-          <Interactive
-            key={t}
-            onSelect={() => { sound.select(); setTab(t); }}
-            onHover={() => sound.hover()}
-          >
-            <group position={[x, 0.2, 0.002]}>
+          { x: -0.26, label: "Voz", t: "voice" as const, color: "#34d399" },
+          { x: -0.05, label: "Chat", t: "chat" as const, color: "#38bdf8" },
+        ].map(({ x, label, t, color }) => (
+          <Interactive key={t} onSelect={() => { sound.select(); setTab(t); }} onHover={() => sound.hover()}>
+            <group position={[x, 0.215, 0.002]}>
               <mesh>
-                <planeGeometry args={[0.16, 0.055]} />
+                <planeGeometry args={[0.17, 0.055]} />
                 <meshBasicMaterial color={color} transparent opacity={tab === t ? 0.7 : 0.2} depthWrite={false} />
               </mesh>
               <group position={[0, 0, 0.002]}>
@@ -664,73 +672,83 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
 
         {/* cerrar */}
         <Interactive onSelect={() => { sound.close(); onClose(); }} onHover={() => sound.hover()}>
-          <group position={[0.38, 0.2, 0.002]}>
+          <group position={[0.4, 0.215, 0.002]}>
             <mesh>
               <planeGeometry args={[0.09, 0.055]} />
               <meshBasicMaterial color="#fb7185" transparent opacity={0.4} depthWrite={false} />
             </mesh>
             <group position={[0, 0, 0.002]}>
-              <Text fontSize={0.026} color="#e2e8f0" anchorX="center" anchorY="middle">X</Text>
+              <Text fontSize={0.026} color="#e2e8f0" anchorX="center" anchorY="middle">✕</Text>
             </group>
           </group>
         </Interactive>
 
-        {/* contenido por tab */}
         {tab === "voice" ? (
-          <group position={[0, 0.02, 0.002]}>
-            <Text fontSize={0.024} color="#94a3b8" anchorX="center" anchorY="middle" maxWidth={0.8}>
-              {ptt.partialText || (ptt.state === "listening" ? "escuchando…" : "mantén pulsado y habla")}
-            </Text>
-            <Interactive
-              onSelect={() => {
-                if (ptt.state === "listening") {
-                  ptt.stop();
-                  sound.close();
-                } else {
-                  void ptt.start();
-                  sound.rec();
-                }
-              }}
-              onHover={() => sound.hover()}
-            >
-              <group position={[0, -0.12, 0]}>
-                <mesh>
-                  <planeGeometry args={[0.3, 0.09]} />
-                  <meshBasicMaterial
-                    color={ptt.state === "listening" ? "#fb7185" : "#34d399"}
-                    transparent
-                    opacity={0.65}
-                    depthWrite={false}
-                  />
-                </mesh>
-                <group position={[0, 0, 0.002]}>
-                  <Text fontSize={0.032} color="#ffffff" anchorX="center" anchorY="middle">
-                    {ptt.state === "listening" ? "■ Detener" : "● Grabar"}
-                  </Text>
-                </group>
-              </group>
-            </Interactive>
+          <group position={[0, -0.02, 0.002]}>
+            {/* transcripción en vivo / revisión */}
+            <mesh>
+              <planeGeometry args={[0.86, 0.24]} />
+              <meshBasicMaterial color="#020617" transparent opacity={0.6} depthWrite={false} />
+            </mesh>
+            <group position={[0, 0, 0.002]}>
+              <Text
+                fontSize={0.024}
+                color={phase === "recording" ? "#34d399" : "#e2e8f0"}
+                anchorX="center" anchorY="middle" maxWidth={0.8}
+              >
+                {phase === "recording"
+                  ? (ptt.partialText || "● grabando…")
+                  : phase === "review"
+                    ? (ptt.finalText || "(vacío)")
+                    : "Pulsa GRABAR y habla"}
+              </Text>
+            </group>
+
+            {/* botones según fase — uno por pulso, revisión explícita */}
+            {phase === "idle" && (
+              <MenuItem y={-0.22} w={0.3} color="#34d399" text="● GRABAR" sound={sound}
+                onSelect={() => { void ptt.start(); }} />
+            )}
+            {phase === "recording" && (
+              <MenuItem y={-0.22} w={0.3} color="#fbbf24" text="■ TERMINAR" sound={sound}
+                onSelect={() => ptt.stop()} />
+            )}
+            {phase === "review" && (
+              <>
+                <MenuItem y={-0.19} w={0.32} color="#38bdf8" text="▶ ENVIAR a Kali" sound={sound}
+                  onSelect={sendTranscript} />
+                <MenuItem y={-0.26} w={0.32} color="#fb7185" text="✕ DESCARTAR" sound={sound}
+                  onSelect={() => { ptt.stop(); }} />
+              </>
+            )}
           </group>
         ) : (
-          <group position={[0, 0.02, 0.002]}>
-            {/* historial — últimos 6 mensajes */}
-            {last.map((m, i) => (
-              <group key={m.id} position={[0, 0.1 - i * 0.055, 0]}>
-                <Text
-                  fontSize={0.02}
-                  color={m.role === "user" ? "#7dd3fc" : "#e2e8f0"}
-                  anchorX="left"
-                  anchorY="top"
-                  maxWidth={0.8}
-                  clipRect={[0, 0, 0.8, 0.05]}
-                >
-                  {`${m.role === "user" ? "tú" : "Kali"}: ${m.content.slice(0, 90)}`}
-                </Text>
-              </group>
-            ))}
-            {/* input texto — Html transform (DOM real, teclado Quest) */}
-            <group position={[0, -0.22, 0.01]}>
-              <Html transform distanceFactor={0.6} occlude={false} style={{ width: 460 }}>
+          <group position={[0, -0.02, 0.002]}>
+            {/* historial estilo chat — burbujas alineadas por rol */}
+            {last.map((m, i) => {
+              const mine = m.role === "user";
+              return (
+                <group key={m.id} position={[mine ? 0.22 : -0.24, 0.28 - i * 0.07, 0.002]}>
+                  <Interactive>
+                    <mesh>
+                      <planeGeometry args={[0.42, 0.06]} />
+                      <meshBasicMaterial
+                        color={mine ? "#0369a1" : "#1e293b"}
+                        transparent opacity={0.75} depthWrite={false}
+                      />
+                    </mesh>
+                    <group position={[0, 0, 0.002]}>
+                      <Text fontSize={0.017} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.4}>
+                        {`${mine ? "tú" : "Kali"}: ${m.content.slice(0, 70)}`}
+                      </Text>
+                    </group>
+                  </Interactive>
+                </group>
+              );
+            })}
+            {/* input DOM — teclado nativo de Quest */}
+            <group position={[0, -0.28, 0.01]}>
+              <Html transform distanceFactor={0.6} occlude={false} style={{ width: 520 }}>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     value={draft}
@@ -744,13 +762,9 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
                     }}
                     placeholder="Escribe a Kali…"
                     style={{
-                      flex: 1,
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      border: "1px solid #334155",
-                      background: "#0b0f14",
-                      color: "#e2e8f0",
-                      fontSize: 14,
+                      flex: 1, padding: "10px 12px", borderRadius: 10,
+                      border: "1px solid #334155", background: "#0b0f14",
+                      color: "#e2e8f0", fontSize: 15, outline: "none",
                     }}
                   />
                   <button
@@ -762,13 +776,9 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
                       setDraft("");
                     }}
                     style={{
-                      padding: "8px 14px",
-                      borderRadius: 8,
-                      border: "1px solid #38bdf8",
-                      background: "#38bdf8",
-                      color: "#0b0f14",
-                      fontWeight: 600,
-                      fontSize: 14,
+                      padding: "10px 16px", borderRadius: 10, border: "none",
+                      background: "#38bdf8", color: "#0b0f14",
+                      fontWeight: 700, fontSize: 15,
                     }}
                   >
                     Enviar
