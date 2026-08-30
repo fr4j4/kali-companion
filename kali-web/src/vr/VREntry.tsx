@@ -1237,9 +1237,25 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
   const Widget = entry?.component;
 
   if (isImmersive) {
+    // Fallback nativo garantizado: si uikit no pinta, el título sigue visible.
+    // El VrWidgetRenderer queda encima con clip; el Text de respaldo queda detrás.
     return (
       <GripGrab>
         <group ref={groupRef}>
+          {/* respaldo visible aunque uikit falle — plano + Text nativo drei */}
+          <group position={[0, 0, -0.008]}>
+            <mesh>
+              <planeGeometry args={[0.9, 0.7]} />
+              <meshBasicMaterial color="#0b0f14" transparent opacity={0.96} side={THREE.DoubleSide} />
+            </mesh>
+            <Text position={[0, 0.24, 0.012]} fontSize={0.03} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={0.84}>
+              {(ev.title || ev.windowType) + " · " + ev.windowType}
+            </Text>
+            <Text position={[0, -0.02, 0.012]} fontSize={0.02} color="#e2e8f0" anchorX="center" anchorY="middle" maxWidth={0.84} lineHeight={1.15}>
+              {String(ev.content ?? "").slice(0, 220)}
+            </Text>
+            <Text position={[0, -0.3, 0.012]} fontSize={0.02} color="#fb7185" anchorX="center" anchorY="middle">✕ grip para mover · trigger cierra</Text>
+          </group>
           <group scale={[0.002, 0.002, 0.002]}>
             <Container flexDirection="column" gap={6} width={420}>
               <Container width={420} height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
