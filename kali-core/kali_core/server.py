@@ -390,7 +390,11 @@ class Server:
     def __init__(self, host: str = "127.0.0.1", port: int = 8900) -> None:
         self.host = host
         self.port = port
+        self.api_token = os.environ.get("KALI_API_TOKEN", "").strip()
         self.app = FastAPI(title="Kali Core")
+        from .auth import install_auth
+
+        install_auth(self.app, self.api_token, open_paths={"/health"})
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -699,6 +703,24 @@ class Server:
         @self.app.websocket("/ws")
         async def ws_endpoint(ws: WebSocket) -> None:
             await ws.accept()
+            # Auth challenge: with a token configured, the first message
+            # MUST be {"event": "auth", "token": ...} or the socket is closed.
+            if self.api_token:
+                from .auth import WS_AUTH_EVENT, ws_token_ok
+
+                first = await ws.receive()
+                authed = False
+                if first.get("type") != "websocket.disconnect":
+                    try:
+                        event = json.loads(first.get("text") or "{}")
+                        if event.get("event") == WS_AUTH_EVENT:
+                            authed = ws_token_ok(event.get("token"), self.api_token)
+                    except json.JSONDecodeError:
+                        authed = False
+                if not authed:
+                    await ws.send_json({"event": "auth_required"})
+                    await ws.close(code=4401)
+                    return
             conn = Connection(ws, self)
             self._connections.append(conn)
             try:

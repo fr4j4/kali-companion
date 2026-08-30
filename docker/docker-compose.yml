@@ -82,6 +82,9 @@ services:
       # ── Permissions ──
       - KALI_PROFILE=${KALI_PROFILE:-dev}
 
+      # ── Auth (opcional; vacío = sin auth, localhost) ──
+      - KALI_API_TOKEN=${KALI_API_TOKEN:-}
+
       # ── TLS opcional (para getUserMedia en navegadores remotos) ──
       - KALI_TLS=${KALI_TLS:-false}
       - KALI_TLS_HOSTS=${KALI_TLS_HOSTS:-companion.local,localhost}

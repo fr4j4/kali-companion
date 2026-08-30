@@ -10,6 +10,14 @@ export async function apiBase(): Promise<string> {
   return "";
 }
 
+// Auth token for kali-core HTTP endpoints. Stored by the user in
+// localStorage (kali.apiToken); empty when the core has no auth enabled.
+export function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("kali.apiToken") || "";
+  if (!token) return {};
+  return { "X-API-Token": token };
+}
+
 export async function fetchWithRetry(
   url: string,
   opts?: RequestInit,

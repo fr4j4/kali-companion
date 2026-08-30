@@ -31,6 +31,10 @@ export class WSClient {
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
+      // With core-side auth enabled, the first message MUST be the auth
+      // challenge. Token empty = server skips validation (dev default).
+      const token = localStorage.getItem("kali.apiToken") || "";
+      this.send({ event: "auth", token });
       const hello: Record<string, unknown> = { event: "hello", client: "kali-web", version: "0.1.0" };
       if (this.sessionId) {
         hello.session_id = this.sessionId;
