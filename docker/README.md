@@ -204,6 +204,25 @@ kali-core/.venv-gpu/   # used by the GPU dev container
 
 ## Ports & environment
 
+### Optional TLS (`KALI_TLS=true`) — microphone from remote browsers
+
+Browsers only allow `getUserMedia` (the mic) in a **Secure Context**: plain
+HTTP over LAN silently disables it. With TLS enabled, access from any device
+via `https://<host-ip>:8444`, accept the self-signed certificate warning once
+per browser, and voice input works (UI + `wss://`).
+
+```bash
+# docker/.env
+KALI_TLS=true                                  # enable TLS (default false)
+KALI_TLS_HOSTS=192.168.1.14,companion.local    # SANs of the self-signed cert
+KALI_TLS_PORT=8444                             # default 8444
+```
+
+- At startup `tls-init.sh` generates a self-signed cert (idempotent; auto-regenerates < 30 days to expiry).
+- nginx swaps its listener to `:8444 ssl` (HTTP :8080 stops — the UI is HTTPS-only while TLS is on).
+- The cert is also served at `https://<ip>:8444/kali.crt` to import as a trusted CA (removes the warning; optional).
+- Verified on a fresh clone: HTTPS `/health` ok, SANs correct, `wss://` handshake 101 over TLS.
+
 | Port | Purpose | Config |
 |---|---|---|
 | `${KALI_PORT:-8900}` | kali-core WebSocket + HTTP API | `docker/.env` |
