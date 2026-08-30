@@ -16,6 +16,7 @@
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@react-three/uikit": "^1.0.75",
     "@react-three/xr": "^5.7.1",
     "@types/dompurify": "^3.0.5",
     "ansi-to-html": "^0.7.2",

@@ -6,6 +6,10 @@ import App from "./App";
 import "./lib/i18n";
 import "./styles.css";
 
+// HTMLTexture polyfill must be installed before any Canvas/renderer is created — en HMD el raster vivo de html depende de esto.
+import { installHtmlInCanvasPolyfill } from "three-html-render/polyfill";
+try { installHtmlInCanvasPolyfill(); } catch { /* ignore if already installed */ }
+
 // VR entry is code-split: it drags three/r3f/xr ONLY when visited.
 const VREntry = React.lazy(() => import("./vr/VREntry"));
 
