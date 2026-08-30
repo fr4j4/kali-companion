@@ -83,31 +83,23 @@ async function requestVRSession(gl: unknown): Promise<unknown> {
 /* ── player rig + locomotion ──────────────────────────────────── */
 
 /**
- * Dolly VR: parenting la cámara a este group y moviendo el GROUP es la
- * forma canónica de locomotion en three.js WebXR (la pose del headset
- * llega relativa al reference space; mover camera.position no mueve al
- * jugador, por eso antes el stick no funcionaba).
+ * Locomotion sobre el `player` group de @react-three/xr (v5): la librería
+ * ya parenta la CÁMARA y los CONTROLLERS dentro de ese group, así que
+ * mover `player` mueve TODO el conjunto (vista + manos + menú) — era la
+ * causa del bug: mi rig propio y el player de la lib peleaban por la
+ * cámara, y los controllers quedaban en coordenadas del reference space.
  */
 function PlayerRig({ children }: { children?: React.ReactNode }) {
+  const player = useXR((s) => s.player);
   const camera = useThree((s) => s.camera);
-  const rigRef = useRef<THREE.Group>(null);
   const dir = useRef(new THREE.Vector3());
   const strafe = useRef(new THREE.Vector3());
   const snapArmed = useRef(true);
-
-  useEffect(() => {
-    const rig = rigRef.current;
-    if (!rig) return;
-    rig.add(camera);
-    return () => {
-      if (camera.parent === rig) rig.remove(camera);
-    };
-  }, [camera]);
+  const forward = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
-    const rig = rigRef.current;
     const session = glXRSessionRef.current as XRSession | null;
-    if (!rig || !session) return;
+    if (!session || !player) return;
 
     let mx = 0; let my = 0; let tx = 0;
     for (const source of session.inputSources) {
@@ -125,22 +117,23 @@ function PlayerRig({ children }: { children?: React.ReactNode }) {
       camera.getWorldDirection(dir.current);
       dir.current.y = 0;
       dir.current.normalize();
-      strafe.current.set(-dir.current.z, 0, dir.current.x);
+      forward.current.copy(dir.current).multiplyScalar(-my);
+      strafe.current.set(-dir.current.z, 0, dir.current.x).multiplyScalar(mx);
       const speed = 2.4 * delta; // m/s — caminata cómoda
-      rig.position.addScaledVector(dir.current, -my * speed);
-      rig.position.addScaledVector(strafe.current, mx * speed);
+      player.position.addScaledVector(forward.current, speed);
+      player.position.addScaledVector(strafe.current, speed);
     }
 
     // Stick der (X): snap-turn de 30° con rearme para no girar en ráfaga.
     if (snapArmed.current && Math.abs(tx) > 0.7) {
-      rig.rotation.y -= Math.sign(tx) * Math.PI / 6;
+      player.rotateY(-Math.sign(tx) * Math.PI / 6);
       snapArmed.current = false;
     } else if (Math.abs(tx) < 0.4) {
       snapArmed.current = true;
     }
   });
 
-  return <group ref={rigRef}>{children}</group>;
+  return <>{children}</>;
 }
 
 /* ── sala: grilla matrix infinita ─────────────────────────────── */
