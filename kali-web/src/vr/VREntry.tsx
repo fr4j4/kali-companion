@@ -1120,15 +1120,17 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
 }
 
 /**
- * Widget2DPanel — renderiza el artefacto con el MISMO widget del canvas
- * 2D (widgetRegistry) dentro de drei <Html transform> → fidelidad total
- * (tablas ordenables, documentos estilizados, iframes de html...).
- * Requiere dom-overlay (pedido en requestSession). Agarrable por grip;
- * botón ✕ del header lo cierra. Fallback: render nativo si el tipo no
- * tiene widget en el registry.
+ * Widget2DPanel — en lobby 2D monta el widget real con <Html transform>
+ * (fidelidad total). En XR inmersivo el DOM es INVISIBLE (CSS3D no se
+ * renderiza dentro del HMD) → usa render nativo 3D (ArtifactBody con
+ * <Text>) agarrable. El bug del "todo negro" era <Html> invisible +
+ * Suspensión sin boundary.
  */
 function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: number; onClose: () => void }) {
   const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  const xrPresenting = useXR((s: unknown) => (s as { isPresenting?: boolean; session?: unknown }).isPresenting ?? (s as { session?: unknown }).session != null);
+  const isImmersive = xrPresenting || (gl.xr as { isPresenting?: boolean }).isPresenting;
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
 
@@ -1155,6 +1157,34 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
   const wt = ev.windowType as WindowType;
   const entry = widgetRegistry[wt];
   const Widget = entry?.component;
+
+  if (isImmersive) {
+    return (
+      <GripGrab>
+        <group ref={groupRef}>
+          <mesh>
+            <planeGeometry args={[0.86, 0.62]} />
+            <meshBasicMaterial color="#0b0f14" transparent opacity={0.96} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+          <Text position={[0, 0.27, 0.012]} fontSize={0.022} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={0.78}>
+            {(ev.title || ev.windowType) + " · " + ev.windowType}
+          </Text>
+          <Interactive onSelect={onClose}>
+            <group position={[0.38, 0.27, 0.013]}>
+              <mesh>
+                <planeGeometry args={[0.07, 0.05]} />
+                <meshBasicMaterial color="#fb7185" transparent opacity={0.9} side={THREE.DoubleSide} />
+              </mesh>
+              <Text fontSize={0.024} color="#04070a" anchorX="center" anchorY="middle">✕</Text>
+            </group>
+          </Interactive>
+          <group position={[0, -0.04, 0.012]}>
+            <ArtifactBody ev={ev} />
+          </group>
+        </group>
+      </GripGrab>
+    );
+  }
 
   return (
     <GripGrab>
