@@ -757,6 +757,23 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
               </Text>
             </group>
 
+            {/* diagnóstico: si el server reporta STT apagado, el botón
+                no puede grabar — muéstralo en vez de fallar en silencio */}
+            {chat.systemStatus?.stt_enabled === false && (
+              <group position={[0, -0.13, 0.002]}>
+                <Text fontSize={0.02} color="#fb7185" anchorX="center" anchorY="middle" maxWidth={0.8}>
+                  ⚠ STT deshabilitado — actívalo en Settings del canvas 2D
+                </Text>
+              </group>
+            )}
+            {ptt.error && (
+              <group position={[0, chat.systemStatus?.stt_enabled === false ? -0.17 : -0.13, 0.002]}>
+                <Text fontSize={0.02} color="#fbbf24" anchorX="center" anchorY="middle" maxWidth={0.8}>
+                  {`⚠ ${ptt.error.slice(0, 60)}`}
+                </Text>
+              </group>
+            )}
+
             {/* botones según fase — uno por pulso, revisión explícita */}
             {phase === "idle" && (
               <MenuItem y={-0.22} w={0.3} color="#34d399" text="● GRABAR" sound={sound}
