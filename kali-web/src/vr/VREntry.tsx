@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Text, Html } from "@react-three/drei";
+import { OrbitControls, Text } from "@react-three/drei";
 import { XR, Controllers, Hands, Interactive, useXR, useInteraction } from "@react-three/xr";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
@@ -1044,19 +1044,92 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ── artefactos 2D como paneles inmersos ──────────────────────── */
+/**
+ * VRPanel — sistema de layout para paneles 2D en VR (fix de superposiciones).
+ *
+ * En lugar de coordenadas absolutas sueltas (que derivan en solapes), cada
+ * panel declara su contenido como array de {type, props} y VRPanel lo
+ * compone en un grid con bandas medidas:
+ *   header (altura fija) → body (filas flexibles) → footer (fijo)
+ * Todo elemento recibe su Y calculada; ningún elemento decide su posición.
+ * Un panel = una lista ordenada; imposible superponer por construcción.
+ */
+type VRElement =
+  | { type: "text"; text: string; size?: number; color?: string; align?: "left" | "center" | "right" }
+  | { type: "button"; text: string; color: string; onSelect: () => void; w?: number }
+  | { type: "status"; text: string; color: string }
+  | { type: "spacer"; h: number };
+
+interface VRPanelLayout {
+  width: number;
+  bg?: string;
+  opacity?: number;
+  header: string;
+  elements: VRElement[];
+}
+
+/** Renderiza un layout VRPanel compuesto por bandas verticales. */
+function VRPanelBody({ layout, yTop }: { layout: VRPanelLayout; yTop: number }) {
+  let cursor = yTop;
+  const rendered: React.ReactNode[] = [];
+
+  for (let i = 0; i < layout.elements.length; i++) {
+    const el = layout.elements[i];
+    switch (el.type) {
+      case "spacer":
+        cursor -= el.h;
+        break;
+      case "text":
+        cursor -= (el.size ?? 0.02) + 0.012;
+        rendered.push(
+          <group key={`t${i}`} position={[0, cursor, 0.003]}>
+            <Text
+              fontSize={el.size ?? 0.02}
+              color={el.color ?? "#e2e8f0"}
+              anchorX={el.align === "left" ? "left" : el.align === "right" ? "right" : "center"}
+              anchorY="middle"
+              maxWidth={layout.width - 0.04}
+              position={el.align === "left" ? [-(layout.width / 2 - 0.02), 0, 0] : el.align === "right" ? [layout.width / 2 - 0.02, 0, 0] : undefined}
+            >
+              {el.text}
+            </Text>
+          </group>,
+        );
+        break;
+      case "status":
+        cursor -= 0.03;
+        rendered.push(
+          <group key={`s${i}`} position={[0, cursor, 0.003]}>
+            <Text fontSize={0.018} color={el.color} anchorX="center" anchorY="middle" maxWidth={layout.width - 0.04}>
+              {el.text}
+            </Text>
+          </group>,
+        );
+        break;
+      case "button":
+        cursor -= 0.05;
+        rendered.push(
+          <group key={`b${i}`}>
+            <MenuItem x={0} y={cursor} w={el.w ?? layout.width - 0.08} color={el.color} text={el.text} sound={{ hover: () => {}, select: () => {} }} onSelect={el.onSelect} />
+          </group>,
+        );
+        break;
+    }
+  }
+  return <>{rendered}</>;
+}
 
 /**
- * Panel inmerso para un artefacto 2D cualquiera (markdown, tabla, html…):
- * monta el MISMO widget del canvas vía drei <Html transform> — DOM real
- * interactivo dentro de VR. Aparece automáticamente cuando el asistente
- * genera el artefacto.
+ * Panel inmerso para un artefacto 2D — 100% nativo 3D (sin drei <Html>,
+ * que es invisible en XR sin dom-overlay: causa del "no se renderiza").
+ * Contenido troceado en líneas dentro de un marco con scroll simple por
+ * páginas (◀ ▶). Aparece automáticamente al generarse.
  */
 function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
   const camera = useThree((s) => s.camera);
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
 
   // Colocación en arco frente al spawn; no interfiere con los ui3d.
   useEffect(() => {
@@ -1067,7 +1140,7 @@ function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
     camera.getWorldDirection(camDir);
     camDir.y = 0;
     camDir.normalize();
-    const angle = (index - 1) * 0.5;
+    const angle = (index % 3 - 1) * 0.55;
     const dirRot = camDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
     groupRef.current.position.copy(camPos).addScaledVector(dirRot, 2.2);
     groupRef.current.position.y = 1.6;
@@ -1075,37 +1148,48 @@ function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
     setPlaced(true);
   }, [placed, camera, index]);
 
+  // ── trocear contenido en líneas para el layout del panel ──
+  const W = 0.9;
+  const LINES_PER_PAGE = 10;
+  const raw = (ev.content ?? "(sin contenido)")
+    .replace(/<[^>]+>/g, " ")          // html → texto
+    .replace(/[ \t]+/g, " ")
+    .trim();
+  const allLines = raw.split(/\n|(?<=\S{52})\s/).flatMap((l) =>
+    l.length > 56 ? l.match(/.{1,56}(\s|$)/g) ?? [l] : [l],
+  ).map((l) => l.trim()).filter(Boolean);
+  const pages = Math.max(1, Math.ceil(allLines.length / LINES_PER_PAGE));
+  const safePage = Math.min(page, pages - 1);
+  const lines = allLines.slice(safePage * LINES_PER_PAGE, (safePage + 1) * LINES_PER_PAGE);
+
+  const layout: VRPanelLayout = {
+    width: W,
+    header: `${ev.title || ev.windowType} (${safePage + 1}/${pages})`,
+    elements: [
+      ...lines.map((l) => ({ type: "text" as const, text: l, size: 0.017, align: "left" as const })),
+      { type: "spacer", h: 0.02 },
+      ...(pages > 1 ? [
+        { type: "button" as const, text: "◀ anterior", color: "#475569", w: 0.32,
+          onSelect: () => setPage((p) => Math.max(0, p - 1)) },
+        { type: "button" as const, text: "siguiente ▶", color: "#475569", w: 0.32,
+          onSelect: () => setPage((p) => Math.min(pages - 1, p + 1)) },
+      ] : []),
+    ],
+  };
+
   return (
     <group ref={groupRef}>
-      <Html
-        transform
-        distanceFactor={0.55}
-        occlude={false}
-        style={{ width: 520, maxHeight: 420, overflow: "auto" }}
-        prepend={false}
-      >
-        <div
-          ref={contentRef}
-          style={{
-            background: "rgba(11,15,20,0.92)",
-            border: "1px solid #1e293b",
-            borderRadius: 12,
-            padding: 14,
-            color: "#e2e8f0",
-            fontFamily: "system-ui, sans-serif",
-            fontSize: 14,
-          }}
-        >
-          <div style={{ color: "#38bdf8", fontSize: 12, marginBottom: 8, opacity: 0.8 }}>
-            {ev.title || ev.windowType}
-          </div>
-          {/* Render del contenido crudo: markdown/html como texto seguro
-              (sin dangerouslySetInnerHTML — MVP: legible, no estilizado) */}
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 340, overflow: "auto" }}>
-            {ev.content ?? "(sin contenido)"}
-          </pre>
-        </div>
-      </Html>
+      <mesh>
+        <planeGeometry args={[W, 1.1]} />
+        <meshBasicMaterial color="#0b0f14" transparent opacity={0.9} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {/* header del panel */}
+      <group position={[0, 0.5, 0.003]}>
+        <Text fontSize={0.024} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={W - 0.06}>
+          {layout.header}
+        </Text>
+      </group>
+      <VRPanelBody layout={layout} yTop={0.44} />
     </group>
   );
 }
@@ -1115,8 +1199,8 @@ function Widget2DPanels({ sessionId, live }: { sessionId: string | null; live: A
   const twoD = live.filter((ev) => ev.windowType !== "ui3d");
   return (
     <>
-      {twoD.slice(0, 6).map((ev) => (
-        <Widget2DPanel key={ev.id} ev={ev} index={0} />
+      {twoD.slice(0, 6).map((ev, i) => (
+        <Widget2DPanel key={ev.id} ev={ev} index={i} />
       ))}
       {/* los ui3d siguen por su camino propio (ScenePanel) */}
       {live.filter((ev) => ev.windowType === "ui3d").slice(0, 9).map((ev, i) => (
