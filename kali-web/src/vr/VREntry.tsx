@@ -1240,28 +1240,26 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
     return (
       <GripGrab>
         <group ref={groupRef}>
-          {/* Panel uikit escalado a tamaño mundo 0.86m (420px * 0.002) */}
-          <group scale={[0.0022, 0.0022, 0.0022]} position={[0, 0.28, 0.012]}>
-            <Container width={400} height={34} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" gap={8}>
-              <Container flexGrow={1} flexDirection="column">
+          <group scale={[0.002, 0.002, 0.002]}>
+            <Container flexDirection="column" gap={6} width={420}>
+              <Container width={420} height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
                 <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " · " + ev.windowType}</UIKitText>
+                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
+                  <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
+                </Container>
               </Container>
-              <Container width={28} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
-                <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
+              <Container
+                width={420}
+                height={320}
+                backgroundColor="#0b0f14"
+                borderRadius={8}
+                padding={8}
+                overflow="scroll"
+                scrollbarWidth={4}
+                flexDirection="column"
+              >
+                <VrWidgetRenderer ev={ev} />
               </Container>
-            </Container>
-            <Container
-              width={400}
-              height={300}
-              backgroundColor="#0b0f14"
-              borderRadius={8}
-              padding={8}
-              marginTop={6}
-              overflow="scroll"
-              scrollbarWidth={4}
-              flexDirection="column"
-            >
-              <VrWidgetRenderer ev={ev} />
             </Container>
           </group>
         </group>
@@ -1480,7 +1478,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
           <MatrixFloor />
           <VRDebugCompass />
           <InteractivePrimitives />
-          <Ui3dSceneNodes scene={liveRoomScene(live)} />
+          {/* pelotitas removidas — solo artefactos reales */}
           <ArtifactPanels sessionId={sessionId} live={live} />
           <Widget2DPanels sessionId={sessionId} live={live} worldIds={worldIds} onClose={closeArtifact} />
         </XR>
@@ -1502,6 +1500,7 @@ function isLiveComplete(ev: ArtifactEvent): boolean {
 }
 
 /** Compact in-XR mirror of the live ui3d artifact count. */
+// @ts-ignore unused pelotitas removidas
 function liveRoomScene(live: ArtifactEvent[]): Ui3dScene {
   const n = Math.min(live.length, 6);
   const elements: Ui3dScene["elements"] = {};
