@@ -22,6 +22,7 @@
     "dompurify": "^3.4.14",
     "framer-motion": "^11.3.0",
     "highlight.js": "^11.11.1",
+    "html-to-image": "^1.11.13",
     "i18next": "^23.11.0",
     "i18next-browser-languagedetector": "^7.2.0",
     "lucide-react": "^0.439.0",
@@ -33,7 +34,8 @@
     "react-i18next": "^13.5.0",
     "react-router-dom": "^7.18.0",
     "shiki": "^4.2.0",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "three-html-render": "^0.1.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

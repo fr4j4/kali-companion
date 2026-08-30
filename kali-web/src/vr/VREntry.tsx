@@ -23,6 +23,7 @@ import { XR, Controllers, Hands, Interactive, useXR, useInteraction } from "@rea
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { WindowType } from "../workspace/types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { HtmlTexturePanel } from "./HtmlTexturePanel";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -1162,15 +1163,12 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
     return (
       <GripGrab>
         <group ref={groupRef}>
-          <mesh>
-            <planeGeometry args={[0.86, 0.62]} />
-            <meshBasicMaterial color="#0b0f14" transparent opacity={0.96} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-          <Text position={[0, 0.27, 0.012]} fontSize={0.022} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={0.78}>
+          {/* header nativo 3D + textura fiel del widget */}
+          <Text position={[0, 0.29, 0.012]} fontSize={0.022} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={0.78}>
             {(ev.title || ev.windowType) + " · " + ev.windowType}
           </Text>
           <Interactive onSelect={onClose}>
-            <group position={[0.38, 0.27, 0.013]}>
+            <group position={[0.38, 0.29, 0.013]}>
               <mesh>
                 <planeGeometry args={[0.07, 0.05]} />
                 <meshBasicMaterial color="#fb7185" transparent opacity={0.9} side={THREE.DoubleSide} />
@@ -1178,8 +1176,8 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
               <Text fontSize={0.024} color="#04070a" anchorX="center" anchorY="middle">✕</Text>
             </group>
           </Interactive>
-          <group position={[0, -0.04, 0.012]}>
-            <ArtifactBody ev={ev} />
+          <group position={[0, -0.02, 0.012]}>
+            <HtmlTexturePanel ev={ev} widthMeters={0.86} heightMeters={0.58} />
           </group>
         </group>
       </GripGrab>
