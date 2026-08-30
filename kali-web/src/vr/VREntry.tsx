@@ -701,14 +701,21 @@ function KeyboardKey({
  * mensajería: burbujas, input abajo (teclado Quest) y botón de mic con
  * flujo grabar→revisar→enviar/descartar (descartar resetea de verdad).
  */
-function CommandsPanel({ onClose }: { onClose: () => void }) {
+function CommandsPanel({
+  onClose,
+  worldIds,
+  onOpenArtifact,
+}: {
+  onClose: () => void;
+  worldIds: Set<string>;
+  onOpenArtifact: (id: string) => void;
+}) {
   const { chat, ptt } = useStage();
   const camera = useThree((s) => s.camera);
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
   const [draft, setDraft] = useState("");
   const [tab, setTab] = useState<"chat" | "artifacts" | "config">("chat");
-  const [shown, setShown] = useState<Set<string>>(new Set());
   const [showKeyboard, setShowKeyboard] = useState(false);
   const sound = useUISounds();
 
@@ -750,11 +757,6 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
 
   const last = [...chat.messages].slice(-8);
   const artifacts = [...chat.artifacts.values()];
-
-  const openInWorld = (ev: ArtifactEvent) => {
-    setShown((prev) => new Set(prev).add(ev.id));
-    sound.select();
-  };
 
   return (
     <GripGrab>
@@ -976,10 +978,10 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
               </Text>
             )}
             {artifacts.slice(0, 7).map((ev, i) => {
-              const inWorld = shown.has(ev.id) || ev.windowType === "ui3d";
+              const inWorld = worldIds.has(ev.id) || ev.windowType === "ui3d";
               return (
                 <group key={ev.id} position={[0, 0.24 - i * 0.075, 0.002]}>
-                  <Interactive onSelect={() => openInWorld(ev)} onHover={() => sound.hover()}>
+                  <Interactive onSelect={() => onOpenArtifact(ev.id)} onHover={() => sound.hover()}>
                     <mesh>
                       <planeGeometry args={[0.86, 0.062]} />
                       <meshBasicMaterial color="#1e293b" transparent opacity={inWorld ? 0.35 : 0.8} depthWrite={false} />
@@ -1044,97 +1046,88 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-/**
- * VRPanel — sistema de layout para paneles 2D en VR (fix de superposiciones).
- *
- * En lugar de coordenadas absolutas sueltas (que derivan en solapes), cada
- * panel declara su contenido como array de {type, props} y VRPanel lo
- * compone en un grid con bandas medidas:
- *   header (altura fija) → body (filas flexibles) → footer (fijo)
- * Todo elemento recibe su Y calculada; ningún elemento decide su posición.
- * Un panel = una lista ordenada; imposible superponer por construcción.
- */
-type VRElement =
-  | { type: "text"; text: string; size?: number; color?: string; align?: "left" | "center" | "right" }
-  | { type: "button"; text: string; color: string; onSelect: () => void; w?: number }
-  | { type: "status"; text: string; color: string }
-  | { type: "spacer"; h: number };
-
-interface VRPanelLayout {
-  width: number;
-  bg?: string;
-  opacity?: number;
-  header: string;
-  elements: VRElement[];
-}
-
-/** Renderiza un layout VRPanel compuesto por bandas verticales. */
-function VRPanelBody({ layout, yTop }: { layout: VRPanelLayout; yTop: number }) {
-  let cursor = yTop;
-  const rendered: React.ReactNode[] = [];
-
-  for (let i = 0; i < layout.elements.length; i++) {
-    const el = layout.elements[i];
-    switch (el.type) {
-      case "spacer":
-        cursor -= el.h;
-        break;
-      case "text":
-        cursor -= (el.size ?? 0.02) + 0.012;
-        rendered.push(
-          <group key={`t${i}`} position={[0, cursor, 0.003]}>
-            <Text
-              fontSize={el.size ?? 0.02}
-              color={el.color ?? "#e2e8f0"}
-              anchorX={el.align === "left" ? "left" : el.align === "right" ? "right" : "center"}
-              anchorY="middle"
-              maxWidth={layout.width - 0.04}
-              position={el.align === "left" ? [-(layout.width / 2 - 0.02), 0, 0] : el.align === "right" ? [layout.width / 2 - 0.02, 0, 0] : undefined}
-            >
-              {el.text}
-            </Text>
-          </group>,
+/** Renderiza el contenido según el tipo REAL del artefacto. */
+function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
+  const content = ev.content ?? "";
+  if (ev.windowType === "table" || ev.windowType === "checklist") {
+    try {
+      const data = JSON.parse(content) as {
+        rows?: Array<Record<string, unknown>>;
+        items?: Array<{ text: string; done?: boolean }>;
+      };
+      if (data.rows?.length) {
+        const cols = Object.keys(data.rows[0]);
+        return (
+          <>
+            {data.rows.slice(0, 12).map((r, i) => (
+              <group key={i} position={[0, -i * 0.042, 0.003]}>
+                <Text fontSize={0.016} color={i === 0 ? "#7dd3fc" : "#e2e8f0"} anchorX="left" anchorY="middle" maxWidth={0.8}>
+                  {cols.map((c) => String(r[c] ?? "").slice(0, 14)).join("  |  ")}
+                </Text>
+              </group>
+            ))}
+          </>
         );
-        break;
-      case "status":
-        cursor -= 0.03;
-        rendered.push(
-          <group key={`s${i}`} position={[0, cursor, 0.003]}>
-            <Text fontSize={0.018} color={el.color} anchorX="center" anchorY="middle" maxWidth={layout.width - 0.04}>
-              {el.text}
-            </Text>
-          </group>,
+      }
+      if (data.items?.length) {
+        return (
+          <>
+            {data.items.slice(0, 12).map((it, i) => (
+              <group key={i} position={[0, -i * 0.042, 0.003]}>
+                <Text fontSize={0.017} color={it.done ? "#34d399" : "#e2e8f0"} anchorX="left" anchorY="middle" maxWidth={0.8}>
+                  {`${it.done ? "☑" : "☐"} ${it.text}`}
+                </Text>
+              </group>
+            ))}
+          </>
         );
-        break;
-      case "button":
-        cursor -= 0.05;
-        rendered.push(
-          <group key={`b${i}`}>
-            <MenuItem x={0} y={cursor} w={el.w ?? layout.width - 0.08} color={el.color} text={el.text} sound={{ hover: () => {}, select: () => {} }} onSelect={el.onSelect} />
-          </group>,
-        );
-        break;
-    }
+      }
+    } catch { /* cae a texto plano */ }
   }
-  return <>{rendered}</>;
+  if (ev.windowType === "code" || ev.windowType === "json") {
+    return (
+      <>
+        {content.split("\n").slice(0, 14).map((l, i) => (
+          <group key={i} position={[0, -i * 0.04, 0.003]}>
+            <Text fontSize={0.015} color="#a5b4fc" anchorX="left" anchorY="middle" maxWidth={0.84}>
+              {l.slice(0, 70) || " "}
+            </Text>
+          </group>
+        ))}
+      </>
+    );
+  }
+  // document/markdown/html → texto plano paginable (markdown ya legible)
+  const lines = content.replace(/<[^>]+>/g, " ").split("\n").filter((l) => l.trim());
+  return (
+    <>
+      {lines.slice(0, 14).map((l, i) => (
+        <group key={i} position={[0, -i * 0.042, 0.003]}>
+          <Text
+            fontSize={l.startsWith("#") ? 0.022 : 0.016}
+            color={l.startsWith("#") ? "#38bdf8" : "#e2e8f0"}
+            anchorX="left" anchorY="middle" maxWidth={0.84}
+          >
+            {l.replace(/^#+\s*/, "").slice(0, 70) || " "}
+          </Text>
+        </group>
+      ))}
+    </>
+  );
 }
 
 /**
- * Panel inmerso para un artefacto 2D — 100% nativo 3D (sin drei <Html>,
- * que es invisible en XR sin dom-overlay: causa del "no se renderiza").
- * Contenido troceado en líneas dentro de un marco con scroll simple por
- * páginas (◀ ▶). Aparece automáticamente al generarse.
+ * Panel inmerso de artefacto 2D — nativo 3D, fiel al tipo (tabla como
+ * tabla, checklist con checkboxes, code monoespaciada, markdown con
+ * headings), con botón de CERRAR para quitarlo del mundo.
  */
-function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
+function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: number; onClose: () => void }) {
   const camera = useThree((s) => s.camera);
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
-  const [page, setPage] = useState(0);
 
-  // Colocación: al montar Y al entrar en XR (la cámara 2D y la pose XR
-  // difieren; sin esto los paneles quedan donde estabas en el lobby).
+  // Colocación: al montar y al entrar en XR (la pose cambia entre modos).
   useEffect(() => {
-    const unsub = glXRSessionRef as { subscribeStart?: (cb: () => void) => () => void };
     const place = () => {
       if (!groupRef.current) return;
       const camPos = new THREE.Vector3();
@@ -1151,66 +1144,60 @@ function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
       setPlaced(true);
     };
     place();
-    // Re-colocar cuando arranque la sesión XR (si el ref lo expone).
-    if (unsub.subscribeStart) return unsub.subscribeStart(place);
   }, [placed, camera, index]);
 
-  // ── trocear contenido en líneas para el layout del panel ──
-  const W = 0.9;
-  const LINES_PER_PAGE = 10;
-  const raw = (ev.content ?? "(sin contenido)")
-    .replace(/<[^>]+>/g, " ")          // html → texto
-    .replace(/[ \t]+/g, " ")
-    .trim();
-  const allLines = raw.split(/\n|(?<=\S{52})\s/).flatMap((l) =>
-    l.length > 56 ? l.match(/.{1,56}(\s|$)/g) ?? [l] : [l],
-  ).map((l) => l.trim()).filter(Boolean);
-  const pages = Math.max(1, Math.ceil(allLines.length / LINES_PER_PAGE));
-  const safePage = Math.min(page, pages - 1);
-  const lines = allLines.slice(safePage * LINES_PER_PAGE, (safePage + 1) * LINES_PER_PAGE);
-
-  const layout: VRPanelLayout = {
-    width: W,
-    header: `${ev.title || ev.windowType} (${safePage + 1}/${pages})`,
-    elements: [
-      ...lines.map((l) => ({ type: "text" as const, text: l, size: 0.017, align: "left" as const })),
-      { type: "spacer", h: 0.02 },
-      ...(pages > 1 ? [
-        { type: "button" as const, text: "◀ anterior", color: "#475569", w: 0.32,
-          onSelect: () => setPage((p) => Math.max(0, p - 1)) },
-        { type: "button" as const, text: "siguiente ▶", color: "#475569", w: 0.32,
-          onSelect: () => setPage((p) => Math.min(pages - 1, p + 1)) },
-      ] : []),
-    ],
-  };
+  const W = 0.95;
+  const bodyTop = 0.36;
 
   return (
     <group ref={groupRef}>
       <mesh>
-        <planeGeometry args={[W, 1.1]} />
-        <meshBasicMaterial color="#0b0f14" transparent opacity={0.9} depthWrite={false} side={THREE.DoubleSide} />
+        <planeGeometry args={[W, 0.95]} />
+        <meshBasicMaterial color="#0b0f14" transparent opacity={0.92} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      {/* header del panel */}
-      <group position={[0, 0.5, 0.003]}>
-        <Text fontSize={0.024} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={W - 0.06}>
-          {layout.header}
+      {/* header */}
+      <group position={[0, 0.415, 0.003]}>
+        <Text fontSize={0.023} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={W - 0.14}>
+          {`${ev.title || ev.windowType} · ${ev.windowType}`}
         </Text>
       </group>
-      <VRPanelBody layout={layout} yTop={0.44} />
+      {/* cerrar */}
+      <Interactive onSelect={onClose} onHover={() => {}}>
+        <group position={[W / 2 - 0.05, 0.415, 0.004]}>
+          <mesh>
+            <planeGeometry args={[0.08, 0.04]} />
+            <meshBasicMaterial color="#fb7185" transparent opacity={0.6} depthWrite={false} />
+          </mesh>
+          <group position={[0, 0, 0.002]}>
+            <Text fontSize={0.02} color="#04070a" anchorX="center" anchorY="middle">✕</Text>
+          </group>
+        </group>
+      </Interactive>
+      {/* cuerpo según tipo */}
+      <group position={[0, bodyTop - 0.06, 0.002]}>
+        <ArtifactBody ev={ev} />
+      </group>
     </group>
   );
 }
 
-/** Puente: cada artifact 2D no-ui3d genera un panel inmerso. */
-function Widget2DPanels({ sessionId, live }: { sessionId: string | null; live: ArtifactEvent[] }) {
-  const twoD = live.filter((ev) => ev.windowType !== "ui3d");
+/** Puente: los artefactos marcados como "en el mundo" se renderizan. */
+function Widget2DPanels({
+  sessionId, live, worldIds, onClose,
+}: {
+  sessionId: string | null;
+  live: ArtifactEvent[];
+  worldIds: Set<string>;
+  onClose: (id: string) => void;
+}) {
+  const twoD = live.filter((ev) => worldIds.has(ev.id) || ev.windowType === "ui3d");
   return (
     <>
-      {twoD.slice(0, 6).map((ev, i) => (
-        <Widget2DPanel key={ev.id} ev={ev} index={i} />
+      {twoD.filter((ev) => ev.windowType !== "ui3d").slice(0, 6).map((ev, i) => (
+        <Widget2DPanel key={ev.id} ev={ev} index={i} onClose={() => onClose(ev.id)} />
       ))}
       {/* los ui3d siguen por su camino propio (ScenePanel) */}
-      {live.filter((ev) => ev.windowType === "ui3d").slice(0, 9).map((ev, i) => (
+      {live.filter((ev) => ev.windowType === "ui3d" && worldIds.has(ev.id)).slice(0, 9).map((ev, i) => (
         <ScenePanel key={ev.id} ev={ev} index={i} sessionId={sessionId} />
       ))}
     </>
@@ -1251,9 +1238,20 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const [menuOpen, setMenuOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [commandsOpen, setCommandsOpen] = useState(false);
+  const [worldIds, setWorldIds] = useState<Set<string>>(new Set());
   const exitVR = useExitVR();
   const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
   const toggleCommands = useCallback(() => setCommandsOpen((o) => !o), []);
+  const openArtifact = useCallback((id: string) => {
+    setWorldIds((prev) => new Set(prev).add(id));
+  }, []);
+  const closeArtifact = useCallback((id: string) => {
+    setWorldIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   const enterVR = useCallback(async () => {
     setVrError("");
@@ -1317,13 +1315,19 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
             />
           </PlayerRig>
           {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
-          {commandsOpen && <CommandsPanel onClose={() => setCommandsOpen(false)} />}
+          {commandsOpen && (
+            <CommandsPanel
+              onClose={() => setCommandsOpen(false)}
+              worldIds={worldIds}
+              onOpenArtifact={openArtifact}
+            />
+          )}
           <MatrixFloor />
           <VRDebugCompass />
           <InteractivePrimitives />
           <Ui3dSceneNodes scene={liveRoomScene(live)} />
           <ArtifactPanels sessionId={sessionId} live={live} />
-          <Widget2DPanels sessionId={sessionId} live={live} />
+          <Widget2DPanels sessionId={sessionId} live={live} worldIds={worldIds} onClose={closeArtifact} />
         </XR>
 
         <OrbitControls makeDefault target={[0, 1.2, -2]} maxPolarAngle={Math.PI / 2} />
