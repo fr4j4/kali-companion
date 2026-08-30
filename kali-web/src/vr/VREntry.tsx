@@ -11,9 +11,10 @@
  * the main UI uses — no parallel state.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import * as THREE from "three";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { XR, Controllers, Hands } from "@react-three/xr";
+import { XR, Controllers, Hands, Interactive, useXR } from "@react-three/xr";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -52,7 +53,7 @@ function GLBridge({ glRef }: { glRef: React.MutableRefObject<unknown> }) {
   return null;
 }
 
-async function requestVRSession(gl: unknown): Promise<void> {
+async function requestVRSession(gl: unknown): Promise<unknown> {
   const nav = navigator as unknown as { xr?: {
     requestSession: (m: string, init?: Record<string, unknown>) => Promise<unknown>;
   } };
@@ -68,6 +69,7 @@ async function requestVRSession(gl: unknown): Promise<void> {
   };
   renderer.xr.setReferenceSpaceType("local-floor");
   await renderer.xr.setSession(session);
+  return session;
 }
 
 /* ── default room (escena predeterminada) ─────────────────────── */
@@ -153,17 +155,113 @@ function ArtifactPanels({ sessionId, live }: { sessionId: string | null; live: A
 
 /* ── room canvas ──────────────────────────────────────────────── */
 
+/** Thumbstick locomotion: mueve el jugador con el stick izq (X/Y del gamepad). */
+function ThumbstickLocomotion() {
+  const camera = useThree((s) => s.camera);
+  const dir = useRef(new THREE.Vector3());
+
+  useFrame((_, delta) => {
+    const session = glXRSessionRef.current as XRSession | null;
+    if (!session) return;
+    for (const source of session.inputSources) {
+      if (source.handedness !== "left" || !source.gamepad) continue;
+      const [x, y] = [source.gamepad.axes[2] ?? 0, source.gamepad.axes[3] ?? 0];
+      if (Math.abs(x) < 0.15 && Math.abs(y) < 0.15) continue;
+      // Avanza en la dirección de la vista (solo plano XZ), gira con X.
+      camera.getWorldDirection(dir.current);
+      dir.current.y = 0;
+      dir.current.normalize();
+      const speed = 2.2 * delta; // m/s — caminata cómoda
+      camera.position.addScaledVector(dir.current, -y * speed);
+      // Strafe lateral con el eje X del stick.
+      const strafe = new THREE.Vector3(-dir.current.z, 0, dir.current.x);
+      camera.position.addScaledVector(strafe, x * speed);
+    }
+  });
+  return null;
+}
+
+/** Ref global al renderer para leer la sesión XR activa desde useFrame. */
+const glXRSessionRef = { current: null as unknown };
+
+/**
+ * Menú en el controlador izquierdo: se mantiene frente al grip izquierdo y
+ * ofrece "Salir de VR". Se activa apuntando con el ray y presionando trigger.
+ */
+function ExitMenuOnLeftController({ onExit }: { onExit: () => void }) {
+  const [visible, setVisible] = useState(true);
+  const controllers = useXR((s) => s.controllers);
+  const left = controllers.find((c) => c.inputSource?.handedness === "left");
+  const groupRef = useRef<THREE.Group>(null);
+
+  // El panel sigue al grip del controlador izquierdo.
+  useFrame(() => {
+    if (!left || !groupRef.current) return;
+    left.grip.getWorldPosition(groupRef.current.position);
+    left.grip.getWorldQuaternion(groupRef.current.quaternion);
+    groupRef.current.translateX(0.12);
+    groupRef.current.translateY(0.05);
+  });
+
+  if (!left || !visible) return null;
+
+  return (
+    <group ref={groupRef} scale={0.35}>
+      {/* marco del panel */}
+      <mesh>
+        <planeGeometry args={[0.62, 0.34]} />
+        <meshBasicMaterial color="#0b0f14" transparent opacity={0.92} />
+      </mesh>
+      {/* título — Text de drei via lazy import dinámico no necesario: usamos
+          un plano con color en vez de fuente para el MVP del menú. */}
+      <mesh position={[-0.16, 0.08, 0.01]}>
+        <planeGeometry args={[0.26, 0.08]} />
+        <meshBasicMaterial color="#38bdf8" />
+      </mesh>
+      {/* botón SALIR — interactivo por ray del controlador derecho */}
+      <Interactive
+        onSelect={() => {
+          onExit();
+          setVisible(false);
+        }}
+      >
+        <mesh position={[0, -0.06, 0.01]}>
+          <planeGeometry args={[0.5, 0.14]} />
+          <meshBasicMaterial color="#fb7185" />
+        </mesh>
+      </Interactive>
+    </group>
+  );
+}
+
+/** Maneja el fin de sesión XR para volver al lobby 2D limpio. */
+function useExitVR() {
+  return useCallback(() => {
+    const session = glXRSessionRef.current as { end?: () => Promise<void> } | null;
+    if (session?.end) {
+      session.end().catch(() => undefined);
+    }
+  }, []);
+}
+
 function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: ArtifactEvent[] }) {
   const glRef = useRef<unknown>(null);
   const vrSupport = useVRSupport();
   const [vrError, setVrError] = useState("");
   const [vrBusy, setVrBusy] = useState(false);
+  const exitVR = useExitVR();
 
   const enterVR = useCallback(async () => {
     setVrError("");
     setVrBusy(true);
     try {
-      await requestVRSession(glRef.current);
+      const session = await requestVRSession(glRef.current) as XRSession | undefined;
+      if (session) {
+        glXRSessionRef.current = session;
+        session.addEventListener("end", () => {
+          glXRSessionRef.current = null;
+        });
+      }
     } catch (e) {
       setVrError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -203,6 +301,8 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
           <Ui3dSceneNodes scene={DEFAULT_ROOM} />
           <Ui3dSceneNodes scene={liveRoomScene(live)} />
           <ArtifactPanels sessionId={sessionId} live={live} />
+          <ThumbstickLocomotion />
+          <ExitMenuOnLeftController onExit={exitVR} />
           <Controllers />
           <Hands />
         </XR>

@@ -7,7 +7,7 @@
 //   - wake-word barge-in (stop TTS + chat)
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { authHeaders } from "../lib/api/http";
 import { useChat, type ChatState } from "../hooks/useChat";
 import { useTTS, type TtsPlaybackState } from "../hooks/useTTS";
@@ -72,6 +72,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   const chat = useChat();
   const tts = useTTS(chat.subscribeTts, chat.onTtsEnded);
   const navigate = useNavigate();
+  const location = useLocation();
   const { sid: urlSid } = useParams<{ sid?: string }>();
   const [customVoices, setCustomVoices] = useState<CustomVoice[]>([]);
   const [connections, setConnections] = useState<ConnectionSummary[]>([]);
@@ -158,6 +159,10 @@ export function StageProvider({ children }: { children: ReactNode }) {
 
   // State -> URL: bookmark the active session, or clear URL if no session.
   useEffect(() => {
+    // En la sala VR (/vr o /vr/session/:sid) nunca forzamos navegación:
+    // redirigir destruiría el canvas WebGL con la sesión XR viva (pantalla
+    // negra en el visor) o expulsaría al usuario de la experiencia.
+    if (location.pathname.startsWith("/vr")) return;
     if (chat.isCreatingSession && urlSid) {
       // User pressed "new session"; move to the URL root immediately and record
       // the old URL session id so the attach effect above does not pull us back.
@@ -175,7 +180,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
     if (!chat.sessionId && !chat.isCreatingSession) {
       lastAttachedRef.current = null;
     }
-  }, [chat.sessionId, urlSid, chat.status, chat.isCreatingSession, navigate]);
+  }, [chat.sessionId, urlSid, chat.status, chat.isCreatingSession, navigate, location.pathname]);
 
   // Wake-word barge-in: stop TTS + generation.
   const onWakeWord = useCallback(() => {
