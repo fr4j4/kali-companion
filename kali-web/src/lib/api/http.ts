@@ -24,9 +24,13 @@ export async function fetchWithRetry(
   tries: number = 5,
   baseDelay: number = 400,
 ): Promise<Response | null> {
+  const merged: RequestInit = {
+    ...opts,
+    headers: { ...authHeaders(), ...((opts?.headers as Record<string, string>) ?? {}) },
+  };
   for (let attempt = 1; attempt <= tries; attempt++) {
     try {
-      const resp = await fetch(url, opts);
+      const resp = await fetch(url, merged);
       return resp;
     } catch (err) {
       if (attempt >= tries) return null;
