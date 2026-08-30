@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Text } from "@react-three/drei";
+import { OrbitControls, Text, Html } from "@react-three/drei";
 import { XR, Controllers, Hands, Interactive, useXR, RayGrab } from "@react-three/xr";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
@@ -343,31 +343,112 @@ function ArtifactPanels({ sessionId, live }: { sessionId: string | null; live: A
   );
 }
 
+/* ── audio UX + feedback ──────────────────────────────────────── */
+
+/** Sonidos de interacción vía WebAudio (sin assets externos). */
+function useUISounds() {
+  const ctxRef = useRef<AudioContext | null>(null);
+
+  return useMemo(() => {
+    const ensure = (): AudioContext | null => {
+      if (typeof window === "undefined") return null;
+      if (!ctxRef.current) {
+        const Ctor = window.AudioContext
+          ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctor) return null;
+        ctxRef.current = new Ctor();
+      }
+      if (ctxRef.current.state === "suspended") void ctxRef.current.resume();
+      return ctxRef.current;
+    };
+    const blip = (freq: number, dur = 0.06, vol = 0.05, type: OscillatorType = "sine") => {
+      const ctx = ensure();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + dur);
+    };
+    return {
+      hover: () => blip(880, 0.03, 0.02),
+      select: () => { blip(660, 0.05, 0.05); setTimeout(() => blip(990, 0.07, 0.05), 45); },
+      open: () => blip(520, 0.05, 0.04, "triangle"),
+      close: () => blip(340, 0.05, 0.04, "triangle"),
+      rec: () => blip(1100, 0.09, 0.06, "square"),
+    };
+  }, []);
+}
+
+/** Item de menú con feedback visual (hover: brillo+escala) + sonido. */
+function MenuItem({
+  y, w, color, text, sound, onSelect, onHover,
+}: {
+  y: number;
+  w: number;
+  color: string;
+  text: string;
+  sound: { hover: () => void; select: () => void };
+  onSelect: () => void;
+  onHover?: (h: boolean) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Interactive
+      onHover={() => { setHovered(true); sound.hover(); onHover?.(true); }}
+      onBlur={() => { setHovered(false); onHover?.(false); }}
+      onSelect={() => { sound.select(); onSelect(); }}
+    >
+      <group position={[0, y, 0.001]} scale={hovered ? 1.06 : 1}>
+        <mesh>
+          <planeGeometry args={[w, 0.042]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={hovered ? 0.75 : 0.3}
+            depthWrite={false}
+          />
+        </mesh>
+        <group position={[0, 0, 0.002]}>
+          <Text fontSize={0.017} color={hovered ? "#ffffff" : "#cbd5e1"} anchorX="center" anchorY="middle" maxWidth={w - 0.01}>
+            {text}
+          </Text>
+        </group>
+      </group>
+    </Interactive>
+  );
+}
+
 /* ── wrist menu (menú de muñeca) ──────────────────────────────── */
 
 /**
- * Menú estilo "wrist menu" VR: un reloj en la muñeca/antebrazo del
- * controlador izquierdo. No flota encima — está ANCLADO al grip y gira
- * con él, inmerso. Panel semitransparente con acciones reales de la UI:
- * Nueva sesión, Detener generación, cerrar menú y SALIR de VR.
- * Se abre/cierra con el botón de MENÚ físico del control izquierdo
- * (gamepad button 4 en Quest — no un trigger principal).
+ * Menú compacto anclado al costado derecho del control izquierdo,
+ * billboard hacia la cara, semitransparente. Toggle con botón Y.
+ * Acciones: Nueva sesión, Detener, Panel debug, Comandos (voz/chat),
+ * Cerrar y Salir de VR — con feedback visual y sonoro.
  */
 function WristMenu({
   open,
   onExit,
   onClose,
   onOpenDebug,
+  onOpenCommands,
 }: {
   open: boolean;
   onExit: () => void;
   onClose: () => void;
   onOpenDebug: () => void;
+  onOpenCommands: () => void;
 }) {
   const controllers = useXR((s) => s.controllers);
   const camera = useThree((s) => s.camera);
   const left = controllers.find((c) => c.inputSource?.handedness === "left");
   const { chat } = useStage();
+  const sound = useUISounds();
   const groupRef = useRef<THREE.Group>(null);
   const tmp = useRef({
     grip: new THREE.Vector3(),
@@ -395,43 +476,18 @@ function WristMenu({
     groupRef.current.lookAt(tmp.current.cam);
   });
 
+  useEffect(() => {
+    if (open) sound.open();
+  }, [open, sound]);
+
   if (!left || !open) return null;
-
-  const label = (t: string) => (
-    <Text
-      fontSize={0.024}
-      color="#e2e8f0"
-      anchorX="center"
-      anchorY="middle"
-      maxWidth={0.2}
-    >
-      {t}
-    </Text>
-  );
-
-  const item = (y: number, color: string, text: string, action: () => void) => (
-    <Interactive onSelect={action}>
-      <group position={[0, y, 0.001]}>
-        <mesh>
-          <planeGeometry args={[0.2, 0.052]} />
-          <meshBasicMaterial
-            color={color}
-            transparent
-            opacity={0.35}
-            depthWrite={false}
-          />
-        </mesh>
-        <group position={[0, 0, 0.002]}>{label(text)}</group>
-      </group>
-    </Interactive>
-  );
 
   return (
     <group ref={groupRef} scale={0.9}>
-      {/* placa base semitransparente, inclinada hacia la cara */}
-      <group rotation={[0.5, 0, 0]}>
-        <mesh position={[0, 0.05, -0.005]}>
-          <planeGeometry args={[0.23, 0.32]} />
+      <group rotation={[0.35, 0, 0]}>
+        {/* placa base compacta — 5 ítems de 0.042 + header, sin solapes */}
+        <mesh position={[0, 0.02, -0.004]}>
+          <planeGeometry args={[0.21, 0.27]} />
           <meshBasicMaterial
             color="#0b0f14"
             transparent
@@ -441,25 +497,18 @@ function WristMenu({
           />
         </mesh>
 
-        <group position={[0, 0.05, 0]}>
-          {/* header */}
-          <group position={[0, 0.125, 0.001]}>
-            <Text fontSize={0.026} color="#38bdf8" anchorX="center" anchorY="middle">
+        <group position={[0, 0.02, 0]}>
+          <group position={[0, 0.108, 0.001]}>
+            <Text fontSize={0.019} color="#38bdf8" anchorX="center" anchorY="middle">
               KALI VR
             </Text>
           </group>
 
-          {/* acciones de la UI 2D */}
-          {item(0.07, "#38bdf8", "Nueva sesión", () => chat.newSession())}
-          {item(0.012, "#fbbf24", "Detener Kali", () => chat.stop())}
-          {item(-0.046, "#a78bfa", "Panel debug", () => {
-            onOpenDebug();
-            onClose();
-          })}
-          {item(-0.105, "#94a3b8", "Cerrar menú", onClose)}
-
-          {/* salir de VR */}
-          {item(-0.105, "#fb7185", "Salir de VR", onExit)}
+          <MenuItem y={0.068} w={0.19} color="#38bdf8" text="Nueva sesión" sound={sound} onSelect={() => chat.newSession()} />
+          <MenuItem y={0.024} w={0.19} color="#fbbf24" text="Detener Kali" sound={sound} onSelect={() => chat.stop()} />
+          <MenuItem y={-0.02} w={0.19} color="#a78bfa" text="Panel debug" sound={sound} onSelect={() => { onOpenDebug(); onClose(); }} />
+          <MenuItem y={-0.064} w={0.19} color="#34d399" text="Comandos" sound={sound} onSelect={() => { onOpenCommands(); onClose(); }} />
+          <MenuItem y={-0.108} w={0.19} color="#fb7185" text="Salir de VR" sound={sound} onSelect={onExit} />
         </group>
       </group>
     </group>
@@ -541,6 +590,281 @@ function DebugPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ── comandos: voz (PTT) + chat de texto con respuestas ───────── */
+
+/**
+ * Barra de comandos flotante (equivalente VR de la barra inferior del
+ * canvas 2D): graba voz vía el mismo pipeline STT del canvas (ptt), y
+ * ofrece un input de texto + historial de mensajes con drei <Html
+ * transform>. Las respuestas de Kali se leen en el mismo panel.
+ */
+function CommandsPanel({ onClose }: { onClose: () => void }) {
+  const { chat, ptt } = useStage();
+  const camera = useThree((s) => s.camera);
+  const groupRef = useRef<THREE.Group>(null);
+  const [placed, setPlaced] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [tab, setTab] = useState<"chat" | "voice">("voice");
+  const sound = useUISounds();
+
+  // Spawn 1.4 m frente al usuario, altura de pecho; luego queda donde
+  // lo dejes (RayGrab).
+  useEffect(() => {
+    if (placed || !groupRef.current) return;
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
+    groupRef.current.position.copy(camPos).addScaledVector(camDir, 1.4);
+    groupRef.current.position.y = 1.3;
+    groupRef.current.lookAt(camPos);
+    setPlaced(true);
+  }, [placed, camera]);
+
+  const last = [...chat.messages].slice(-6);
+
+  return (
+    <RayGrab>
+      <group ref={groupRef}>
+        <mesh>
+          <planeGeometry args={[0.9, 0.62]} />
+          <meshBasicMaterial color="#0b0f14" transparent opacity={0.82} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* header */}
+        <group position={[0, 0.27, 0.002]}>
+          <Text fontSize={0.03} color="#38bdf8" anchorX="center" anchorY="middle">
+            COMANDOS · KALI
+          </Text>
+        </group>
+
+        {/* tabs */}
+        {[
+          { x: -0.25, label: "Voz", tab: "voice" as const, color: "#34d399" },
+          { x: -0.05, label: "Chat", tab: "chat" as const, color: "#38bdf8" },
+        ].map(({ x, label, tab: t, color }) => (
+          <Interactive
+            key={t}
+            onSelect={() => { sound.select(); setTab(t); }}
+            onHover={() => sound.hover()}
+          >
+            <group position={[x, 0.2, 0.002]}>
+              <mesh>
+                <planeGeometry args={[0.16, 0.055]} />
+                <meshBasicMaterial color={color} transparent opacity={tab === t ? 0.7 : 0.2} depthWrite={false} />
+              </mesh>
+              <group position={[0, 0, 0.002]}>
+                <Text fontSize={0.026} color="#e2e8f0" anchorX="center" anchorY="middle">{label}</Text>
+              </group>
+            </group>
+          </Interactive>
+        ))}
+
+        {/* cerrar */}
+        <Interactive onSelect={() => { sound.close(); onClose(); }} onHover={() => sound.hover()}>
+          <group position={[0.38, 0.2, 0.002]}>
+            <mesh>
+              <planeGeometry args={[0.09, 0.055]} />
+              <meshBasicMaterial color="#fb7185" transparent opacity={0.4} depthWrite={false} />
+            </mesh>
+            <group position={[0, 0, 0.002]}>
+              <Text fontSize={0.026} color="#e2e8f0" anchorX="center" anchorY="middle">X</Text>
+            </group>
+          </group>
+        </Interactive>
+
+        {/* contenido por tab */}
+        {tab === "voice" ? (
+          <group position={[0, 0.02, 0.002]}>
+            <Text fontSize={0.024} color="#94a3b8" anchorX="center" anchorY="middle" maxWidth={0.8}>
+              {ptt.partialText || (ptt.state === "listening" ? "escuchando…" : "mantén pulsado y habla")}
+            </Text>
+            <Interactive
+              onSelect={() => {
+                if (ptt.state === "listening") {
+                  ptt.stop();
+                  sound.close();
+                } else {
+                  void ptt.start();
+                  sound.rec();
+                }
+              }}
+              onHover={() => sound.hover()}
+            >
+              <group position={[0, -0.12, 0]}>
+                <mesh>
+                  <planeGeometry args={[0.3, 0.09]} />
+                  <meshBasicMaterial
+                    color={ptt.state === "listening" ? "#fb7185" : "#34d399"}
+                    transparent
+                    opacity={0.65}
+                    depthWrite={false}
+                  />
+                </mesh>
+                <group position={[0, 0, 0.002]}>
+                  <Text fontSize={0.032} color="#ffffff" anchorX="center" anchorY="middle">
+                    {ptt.state === "listening" ? "■ Detener" : "● Grabar"}
+                  </Text>
+                </group>
+              </group>
+            </Interactive>
+          </group>
+        ) : (
+          <group position={[0, 0.02, 0.002]}>
+            {/* historial — últimos 6 mensajes */}
+            {last.map((m, i) => (
+              <group key={m.id} position={[0, 0.1 - i * 0.055, 0]}>
+                <Text
+                  fontSize={0.02}
+                  color={m.role === "user" ? "#7dd3fc" : "#e2e8f0"}
+                  anchorX="left"
+                  anchorY="top"
+                  maxWidth={0.8}
+                  clipRect={[0, 0, 0.8, 0.05]}
+                >
+                  {`${m.role === "user" ? "tú" : "Kali"}: ${m.content.slice(0, 90)}`}
+                </Text>
+              </group>
+            ))}
+            {/* input texto — Html transform (DOM real, teclado Quest) */}
+            <group position={[0, -0.22, 0.01]}>
+              <Html transform distanceFactor={0.6} occlude={false} style={{ width: 460 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && draft.trim()) {
+                        sound.select();
+                        chat.send(draft);
+                        setDraft("");
+                      }
+                    }}
+                    placeholder="Escribe a Kali…"
+                    style={{
+                      flex: 1,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid #334155",
+                      background: "#0b0f14",
+                      color: "#e2e8f0",
+                      fontSize: 14,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!draft.trim()) return;
+                      sound.select();
+                      chat.send(draft);
+                      setDraft("");
+                    }}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 8,
+                      border: "1px solid #38bdf8",
+                      background: "#38bdf8",
+                      color: "#0b0f14",
+                      fontWeight: 600,
+                      fontSize: 14,
+                    }}
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </Html>
+            </group>
+          </group>
+        )}
+      </group>
+    </RayGrab>
+  );
+}
+
+/* ── artefactos 2D como paneles inmersos ──────────────────────── */
+
+/**
+ * Panel inmerso para un artefacto 2D cualquiera (markdown, tabla, html…):
+ * monta el MISMO widget del canvas vía drei <Html transform> — DOM real
+ * interactivo dentro de VR. Aparece automáticamente cuando el asistente
+ * genera el artefacto.
+ */
+function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
+  const camera = useThree((s) => s.camera);
+  const groupRef = useRef<THREE.Group>(null);
+  const [placed, setPlaced] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Colocación en arco frente al spawn; no interfiere con los ui3d.
+  useEffect(() => {
+    if (placed || !groupRef.current) return;
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
+    const angle = (index - 1) * 0.5;
+    const dirRot = camDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+    groupRef.current.position.copy(camPos).addScaledVector(dirRot, 2.2);
+    groupRef.current.position.y = 1.6;
+    groupRef.current.lookAt(camPos);
+    setPlaced(true);
+  }, [placed, camera, index]);
+
+  return (
+    <group ref={groupRef}>
+      <Html
+        transform
+        distanceFactor={0.55}
+        occlude={false}
+        style={{ width: 520, maxHeight: 420, overflow: "auto" }}
+        prepend={false}
+      >
+        <div
+          ref={contentRef}
+          style={{
+            background: "rgba(11,15,20,0.92)",
+            border: "1px solid #1e293b",
+            borderRadius: 12,
+            padding: 14,
+            color: "#e2e8f0",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 14,
+          }}
+        >
+          <div style={{ color: "#38bdf8", fontSize: 12, marginBottom: 8, opacity: 0.8 }}>
+            {ev.title || ev.windowType}
+          </div>
+          {/* Render del contenido crudo: markdown/html como texto seguro
+              (sin dangerouslySetInnerHTML — MVP: legible, no estilizado) */}
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 340, overflow: "auto" }}>
+            {ev.content ?? "(sin contenido)"}
+          </pre>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+/** Puente: cada artifact 2D no-ui3d genera un panel inmerso. */
+function Widget2DPanels({ sessionId, live }: { sessionId: string | null; live: ArtifactEvent[] }) {
+  const twoD = live.filter((ev) => ev.windowType !== "ui3d");
+  return (
+    <>
+      {twoD.slice(0, 6).map((ev) => (
+        <Widget2DPanel key={ev.id} ev={ev} index={0} />
+      ))}
+      {/* los ui3d siguen por su camino propio (ScenePanel) */}
+      {live.filter((ev) => ev.windowType === "ui3d").slice(0, 9).map((ev, i) => (
+        <ScenePanel key={ev.id} ev={ev} index={i} sessionId={sessionId} />
+      ))}
+    </>
+  );
+}
+
 /* ── room canvas ──────────────────────────────────────────────── */
 
 /** Muestra en-VR el forward real de la cámara XR (diagnóstico locomotion). */
@@ -574,6 +898,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const [vrBusy, setVrBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const exitVR = useExitVR();
   const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
 
@@ -635,14 +960,17 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
               onExit={exitVR}
               onClose={() => setMenuOpen(false)}
               onOpenDebug={() => setDebugOpen(true)}
+              onOpenCommands={() => setCommandsOpen(true)}
             />
           </PlayerRig>
           {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
+          {commandsOpen && <CommandsPanel onClose={() => setCommandsOpen(false)} />}
           <MatrixFloor />
           <VRDebugCompass />
           <InteractivePrimitives />
           <Ui3dSceneNodes scene={liveRoomScene(live)} />
           <ArtifactPanels sessionId={sessionId} live={live} />
+          <Widget2DPanels sessionId={sessionId} live={live} />
         </XR>
 
         <OrbitControls makeDefault target={[0, 1.2, -2]} maxPolarAngle={Math.PI / 2} />
