@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { marked } from "marked";
+import { renderMarkdown } from "../../lib/markdown";
 import mermaid from "mermaid";
 
 mermaid.initialize({
@@ -24,7 +24,7 @@ interface Props {
 export function MarkdownArtifact({ content }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
-  const html = useMemo(() => marked.parse(content, { async: false }) as string, [content]);
+  const html = useMemo(() => renderMarkdown(content), [content]);
 
   useEffect(() => {
     if (!containerRef.current) return;

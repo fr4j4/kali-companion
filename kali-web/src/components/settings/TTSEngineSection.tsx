@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, Loader, Loader2, Plug, Unplug, Trash2, Volume2 } from "lucide-react";
-import { apiBase, fetchWithRetry } from "../../lib/api/http";
+import { apiBase, fetchWithRetry, authHeaders } from "../../lib/api/http";
 import type { StatusEvent, TtsModelInfo, TtsDeviceInfo, ModelCatalogEntry } from "../../lib/protocol";
 import { TTS_PROVIDERS } from "../../lib/tts-providers";
 import type { TtsProviderId } from "../../lib/tts-providers";
@@ -124,7 +124,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
     setLoadingPiperCatalog(true);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/models/catalog?provider=piper`);
+      const resp = await fetch(`${base}/models/catalog?provider=piper`, { headers: authHeaders() });
       if (resp && resp.ok) {
         const data = await resp.json();
         if (mountedRef.current) {
@@ -141,7 +141,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
     setLoadingQwenCatalog(true);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/models/catalog?provider=qwen3`);
+      const resp = await fetch(`${base}/models/catalog?provider=qwen3`, { headers: authHeaders() });
       if (resp && resp.ok) {
         const data = await resp.json();
         if (mountedRef.current) {
@@ -165,7 +165,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
       const base = await apiBase();
       const resp = await fetch(
         `${base}/tts/models/${encodeURIComponent(modelId)}/load?device=${encodeURIComponent(selectedDevice)}&provider=${tab}`,
-        { method: "POST" },
+        { method: "POST", headers: authHeaders() },
       );
       if (!resp.ok) {
         const data = await resp.json();
@@ -184,7 +184,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
     setError(null);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/tts/models/unload?provider=${tab}`, { method: "POST" });
+      const resp = await fetch(`${base}/tts/models/unload?provider=${tab}`, { method: "POST", headers: authHeaders() });
       if (!resp.ok) {
         const data = await resp.json();
         throw new Error(data.error ?? "Failed to unload model");
@@ -211,7 +211,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
     setError(null);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/tts/models/${encodeURIComponent(modelId)}/delete?provider=${tab}`, { method: "POST" });
+      const resp = await fetch(`${base}/tts/models/${encodeURIComponent(modelId)}/delete?provider=${tab}`, { method: "POST", headers: authHeaders() });
       if (!resp.ok) {
         const data = await resp.json();
         throw new Error(data.error ?? "Failed to delete model");

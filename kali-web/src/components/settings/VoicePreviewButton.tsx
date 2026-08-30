@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiBase } from "../../lib/api/http";
+import { apiBase, authHeaders } from "../../lib/api/http";
 
 export function VoicePreviewButton({
   voiceId,
@@ -43,7 +43,7 @@ export function VoicePreviewButton({
         `${base}/api/tts/preview`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ voice_id: voiceId, language: sttLanguage, mode, provider }),
         },
       );

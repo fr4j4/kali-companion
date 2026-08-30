@@ -51,7 +51,8 @@ async def test_fs_read_tool():
 async def test_fs_read_nonexistent():
     tool = FsReadTool()
     ctx = ToolContext(session_id="t", working_dir=".", profile="dev")
-    result = await tool.run({"path": "/nonexistent/file"}, ctx)
+    # Use a path inside the tmp allowance (conftest adds /tmp/tmp*/**).
+    result = await tool.run({"path": "/tmp/tmpdefinitely_missing_file.txt"}, ctx)
     assert result.error is not None
     assert "not found" in result.error.lower() or "no such file" in result.error.lower()
 

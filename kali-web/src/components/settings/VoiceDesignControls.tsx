@@ -5,7 +5,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiBase } from "../../lib/api/http";
+import { apiBase, authHeaders } from "../../lib/api/http";
 import type { CustomVoice, VoiceDesignPreset } from "../../lib/protocol";
 import { Select } from "../ui/Select";
 
@@ -65,7 +65,7 @@ export function VoiceDesignControls({
         `${base}/api/tts/voice-design`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             instructions: currentInstructions,
             seed: currentSeed,
@@ -172,7 +172,7 @@ export function VoiceDesignControls({
         `${base}/voices/custom`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             name: trimmedName,
             provider: ttsProvider,
@@ -200,7 +200,7 @@ export function VoiceDesignControls({
       const base = await apiBase();
       const resp = await fetch(
         `${base}/voices/custom/${id}`,
-        { method: "DELETE" },
+        { method: "DELETE", headers: authHeaders() },
       );
       if (resp.ok) {
         onCustomVoicesChange();
