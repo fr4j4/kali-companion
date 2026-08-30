@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Html } from "@react-three/drei";
-import { XR, Controllers, Hands, Interactive, useXR, RayGrab } from "@react-three/xr";
+import { XR, Controllers, Hands, Interactive, useXR, useInteraction } from "@react-three/xr";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -66,8 +66,13 @@ async function requestVRSession(gl: unknown): Promise<unknown> {
     requestSession: (m: string, init?: Record<string, unknown>) => Promise<unknown>;
   } };
   if (!nav.xr) throw new Error("WebXR no disponible en este navegador");
+  // dom-overlay: hace visible el DOM (inputs de chat de drei <Html>)
+  // durante la sesión inmersiva — sin él, el input de chat es invisible.
   const session = await nav.xr.requestSession("immersive-vr", {
-    optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking", "layers"],
+    optionalFeatures: [
+      "local-floor", "bounded-floor", "hand-tracking", "layers", "dom-overlay",
+    ],
+    domOverlay: { root: document.body },
   });
   const renderer = gl as {
     xr: {
@@ -92,9 +97,11 @@ async function requestVRSession(gl: unknown): Promise<unknown> {
 function PlayerRig({
   children,
   onToggleMenu,
+  onToggleX,
 }: {
   children?: React.ReactNode;
   onToggleMenu?: () => void;
+  onToggleX?: () => void;
 }) {
   const player = useXR((s) => s.player);
   const gl = useThree((s) => s.gl);
@@ -102,35 +109,35 @@ function PlayerRig({
   const strafe = useRef(new THREE.Vector3());
   const snapArmed = useRef(true);
   const menuArmed = useRef(true);
+  const menuArmedX = useRef(true);
 
   useFrame((_, delta) => {
     const session = glXRSessionRef.current as XRSession | null;
     if (!session || !player) return;
 
-    let mx = 0; let my = 0; let tx = 0; let menuPressed = false;
+    let mx = 0; let my = 0; let tx = 0;
+    let source4 = false; let source5 = false;
     for (const source of session.inputSources) {
       if (!source.gamepad) continue;
       if (source.handedness === "left") {
         mx = source.gamepad.axes[2] ?? 0;
         my = source.gamepad.axes[3] ?? 0;
-        // Mapeo xr-standard en Quest: 0=trigger 1=grip 2=touchpad(-)
-        // 3=stick-click 4=X 5=Y. El botón FÍSICO de menú está RESERVADO
-        // por el OS (abre el menú universal de Quest) y NUNCA llega al
-        // navegador (W3C WebXR Gamepads §3.4) — por eso usamos Y (5).
-        menuPressed = Boolean(source.gamepad.buttons[5]?.pressed);
+        // xr-standard en Quest: 4=X, 5=Y. El botón físico de menú está
+        // reservado por el OS y nunca llega al gamepad (§3.4 W3C).
+        source4 = Boolean(source.gamepad.buttons[4]?.pressed);
+        source5 = Boolean(source.gamepad.buttons[5]?.pressed);
       } else if (source.handedness === "right") {
         tx = source.gamepad.axes[2] ?? 0;
       }
     }
 
-    // Botón menú: alterna el panel (con rearme para un toggle por pulso).
-    if (onToggleMenu && menuPressed && menuArmed.current) {
+    // Toggle wrist menu con Y (button 5) — rearme anti-ráfaga.
+    if (onToggleMenu && source5 && menuArmed.current) {
       onToggleMenu();
       menuArmed.current = false;
-    } else if (!menuPressed) {
+    } else if (!source5) {
       menuArmed.current = true;
     }
-
     // Stick izq: avanzar/retroceder + strafe RELATIVO A LA MIRADA.
     // Fuente autoritativa: la cámara XR interna de three (la que
     // realmente renderiza — su matrixWorld es la pose de mundo del
@@ -150,6 +157,18 @@ function PlayerRig({
       player.position.addScaledVector(dir.current, -my * speed);
       strafe.current.set(-dir.current.z, 0, dir.current.x);
       player.position.addScaledVector(strafe.current, mx * speed);
+    }
+
+    // Botones del control IZQUIERDO:
+    //   Y (5) → wrist menu · X (4) → panel de comandos
+    //   (el botón físico de menú está reservado por el OS de Quest y
+    //   nunca llega al gamepad — W3C WebXR Gamepads §3.4)
+    // X (4) → panel de comandos (toggle, rearme propio)
+    if (onToggleX && source4 && menuArmedX.current) {
+      onToggleX();
+      menuArmedX.current = false;
+    } else if (!source4) {
+      menuArmedX.current = true;
     }
 
     // Stick der (X): snap-turn de 30° con rearme para no girar en ráfaga.
@@ -569,7 +588,7 @@ function DebugPanel({ onClose }: { onClose: () => void }) {
   const nArtifacts = chat.artifacts.size;
 
   return (
-    <RayGrab>
+    <GripGrab>
       <group ref={groupRef}>
         {/* marco */}
         <mesh>
@@ -586,8 +605,42 @@ function DebugPanel({ onClose }: { onClose: () => void }) {
         {btn(0.0, 0.14, "#fbbf24", "Detener", () => chat.stop())}
         {btn(0.185, 0.14, "#fb7185", "Cerrar", onClose)}
       </group>
-    </RayGrab>
+    </GripGrab>
   );
+}
+
+/**
+ * GripGrab — igual que RayGrab de xr v5 pero con SQUEEZE (grip) en vez
+ * de trigger: el trigger queda libre para seleccionar botones dentro del
+ * panel agarrado, y el grip lo toma/suelta. Mantiene el transform relativo
+ * entre el panel y el control mientras se aprieta.
+ */
+function GripGrab({ children }: { children?: React.ReactNode }) {
+  const grabbing = useRef<{ controller: THREE.Object3D } | null>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const prev = useMemo(() => new THREE.Matrix4(), []);
+
+  useInteraction(groupRef, "onSqueezeStart", (e) => {
+    if (!groupRef.current) return;
+    grabbing.current = { controller: e.target.controller };
+    prev.copy(e.target.controller.matrixWorld).invert();
+  });
+  useInteraction(groupRef, "onSqueezeEnd", () => {
+    grabbing.current = null;
+  });
+
+  useFrame(() => {
+    const g = grabbing.current;
+    const group = groupRef.current;
+    if (!g || !group) return;
+    // Deshacer el transform previo y aplicar el actual del control.
+    group.applyMatrix4(prev);
+    group.applyMatrix4(g.controller.matrixWorld);
+    group.updateMatrixWorld();
+    prev.copy(g.controller.matrixWorld).invert();
+  });
+
+  return <group ref={groupRef}>{children}</group>;
 }
 
 /* ── comandos: voz (PTT) + chat de texto con respuestas ───────── */
@@ -638,7 +691,7 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
   const last = [...chat.messages].slice(-8);
 
   return (
-    <RayGrab>
+    <GripGrab>
       <group ref={groupRef}>
         <mesh>
           <planeGeometry args={[0.95, 0.68]} />
@@ -789,7 +842,7 @@ function CommandsPanel({ onClose }: { onClose: () => void }) {
           </group>
         )}
       </group>
-    </RayGrab>
+    </GripGrab>
   );
 }
 
@@ -911,6 +964,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const [commandsOpen, setCommandsOpen] = useState(false);
   const exitVR = useExitVR();
   const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
+  const toggleCommands = useCallback(() => setCommandsOpen((o) => !o), []);
 
   const enterVR = useCallback(async () => {
     setVrError("");
@@ -962,7 +1016,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
         <XR>
           {/* Controllers/Hands/menú viven DENTRO del rig: heredan el
               transform del jugador y viajan con él al caminar/girar. */}
-          <PlayerRig onToggleMenu={toggleMenu}>
+          <PlayerRig onToggleMenu={toggleMenu} onToggleX={toggleCommands}>
             <Controllers />
             <Hands />
             <WristMenu
