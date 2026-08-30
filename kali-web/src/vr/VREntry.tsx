@@ -1131,21 +1131,28 @@ function Widget2DPanel({ ev, index }: { ev: ArtifactEvent; index: number }) {
   const [placed, setPlaced] = useState(false);
   const [page, setPage] = useState(0);
 
-  // Colocación en arco frente al spawn; no interfiere con los ui3d.
+  // Colocación: al montar Y al entrar en XR (la cámara 2D y la pose XR
+  // difieren; sin esto los paneles quedan donde estabas en el lobby).
   useEffect(() => {
-    if (placed || !groupRef.current) return;
-    const camPos = new THREE.Vector3();
-    const camDir = new THREE.Vector3();
-    camera.getWorldPosition(camPos);
-    camera.getWorldDirection(camDir);
-    camDir.y = 0;
-    camDir.normalize();
-    const angle = (index % 3 - 1) * 0.55;
-    const dirRot = camDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-    groupRef.current.position.copy(camPos).addScaledVector(dirRot, 2.2);
-    groupRef.current.position.y = 1.6;
-    groupRef.current.lookAt(camPos);
-    setPlaced(true);
+    const unsub = glXRSessionRef as { subscribeStart?: (cb: () => void) => () => void };
+    const place = () => {
+      if (!groupRef.current) return;
+      const camPos = new THREE.Vector3();
+      const camDir = new THREE.Vector3();
+      camera.getWorldPosition(camPos);
+      camera.getWorldDirection(camDir);
+      camDir.y = 0;
+      camDir.normalize();
+      const angle = (index % 3 - 1) * 0.55;
+      const dirRot = camDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+      groupRef.current.position.copy(camPos).addScaledVector(dirRot, 2.2);
+      groupRef.current.position.y = 1.6;
+      groupRef.current.lookAt(camPos);
+      setPlaced(true);
+    };
+    place();
+    // Re-colocar cuando arranque la sesión XR (si el ref lo expone).
+    if (unsub.subscribeStart) return unsub.subscribeStart(place);
   }, [placed, camera, index]);
 
   // ── trocear contenido en líneas para el layout del panel ──
@@ -1330,9 +1337,9 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   );
 }
 
-/** ui3d artifacts that are complete AND have full content in memory. */
+/** Artefactos vivos con contenido renderizable (cualquier windowType). */
 function isLiveComplete(ev: ArtifactEvent): boolean {
-  return ev.windowType === "ui3d" && ev.update !== "close" && ev.content != null;
+  return ev.update !== "close" && ev.content != null;
 }
 
 /** Compact in-XR mirror of the live ui3d artifact count. */
