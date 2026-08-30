@@ -2,18 +2,23 @@
  * VREntry — default immersive environment ("Enter VR" lobby).
  *
  * Routes: /vr (lobby) and /vr/session/:sid (attach to a Kali session).
- * A fixed default scene — floor, walls, center pedestal, soft sky orb —
- * that anyone can enter from the Quest browser: open /#/vr, press the
- * button, grant the permission, and you're inside the room. Live ui3d
- * artifacts from the attached session are fetched (REST) and float as
- * panels in the room. The lobby reuses StageProvider, so the WS
- * connection, session attach and the artifact map are the same objects
- * the main UI uses — no parallel state.
+ *
+ * Sala: grilla verde estilo matrix "infinita" (la grilla sigue al jugador
+ * con snapping, la niebla oculta el borde), primitivas interactivas
+ * (hover/select con el ray del control) y artefactos ui3d vivos de la
+ * sesión flotando como paneles.
+ *
+ * Locomotion: stick izquierdo avanza/strafea (mueve el RIG, el parent de
+ * la cámara — en WebXR mover camera.position no mueve al jugador);
+ * stick derecho hace snap-turn de 30°.
+ *
+ * Menú de salida: panel anclado al controlador izquierdo que mira
+ * siempre a la cabeza (lookAt) con botón SALIR seleccionable por ray.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Text } from "@react-three/drei";
 import { XR, Controllers, Hands, Interactive, useXR } from "@react-three/xr";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
@@ -22,9 +27,12 @@ import type { ArtifactEvent } from "../lib/protocol";
 import { Ui3dSceneNodes, type Ui3dScene } from "../components/widgets/Ui3dWidget";
 import { parseContent } from "../components/widgets/base/DataWidget";
 
-/* ── WebXR plumbing (shared logic with Ui3dWidget) ────────────── */
+/* ── WebXR plumbing ───────────────────────────────────────────── */
 
 type VRSupport = "checking" | "supported" | "unsupported";
+
+/** Ref module-level a la sesión XR activa (la leen locomotion/exit). */
+const glXRSessionRef = { current: null as unknown };
 
 function useVRSupport(): VRSupport {
   const [support, setSupport] = useState<VRSupport>("checking");
@@ -72,20 +80,184 @@ async function requestVRSession(gl: unknown): Promise<unknown> {
   return session;
 }
 
-/* ── default room (escena predeterminada) ─────────────────────── */
+/* ── player rig + locomotion ──────────────────────────────────── */
 
-const DEFAULT_ROOM: Ui3dScene = {
-  root: "sala",
-  elements: {
-    sala: {
-      type: "group",
-      children: ["suelo", "pedestal", "estrella"],
-    },
-    suelo: { type: "box", position: [0, -0.05, 0], scale: [8, 0.1, 8], color: "#1e293b" },
-    pedestal: { type: "box", position: [0, 0.5, 0], scale: [0.9, 1, 0.9], color: "#334155" },
-    estrella: { type: "sphere", position: [0, 3.2, 0], scale: 0.5, color: "#fbbf24" },
-  },
-};
+/**
+ * Dolly VR: parenting la cámara a este group y moviendo el GROUP es la
+ * forma canónica de locomotion en three.js WebXR (la pose del headset
+ * llega relativa al reference space; mover camera.position no mueve al
+ * jugador, por eso antes el stick no funcionaba).
+ */
+function PlayerRig() {
+  const camera = useThree((s) => s.camera);
+  const rigRef = useRef<THREE.Group>(null);
+  const dir = useRef(new THREE.Vector3());
+  const strafe = useRef(new THREE.Vector3());
+  const snapArmed = useRef(true);
+
+  useEffect(() => {
+    const rig = rigRef.current;
+    if (!rig) return;
+    rig.add(camera);
+    return () => {
+      if (camera.parent === rig) rig.remove(camera);
+    };
+  }, [camera]);
+
+  useFrame((_, delta) => {
+    const rig = rigRef.current;
+    const session = glXRSessionRef.current as XRSession | null;
+    if (!rig || !session) return;
+
+    let mx = 0; let my = 0; let tx = 0;
+    for (const source of session.inputSources) {
+      if (!source.gamepad) continue;
+      if (source.handedness === "left") {
+        mx = source.gamepad.axes[2] ?? 0;
+        my = source.gamepad.axes[3] ?? 0;
+      } else if (source.handedness === "right") {
+        tx = source.gamepad.axes[2] ?? 0;
+      }
+    }
+
+    // Stick izq: avanzar/retroceder + strafe, en la dirección de la vista.
+    if (Math.abs(mx) > 0.15 || Math.abs(my) > 0.15) {
+      camera.getWorldDirection(dir.current);
+      dir.current.y = 0;
+      dir.current.normalize();
+      strafe.current.set(-dir.current.z, 0, dir.current.x);
+      const speed = 2.4 * delta; // m/s — caminata cómoda
+      rig.position.addScaledVector(dir.current, -my * speed);
+      rig.position.addScaledVector(strafe.current, mx * speed);
+    }
+
+    // Stick der (X): snap-turn de 30° con rearme para no girar en ráfaga.
+    if (snapArmed.current && Math.abs(tx) > 0.7) {
+      rig.rotation.y -= Math.sign(tx) * Math.PI / 6;
+      snapArmed.current = false;
+    } else if (Math.abs(tx) < 0.4) {
+      snapArmed.current = true;
+    }
+  });
+
+  return <group ref={rigRef} />;
+}
+
+/* ── sala: grilla matrix infinita ─────────────────────────────── */
+
+/** Celda de la grilla (size/divisions del gridHelper). */
+const GRID_CELL = 2;
+
+/** Grilla verde matrix que sigue al jugador con snapping (parece infinita). */
+function MatrixFloor() {
+  const camera = useThree((s) => s.camera);
+  const grid = useRef<THREE.GridHelper>(null);
+  const tmp = useRef(new THREE.Vector3());
+
+  useFrame(() => {
+    if (!grid.current) return;
+    camera.getWorldPosition(tmp.current);
+    // Snap a celdas para que el patrón no "nade" bajo los pies.
+    grid.current.position.set(
+      Math.round(tmp.current.x / GRID_CELL) * GRID_CELL,
+      0,
+      Math.round(tmp.current.z / GRID_CELL) * GRID_CELL,
+    );
+  });
+
+  return (
+    <>
+      <gridHelper
+        ref={grid}
+        args={[600, 600 / GRID_CELL, "#22c55e", "#0e3b28"]}
+        position={[0, 0, 0]}
+      />
+      {/* piso sólido oscuro justo bajo la grilla */}
+      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[600, 600]} />
+        <meshStandardMaterial color="#04070a" roughness={1} metalness={0} />
+      </mesh>
+    </>
+  );
+}
+
+/* ── primitivas interactivas ──────────────────────────────────── */
+
+type PrimKind = "box" | "sphere" | "torus" | "cone" | "cylinder";
+
+function InteractivePrimitive({
+  position, kind, color,
+}: {
+  position: [number, number, number];
+  kind: PrimKind;
+  color: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [on, setOn] = useState(false);
+  const mesh = useRef<THREE.Mesh>(null);
+  const targetScale = useRef(new THREE.Vector3(1, 1, 1));
+
+  useFrame((state) => {
+    if (!mesh.current) return;
+    const t = state.clock.elapsedTime;
+    // Flotación suave, desfasada por posición para que no bailen en bloque.
+    mesh.current.position.y = position[1] + Math.sin(t * 1.1 + position[0] * 1.7) * 0.07;
+    mesh.current.scale.lerp(targetScale.current, 0.18);
+  });
+
+  useEffect(() => {
+    const s = hovered ? 1.2 : 1;
+    targetScale.current.set(s, s, s);
+  }, [hovered]);
+
+  const base = on ? "#22c55e" : color;
+
+  return (
+    <Interactive
+      onHover={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      onSelect={() => setOn((o) => !o)}
+    >
+      <mesh ref={mesh} position={position}>
+        {kind === "box" && <boxGeometry args={[0.8, 0.8, 0.8]} />}
+        {kind === "sphere" && <sphereGeometry args={[0.45, 32, 32]} />}
+        {kind === "torus" && <torusGeometry args={[0.38, 0.14, 16, 48]} />}
+        {kind === "cone" && <coneGeometry args={[0.42, 0.9, 32]} />}
+        {kind === "cylinder" && <cylinderGeometry args={[0.38, 0.38, 0.8, 32]} />}
+        <meshStandardMaterial
+          color={base}
+          emissive={hovered ? base : "#000000"}
+          emissiveIntensity={hovered ? 0.6 : 0}
+          roughness={0.35}
+          metalness={0.15}
+        />
+      </mesh>
+    </Interactive>
+  );
+}
+
+/** Arco de primitivas frente al spawn — todas agarrables con el ray. */
+function InteractivePrimitives() {
+  const items: Array<{ kind: PrimKind; color: string; x: number }> = [
+    { kind: "box", color: "#38bdf8", x: -3 },
+    { kind: "sphere", color: "#a78bfa", x: -1.5 },
+    { kind: "torus", color: "#fbbf24", x: 0 },
+    { kind: "cone", color: "#f472b6", x: 1.5 },
+    { kind: "cylinder", color: "#fb7185", x: 3 },
+  ];
+  return (
+    <>
+      {items.map((it) => (
+        <InteractivePrimitive
+          key={it.kind}
+          kind={it.kind}
+          color={it.color}
+          position={[it.x, 1.1, -3.2]}
+        />
+      ))}
+    </>
+  );
+}
 
 /* ── live ui3d artifacts → panels in the room ─────────────────── */
 
@@ -102,7 +274,6 @@ function sceneFromEvent(ev: ArtifactEvent): Ui3dScene | null {
 /** One floating panel per live ui3d artifact (fetches content on mount). */
 function ScenePanel({ ev, index, sessionId }: { ev: ArtifactEvent; index: number; sessionId: string | null }) {
   const [scene, setScene] = useState<Ui3dScene | null>(() => sceneFromEvent(ev));
-  const [error, setError] = useState(false);
 
   useEffect(() => {
     const parsed = sceneFromEvent(ev);
@@ -112,7 +283,6 @@ function ScenePanel({ ev, index, sessionId }: { ev: ArtifactEvent; index: number
     }
     // Metadata-only replay: fetch full content via REST.
     if (!sessionId || !ev.id) {
-      setError(true);
       return;
     }
     let alive = true;
@@ -122,23 +292,22 @@ function ScenePanel({ ev, index, sessionId }: { ev: ArtifactEvent; index: number
         const asEvent = { ...ev, content: res.content } as ArtifactEvent;
         setScene(sceneFromEvent(asEvent));
       })
-      .catch(() => { if (alive) setError(true); });
+      .catch(() => undefined);
     return () => { alive = false; };
   }, [ev, sessionId]);
 
-  const parsed = scene ?? (error ? DEFAULT_ROOM : null);
-  if (!parsed) return null;
+  if (!scene) return null;
 
   const cols = 3;
   const col = index % cols;
   const row = Math.floor(index / cols);
   const x = (col - 1) * 2.6;
   const y = 1.9 - row * 1.5;
-  const z = -3;
+  const z = -6;
 
   return (
     <group position={[x, y, z]} scale={0.28}>
-      <Ui3dSceneNodes scene={parsed} />
+      <Ui3dSceneNodes scene={scene} />
     </group>
   );
 }
@@ -153,88 +322,80 @@ function ArtifactPanels({ sessionId, live }: { sessionId: string | null; live: A
   );
 }
 
-/* ── room canvas ──────────────────────────────────────────────── */
-
-/** Thumbstick locomotion: mueve el jugador con el stick izq (X/Y del gamepad). */
-function ThumbstickLocomotion() {
-  const camera = useThree((s) => s.camera);
-  const dir = useRef(new THREE.Vector3());
-
-  useFrame((_, delta) => {
-    const session = glXRSessionRef.current as XRSession | null;
-    if (!session) return;
-    for (const source of session.inputSources) {
-      if (source.handedness !== "left" || !source.gamepad) continue;
-      const [x, y] = [source.gamepad.axes[2] ?? 0, source.gamepad.axes[3] ?? 0];
-      if (Math.abs(x) < 0.15 && Math.abs(y) < 0.15) continue;
-      // Avanza en la dirección de la vista (solo plano XZ), gira con X.
-      camera.getWorldDirection(dir.current);
-      dir.current.y = 0;
-      dir.current.normalize();
-      const speed = 2.2 * delta; // m/s — caminata cómoda
-      camera.position.addScaledVector(dir.current, -y * speed);
-      // Strafe lateral con el eje X del stick.
-      const strafe = new THREE.Vector3(-dir.current.z, 0, dir.current.x);
-      camera.position.addScaledVector(strafe, x * speed);
-    }
-  });
-  return null;
-}
-
-/** Ref global al renderer para leer la sesión XR activa desde useFrame. */
-const glXRSessionRef = { current: null as unknown };
+/* ── menú de salida en el controlador izquierdo ───────────────── */
 
 /**
- * Menú en el controlador izquierdo: se mantiene frente al grip izquierdo y
- * ofrece "Salir de VR". Se activa apuntando con el ray y presionando trigger.
+ * Panel "SALIR" anclado al grip izquierdo que SIEMPRE mira a la cabeza
+ * (lookAt a la cámara) — arregla el panel invertido: antes copiábamos la
+ * quaternion del grip, que apunta hacia abajo/atrás según el control.
  */
 function ExitMenuOnLeftController({ onExit }: { onExit: () => void }) {
-  const [visible, setVisible] = useState(true);
   const controllers = useXR((s) => s.controllers);
+  const camera = useThree((s) => s.camera);
   const left = controllers.find((c) => c.inputSource?.handedness === "left");
   const groupRef = useRef<THREE.Group>(null);
-
-  // El panel sigue al grip del controlador izquierdo.
-  useFrame(() => {
-    if (!left || !groupRef.current) return;
-    left.grip.getWorldPosition(groupRef.current.position);
-    left.grip.getWorldQuaternion(groupRef.current.quaternion);
-    groupRef.current.translateX(0.12);
-    groupRef.current.translateY(0.05);
+  const tmp = useRef({
+    pos: new THREE.Vector3(),
+    cam: new THREE.Vector3(),
+    dir: new THREE.Vector3(),
   });
 
-  if (!left || !visible) return null;
+  useFrame(() => {
+    if (!left || !groupRef.current) return;
+    left.grip.getWorldPosition(tmp.current.pos);
+    camera.getWorldPosition(tmp.current.cam);
+    tmp.current.dir.copy(tmp.current.cam).sub(tmp.current.pos).normalize();
+    // Separado del control hacia la cabeza + orientado de frente.
+    groupRef.current.position.copy(tmp.current.pos).addScaledVector(tmp.current.dir, 0.08);
+    groupRef.current.lookAt(tmp.current.cam);
+  });
+
+  if (!left) return null;
 
   return (
-    <group ref={groupRef} scale={0.35}>
-      {/* marco del panel */}
+    <group ref={groupRef} scale={0.55}>
       <mesh>
-        <planeGeometry args={[0.62, 0.34]} />
-        <meshBasicMaterial color="#0b0f14" transparent opacity={0.92} />
+        <planeGeometry args={[0.58, 0.32]} />
+        <meshBasicMaterial color="#0b0f14" transparent opacity={0.94} side={THREE.DoubleSide} />
       </mesh>
-      {/* título — Text de drei via lazy import dinámico no necesario: usamos
-          un plano con color en vez de fuente para el MVP del menú. */}
-      <mesh position={[-0.16, 0.08, 0.01]}>
-        <planeGeometry args={[0.26, 0.08]} />
-        <meshBasicMaterial color="#38bdf8" />
-      </mesh>
-      {/* botón SALIR — interactivo por ray del controlador derecho */}
-      <Interactive
-        onSelect={() => {
-          onExit();
-          setVisible(false);
-        }}
+      <Text
+        position={[0, 0.09, 0.005]}
+        fontSize={0.05}
+        color="#38bdf8"
+        anchorX="center"
+        anchorY="middle"
       >
-        <mesh position={[0, -0.06, 0.01]}>
-          <planeGeometry args={[0.5, 0.14]} />
-          <meshBasicMaterial color="#fb7185" />
+        MENU VR
+      </Text>
+      <Text
+        position={[0, 0.035, 0.005]}
+        fontSize={0.032}
+        color="#94a3b8"
+        anchorX="center"
+        anchorY="middle"
+      >
+        apunta y presiona
+      </Text>
+      <Interactive onSelect={onExit}>
+        <mesh position={[0, -0.06, 0.005]}>
+          <planeGeometry args={[0.44, 0.13]} />
+          <meshBasicMaterial color="#fb7185" side={THREE.DoubleSide} />
         </mesh>
+        <Text
+          position={[0, -0.06, 0.02]}
+          fontSize={0.06}
+          color="#0b0f14"
+          anchorX="center"
+          anchorY="middle"
+        >
+          SALIR
+        </Text>
       </Interactive>
     </group>
   );
 }
 
-/** Maneja el fin de sesión XR para volver al lobby 2D limpio. */
+/** Sale de la sesión XR limpiamente (vuelve al lobby 2D). */
 function useExitVR() {
   return useCallback(() => {
     const session = glXRSessionRef.current as { end?: () => Promise<void> } | null;
@@ -243,6 +404,8 @@ function useExitVR() {
     }
   }, []);
 }
+
+/* ── room canvas ──────────────────────────────────────────────── */
 
 function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: ArtifactEvent[] }) {
   const glRef = useRef<unknown>(null);
@@ -291,23 +454,25 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 2.2, 5.5], fov: 55 }} dpr={[1, 2]} gl={{ antialias: true }}>
-        <color attach="background" args={["#0b0f14"]} />
-        <fog attach="fog" args={["#0b0f14", 8, 22]} />
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[4, 8, 4]} intensity={1.0} />
+      <Canvas camera={{ position: [0, 1.6, 2], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true }}>
+        <color attach="background" args={["#04070a"]} />
+        <fog attach="fog" args={["#04070a", 10, 40]} />
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[4, 8, 4]} intensity={0.9} />
+        <pointLight position={[0, 2.5, -2]} intensity={12} distance={9} color="#22c55e" />
 
         <XR>
-          <Ui3dSceneNodes scene={DEFAULT_ROOM} />
+          <PlayerRig />
+          <MatrixFloor />
+          <InteractivePrimitives />
           <Ui3dSceneNodes scene={liveRoomScene(live)} />
           <ArtifactPanels sessionId={sessionId} live={live} />
-          <ThumbstickLocomotion />
           <ExitMenuOnLeftController onExit={exitVR} />
           <Controllers />
           <Hands />
         </XR>
 
-        <OrbitControls makeDefault target={[0, 1.2, 0]} maxPolarAngle={Math.PI / 2} />
+        <OrbitControls makeDefault target={[0, 1.2, -2]} maxPolarAngle={Math.PI / 2} />
         <GLBridge glRef={glRef} />
       </Canvas>
 
@@ -335,7 +500,7 @@ function liveRoomScene(live: ArtifactEvent[]): Ui3dScene {
       type: "sphere",
       position: [
         Math.cos((i / Math.max(n, 1)) * Math.PI * 2) * 2.2,
-        1.2 + (i % 2) * 0.4,
+        1.4 + (i % 2) * 0.4,
         Math.sin((i / Math.max(n, 1)) * Math.PI * 2) * 2.2,
       ],
       scale: 0.22,
@@ -386,7 +551,7 @@ function VRLobbyInner() {
 }
 
 function useMemoLive(artifacts: Map<string, ArtifactEvent>): ArtifactEvent[] {
-  return [...artifacts.values()].filter(isLiveComplete);
+  return useMemo(() => [...artifacts.values()].filter(isLiveComplete), [artifacts]);
 }
 
 /* ── exported route component ─────────────────────────────────── */
