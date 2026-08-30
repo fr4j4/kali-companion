@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
-import { XR, Controllers, Hands, Interactive, useXR } from "@react-three/xr";
+import { XR, Controllers, Hands, Interactive, useXR, RayGrab } from "@react-three/xr";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -113,8 +113,9 @@ function PlayerRig({
       if (source.handedness === "left") {
         mx = source.gamepad.axes[2] ?? 0;
         my = source.gamepad.axes[3] ?? 0;
-        // Quest: button 4 = botón de menú del control izquierdo.
-        menuPressed = Boolean(source.gamepad.buttons[4]?.pressed);
+        // Quest: button 6 = botón de MENÚ (el pequeño, bajo X/Y).
+        // button 4 = X y button 5 = Y — no son el de menú.
+        menuPressed = Boolean(source.gamepad.buttons[6]?.pressed);
       } else if (source.handedness === "right") {
         tx = source.gamepad.axes[2] ?? 0;
       }
@@ -354,22 +355,42 @@ function WristMenu({
   open,
   onExit,
   onClose,
+  onOpenDebug,
 }: {
   open: boolean;
   onExit: () => void;
   onClose: () => void;
+  onOpenDebug: () => void;
 }) {
   const controllers = useXR((s) => s.controllers);
+  const camera = useThree((s) => s.camera);
   const left = controllers.find((c) => c.inputSource?.handedness === "left");
   const { chat } = useStage();
   const groupRef = useRef<THREE.Group>(null);
+  const tmp = useRef({
+    grip: new THREE.Vector3(),
+    cam: new THREE.Vector3(),
+    right: new THREE.Vector3(),
+    camDir: new THREE.Vector3(),
+  });
 
-  // Anclado rígido al grip: posición+rotación locales (no lookAt —
-  // gira con la muñeca como un reloj de verdad, "inmerso").
+  // Posición: al costado DERECHO del control izquierdo (desde la vista
+  // del usuario). Orientación: billboard hacia la cabeza (lookAt) — así
+  // el texto siempre se lee correctamente, sin espejos.
   useFrame(() => {
     if (!left || !groupRef.current) return;
-    groupRef.current.position.copy(left.grip.position);
-    groupRef.current.quaternion.copy(left.grip.quaternion);
+    // "Derecha del usuario": perpendicular a la vista, en el plano XZ.
+    camera.getWorldDirection(tmp.current.camDir);
+    tmp.current.right.set(-tmp.current.camDir.z, 0, tmp.current.camDir.x).normalize();
+    left.grip.getWorldPosition(tmp.current.grip);
+    camera.getWorldPosition(tmp.current.cam);
+    const anchor = tmp.current.grip
+      .clone()
+      .addScaledVector(tmp.current.right, 0.14)
+      .addScaledVector(tmp.current.camDir, -0.02)
+      .add(new THREE.Vector3(0, 0.04, 0));
+    groupRef.current.position.copy(anchor);
+    groupRef.current.lookAt(tmp.current.cam);
   });
 
   if (!left || !open) return null;
@@ -429,7 +450,11 @@ function WristMenu({
           {/* acciones de la UI 2D */}
           {item(0.07, "#38bdf8", "Nueva sesión", () => chat.newSession())}
           {item(0.012, "#fbbf24", "Detener Kali", () => chat.stop())}
-          {item(-0.046, "#94a3b8", "Cerrar menú", onClose)}
+          {item(-0.046, "#a78bfa", "Panel debug", () => {
+            onOpenDebug();
+            onClose();
+          })}
+          {item(-0.105, "#94a3b8", "Cerrar menú", onClose)}
 
           {/* salir de VR */}
           {item(-0.105, "#fb7185", "Salir de VR", onExit)}
@@ -447,6 +472,71 @@ function useExitVR() {
       session.end().catch(() => undefined);
     }
   }, []);
+}
+
+/** Panel de debug flotante: agarrable con el ray (RayGrab), botones en vivo. */
+function DebugPanel({ onClose }: { onClose: () => void }) {
+  const { chat } = useStage();
+  const camera = useThree((s) => s.camera);
+  const groupRef = useRef<THREE.Group>(null);
+  const [placed, setPlaced] = useState(false);
+
+  // Spawn frente al usuario (a 1.2 m) solo la primera vez; después queda
+  // donde lo dejes (RayGrab toma el control del transform al arrastrar).
+  useEffect(() => {
+    if (placed || !groupRef.current) return;
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
+    groupRef.current.position.copy(camPos).addScaledVector(camDir, 1.2);
+    groupRef.current.position.y = 1.4;
+    groupRef.current.lookAt(camPos);
+    setPlaced(true);
+  }, [placed, camera]);
+
+  const btn = (x: number, w: number, color: string, text: string, action: () => void) => (
+    <Interactive onSelect={action}>
+      <group position={[x, -0.09, 0.002]}>
+        <mesh>
+          <planeGeometry args={[w, 0.07]} />
+          <meshBasicMaterial color={color} transparent opacity={0.4} depthWrite={false} />
+        </mesh>
+        <group position={[0, 0, 0.002]}>
+          <Text fontSize={0.028} color="#e2e8f0" anchorX="center" anchorY="middle">
+            {text}
+          </Text>
+        </group>
+      </group>
+    </Interactive>
+  );
+
+  const status = chat.status === "ready" ? "conectado" : chat.status;
+  const sess = chat.sessionId ? `${chat.sessionId.slice(0, 8)}…` : "—";
+  const nArtifacts = chat.artifacts.size;
+
+  return (
+    <RayGrab>
+      <group ref={groupRef}>
+        {/* marco */}
+        <mesh>
+          <planeGeometry args={[0.56, 0.3]} />
+          <meshBasicMaterial color="#0b0f14" transparent opacity={0.72} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+        {/* header con título + cerrar */}
+        <group position={[0, 0.115, 0.002]}>
+          <Text fontSize={0.026} color="#22c55e" anchorX="center" anchorY="middle">
+            {`DEBUG · ${status} · sesión ${sess} · ${nArtifacts} artifacts`}
+          </Text>
+        </group>
+        {btn(-0.17, 0.16, "#38bdf8", "Nueva sesión", () => chat.newSession())}
+        {btn(0.0, 0.14, "#fbbf24", "Detener", () => chat.stop())}
+        {btn(0.185, 0.14, "#fb7185", "Cerrar", onClose)}
+      </group>
+    </RayGrab>
+  );
 }
 
 /* ── room canvas ──────────────────────────────────────────────── */
@@ -481,6 +571,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const [vrError, setVrError] = useState("");
   const [vrBusy, setVrBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const exitVR = useExitVR();
   const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
 
@@ -537,8 +628,14 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
           <PlayerRig onToggleMenu={toggleMenu}>
             <Controllers />
             <Hands />
-            <WristMenu open={menuOpen} onExit={exitVR} onClose={() => setMenuOpen(false)} />
+            <WristMenu
+              open={menuOpen}
+              onExit={exitVR}
+              onClose={() => setMenuOpen(false)}
+              onOpenDebug={() => setDebugOpen(true)}
+            />
           </PlayerRig>
+          {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
           <MatrixFloor />
           <VRDebugCompass />
           <InteractivePrimitives />
