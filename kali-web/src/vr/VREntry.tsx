@@ -18,8 +18,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Text } from "@react-three/drei";
+import { OrbitControls, Text, Html } from "@react-three/drei";
 import { XR, Controllers, Hands, Interactive, useXR, useInteraction } from "@react-three/xr";
+import { widgetRegistry } from "../components/widgets/widgetRegistry";
+import type { WindowType } from "../workspace/types";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -1117,9 +1120,12 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
 }
 
 /**
- * Panel inmerso de artefacto 2D — nativo 3D, fiel al tipo (tabla como
- * tabla, checklist con checkboxes, code monoespaciada, markdown con
- * headings), con botón de CERRAR para quitarlo del mundo.
+ * Widget2DPanel — renderiza el artefacto con el MISMO widget del canvas
+ * 2D (widgetRegistry) dentro de drei <Html transform> → fidelidad total
+ * (tablas ordenables, documentos estilizados, iframes de html...).
+ * Requiere dom-overlay (pedido en requestSession). Agarrable por grip;
+ * botón ✕ del header lo cierra. Fallback: render nativo si el tipo no
+ * tiene widget en el registry.
  */
 function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: number; onClose: () => void }) {
   const camera = useThree((s) => s.camera);
@@ -1146,38 +1152,70 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
     place();
   }, [placed, camera, index]);
 
-  const W = 0.95;
-  const bodyTop = 0.36;
+  const wt = ev.windowType as WindowType;
+  const entry = widgetRegistry[wt];
+  const Widget = entry?.component;
+  const fallback = !Widget;
 
   return (
-    <group ref={groupRef}>
-      <mesh>
-        <planeGeometry args={[W, 0.95]} />
-        <meshBasicMaterial color="#0b0f14" transparent opacity={0.92} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      {/* header */}
-      <group position={[0, 0.415, 0.003]}>
-        <Text fontSize={0.023} color="#38bdf8" anchorX="center" anchorY="middle" maxWidth={W - 0.14}>
-          {`${ev.title || ev.windowType} · ${ev.windowType}`}
-        </Text>
+    <GripGrab>
+      <group ref={groupRef}>
+        {/* marco 3D de fondo (da cuerpo al panel y contraste al DOM) */}
+        <mesh>
+          <planeGeometry args={[0.86, 0.62]} />
+          <meshBasicMaterial color="#0b0f14" transparent opacity={0.96} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+        <Html
+          transform
+          distanceFactor={0.5}
+          occlude={false}
+          position={[0, 0, 0.01]}
+          style={{ width: 470 }}
+        >
+          <div
+            style={{
+              background: "#0b0f14",
+              border: "1px solid #1e293b",
+              borderRadius: 10,
+              overflow: "hidden",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+            }}
+          >
+            {/* header DOM: título + cerrar */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "6px 10px", borderBottom: "1px solid #1e293b",
+              background: "#111827",
+            }}>
+              <span style={{ color: "#38bdf8", fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {(ev.title || ev.windowType) + " · " + ev.windowType}
+              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  width: 26, height: 26, borderRadius: 6, border: "none",
+                  background: "#fb7185", color: "#04070a",
+                  fontWeight: 700, cursor: "pointer", flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {/* cuerpo: el widget real del canvas 2D */}
+            <div style={{ width: "100%", maxHeight: 380, overflow: "auto", background: "#0b0f14" }}>
+              {fallback ? (
+                <ArtifactBody ev={ev} />
+              ) : (
+                <ErrorBoundary>
+                  <Widget content={ev} />
+                </ErrorBoundary>
+              )}
+            </div>
+          </div>
+        </Html>
       </group>
-      {/* cerrar */}
-      <Interactive onSelect={onClose} onHover={() => {}}>
-        <group position={[W / 2 - 0.05, 0.415, 0.004]}>
-          <mesh>
-            <planeGeometry args={[0.08, 0.04]} />
-            <meshBasicMaterial color="#fb7185" transparent opacity={0.6} depthWrite={false} />
-          </mesh>
-          <group position={[0, 0, 0.002]}>
-            <Text fontSize={0.02} color="#04070a" anchorX="center" anchorY="middle">✕</Text>
-          </group>
-        </group>
-      </Interactive>
-      {/* cuerpo según tipo */}
-      <group position={[0, bodyTop - 0.06, 0.002]}>
-        <ArtifactBody ev={ev} />
-      </group>
-    </group>
+    </GripGrab>
   );
 }
 
