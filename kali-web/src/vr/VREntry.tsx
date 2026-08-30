@@ -1240,31 +1240,25 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
     return (
       <GripGrab>
         <group ref={groupRef}>
-          {/* Header titulo uikit */}
-          <group position={[0, 0.31, 0.012]}>
-            <Container width={440} height={32} backgroundColor="#111827" borderRadius={8} padding={8} flexDirection="row" alignItems="center" justifyContent="space-between">
-              <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " : " + ev.windowType}</UIKitText>
-              <UIKitText fontSize={9} color="#64748b">grip mover</UIKitText>
+          {/* Panel uikit escalado a tamaño mundo 0.86m (420px * 0.002) */}
+          <group scale={[0.0022, 0.0022, 0.0022]} position={[0, 0.28, 0.012]}>
+            <Container width={400} height={34} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" gap={8}>
+              <Container flexGrow={1} flexDirection="column">
+                <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " · " + ev.windowType}</UIKitText>
+              </Container>
+              <Container width={28} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
+                <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
+              </Container>
             </Container>
-          </group>
-          <Interactive onSelect={onClose}>
-            <group position={[0.38, 0.31, 0.014]}>
-              <mesh>
-                <planeGeometry args={[0.07, 0.05]} />
-                <meshBasicMaterial color="#fb7185" transparent opacity={0.92} side={THREE.DoubleSide} />
-              </mesh>
-              <Text fontSize={0.024} color="#04070a" anchorX="center" anchorY="middle">✕</Text>
-            </group>
-          </Interactive>
-          {/* Contenido fiel nativo uikit — scroll Yoga, sin foreignObject */}
-          <group position={[0, -0.06, 0.012]}>
             <Container
-              width={440}
+              width={400}
               height={300}
               backgroundColor="#0b0f14"
               borderRadius={8}
-              padding={6}
+              padding={8}
+              marginTop={6}
               overflow="scroll"
+              scrollbarWidth={4}
               flexDirection="column"
             >
               <VrWidgetRenderer ev={ev} />
