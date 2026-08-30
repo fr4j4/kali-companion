@@ -15,7 +15,7 @@
  * Menú de salida: panel anclado al controlador izquierdo que mira
  * siempre a la cabeza (lookAt) con botón SALIR seleccionable por ray.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Html } from "@react-three/drei";
@@ -1155,7 +1155,6 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
   const wt = ev.windowType as WindowType;
   const entry = widgetRegistry[wt];
   const Widget = entry?.component;
-  const fallback = !Widget;
 
   return (
     <GripGrab>
@@ -1202,15 +1201,19 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
                 ✕
               </button>
             </div>
-            {/* cuerpo: el widget real del canvas 2D */}
-            <div style={{ width: "100%", maxHeight: 380, overflow: "auto", background: "#0b0f14" }}>
-              {fallback ? (
-                <ArtifactBody ev={ev} />
-              ) : (
-                <ErrorBoundary>
-                  <Widget content={ev} />
-                </ErrorBoundary>
-              )}
+            {/* cuerpo: el widget real del canvas 2D — Suspense OBLIGATORIO:
+                los widgets son React.lazy y sin boundary la suspensión
+                deja el panel en negro */}
+            <div style={{ width: "100%", maxHeight: 380, overflow: "auto", background: "#e2e8f0", color: "#04070a" }}>
+              <ErrorBoundary fallback={<pre style={{ padding: 12, whiteSpace: "pre-wrap", fontSize: 12 }}>{ev.content?.slice(0, 2000) ?? "(vacío)"}</pre>}>
+                <Suspense fallback={
+                  <div style={{ padding: 20, textAlign: "center", color: "#334155", fontSize: 13 }}>
+                    cargando widget…
+                  </div>
+                }>
+                  {Widget ? <Widget content={ev} /> : <ArtifactBody ev={ev} />}
+                </Suspense>
+              </ErrorBoundary>
             </div>
           </div>
         </Html>
