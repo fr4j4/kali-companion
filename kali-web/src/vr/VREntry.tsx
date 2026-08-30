@@ -549,15 +549,14 @@ function useExitVR() {
   }, []);
 }
 
-/** Panel de debug flotante: agarrable con el ray (RayGrab), botones en vivo. */
-function DebugPanel({ onClose }: { onClose: () => void }) {
+/** Panel de debug flotante: launchers de ejemplo para cada WindowType + controles. */
+function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenArtifact: (id: string) => void }) {
   const { chat } = useStage();
   const camera = useThree((s) => s.camera);
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
+  const sound = useUISounds();
 
-  // Spawn frente al usuario (a 1.2 m) solo la primera vez; después queda
-  // donde lo dejes (RayGrab toma el control del transform al arrastrar).
   useEffect(() => {
     if (placed || !groupRef.current) return;
     const camPos = new THREE.Vector3();
@@ -566,49 +565,126 @@ function DebugPanel({ onClose }: { onClose: () => void }) {
     camera.getWorldDirection(camDir);
     camDir.y = 0;
     camDir.normalize();
-    groupRef.current.position.copy(camPos).addScaledVector(camDir, 1.2);
-    groupRef.current.position.y = 1.4;
+    groupRef.current.position.copy(camPos).addScaledVector(camDir, 1.4);
+    groupRef.current.position.y = 1.35;
     groupRef.current.lookAt(camPos);
     setPlaced(true);
   }, [placed, camera]);
-
-  const btn = (x: number, w: number, color: string, text: string, action: () => void) => (
-    <Interactive onSelect={action}>
-      <group position={[x, -0.09, 0.002]}>
-        <mesh>
-          <planeGeometry args={[w, 0.07]} />
-          <meshBasicMaterial color={color} transparent opacity={0.4} depthWrite={false} />
-        </mesh>
-        <group position={[0, 0, 0.002]}>
-          <Text fontSize={0.028} color="#e2e8f0" anchorX="center" anchorY="middle">
-            {text}
-          </Text>
-        </group>
-      </group>
-    </Interactive>
-  );
 
   const status = chat.status === "ready" ? "conectado" : chat.status;
   const sess = chat.sessionId ? `${chat.sessionId.slice(0, 8)}…` : "—";
   const nArtifacts = chat.artifacts.size;
 
+  const inject = (windowType: string, title: string, content: string) => {
+    const id = `debug_${windowType}_${Math.random().toString(36).slice(2, 8)}`;
+    const ev = { event: "artifact" as const, id, type: "widget" as const, windowType, title, content, update: "create" as const, phase: "complete" as const };
+    chat.setArtifactContent(id, ev as unknown as import("../lib/protocol").ArtifactEvent);
+    sound.select();
+    // auto-spawn en el mundo para verlo de inmediato
+    onOpenArtifact(id);
+  };
+
+  const samples: Array<{ wt: string; label: string; color: string; make: () => [string, string] }> = [
+    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Demo HTML", `<div style=\"font-family:sans-serif;padding:16px;background:#fff;color:#111\"><h1 style=\"color:#0ea5e9\">Hola VR — Kali</h1><p>Este es un <b>preview real</b> con <i>formato</i> y un <a href=\"#\">link</a>.</p><ul><li>item 1</li><li>item 2 — preview fiel</li></ul><code>const x=1</code></div>`] },
+    { wt: "document", label: "doc", color: "#38bdf8", make: () => ["Doc MD", "# Guía Kali VR\n\nEste **documento** prueba el render markdown en VR.\n\n- Punto 1: fidelidad 1:1\n- Punto 2: paginado\n\n> Cita de ejemplo\n\n`código inline`"] },
+    { wt: "code", label: "code", color: "#a78bfa", make: () => ["Código", "function holaVR() {\n  console.log('Kali en VR — fidelidad 1:1');\n  return 42;\n}\nholaVR();"] },
+    { wt: "json", label: "json", color: "#fbbf24", make: () => ["JSON", JSON.stringify({ name: "Kali", version: 2, vr: true, items: [1,2,3], nested: { a: 1 } }, null, 2)] },
+    { wt: "table", label: "table", color: "#22d3ee", make: () => ["Tabla", JSON.stringify({ rows: [{ nombre: "Kali", tipo: "IA", estado: "activo" }, { nombre: "Yami", tipo: "humano", estado: "en VR" }, { nombre: "Quest 3", tipo: "HMD", estado: "conectado" }] })] },
+    { wt: "checklist", label: "check", color: "#34d399", make: () => ["Checklist", JSON.stringify({ items: [{ text: "Comprar pan", done: true }, { text: "Probar VR fiel", done: false }, { text: "Spawnear artefactos", done: false }, { text: "Grip para mover", done: true }] })] },
+    { wt: "chart", label: "chart", color: "#22d3ee", make: () => ["Chart", JSON.stringify({ rows: [{ mes: "Ene", valor: 12 }, { mes: "Feb", valor: 19 }, { mes: "Mar", valor: 8 }, { mes: "Abr", valor: 24 }, { mes: "May", valor: 15 }] })] },
+    { wt: "mermaid", label: "mermaid", color: "#a78bfa", make: () => ["Mermaid", "graph TD\n  A[Kali] --> B[VR]\n  B --> C[Canvas 2D]\n  C --> D[Fidelidad 1:1]"] },
+    { wt: "qr", label: "qr", color: "#10b981", make: () => ["QR", JSON.stringify({ url: "https://192.168.1.14:8444/#/vr" })] },
+    { wt: "link", label: "link", color: "#60a5fa", make: () => ["Link", JSON.stringify({ url: "https://github.com/fr4j4/kali-companion", title: "Kali Companion — GitHub" })] },
+    { wt: "image", label: "image", color: "#8b5cf6", make: () => ["Imagen", JSON.stringify({ url: "https://picsum.photos/500/300", caption: "Imagen de prueba — picsum" })] },
+    { wt: "media", label: "media", color: "#8b5cf6", make: () => ["Media", JSON.stringify({ url: "https://picsum.photos/500/300", caption: "Media demo" })] },
+    { wt: "entity", label: "entity", color: "#f472b6", make: () => ["Entity", JSON.stringify({ name: "Kali", description: "Asistente IA — companion VR", role: "assistant", status: "online", version: "0.3" })] },
+    { wt: "resource", label: "resource", color: "#fb7185", make: () => ["Resource", JSON.stringify({ name: "Guía VR", description: "Recurso de prueba", url: "https://example.com", tags: ["vr","kali"] })] },
+    { wt: "place", label: "place", color: "#f97316", make: () => ["Place", JSON.stringify({ name: "Santiago", description: "Capital de Chile", lat: -33.4489, lon: -70.6693 })] },
+    { wt: "terminal", label: "terminal", color: "#22c55e", make: () => ["Terminal", "$ ls -la\n total 42\n drwxr-xr-x  kali  4096  .\n -rw-r--r--  app.py  2.1k\n$ echo 'VR listo'\nVR listo"] },
+    { wt: "diff", label: "diff", color: "#eab308", make: () => ["Diff", "diff --git a/app.py b/app.py\n@@ -1,3 +1,4 @@\n-const x=1\n+const x=2 // fix VR\n+// fidelidad\n console.log(x)"] },
+    { wt: "quiz", label: "quiz", color: "#a78bfa", make: () => ["Quiz", JSON.stringify({ questions: [{ q: "¿Capital de Chile?", options: ["Santiago","Lima","Bogotá"], answer: 0 }, { q: "2+2?", options: ["3","4","5"], answer: 1 }] })] },
+    { wt: "reasoning", label: "reason", color: "#94a3b8", make: () => ["Reasoning", "## Razonamiento\n\n1. El usuario quiere fidelidad 1:1.\n2. Canvas2D → CanvasTexture es el camino estable.\n3. HTML vivo requiere raster offscreen (next slice)."] },
+    { wt: "game", label: "game", color: "#f43f5e", make: () => ["Game", JSON.stringify({ game: "tic-tac-toe", board: [["X","","O"],["","X",""],["","",""]] })] },
+    { wt: "controls", label: "controls", color: "#64748b", make: () => ["Controls", JSON.stringify({ controls: [{ type: "slider", label: "Vol", value: 0.7 }] })] },
+    { wt: "widget", label: "widget", color: "#64748b", make: () => ["Widget", JSON.stringify({ msg: "widget genérico demo", ts: Date.now() })] },
+    { wt: "ui3d", label: "ui3d", color: "#38bdf8", make: () => ["UI3D", JSON.stringify({ root: "root", elements: { root: { type: "group", position: [0,0,0], children: ["box1","sphere1"] }, box1: { type: "box", position: [0,0.6,0], color: "#38bdf8" }, sphere1: { type: "sphere", position: [0.5,0.4,0], color: "#f59e0b" } } })] },
+  ];
+
+  const spawnAll = () => { samples.forEach(({ wt, make }) => { const [t,c]=make(); inject(wt,t,c); }); };
+
+  const clearDebug = () => {
+    // elimina solo los debug_* del mapa (mantiene los reales de Kali)
+    let removed = 0;
+    chat.artifacts.forEach((_, id) => { if (id.startsWith("debug_")) { chat.setArtifactContent(id, { ...chat.artifacts.get(id)!, update: "close", content: null } as unknown as import("../lib/protocol").ArtifactEvent); removed++; } });
+    // fallback: si el close no los quita del map, nueva sesión limpia todo
+    if (removed===0) sound.close(); else sound.select();
+  };
+
+  // layout grid 6 cols
+  const cols = 6;
+  const gapX = 0.19;
+  const gapY = 0.072;
+  const startX = -((cols - 1) * gapX) / 2;
+  const startY = 0.22;
+
   return (
     <GripGrab>
       <group ref={groupRef}>
-        {/* marco */}
         <mesh>
-          <planeGeometry args={[0.56, 0.3]} />
-          <meshBasicMaterial color="#0b0f14" transparent opacity={0.72} depthWrite={false} side={THREE.DoubleSide} />
+          <planeGeometry args={[1.38, 0.95]} />
+          <meshBasicMaterial color="#0b0f14" transparent opacity={0.84} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
-        {/* header con título + cerrar */}
-        <group position={[0, 0.115, 0.002]}>
-          <Text fontSize={0.026} color="#22c55e" anchorX="center" anchorY="middle">
-            {`DEBUG · ${status} · sesión ${sess} · ${nArtifacts} artifacts`}
-          </Text>
+        <group position={[0, 0.42, 0.003]}>
+          <Text fontSize={0.026} color="#22c55e" anchorX="center" anchorY="middle">{`DEBUG · ${status} · ${sess} · ${nArtifacts} artifacts`}</Text>
         </group>
-        {btn(-0.17, 0.16, "#38bdf8", "Nueva sesión", () => chat.newSession())}
-        {btn(0.0, 0.14, "#fbbf24", "Detener", () => chat.stop())}
-        {btn(0.185, 0.14, "#fb7185", "Cerrar", onClose)}
+        {/* grid launchers */}
+        {samples.map(({ wt, label, color, make }, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = startX + col * gapX;
+          const y = startY - row * gapY;
+          return (
+            <Interactive key={wt} onSelect={() => { const [t,c]=make(); inject(wt,t,c); }} onHover={() => sound.hover()}>
+              <group position={[x, y, 0.003]}>
+                <mesh>
+                  <planeGeometry args={[0.174, 0.058]} />
+                  <meshBasicMaterial color={color} transparent opacity={0.42} depthWrite={false} />
+                </mesh>
+                <group position={[0, 0, 0.002]}>
+                  <Text fontSize={0.018} color="#e2e8f0" anchorX="center" anchorY="middle">{label}</Text>
+                </group>
+              </group>
+            </Interactive>
+          );
+        })}
+        {/* fila acciones */}
+        <Interactive onSelect={spawnAll} onHover={() => sound.hover()}>
+          <group position={[-0.34, -0.28, 0.003]}>
+            <mesh><planeGeometry args={[0.30, 0.062]} /><meshBasicMaterial color="#38bdf8" transparent opacity={0.52} depthWrite={false} /></mesh>
+            <group position={[0,0,0.002]}><Text fontSize={0.019} color="#04070a" anchorX="center" anchorY="middle">★ Spawn todos (23)</Text></group>
+          </group>
+        </Interactive>
+        <Interactive onSelect={clearDebug} onHover={() => sound.hover()}>
+          <group position={[0.02, -0.28, 0.003]}>
+            <mesh><planeGeometry args={[0.24, 0.062]} /><meshBasicMaterial color="#f59e0b" transparent opacity={0.42} depthWrite={false} /></mesh>
+            <group position={[0,0,0.002]}><Text fontSize={0.018} color="#e2e8f0" anchorX="center" anchorY="middle">Limpiar debug</Text></group>
+          </group>
+        </Interactive>
+        <Interactive onSelect={onClose} onHover={() => sound.hover()}>
+          <group position={[0.34, -0.28, 0.003]}>
+            <mesh><planeGeometry args={[0.18, 0.062]} /><meshBasicMaterial color="#fb7185" transparent opacity={0.42} depthWrite={false} /></mesh>
+            <group position={[0,0,0.002]}><Text fontSize={0.018} color="#04070a" anchorX="center" anchorY="middle">✕ Cerrar</Text></group>
+          </group>
+        </Interactive>
+        <Interactive onSelect={() => chat.newSession()} onHover={() => sound.hover()}>
+          <group position={[-0.34, -0.36, 0.003]}>
+            <mesh><planeGeometry args={[0.30, 0.052]} /><meshBasicMaterial color="#1e293b" transparent opacity={0.55} depthWrite={false} /></mesh>
+            <group position={[0,0,0.002]}><Text fontSize={0.016} color="#94a3b8" anchorX="center" anchorY="middle">Nueva sesión</Text></group>
+          </group>
+        </Interactive>
+        <group position={[0.16, -0.36, 0.003]}>
+          <Text fontSize={0.014} color="#475569" anchorX="center" anchorY="middle">tap = spawnea + auto-muestra · grip arrastra</Text>
+        </group>
       </group>
     </GripGrab>
   );
@@ -1381,7 +1457,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
               onOpenCommands={() => setCommandsOpen(true)}
             />
           </PlayerRig>
-          {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
+          {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} onOpenArtifact={openArtifact} />}
           {commandsOpen && (
             <CommandsPanel
               onClose={() => setCommandsOpen(false)}
