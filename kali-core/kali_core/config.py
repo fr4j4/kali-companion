@@ -396,7 +396,11 @@ active_profile: str = os.getenv("KALI_PROFILE", "dev")
 artifact_diff_preview: bool = _env_bool("KALI_ARTIFACT_DIFF_PREVIEW", True)
 
 # ── Paths ─────────────────────────────────────────────────
-data_dir = Path.home() / ".local" / "share" / "kali"
+# KALI_DATA_DIR: override para Docker/nativo. SIN él, kali.db (sesiones,
+# conexiones IA/API keys, settings TTS/STT) vive en ~/.local/share/kali —
+# efímero en contenedores: cada recreate del contenedor pierde la config.
+# Con KALI_DATA_DIR=/app/data y el mount del host, TODO persiste.
+data_dir = Path(os.getenv("KALI_DATA_DIR", str(Path.home() / ".local" / "share" / "kali")))
 db_path: str = str(data_dir / "kali.db")
 images_dir: str = str(data_dir / "images")
 snapshots_dir: str = str(data_dir / "snapshots")
