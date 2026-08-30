@@ -97,12 +97,11 @@ function PlayerRig({
   onToggleMenu?: () => void;
 }) {
   const player = useXR((s) => s.player);
-  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
   const dir = useRef(new THREE.Vector3());
   const strafe = useRef(new THREE.Vector3());
   const snapArmed = useRef(true);
   const menuArmed = useRef(true);
-  const tmpQ = useRef(new THREE.Quaternion());
 
   useFrame((_, delta) => {
     const session = glXRSessionRef.current as XRSession | null;
@@ -130,13 +129,13 @@ function PlayerRig({
     }
 
     // Stick izq: avanzar/retroceder + strafe RELATIVO A LA MIRADA.
-    // Lectura simple y robusta: quaternion de MUNDO de la cámara
-    // (getWorldQuaternion — incluye la pose XR y el transform del player
-    // sin asumir nada sobre el parenting; matrixWorld viene del último
-    // render, 1 frame de delay, estándar en locomotion VR).
+    // Fuente autoritativa: la cámara XR interna de three (la que
+    // realmente renderiza — su matrixWorld es la pose de mundo del
+    // visor compuesta con el player, actualizada en cada render).
+    // transformDirection aplica solo la rotación, normalizada.
     if (Math.abs(mx) > 0.15 || Math.abs(my) > 0.15) {
-      camera.getWorldQuaternion(tmpQ.current);
-      dir.current.set(0, 0, -1).applyQuaternion(tmpQ.current);
+      const xrCam = gl.xr.getCamera();
+      dir.current.set(0, 0, -1).transformDirection(xrCam.matrixWorld);
       dir.current.y = 0;
       if (dir.current.lengthSq() < 1e-6) {
         // Mirando recto arriba/abajo: usa el norte del player.
@@ -426,6 +425,30 @@ function useExitVR() {
 
 /* ── room canvas ──────────────────────────────────────────────── */
 
+/** Muestra en-VR el forward real de la cámara XR (diagnóstico locomotion). */
+function VRDebugCompass() {
+  const gl = useThree((s) => s.gl);
+  const [info, setInfo] = useState({ yaw: 0, fx: 0, fz: 0 });
+
+  useFrame(() => {
+    const xrCam = gl.xr.getCamera();
+    const f = new THREE.Vector3(0, 0, -1).transformDirection(xrCam.matrixWorld);
+    const yaw = Math.atan2(-f.x, -f.z) * (180 / Math.PI);
+    setInfo((prev) => {
+      const next = { yaw: Math.round(yaw), fx: +f.x.toFixed(2), fz: +f.z.toFixed(2) };
+      return prev.yaw === next.yaw && prev.fx === next.fx && prev.fz === next.fz ? prev : next;
+    });
+  });
+
+  return (
+    <group position={[0, 0.02, 1.6]} rotation={[-Math.PI / 2, 0, 0]}>
+      <Text fontSize={0.28} color="#22c55e" anchorX="center" anchorY="middle">
+        {`yaw ${info.yaw}°  fwd(${info.fx}, ${info.fz})`}
+      </Text>
+    </group>
+  );
+}
+
 function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: ArtifactEvent[] }) {
   const glRef = useRef<unknown>(null);
   const vrSupport = useVRSupport();
@@ -491,6 +514,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
             <ExitMenuOnLeftController onExit={exitVR} open={menuOpen} />
           </PlayerRig>
           <MatrixFloor />
+          <VRDebugCompass />
           <InteractivePrimitives />
           <Ui3dSceneNodes scene={liveRoomScene(live)} />
           <ArtifactPanels sessionId={sessionId} live={live} />
