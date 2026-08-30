@@ -88,7 +88,7 @@ async function requestVRSession(gl: unknown): Promise<unknown> {
  * llega relativa al reference space; mover camera.position no mueve al
  * jugador, por eso antes el stick no funcionaba).
  */
-function PlayerRig() {
+function PlayerRig({ children }: { children?: React.ReactNode }) {
   const camera = useThree((s) => s.camera);
   const rigRef = useRef<THREE.Group>(null);
   const dir = useRef(new THREE.Vector3());
@@ -140,7 +140,7 @@ function PlayerRig() {
     }
   });
 
-  return <group ref={rigRef} />;
+  return <group ref={rigRef}>{children}</group>;
 }
 
 /* ── sala: grilla matrix infinita ─────────────────────────────── */
@@ -462,14 +462,17 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
         <pointLight position={[0, 2.5, -2]} intensity={12} distance={9} color="#22c55e" />
 
         <XR>
-          <PlayerRig />
+          {/* Controllers/Hands/menú viven DENTRO del rig: heredan el
+              transform del jugador y viajan con él al caminar/girar. */}
+          <PlayerRig>
+            <Controllers />
+            <Hands />
+            <ExitMenuOnLeftController onExit={exitVR} />
+          </PlayerRig>
           <MatrixFloor />
           <InteractivePrimitives />
           <Ui3dSceneNodes scene={liveRoomScene(live)} />
           <ArtifactPanels sessionId={sessionId} live={live} />
-          <ExitMenuOnLeftController onExit={exitVR} />
-          <Controllers />
-          <Hands />
         </XR>
 
         <OrbitControls makeDefault target={[0, 1.2, -2]} maxPolarAngle={Math.PI / 2} />
