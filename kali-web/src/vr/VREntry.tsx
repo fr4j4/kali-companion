@@ -23,7 +23,8 @@ import { XR, Controllers, Hands, Interactive, useXR, useInteraction } from "@rea
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { WindowType } from "../workspace/types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { HtmlTexturePanel } from "./HtmlTexturePanel";
+import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
+import { Container, Text as UIKitText } from "@react-three/uikit";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -1239,18 +1240,35 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
     return (
       <GripGrab>
         <group ref={groupRef}>
-          {/* En HMD el header va pintado dentro del CanvasTexture (evita duplicado); aquí solo botón cerrar */}
+          {/* Header titulo uikit */}
+          <group position={[0, 0.31, 0.012]}>
+            <Container width={440} height={32} backgroundColor="#111827" borderRadius={8} padding={8} flexDirection="row" alignItems="center" justifyContent="space-between">
+              <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " : " + ev.windowType}</UIKitText>
+              <UIKitText fontSize={9} color="#64748b">grip mover</UIKitText>
+            </Container>
+          </group>
           <Interactive onSelect={onClose}>
-            <group position={[0.38, 0.29, 0.013]}>
+            <group position={[0.38, 0.31, 0.014]}>
               <mesh>
                 <planeGeometry args={[0.07, 0.05]} />
-                <meshBasicMaterial color="#fb7185" transparent opacity={0.9} side={THREE.DoubleSide} />
+                <meshBasicMaterial color="#fb7185" transparent opacity={0.92} side={THREE.DoubleSide} />
               </mesh>
               <Text fontSize={0.024} color="#04070a" anchorX="center" anchorY="middle">✕</Text>
             </group>
           </Interactive>
-          <group position={[0, -0.02, 0.012]}>
-            <HtmlTexturePanel ev={ev} widthMeters={0.86} heightMeters={0.58} />
+          {/* Contenido fiel nativo uikit — scroll Yoga, sin foreignObject */}
+          <group position={[0, -0.06, 0.012]}>
+            <Container
+              width={440}
+              height={300}
+              backgroundColor="#0b0f14"
+              borderRadius={8}
+              padding={6}
+              overflow="scroll"
+              flexDirection="column"
+            >
+              <VrWidgetRenderer ev={ev} />
+            </Container>
           </group>
         </group>
       </GripGrab>
@@ -1436,7 +1454,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 1.6, 2], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true }}>
+      <Canvas camera={{ position: [0, 1.6, 2], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, localClippingEnabled: true }}>
         <color attach="background" args={["#04070a"]} />
         <fog attach="fog" args={["#04070a", 10, 40]} />
         <ambientLight intensity={0.5} />
