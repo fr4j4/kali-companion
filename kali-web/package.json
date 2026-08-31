@@ -25,6 +25,7 @@
     "framer-motion": "^11.3.0",
     "highlight.js": "^11.11.1",
     "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
     "i18next": "^23.11.0",
     "i18next-browser-languagedetector": "^7.2.0",
     "lucide-react": "^0.439.0",
