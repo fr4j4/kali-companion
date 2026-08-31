@@ -28,7 +28,7 @@ import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { useVrFont } from "./useVrFont";
 import { XrPointerBridge } from "./XrPointerBridge";
 import { VrMiniCard, TYPE_COLORS } from "./VrMiniCard";
-import { setFocusedPanel, subscribeFocusedPanel } from "./panelFocus";
+import { setFocusedPanel, subscribeFocusedPanel, rayDrag } from "./panelFocus";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -1301,6 +1301,25 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
   const vrFont = useVrFont();
   const [focused, setFocused] = useState(false);
   useEffect(() => subscribeFocusedPanel((f) => setFocused(f?.id === ev.id)), [ev.id]);
+  // A4: barra de progreso de scroll
+  const scrollRef = useRef<{ scrollPosition?: { value: [number, number] }; maxScrollPosition?: { value: [number, number] } } | null>(null);
+  const [scrollPct, setScrollPct] = useState(1);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const sc = scrollRef.current as { scrollPosition?: { value: [number, number] }; maxScrollPosition?: { value: [number, number] } } | null;
+      if (!sc?.scrollPosition || !sc.maxScrollPosition) return;
+      const [maxY] = sc.maxScrollPosition.value;
+      const [y] = sc.scrollPosition.value;
+      const pct = maxY > 0 ? Math.max(0.06, Math.min(1, 1 - Math.abs(y / maxY))) : 1;
+      setScrollPct(pct);
+    }, 250);
+    return () => clearInterval(iv);
+  }, []);
+  // A2: drag por rayo desde el header (trigger mantenido)
+  const draggingRef = useRef(false);
+  useEffect(() => {
+    if (draggingRef.current && rayDrag.panelId !== ev.id) draggingRef.current = false;
+  }, [ev.id]);
   const focusPanel = useCallback(() => {
     if (!groupRef.current) return;
     setFocusedPanel({ id: ev.id, title: ev.title || ev.windowType, rootObj: groupRef.current });
@@ -1331,6 +1350,46 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
     place();
   }, [placed, camera, index]);
 
+  // A2: movimiento por rayo mientras el drag está activo con ESTE panel
+  useFrame((_, delta) => {
+    if (rayDrag.active && rayDrag.panelId === ev.id && groupRef.current) {
+      // detectar release del trigger derecho (button 0)
+      const session = gl.xr.getSession?.();
+      let triggerDown = false;
+      if (session) {
+        for (const src of session.inputSources) {
+          if (src.handedness === "right" && src.gamepad) {
+            triggerDown = src.gamepad.buttons[0]?.pressed ?? false;
+            break;
+          }
+        }
+      }
+      if (!triggerDown) {
+        rayDrag.active = false;
+        rayDrag.panelId = null;
+        draggingRef.current = false;
+        return;
+      }
+      // mover panel por el rayo del control derecho a rayDrag.distance (suavizado)
+      for (const src of session?.inputSources ?? []) {
+        if (src.handedness !== "right") continue;
+        const c = (src as unknown as { targetRaySpace?: THREE.Object3D }).targetRaySpace;
+        if (!c) continue;
+        const cam = new THREE.Object3D();
+        cam.matrixWorld.copy(c.matrixWorld);
+        const origin = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(c.getWorldQuaternion(new THREE.Quaternion()));
+        const targetDist = THREE.MathUtils.clamp(rayDrag.distance, 0.5, 2.5);
+        const targetPos = origin.clone().addScaledVector(dir, targetDist);
+        groupRef.current.position.lerp(targetPos, 1 - Math.exp(-14 * Math.min(delta, 0.05)));
+        const camPos = new THREE.Vector3().setFromMatrixPosition((gl.xr.getCamera() as unknown as THREE.Camera).matrixWorld ?? new THREE.Matrix4());
+        const m = new THREE.Matrix4().lookAt(groupRef.current.position, camPos, new THREE.Vector3(0, 1, 0));
+        groupRef.current.quaternion.slerp(new THREE.Quaternion().setFromRotationMatrix(m), 1 - Math.exp(-14 * Math.min(delta, 0.05)));
+        break;
+      }
+    }
+  }, -1);
+
   const wt = ev.windowType as WindowType;
   const entry = widgetRegistry[wt];
   const Widget = entry?.component;
@@ -1346,9 +1405,34 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
             <planeGeometry args={[0.94, 0.76]} />
             <meshBasicMaterial color={focused ? "#0ea5e9" : "#0b0f14"} transparent opacity={focused ? 0.35 : 0.98} side={THREE.DoubleSide} />
           </mesh>
+          {/* A4: barra de progreso de scroll (borde derecho) */}
+          {scrollPct < 0.99 && (
+            <mesh position={[0.455, 0.36 - (0.72 * (1 - scrollPct)) / 2 - 0.36 * scrollPct, 0.014]}>
+              <planeGeometry args={[0.006, 0.7 * scrollPct]} />
+              <meshBasicMaterial color="#38bdf8" transparent opacity={0.9} />
+            </mesh>
+          )}
 
           <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6} fontFamilies={vrFont ?? undefined} onPointerDown={focusPanel}>
-            <Container width="100%" height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
+            <Container
+              width="100%"
+              height={32}
+              backgroundColor="#111827"
+              borderRadius={8}
+              padding={6}
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              onPointerDown={() => {
+                // A2: mantener trigger sobre el header = arrastrar por rayo
+                draggingRef.current = true;
+                rayDrag.active = true;
+                rayDrag.panelId = ev.id;
+                const cam = gl.xr.getCamera();
+                const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
+                rayDrag.distance = THREE.MathUtils.clamp(groupRef.current!.position.distanceTo(camPos), 0.5, 2.5);
+              }}
+            >
               <Container flexDirection="row" alignItems="center" gap={6}>
                 {/* dot de color por tipo — distinguible de lejos */}
                 <Container width={10} height={10} borderRadius={5} backgroundColor={TYPE_COLORS[wt] ?? "#64748b"} />
@@ -1369,6 +1453,7 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
               </Container>
             </Container>
             <Container
+              ref={scrollRef as never}
               width="100%"
               flexGrow={1}
               backgroundColor="#0b0f14"

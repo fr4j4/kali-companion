@@ -30,3 +30,10 @@ export function isUnderFocused(obj: THREE.Object3D | null | undefined): boolean 
   }
   return false;
 }
+
+/** A2: estado de arrastre por rayo (header) — vive fuera de React para acceso por useFrame. */
+export const rayDrag: { active: boolean; panelId: string | null; distance: number } = {
+  active: false,
+  panelId: null,
+  distance: 1.5,
+};
