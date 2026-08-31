@@ -26,6 +26,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
 import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { useVrFont } from "./useVrFont";
+import { XrPointerBridge } from "./XrPointerBridge";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -587,7 +588,7 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
   };
 
   const samples: Array<{ wt: string; label: string; color: string; make: () => [string, string] }> = [
-    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Demo HTML", `<div style=\"font-family:sans-serif;padding:16px;background:#fff;color:#111\"><h1 style=\"color:#0ea5e9\">Hola VR — Kali áéíóú ñ ü</h1><p>Este es un <b>preview real</b> con <i>formato</i> y un <a href=\"#\">link</a>.</p><ul><li>item 1</li><li>item 2 — preview fiel</li></ul><code>const x=1</code></div>`] },
+    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Mini Sitio VR", `<div style="font-family:sans-serif;background:#fff;color:#111"><header style="background:#0ea5e9;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center"><h1 style="margin:0;font-size:20px">Tienda Kali</h1><nav><button style="margin-left:6px;padding:8px 14px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:13px">Inicio</button><button style="margin-left:6px;padding:8px 14px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:13px">Catalogo</button><button style="margin-left:6px;padding:8px 14px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:13px">Contacto</button></nav></header><main style="padding:16px"><p style="font-size:14px;line-height:1.5">Bienvenido a la <b>tienda demo</b> — sitio navegable con botones, acordeón y formulario para probar la interactividad en VR.</p><h2 style="font-size:16px;color:#0ea5e9">Productos</h2><ul style="font-size:13px;line-height:1.8"><li>Casco VR Quest 3 — $499</li><li>Base de carga — $89</li><li>Correa elite — $59</li></ul><details style="margin:10px 0;padding:10px;background:#f1f5f9;border-radius:8px"><summary style="cursor:pointer;font-weight:bold">Como compro? (acordeón)</summary><p style="font-size:13px;padding-top:8px">Toca un botón con el trigger del control derecho apuntando al panel.</p></details><form style="margin-top:12px"><input placeholder="Tu email" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;width:180px" /> <button style="padding:8px 14px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:13px">Suscribirme</button></form></main><footer style="padding:10px 16px;background:#f8fafc;color:#64748b;font-size:11px">© 2026 Kali VR — scroll para ver más</footer><div style="padding:0 16px 16px"><p style="font-size:12px;color:#334155">Contenido extra para probar el scroll: párrafo 1.</p><p style="font-size:12px;color:#334155">Párrafo 2 — sigue bajando con el thumbstick sobre el panel.</p><p style="font-size:12px;color:#334155">Párrafo 3 — fin del mini sitio.</p></div></div>`] },
     { wt: "document", label: "doc", color: "#38bdf8", make: () => ["Doc MD", "# Guía Kali VR — tildes áéíóú ñ ü ¿cómo estás?\n\nEste **documento** prueba el render markdown en VR.\n\n- Punto 1: fidelidad 1:1\n- Punto 2: paginado\n\n> Cita de ejemplo\n\n`código inline`"] },
     { wt: "code", label: "code", color: "#a78bfa", make: () => ["Código", "function holaVR() {\n  console.log('Kali en VR — fidelidad 1:1');\n  return 42;\n}\nholaVR();"] },
     { wt: "json", label: "json", color: "#fbbf24", make: () => ["JSON", JSON.stringify({ name: "Kali", version: 2, vr: true, items: [1,2,3], nested: { a: 1 } }, null, 2)] },
@@ -597,8 +598,8 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
     { wt: "mermaid", label: "mermaid", color: "#a78bfa", make: () => ["Mermaid", "graph TD\n  A[Kali] --> B[VR]\n  B --> C[Canvas 2D]\n  C --> D[Fidelidad 1:1]"] },
     { wt: "qr", label: "qr", color: "#10b981", make: () => ["QR", JSON.stringify({ url: "https://192.168.1.14:8444/#/vr" })] },
     { wt: "link", label: "link", color: "#60a5fa", make: () => ["Link", JSON.stringify({ url: "https://github.com/fr4j4/kali-companion", title: "Kali Companion — GitHub" })] },
-    { wt: "image", label: "image", color: "#8b5cf6", make: () => ["Imagen", JSON.stringify({ url: "https://placehold.co/600x400/1e293b/38bdf8?text=Kali+VR+Media", caption: "Imagen de prueba — picsum" })] },
-    { wt: "media", label: "media", color: "#8b5cf6", make: () => ["Media", JSON.stringify({ url: "https://placehold.co/600x400/1e293b/38bdf8?text=Kali+VR+Media", caption: "Media demo" })] },
+    { wt: "image", label: "image", color: "#8b5cf6", make: () => ["Imagen", JSON.stringify({ url: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&q=80", caption: "Imagen de prueba — picsum" })] },
+    { wt: "media", label: "media", color: "#8b5cf6", make: () => ["Media", JSON.stringify({ url: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&q=80", caption: "Media demo" })] },
     { wt: "entity", label: "entity", color: "#f472b6", make: () => ["Entity", JSON.stringify({ name: "Kali", description: "Asistente IA — companion VR", role: "assistant", status: "online", version: "0.3" })] },
     { wt: "resource", label: "resource", color: "#fb7185", make: () => ["Resource", JSON.stringify({ name: "Guía VR", description: "Recurso de prueba", url: "https://example.com", tags: ["vr","kali"] })] },
     { wt: "place", label: "place", color: "#f97316", make: () => ["Place", JSON.stringify({ name: "Santiago", description: "Capital de Chile", lat: -33.4489, lon: -70.6693 })] },
@@ -707,11 +708,15 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     if (!groupRef.current) return;
     grabbing.current = { controller: e.target.controller };
+    distOffset.current = 0;
     prev.copy(e.target.controller.matrixWorld).invert();
   });
   useInteraction(groupRef, "onSqueezeEnd", () => {
     grabbing.current = null;
   });
+
+  // distancia extra acumulada por thumbstick mientras se agarra
+  const distOffset = useRef(0);
 
   useFrame(() => {
     const g = grabbing.current;
@@ -720,26 +725,30 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     // Deshacer el transform previo y aplicar el actual del control.
     group.applyMatrix4(prev);
     group.applyMatrix4(g.controller.matrixWorld);
+
+    // grip + palanca derecha (stick Y): acercar/alejar DESPUÉS del apply,
+    // en el espacio local del controlador, para que no lo pise el frame siguiente.
+    const session = gl.xr.getSession?.();
+    if (session) {
+      for (const src of session.inputSources) {
+        if (src.handedness !== "right" || !src.gamepad) continue;
+        const axes = src.gamepad.axes;
+        const y = axes[3] ?? axes[1] ?? 0;
+        if (Math.abs(y) >= 0.25) {
+          distOffset.current = THREE.MathUtils.clamp(distOffset.current + (-y * 0.012), -1.2, 1.2);
+        }
+      }
+    }
+    if (distOffset.current !== 0) {
+      // eje -Z del controlador = hacia donde apunta; mover el panel por ese eje
+      const back = new THREE.Vector3(0, 0, distOffset.current).applyMatrix4(new THREE.Matrix4().extractRotation(g.controller.matrixWorld));
+      group.position.add(back);
+    }
+
     group.updateMatrixWorld();
     prev.copy(g.controller.matrixWorld).invert();
-
-    // grip + palanca derecha (stick Y): acercar/alejar el panel a lo largo
-    // del eje controlador->panel, sin soltar el agarre.
-    const session = gl.xr.getSession?.();
-    if (!session) return;
-    for (const src of session.inputSources) {
-      if (src.handedness !== "right" || !src.gamepad) continue;
-      const axes = src.gamepad.axes;
-      const y = axes[3] ?? axes[1] ?? 0; // stick derecho Y
-      if (Math.abs(y) < 0.25) continue;
-      const dir = group.position.clone().sub(g.controller.getWorldPosition(new THREE.Vector3()));
-      dir.y = 0;
-      if (dir.lengthSq() < 1e-6) continue;
-      dir.normalize();
-      group.position.addScaledVector(dir, -y * 0.015);
-      group.updateMatrixWorld();
-    }
   });
+
 
   return <group ref={groupRef}>{children}</group>;
 }
@@ -1512,6 +1521,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
           <VRDebugCompass />
           <InteractivePrimitives />
           {/* pelotitas removidas — solo artefactos reales */}
+          <XrPointerBridge />
           <ArtifactPanels sessionId={sessionId} live={live} />
           <Widget2DPanels sessionId={sessionId} live={live} worldIds={worldIds} onClose={closeArtifact} />
         </XR>
