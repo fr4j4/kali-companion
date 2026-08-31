@@ -21,8 +21,11 @@ export const TYPE_COLORS: Record<string, string> = {
 };
 
 /**
- * Mini-card: panel colapsado a 0.30×0.10 m. Pinch (trigger) restaura.
- * Se acomoda en una grilla 3×N bajo el abanico principal.
+ * Mini-card: panel colapsado a 0.32×0.10 m. Pinch (trigger) restaura.
+ * Grilla 3×N bajo el abanico principal.
+ *
+ * Sin clipRect (troika puede colgar el layout con rects no estándar) y
+ * sin glifos raros: textos pre-truncados en JS, solo ASCII + tildes.
  */
 export function VrMiniCard({ title, windowType, summary, slot, onRestore }: Props) {
   const pos = useMemo(() => {
@@ -31,6 +34,8 @@ export function VrMiniCard({ title, windowType, summary, slot, onRestore }: Prop
     return [ (col - 1) * 0.36, 1.05 - row * 0.14, -1.1 ] as [number, number, number];
   }, [slot]);
   const dotColor = TYPE_COLORS[windowType] ?? "#64748b";
+  const t1 = title.slice(0, 20);
+  const t2 = `${windowType} - ${summary}`.slice(0, 26);
   return (
     <Interactive onSelect={onRestore}>
       <group position={pos}>
@@ -42,15 +47,12 @@ export function VrMiniCard({ title, windowType, summary, slot, onRestore }: Prop
           <circleGeometry args={[0.012, 16]} />
           <meshBasicMaterial color={dotColor} />
         </mesh>
-        <Text position={[-0.1, 0.018, 0.002]} fontSize={0.018} color="#e2e8f0" anchorX="left" anchorY="middle" maxWidth={0.28} clipRect={[-0.15, -0.028, 0.15, 0.028] as unknown as [number, number, number, number]}>
-          {title.slice(0, 22)}
+        <Text position={[-0.1, 0.02, 0.002]} fontSize={0.016} color="#e2e8f0" anchorX="left" anchorY="middle">
+          {t1}
         </Text>
-        <Text position={[-0.1, -0.016, 0.002]} fontSize={0.013} color="#64748b" anchorX="left" anchorY="middle" maxWidth={0.28} clipRect={[-0.15, -0.028, 0.15, 0.028] as unknown as [number, number, number, number]}>
-          {`${windowType} · ${summary}`}
+        <Text position={[-0.1, -0.016, 0.002]} fontSize={0.012} color="#64748b" anchorX="left" anchorY="middle">
+          {t2}
         </Text>
-        <group position={[0.135, 0, 0.003]}>
-          <Text fontSize={0.02} color="#38bdf8" anchorX="center" anchorY="middle">⤢</Text>
-        </group>
       </group>
     </Interactive>
   );

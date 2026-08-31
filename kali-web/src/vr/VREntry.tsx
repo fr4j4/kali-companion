@@ -702,77 +702,61 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
  * entre el panel y el control mientras se aprieta.
  */
 function GripGrab({ children }: { children?: React.ReactNode }) {
+  // Agarre = offset rígido del panel en el espacio LOCAL del control, capturado
+  // al apretar grip. Mientras dure: el panel sigue la mano 1:1.
+  // Stick derecho: acerca/aleja sobre la línea real mano→panel (offset se actualiza).
+  // Soltar: polling físico del botón grip — el panel queda EXACTAMENTE donde está
+  // (sin snap-to-face ni re-orientación fantasma).
   const grabbing = useRef<{ controller: THREE.Object3D; handedness: string } | null>(null);
   const groupRef = useRef<THREE.Group>(null);
   const gl = useThree((s) => s.gl);
-
-  // A1: snap-to-face opcional — solo si durante el drag la rotación relativa fue grande (>25°).
-  const snapQuat = useRef<THREE.Quaternion | null>(null);
-  const startQuat = useRef<THREE.Quaternion | null>(null);
-
-  // Agarre = offset rígido del panel en el espacio LOCAL del control.
   const grabOffsetLocal = useRef(new THREE.Vector3(0, 0, -0.6));
   const grabQuatOffset = useRef(new THREE.Quaternion());
 
-  const doRelease = (group: THREE.Group | null) => {
-    const s = startQuat.current;
-    if (group && s) {
-      const dragged = group.quaternion.angleTo(s) > THREE.MathUtils.degToRad(25);
-      if (dragged) {
-        const cam = gl.xr.getCamera();
-        const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
-        const m = new THREE.Matrix4().lookAt(group.position, camPos, new THREE.Vector3(0, 1, 0));
-        snapQuat.current = new THREE.Quaternion().setFromRotationMatrix(m);
-      }
-    }
+  const doRelease = () => {
     grabbing.current = null;
-    startQuat.current = null;
     (globalThis as { __vrGrabbed?: string | null }).__vrGrabbed = null;
   };
 
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     const group = groupRef.current;
     if (!group) return;
-    // anti-multi-agarrre: un solo panel grabbed a la vez (xr v5 dispara squeezeStart
-    // en TODOS los Interactive bajo el rayo)
+    // anti multi-agarrre: un panel a la vez (xr v5 dispara squeeze en todos
+    // los Interactive bajo el rayo)
     if ((globalThis as { __vrGrabbed?: string | null }).__vrGrabbed) return;
     const ctrl = e.target.controller;
     const handedness = (e.target as { inputSource?: { handedness?: string } }).inputSource?.handedness ?? "right";
     (globalThis as { __vrGrabbed?: string | null }).__vrGrabbed = handedness;
     grabbing.current = { controller: ctrl, handedness };
-    snapQuat.current = null;
-    startQuat.current = group.quaternion.clone();
+    // capturar offset panel→control en espacio LOCAL del control
     ctrl.updateMatrixWorld();
     const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
     grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
     if (grabOffsetLocal.current.length() < 0.45) grabOffsetLocal.current.normalize().multiplyScalar(0.45);
-    grabQuatOffset.current.copy(ctrl.getWorldQuaternion(new THREE.Quaternion()).invert()).multiply(group.getWorldQuaternion(new THREE.Quaternion()));
+    grabQuatOffset.current
+      .copy(ctrl.getWorldQuaternion(new THREE.Quaternion()).invert())
+      .multiply(group.getWorldQuaternion(new THREE.Quaternion()));
   });
 
   useInteraction(groupRef, "onSqueezeEnd", () => {
-    doRelease(groupRef.current);
+    if (grabbing.current) doRelease();
   });
+
+  // liberar el guard global si el panel se desmonta agarrado
+  useEffect(() => () => {
+    if (grabbing.current) doRelease();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
-    if (!group) return;
-
-    // snap-to-face solo corre cuando existe un objetivo y no se está agarrando
-    if (snapQuat.current && !grabbing.current) {
-      group.quaternion.slerp(snapQuat.current, 1 - Math.exp(-12 * Math.min(delta, 0.05)));
-      if (group.quaternion.angleTo(snapQuat.current) < 0.01) snapQuat.current = null;
-      return;
-    }
-
     const g = grabbing.current;
-    if (!g || !group) return;
+    if (!group || !g) return;
     const ctrl = g.controller;
     ctrl.updateMatrixWorld();
 
-    // ── POLLING del grip FÍSICO del control que agarra.
-    // SOLO buttons[1] (grip). El trigger (0) NO cuenta: el usuario lo usa
-    // para pinchar botones del panel — contar trigger = panel atado a la
-    // mano mientras interactúa (= 'se vuelve loco'). ──
+    // ── POLLING físico del grip (buttons[1] SOLO — el trigger es para clicks,
+    //    contarlo mantiene el panel pegado a la mano mientras interactúas) ──
     const session = gl.xr.getSession?.();
     if (!session) return;
     let gripDown = false;
@@ -782,13 +766,12 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       if (gripDown) break;
     }
     if (!gripDown) {
-      doRelease(group);
+      doRelease();
       return;
     }
 
-    // ── stick derecho: acercar/alejar sobre la LÍNEA REAL control→panel
-    //    (recalculada cada frame — siempre visible, girar la muñeca no lo
-    //    saca de la visual) ──
+    // ── stick derecho: acercar/alejar sobre la línea REAL control→panel,
+    //    recalculada cada frame (siempre sobre la visual mano→panel) ──
     let zoom = 0;
     for (const src of session.inputSources) {
       if (src.handedness !== "right" || !src.gamepad) continue;
@@ -797,7 +780,7 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       const dz = 0.25;
       if (Math.abs(raw) > dz) {
         const norm = (Math.abs(raw) - dz) / (1 - dz);
-        zoom = -Math.sign(raw) * norm * norm * 1.0; // máx 1.0 m/s
+        zoom = -Math.sign(raw) * norm * norm * 1.0; // máx 1 m/s
       }
     }
     if (zoom !== 0) {
@@ -807,7 +790,7 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       const newDist = THREE.MathUtils.clamp(dist + zoom * delta, 0.45, 2.5);
       toPanel.normalize().multiplyScalar(newDist);
       group.position.copy(ctrlPos).add(toPanel);
-      // sincronizar offset local — el drag continúa coherente al soltar el stick
+      // sincronizar offset local: el drag sigue coherente al soltar el stick
       const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
       grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
     }
