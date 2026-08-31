@@ -707,42 +707,62 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   const prev = useMemo(() => new THREE.Matrix4(), []);
   const gl = useThree((s) => s.gl);
 
-  useInteraction(groupRef, "onSqueezeStart", (e) => {
-    if (!groupRef.current) return;
-    grabbing.current = { controller: e.target.controller };
-    mode.current = "drag";
-    targetDist.current = Math.max(0.4, groupRef.current!.position.distanceTo(e.target.controller.getWorldPosition(new THREE.Vector3())));
-    prev.copy(e.target.controller.matrixWorld).invert();
-  });
-  // A1: snap-to-face — al soltar en pose rara, re-orienta suavemente hacia el usuario
+  // A1: snap-to-face opcional — solo si durante el drag la rotación relativa fue grande (>25°);
+  // en el caso normal (agarrar y soltar sin girar la muñeca) el panel queda EXACTAMENTE donde está.
   const snapQuat = useRef<THREE.Quaternion | null>(null);
-  useInteraction(groupRef, "onSqueezeEnd", () => {
-    grabbing.current = null;
-    const group = groupRef.current;
-    if (!group) return;
-    const cam = gl.xr.getCamera();
-    const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
-    // objetivo: mirar al usuario (solo yaw+pitch), roll 0
-    const m = new THREE.Matrix4().lookAt(group.position, camPos, new THREE.Vector3(0, 1, 0));
-    snapQuat.current = new THREE.Quaternion().setFromRotationMatrix(m);
-  });
+  const startQuat = useRef<THREE.Quaternion | null>(null);
 
-  // Modo de agarre: "drag" (mover libre con grip) o "zoom" (stick modifica targetDist).
-  // Al agarrar: targetDist = distancia actual panel->control; el panel sigue al control
-  // manteniendo esa distancia a lo largo del rayo del controlador.
+  // Modo de agarre: drag (seguir la mano) o zoom (stick modifica targetDist).
   const mode = useRef<"drag" | "zoom">("drag");
   const targetDist = useRef(0.5);
-  // stick con deadzone-sticky: mientras esté fuera de deadzone, actualiza; al volver a 0, congela.
+
+  useInteraction(groupRef, "onSqueezeStart", (e) => {
+    const group = groupRef.current;
+    if (!group) return;
+    grabbing.current = { controller: e.target.controller };
+    snapQuat.current = null; // cancelar snap pendiente — nada se mueve "solo"
+    startQuat.current = group.quaternion.clone();
+    mode.current = "drag";
+    targetDist.current = Math.max(0.4, group.position.distanceTo(e.target.controller.getWorldPosition(new THREE.Vector3())));
+    prev.copy(e.target.controller.matrixWorld).invert();
+  });
+
+  useInteraction(groupRef, "onSqueezeEnd", () => {
+    const group = groupRef.current;
+    const s = startQuat.current;
+    // snap SOLO si el usuario giró el panel manualmente durante el drag (>25° de delta)
+    if (group && s && grabbing.current === null) {
+      const dragged = group.quaternion.angleTo(s) > THREE.MathUtils.degToRad(25);
+      if (dragged) {
+        const cam = gl.xr.getCamera();
+        const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
+        const m = new THREE.Matrix4().lookAt(group.position, camPos, new THREE.Vector3(0, 1, 0));
+        snapQuat.current = new THREE.Quaternion().setFromRotationMatrix(m);
+      }
+    }
+    grabbing.current = null;
+    startQuat.current = null;
+  });
+
   useFrame((_, delta) => {
     const group = groupRef.current;
-    // A1: snap-to-face corre siempre que no se agarre
-    if (snapQuat.current && group && !grabbing.current) {
+    if (!group) return;
+
+    // snap-to-face solo corre cuando existe un objetivo y no se está agarrando
+    if (snapQuat.current && !grabbing.current) {
       group.quaternion.slerp(snapQuat.current, 1 - Math.exp(-12 * Math.min(delta, 0.05)));
       if (group.quaternion.angleTo(snapQuat.current) < 0.01) snapQuat.current = null;
+      return; // nada más este frame
     }
+
     const g = grabbing.current;
     if (!g || !group) return;
-    // leer stick ANTES de recolocar: si hay input, modo zoom; si no, modo drag normal
+
+    // ── DRAG: el panel sigue la mano (matriz prev→curr) ──
+    group.applyMatrix4(prev);
+    group.applyMatrix4(g.controller.matrixWorld);
+
+    // ── ZOOM por stick derecho (opcional dentro del drag) ──
     let zoom = 0;
     const session = gl.xr.getSession?.();
     if (session) {
@@ -753,34 +773,23 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
         const dz = 0.2;
         if (Math.abs(raw) > dz) {
           const norm = (Math.abs(raw) - dz) / (1 - dz);
-          // stick arriba (y<0) = acercar (reducir dist); abajo = alejar
           zoom = -Math.sign(raw) * norm * norm * 1.2; // máx 1.2 m/s
         }
       }
     }
-
     if (zoom !== 0) {
       mode.current = "zoom";
       targetDist.current = THREE.MathUtils.clamp(targetDist.current + zoom * delta, 0.4, 2.5);
     } else if (mode.current === "drag") {
-      // drag: la distancia objetivo sigue siendo la distancia real actual (mover libre)
       const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
       targetDist.current = Math.max(0.4, group.position.distanceTo(ctrlPos));
     }
-    // si soltó el stick y estaba en zoom, volver a drag en el próximo frame con la nueva distancia
-
-    // recolocar: panel a targetDist a lo largo del rayo del controlador (-Z),
-    // orientado mirando al control
-    const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
-    const ctrlDir = new THREE.Vector3(0, 0, -1).applyQuaternion(
-      g.controller.getWorldQuaternion(new THREE.Quaternion()),
-    );
-    const pos = mode.current === "zoom"
-      ? ctrlPos.clone().addScaledVector(ctrlDir, targetDist.current)
-      : group.position.clone(); // drag mantiene la pose del apply de arriba
-
     if (mode.current === "zoom") {
-      // reconstruir matriz en la posición del rayo, mirando de vuelta al control
+      const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
+      const ctrlDir = new THREE.Vector3(0, 0, -1).applyQuaternion(
+        g.controller.getWorldQuaternion(new THREE.Quaternion()),
+      );
+      const pos = ctrlPos.clone().addScaledVector(ctrlDir, targetDist.current);
       const m = new THREE.Matrix4().lookAt(pos, ctrlPos, new THREE.Vector3(0, 1, 0));
       group.quaternion.setFromRotationMatrix(m);
       group.position.copy(pos);
@@ -789,7 +798,6 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     group.updateMatrixWorld();
     prev.copy(g.controller.matrixWorld).invert();
   });
-
 
   return <group ref={groupRef}>{children}</group>;
 }
