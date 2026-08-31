@@ -588,13 +588,13 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
   };
 
   const samples: Array<{ wt: string; label: string; color: string; make: () => [string, string] }> = [
-    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Mini Sitio VR", `<div style="font-family:sans-serif;background:#fff;color:#111"><header style="background:#0ea5e9;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center"><h1 style="margin:0;font-size:20px">Tienda Kali</h1><nav><button style="margin-left:6px;padding:8px 14px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:13px">Inicio</button><button style="margin-left:6px;padding:8px 14px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:13px">Catalogo</button><button style="margin-left:6px;padding:8px 14px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:13px">Contacto</button></nav></header><main style="padding:16px"><p style="font-size:14px;line-height:1.5">Bienvenido a la <b>tienda demo</b> — sitio navegable con botones, acordeón y formulario para probar la interactividad en VR.</p><h2 style="font-size:16px;color:#0ea5e9">Productos</h2><ul style="font-size:13px;line-height:1.8"><li>Casco VR Quest 3 — $499</li><li>Base de carga — $89</li><li>Correa elite — $59</li></ul><details style="margin:10px 0;padding:10px;background:#f1f5f9;border-radius:8px"><summary style="cursor:pointer;font-weight:bold">Como compro? (acordeón)</summary><p style="font-size:13px;padding-top:8px">Toca un botón con el trigger del control derecho apuntando al panel.</p></details><form style="margin-top:12px"><input placeholder="Tu email" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;width:180px" /> <button style="padding:8px 14px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:13px">Suscribirme</button></form></main><footer style="padding:10px 16px;background:#f8fafc;color:#64748b;font-size:11px">© 2026 Kali VR — scroll para ver más</footer><div style="padding:0 16px 16px"><p style="font-size:12px;color:#334155">Contenido extra para probar el scroll: párrafo 1.</p><p style="font-size:12px;color:#334155">Párrafo 2 — sigue bajando con el thumbstick sobre el panel.</p><p style="font-size:12px;color:#334155">Párrafo 3 — fin del mini sitio.</p></div></div>`] },
+    { wt: "html", label: "html", color: "#f59e0b", make: () => ["Tienda Kali VR", `<div style="font-family:sans-serif;background:#f8fafc;color:#111"><header style="background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;padding:16px;display:flex;justify-content:space-between;align-items:center"><h1 style="margin:0;font-size:20px">Tienda Kali VR</h1><span style="font-size:12px;opacity:.85">demo interactiva</span></header><nav style="display:flex;gap:8px;padding:10px 16px;background:#0b0f14"><button style="flex:1;padding:10px;background:#1e293b;color:#38bdf8;border:none;border-radius:8px;font-size:13px;font-weight:bold">Inicio</button><button style="flex:1;padding:10px;background:#1e293b;color:#38bdf8;border:none;border-radius:8px;font-size:13px;font-weight:bold">Catalogo</button><button style="flex:1;padding:10px;background:#1e293b;color:#38bdf8;border:none;border-radius:8px;font-size:13px;font-weight:bold">Carrito (2)</button><button style="flex:1;padding:10px;background:#1e293b;color:#38bdf8;border:none;border-radius:8px;font-size:13px;font-weight:bold">Mi cuenta</button></nav><main style="padding:16px"><p style="font-size:14px;line-height:1.5;margin:0 0 12px">Bienvenido <b>Yami</b> — tienes <b style="color:#22c55e">2 productos</b> en el carrito. Toca los botones con el trigger.</p><div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><h2 style="margin:0 0 8px;font-size:15px;color:#0ea5e9">Casco Meta Quest 3</h2><p style="margin:0 0 10px;font-size:12px;color:#475569">128GB — 4152 x 2208 por ojo, 120Hz, pancake lenses.</p><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:18px;font-weight:bold;color:#22c55e">$499</span><span><button style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;margin-right:6px">-</button><b style="padding:0 8px">1</b><button style="padding:8px 12px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:12px">+</button></span></div></div><div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><h2 style="margin:0 0 8px;font-size:15px;color:#0ea5e9">Batería externa</h2><p style="margin:0 0 10px;font-size:12px;color:#475569">5000 mAh — 2h extra de juego.</p><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:18px;font-weight:bold;color:#22c55e">$89</span><span><button style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;margin-right:6px">-</button><b style="padding:0 8px">1</b><button style="padding:8px 12px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:12px">+</button></span></div></div><details style="background:#fff;border-radius:10px;padding:12px;margin-bottom:12px"><summary style="font-weight:bold;font-size:13px;cursor:pointer">Envío y garantía (acordeón)</summary><p style="font-size:12px;color:#475569;padding-top:8px;margin:0">Envío gratis a todo Chile en compras sobre $50. Garantía de 12 meses contra defectos de fábrica.</p></details><div style="background:#0b0f14;border-radius:10px;padding:14px"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:#94a3b8;font-size:13px">Total</span><span style="color:#22c55e;font-size:18px;font-weight:bold">$588</span></div><button style="width:100%;padding:12px;background:linear-gradient(90deg,#22c55e,#10b981);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:bold">Pagar ahora</button></div><form style="margin-top:12px;display:flex;gap:8px"><input placeholder="Cupón de descuento" style="flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px" /><button style="padding:10px 16px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:bold">Aplicar</button></form></main><footer style="padding:12px 16px;background:#e2e8f0;color:#64748b;font-size:11px;text-align:center">Kali VR · scroll con thumbstick sobre el panel · grip para mover</footer><div style="padding:0 16px 16px;background:#f8fafc"><p style="font-size:11px;color:#94a3b9;margin:4px 0">Extra 1 — contenido de relleno para scroll.</p><p style="font-size:11px;color:#94a3b9;margin:4px 0">Extra 2 — más texto para bajar con el thumbstick.</p><p style="font-size:11px;color:#94a3b9;margin:4px 0">Extra 3 — último párrafo del demo.</p><p style="font-size:11px;color:#94a3b9;margin:4px 0">Extra 4 — ¿llegaste al final? El scroll funciona.</p></div></div>`] },
     { wt: "document", label: "doc", color: "#38bdf8", make: () => ["Doc MD", "# Guía Kali VR — tildes áéíóú ñ ü ¿cómo estás?\n\nEste **documento** prueba el render markdown en VR.\n\n- Punto 1: fidelidad 1:1\n- Punto 2: paginado\n\n> Cita de ejemplo\n\n`código inline`"] },
     { wt: "code", label: "code", color: "#a78bfa", make: () => ["Código", "function holaVR() {\n  console.log('Kali en VR — fidelidad 1:1');\n  return 42;\n}\nholaVR();"] },
     { wt: "json", label: "json", color: "#fbbf24", make: () => ["JSON", JSON.stringify({ name: "Kali", version: 2, vr: true, items: [1,2,3], nested: { a: 1 } }, null, 2)] },
-    { wt: "table", label: "table", color: "#22d3ee", make: () => ["Tabla", JSON.stringify({ rows: [{ nombre: "Kali", tipo: "IA", estado: "activo" }, { nombre: "Yami", tipo: "humano", estado: "en VR" }, { nombre: "Quest 3", tipo: "HMD", estado: "conectado" }] })] },
-    { wt: "checklist", label: "check", color: "#34d399", make: () => ["Checklist", JSON.stringify({ items: [{ text: "Comprar pan", done: true }, { text: "Probar VR fiel", done: false }, { text: "Spawnear artefactos", done: false }, { text: "Grip para mover", done: true }] })] },
-    { wt: "chart", label: "chart", color: "#22d3ee", make: () => ["Chart", JSON.stringify({ rows: [{ mes: "Ene", valor: 12 }, { mes: "Feb", valor: 19 }, { mes: "Mar", valor: 8 }, { mes: "Abr", valor: 24 }, { mes: "May", valor: 15 }] })] },
+    { wt: "table", label: "table", color: "#22d3ee", make: () => ["Inventario", JSON.stringify({ rows: [ { producto: "Quest 3", stock: 5, precio: 499, estado: "disponible" }, { producto: "Quest 2", stock: 0, precio: 249, estado: "agotado" }, { producto: "Valve Index", stock: 2, precio: 999, estado: "disponible" }, { producto: "Pico 4", stock: 8, precio: 429, estado: "disponible" }, { producto: "PSVR2", stock: 3, precio: 549, estado: "bajo stock" } ] })] },
+    { wt: "checklist", label: "check", color: "#34d399", make: () => ["Checklist", JSON.stringify({ items: [ { text: "Descargar kali-companion", done: true }, { text: "Configurar Docker y TLS", done: true }, { text: "Probar artefactos en VR", done: true }, { text: "Verificar tildes en el panel", done: true }, { text: "Probar botones con trigger", done: false }, { text: "Ajustar distancia con thumbstick", done: false } ] })] },
+    { wt: "chart", label: "chart", color: "#22d3ee", make: () => ["Ventas VR 2026", JSON.stringify({ rows: [ { mes: "Enero", ventas: 12 }, { mes: "Febrero", ventas: 19 }, { mes: "Marzo", ventas: 8 }, { mes: "Abril", ventas: 24 }, { mes: "Mayo", ventas: 31 }, { mes: "Junio", ventas: 27 } ] })] },
     { wt: "mermaid", label: "mermaid", color: "#a78bfa", make: () => ["Mermaid", "graph TD\n  A[Kali] --> B[VR]\n  B --> C[Canvas 2D]\n  C --> D[Fidelidad 1:1]"] },
     { wt: "qr", label: "qr", color: "#10b981", make: () => ["QR", JSON.stringify({ url: "https://192.168.1.14:8444/#/vr" })] },
     { wt: "link", label: "link", color: "#60a5fa", make: () => ["Link", JSON.stringify({ url: "https://github.com/fr4j4/kali-companion", title: "Kali Companion — GitHub" })] },
@@ -605,7 +605,7 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
     { wt: "place", label: "place", color: "#f97316", make: () => ["Place", JSON.stringify({ name: "Santiago", description: "Capital de Chile", lat: -33.4489, lon: -70.6693 })] },
     { wt: "terminal", label: "terminal", color: "#22c55e", make: () => ["Terminal", "$ ls -la\n total 42\n drwxr-xr-x  kali  4096  .\n -rw-r--r--  app.py  2.1k\n$ echo 'VR listo'\nVR listo"] },
     { wt: "diff", label: "diff", color: "#eab308", make: () => ["Diff", "diff --git a/app.py b/app.py\n@@ -1,3 +1,4 @@\n-const x=1\n+const x=2 // fix VR\n+// fidelidad\n console.log(x)"] },
-    { wt: "quiz", label: "quiz", color: "#a78bfa", make: () => ["Quiz", JSON.stringify({ questions: [{ q: "¿Capital de Chile?", options: ["Santiago","Lima","Bogotá"], answer: 0 }, { q: "2+2?", options: ["3","4","5"], answer: 1 }] })] },
+    { wt: "quiz", label: "quiz", color: "#a78bfa", make: () => ["Quiz VR", JSON.stringify({ questions: [ { q: "¿Capital de Chile?", options: ["Santiago", "Lima", "Bogotá", "Buenos Aires"], answer: 0 }, { q: "¿Cuántos grados de libertad tiene un Quest 3?", options: ["3DoF", "6DoF", "9DoF"], answer: 1 }, { q: "¿Qué empresa fabrica el chip Snapdragon XR2?", options: ["Intel", "AMD", "Qualcomm"], answer: 2 }, { q: "¿Cuál NO es un controlador de WebXR?", options: ["grip", "trigger", "joystick B", "select"], answer: 2 } ] })] },
     { wt: "reasoning", label: "reason", color: "#94a3b8", make: () => ["Reasoning", "## Razonamiento\n\n1. El usuario quiere fidelidad 1:1.\n2. Canvas2D → CanvasTexture es el camino estable.\n3. HTML vivo requiere raster offscreen (next slice)."] },
     { wt: "game", label: "game", color: "#f43f5e", make: () => ["Game", JSON.stringify({ game: "tic-tac-toe", board: [["X","","O"],["","X",""],["","",""]] })] },
     { wt: "controls", label: "controls", color: "#64748b", make: () => ["Controls", JSON.stringify({ controls: [{ type: "slider", label: "Vol", value: 0.7 }] })] },
@@ -708,51 +708,66 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     if (!groupRef.current) return;
     grabbing.current = { controller: e.target.controller };
-    distOffset.current = 0;
+    mode.current = "drag";
+    targetDist.current = Math.max(0.4, groupRef.current!.position.distanceTo(e.target.controller.getWorldPosition(new THREE.Vector3())));
     prev.copy(e.target.controller.matrixWorld).invert();
   });
   useInteraction(groupRef, "onSqueezeEnd", () => {
     grabbing.current = null;
   });
 
-  // distancia extra acumulada por thumbstick mientras se agarra
-  const distOffset = useRef(0);
-
-  useFrame(() => {
+  // Modo de agarre: "drag" (mover libre con grip) o "zoom" (stick modifica targetDist).
+  // Al agarrar: targetDist = distancia actual panel->control; el panel sigue al control
+  // manteniendo esa distancia a lo largo del rayo del controlador.
+  const mode = useRef<"drag" | "zoom">("drag");
+  const targetDist = useRef(0.5);
+  // stick con deadzone-sticky: mientras esté fuera de deadzone, actualiza; al volver a 0, congela.
+  useFrame((_, delta) => {
     const g = grabbing.current;
     const group = groupRef.current;
     if (!g || !group) return;
-    // Deshacer el transform previo y aplicar el actual del control.
-    group.applyMatrix4(prev);
-    group.applyMatrix4(g.controller.matrixWorld);
-
-    // grip + palanca derecha (stick Y): acercar/alejar DESPUÉS del apply.
-    // - Stick arriba (y<0) = acercar; abajo = alejar (sentido natural).
-    // - Velocidad proporcional al stick, suave: 0.6 m/s máx.
-    // - El panel nunca atraviesa el control: distancia mínima 0.45 m.
+    // leer stick ANTES de recolocar: si hay input, modo zoom; si no, modo drag normal
+    let zoom = 0;
     const session = gl.xr.getSession?.();
     if (session) {
       for (const src of session.inputSources) {
         if (src.handedness !== "right" || !src.gamepad) continue;
         const axes = src.gamepad.axes;
         const raw = axes[3] ?? axes[1] ?? 0;
-        const dz = 0.18;
-        if (Math.abs(raw) <= dz) continue;
-        // normalizar fuera de deadzone y aplicar curva cuadrática suave
-        const norm = (Math.abs(raw) - dz) / (1 - dz);
-        const speed = norm * norm * 0.6; // m/s
-        // stick arriba (y negativo) = acercar panel -> acercarlo = moverlo hacia el control
-        distOffset.current = THREE.MathUtils.clamp(distOffset.current + (raw < 0 ? speed : -speed) * (1 / 72), -0.8, 0.8);
+        const dz = 0.2;
+        if (Math.abs(raw) > dz) {
+          const norm = (Math.abs(raw) - dz) / (1 - dz);
+          // stick arriba (y<0) = acercar (reducir dist); abajo = alejar
+          zoom = -Math.sign(raw) * norm * norm * 1.2; // máx 1.2 m/s
+        }
       }
     }
-    if (distOffset.current !== 0) {
+
+    if (zoom !== 0) {
+      mode.current = "zoom";
+      targetDist.current = THREE.MathUtils.clamp(targetDist.current + zoom * delta, 0.4, 2.5);
+    } else if (mode.current === "drag") {
+      // drag: la distancia objetivo sigue siendo la distancia real actual (mover libre)
       const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
-      const toPanel = group.position.clone().sub(ctrlPos);
-      const dist = toPanel.length();
-      // distancia final deseada a lo largo del eje control->panel (min 0.45 m: no atraviesa)
-      const newDist = Math.max(0.45, dist + distOffset.current);
-      toPanel.normalize().multiplyScalar(newDist);
-      group.position.copy(ctrlPos).add(toPanel);
+      targetDist.current = Math.max(0.4, group.position.distanceTo(ctrlPos));
+    }
+    // si soltó el stick y estaba en zoom, volver a drag en el próximo frame con la nueva distancia
+
+    // recolocar: panel a targetDist a lo largo del rayo del controlador (-Z),
+    // orientado mirando al control
+    const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
+    const ctrlDir = new THREE.Vector3(0, 0, -1).applyQuaternion(
+      g.controller.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    const pos = mode.current === "zoom"
+      ? ctrlPos.clone().addScaledVector(ctrlDir, targetDist.current)
+      : group.position.clone(); // drag mantiene la pose del apply de arriba
+
+    if (mode.current === "zoom") {
+      // reconstruir matriz en la posición del rayo, mirando de vuelta al control
+      const m = new THREE.Matrix4().lookAt(pos, ctrlPos, new THREE.Vector3(0, 1, 0));
+      group.quaternion.setFromRotationMatrix(m);
+      group.position.copy(pos);
     }
 
     group.updateMatrixWorld();
