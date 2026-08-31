@@ -65,6 +65,7 @@ export function XrPointerBridge() {
         pointerType: target.inputSource.handedness,
         pointerState: target.inputSource,
         button: 0,
+        timeStamp: performance.now(),
       } as never);
     } catch { /* noop */ }
   });
@@ -79,6 +80,7 @@ export function XrPointerBridge() {
         pointerType: target.inputSource.handedness,
         pointerState: target.inputSource,
         button: 0,
+        timeStamp: performance.now(),
       } as never);
     } catch { /* noop */ }
   });

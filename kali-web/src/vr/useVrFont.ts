@@ -18,16 +18,23 @@ async function generate(): Promise<FontFamily> {
   pending = (async () => {
     const msdf = new MSDF({ workerUrl, wasmUrl });
     await msdf.initialize();
-    // Fuente estática real (DejaVu Sans, latin completo con tildes).
-    // El Inter.ttf anterior era un HTML 404 descargado por error.
-    const regular = await fetch("/fonts/PanelSans.ttf").then((r) => {
-      if (!r.ok) throw new Error(`font regular ${r.status}`);
-      return r.arrayBuffer();
-    });
-    const bold = await fetch("/fonts/PanelSans-Bold.ttf").then((r) => {
-      if (!r.ok) throw new Error(`font bold ${r.status}`);
-      return r.arrayBuffer();
-    });
+    // Fuentes como assets de Vite: public/ + fetch directo choca con el
+    // SPA-fallback de Vite dev (devuelve index.html con 200 para .ttf).
+    // import.url resuelve la URL correcta en dev y en build.
+    const [regularUrl, boldUrl] = await Promise.all([
+      import("../assets/fonts/PanelSans.ttf?url").then((m) => (m as { default: string }).default),
+      import("../assets/fonts/PanelSans-Bold.ttf?url").then((m) => (m as { default: string }).default),
+    ]);
+    const [regular, bold] = await Promise.all([
+      fetch(regularUrl).then((r) => {
+        if (!r.ok) throw new Error(`font regular ${r.status}`);
+        return r.arrayBuffer();
+      }),
+      fetch(boldUrl).then((r) => {
+        if (!r.ok) throw new Error(`font bold ${r.status}`);
+        return r.arrayBuffer();
+      }),
+    ]);
     const result = await msdf.generate({
       fonts: [
         { font: new Uint8Array(regular), charset: CHARSET, fontSize: 48, textureSize: [1024, 1024] },

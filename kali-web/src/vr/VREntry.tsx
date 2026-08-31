@@ -726,23 +726,33 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     group.applyMatrix4(prev);
     group.applyMatrix4(g.controller.matrixWorld);
 
-    // grip + palanca derecha (stick Y): acercar/alejar DESPUÉS del apply,
-    // en el espacio local del controlador, para que no lo pise el frame siguiente.
+    // grip + palanca derecha (stick Y): acercar/alejar DESPUÉS del apply.
+    // - Stick arriba (y<0) = acercar; abajo = alejar (sentido natural).
+    // - Velocidad proporcional al stick, suave: 0.6 m/s máx.
+    // - El panel nunca atraviesa el control: distancia mínima 0.45 m.
     const session = gl.xr.getSession?.();
     if (session) {
       for (const src of session.inputSources) {
         if (src.handedness !== "right" || !src.gamepad) continue;
         const axes = src.gamepad.axes;
-        const y = axes[3] ?? axes[1] ?? 0;
-        if (Math.abs(y) >= 0.25) {
-          distOffset.current = THREE.MathUtils.clamp(distOffset.current + (-y * 0.012), -1.2, 1.2);
-        }
+        const raw = axes[3] ?? axes[1] ?? 0;
+        const dz = 0.18;
+        if (Math.abs(raw) <= dz) continue;
+        // normalizar fuera de deadzone y aplicar curva cuadrática suave
+        const norm = (Math.abs(raw) - dz) / (1 - dz);
+        const speed = norm * norm * 0.6; // m/s
+        // stick arriba (y negativo) = acercar panel -> acercarlo = moverlo hacia el control
+        distOffset.current = THREE.MathUtils.clamp(distOffset.current + (raw < 0 ? speed : -speed) * (1 / 72), -0.8, 0.8);
       }
     }
     if (distOffset.current !== 0) {
-      // eje -Z del controlador = hacia donde apunta; mover el panel por ese eje
-      const back = new THREE.Vector3(0, 0, distOffset.current).applyMatrix4(new THREE.Matrix4().extractRotation(g.controller.matrixWorld));
-      group.position.add(back);
+      const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
+      const toPanel = group.position.clone().sub(ctrlPos);
+      const dist = toPanel.length();
+      // distancia final deseada a lo largo del eje control->panel (min 0.45 m: no atraviesa)
+      const newDist = Math.max(0.45, dist + distOffset.current);
+      toPanel.normalize().multiplyScalar(newDist);
+      group.position.copy(ctrlPos).add(toPanel);
     }
 
     group.updateMatrixWorld();
