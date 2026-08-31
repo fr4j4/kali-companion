@@ -715,7 +715,6 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   const grabQuatOffset = useRef(new THREE.Quaternion());
 
   const doRelease = (group: THREE.Group | null) => {
-    // snap SOLO si el usuario giró el panel manualmente durante el drag (>25° de delta)
     const s = startQuat.current;
     if (group && s) {
       const dragged = group.quaternion.angleTo(s) > THREE.MathUtils.degToRad(25);
@@ -728,17 +727,21 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     }
     grabbing.current = null;
     startQuat.current = null;
+    (globalThis as { __vrGrabbed?: string | null }).__vrGrabbed = null;
   };
 
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     const group = groupRef.current;
     if (!group) return;
+    // anti-multi-agarrre: un solo panel grabbed a la vez (xr v5 dispara squeezeStart
+    // en TODOS los Interactive bajo el rayo)
+    if ((globalThis as { __vrGrabbed?: string | null }).__vrGrabbed) return;
     const ctrl = e.target.controller;
     const handedness = (e.target as { inputSource?: { handedness?: string } }).inputSource?.handedness ?? "right";
+    (globalThis as { __vrGrabbed?: string | null }).__vrGrabbed = handedness;
     grabbing.current = { controller: ctrl, handedness };
-    snapQuat.current = null; // cancelar snap pendiente — nada se mueve "solo"
+    snapQuat.current = null;
     startQuat.current = group.quaternion.clone();
-    // capturar el offset panel→control en el espacio LOCAL del control
     ctrl.updateMatrixWorld();
     const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
     grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
@@ -766,16 +769,16 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     const ctrl = g.controller;
     ctrl.updateMatrixWorld();
 
-    // ── POLLING del botón grip del control que agarra: si se soltó, liberar
-    // AQUÍ (el raycast de xr v5 pierde el squeezeEnd cuando el panel ya no
-    // está bajo el rayo — p.ej. al alejarlo con el stick) ──
+    // ── POLLING del grip FÍSICO del control que agarra.
+    // SOLO buttons[1] (grip). El trigger (0) NO cuenta: el usuario lo usa
+    // para pinchar botones del panel — contar trigger = panel atado a la
+    // mano mientras interactúa (= 'se vuelve loco'). ──
     const session = gl.xr.getSession?.();
     if (!session) return;
     let gripDown = false;
     for (const src of session.inputSources) {
       if (src.handedness !== g.handedness || !src.gamepad) continue;
-      // Quest: grip = button 1 (squeeze). Aceptamos también trigger (0) presionado para mantener.
-      gripDown = (src.gamepad.buttons[1]?.pressed || src.gamepad.buttons[0]?.pressed) ?? false;
+      gripDown = src.gamepad.buttons[1]?.pressed ?? false;
       if (gripDown) break;
     }
     if (!gripDown) {
@@ -783,9 +786,9 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       return;
     }
 
-    // ── stick derecho: acercar/alejar a lo largo de la LÍNEA REAL control→panel
-    //    (recalculada cada frame — el panel siempre queda entre tu mano y donde
-    //    esté, sobre esa visual; girar la muñeca no lo manda a otro lado) ──
+    // ── stick derecho: acercar/alejar sobre la LÍNEA REAL control→panel
+    //    (recalculada cada frame — siempre visible, girar la muñeca no lo
+    //    saca de la visual) ──
     let zoom = 0;
     for (const src of session.inputSources) {
       if (src.handedness !== "right" || !src.gamepad) continue;
@@ -804,7 +807,7 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       const newDist = THREE.MathUtils.clamp(dist + zoom * delta, 0.45, 2.5);
       toPanel.normalize().multiplyScalar(newDist);
       group.position.copy(ctrlPos).add(toPanel);
-      // sincronizar el offset local para que al soltar el stick el drag siga coherente
+      // sincronizar offset local — el drag continúa coherente al soltar el stick
       const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
       grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
     }
@@ -1396,7 +1399,9 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
   }, [placed, camera, index]);
 
   // A2: movimiento por rayo mientras el drag está activo con ESTE panel
+  // (se ignora mientras el grip tenga un panel agarrado — el grip manda)
   useFrame((_, delta) => {
+    if ((globalThis as { __vrGrabbed?: string | null }).__vrGrabbed) return;
     if (rayDrag.active && rayDrag.panelId === ev.id && groupRef.current) {
       // detectar release del trigger derecho (button 0)
       const session = gl.xr.getSession?.();
