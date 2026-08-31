@@ -1259,6 +1259,16 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
  */
 
 
+/** Color representativo por windowType (dot del header, distinguible de lejos). */
+const TYPE_COLORS: Record<string, string> = {
+  html: "#f59e0b", document: "#38bdf8", code: "#a78bfa", json: "#fbbf24",
+  table: "#22d3ee", checklist: "#34d399", chart: "#22d3ee", mermaid: "#a78bfa",
+  qr: "#10b981", link: "#60a5fa", image: "#8b5cf6", media: "#8b5cf6",
+  entity: "#f472b6", resource: "#fb7185", place: "#f97316", terminal: "#22c55e",
+  diff: "#eab308", quiz: "#a78bfa", reasoning: "#94a3b8", game: "#f43f5e",
+  controls: "#64748b", widget: "#64748b", ui3d: "#38bdf8",
+};
+
 function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: number; onClose: () => void }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -1311,7 +1321,16 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
 
           <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6} fontFamilies={vrFont ?? undefined}>
             <Container width="100%" height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
-              <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " · " + ev.windowType}</UIKitText>
+              <Container flexDirection="row" alignItems="center" gap={6}>
+                {/* dot de color por tipo — distinguible de lejos */}
+                <Container width={10} height={10} borderRadius={5} backgroundColor={TYPE_COLORS[wt] ?? "#64748b"} />
+                <UIKitText fontSize={11} color="#e2e8f0">{ev.title || ev.windowType}</UIKitText>
+                {ev.phase === "streaming" && (
+                  <Container backgroundColor="#1e3a5f" borderRadius={4} padding={4}>
+                    <UIKitText fontSize={9} color="#38bdf8">● escribiendo…</UIKitText>
+                  </Container>
+                )}
+              </Container>
               <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
                 <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
               </Container>
@@ -1326,7 +1345,16 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
               scrollbarWidth={4}
               flexDirection="column"
             >
-              <VrWidgetRenderer ev={ev} />
+              {(ev.content ?? "") === "" ? (
+                <Container flexDirection="column" gap={8} justifyContent="center" alignItems="center" height="100%">
+                  <UIKitText fontSize={13} color="#38bdf8">✍ escribiendo…</UIKitText>
+                  <Container width={200} height={10} backgroundColor="#1e293b" borderRadius={5} />
+                  <Container width={160} height={10} backgroundColor="#1e293b" borderRadius={5} />
+                  <Container width={180} height={10} backgroundColor="#1e293b" borderRadius={5} />
+                </Container>
+              ) : (
+                <VrWidgetRenderer ev={ev} />
+              )}
             </Container>
           </Root>
         </group>
@@ -1410,11 +1438,14 @@ function Widget2DPanels({
   onClose: (id: string) => void;
 }) {
   const inWorld = live.filter((ev) => worldIds.has(ev.id));
-  const twoD = inWorld.filter((ev) => ev.windowType !== "ui3d");
+  const twoD = inWorld.filter((ev) => ev.windowType !== "ui3d").slice(0, 6);
+  // worldIds es un Set ordenado por inserción: el slot queda estable aunque
+  // lleguen artefactos nuevos o se actualicen (no re-coloca los existentes).
+  const slotOf = (id: string) => [...worldIds].filter((wid) => twoD.some((e) => e.id === wid)).indexOf(id);
   return (
     <>
-      {twoD.slice(0, 6).map((ev, i) => (
-        <Widget2DPanel key={ev.id} ev={ev} index={i} onClose={() => onClose(ev.id)} />
+      {twoD.map((ev) => (
+        <Widget2DPanel key={ev.id} ev={ev} index={slotOf(ev.id)} onClose={() => onClose(ev.id)} />
       ))}
       {/* los ui3d siguen por su camino propio (ScenePanel) */}
       {inWorld.filter((ev) => ev.windowType === "ui3d").slice(0, 9).map((ev, i) => (
@@ -1465,7 +1496,29 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const openArtifact = useCallback((id: string) => {
     setWorldIds((prev) => new Set(prev).add(id));
   }, []);
+  // Auto-spawn: cuando el asistente empieza a escribir un artefacto streamable
+  // (code/document/diff/html/mermaid) aparece solo en el mundo; los no-streamables
+  // (table/quiz/chart/...) aparecen al completarse. Los cerrados por el usuario
+  // (userClosedRef) no se re-abren.
+  const userClosedRef = useRef<Set<string>>(new Set());
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const ev of live) {
+      if (knownIdsRef.current.has(ev.id)) continue;
+      knownIdsRef.current.add(ev.id);
+      if (userClosedRef.current.has(ev.id)) continue;
+      const streamable = ["code", "document", "diff", "html", "mermaid"].includes(ev.windowType);
+      const ready = streamable ? ev.content !== "" : ev.phase === "complete";
+      if (ready) {
+        setWorldIds((prev) => (prev.size < 6 ? new Set(prev).add(ev.id) : prev));
+      } else {
+        // aún vacío — reintentar cuando llegue contenido: quitar del known
+        knownIdsRef.current.delete(ev.id);
+      }
+    }
+  }, [live]);
   const closeArtifact = useCallback((id: string) => {
+    userClosedRef.current.add(id);
     setWorldIds((prev) => {
       const next = new Set(prev);
       next.delete(id);

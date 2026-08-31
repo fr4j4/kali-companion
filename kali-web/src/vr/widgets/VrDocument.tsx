@@ -34,7 +34,7 @@ export function VrDocument({ ev }: { ev: ArtifactEvent }) {
   }
   return (
     <Container flexDirection="column" padding={10} gap={6}>
-      <Text fontSize={9} color="#94a3b8" fontWeight={700}>{ev.title || "document"} · markdown</Text>
+      <Text fontSize={9} color="#94a3b8" fontWeight={700}>{ev.title || "document"} · markdown{ev.phase === "streaming" ? " ▌" : ""}</Text>
       <Text fontSize={8} color="#64748b">prueba tildes: áéíóú ñ ü ¿cómo estás? — Kali VR</Text>
       {blocks.slice(0, 10).map((b, i) => {
         if (b.type === "h") return <Text key={i} fontSize={13} color="#38bdf8" fontWeight={700}>{b.text}</Text>;
