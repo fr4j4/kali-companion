@@ -28,7 +28,7 @@ import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { useVrFont } from "./useVrFont";
 import { XrPointerBridge } from "./XrPointerBridge";
 import { VrMiniCard, TYPE_COLORS } from "./VrMiniCard";
-import { setFocusedPanel, subscribeFocusedPanel, rayDrag } from "./panelFocus";
+import { setFocusedPanel, subscribeFocusedPanel } from "./panelFocus";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -770,8 +770,9 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       return;
     }
 
-    // ── stick derecho: acercar/alejar sobre la línea REAL control→panel,
-    //    recalculada cada frame (siempre sobre la visual mano→panel) ──
+    // ── stick derecho: acercar/alejar RECTO — a lo largo del eje forward de la
+    //    CÁMARA HMD (adelante/atrás puro del usuario, sin diagonales mano→panel).
+    //    Sentido natural: stick arriba = acercar, abajo = alejar. ──
     let zoom = 0;
     for (const src of session.inputSources) {
       if (src.handedness !== "right" || !src.gamepad) continue;
@@ -780,16 +781,30 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
       const dz = 0.25;
       if (Math.abs(raw) > dz) {
         const norm = (Math.abs(raw) - dz) / (1 - dz);
-        zoom = -Math.sign(raw) * norm * norm * 1.0; // máx 1 m/s
+        // raw<0 (stick arriba) => zoom negativo => acerca (reduce distancia al usuario)
+        zoom = Math.sign(raw) * norm * norm * 1.0; // máx 1 m/s
       }
     }
     if (zoom !== 0) {
-      const ctrlPos = ctrl.getWorldPosition(new THREE.Vector3());
-      const toPanel = group.position.clone().sub(ctrlPos);
+      // eje adelante/atrás de la vista del usuario (sin componente vertical)
+      const cam = gl.xr.getCamera();
+      const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      fwd.y = 0;
+      if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+      fwd.normalize();
+      // mover recto en el eje de la vista
+      group.position.addScaledVector(fwd, zoom * delta);
+      // clamp: no atravesar al usuario (distancia mínima a la cabeza) ni irse lejos
+      const toPanel = group.position.clone().sub(camPos);
       const dist = toPanel.length();
-      const newDist = THREE.MathUtils.clamp(dist + zoom * delta, 0.45, 2.5);
-      toPanel.normalize().multiplyScalar(newDist);
-      group.position.copy(ctrlPos).add(toPanel);
+      if (dist < 0.5) {
+        toPanel.normalize().multiplyScalar(0.5);
+        group.position.copy(camPos).add(toPanel);
+      } else if (dist > 3.5) {
+        toPanel.normalize().multiplyScalar(3.5);
+        group.position.copy(camPos).add(toPanel);
+      }
       // sincronizar offset local: el drag sigue coherente al soltar el stick
       const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
       grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
@@ -1343,14 +1358,7 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
     return () => clearInterval(iv);
   }, []);
   // A2: drag por rayo desde el header (trigger mantenido)
-  const draggingRef = useRef(false);
-  useEffect(() => () => {
-    // FIX freeze: si el panel se desmonta mientras arrastraba, soltar rayDrag global
-    if (rayDrag.panelId === ev.id) {
-      rayDrag.active = false;
-      rayDrag.panelId = null;
-    }
-  }, [ev.id]);
+
   const focusPanel = useCallback(() => {
     if (!groupRef.current) return;
     setFocusedPanel({ id: ev.id, title: ev.title || ev.windowType, rootObj: groupRef.current });
@@ -1380,48 +1388,6 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
     };
     place();
   }, [placed, camera, index]);
-
-  // A2: movimiento por rayo mientras el drag está activo con ESTE panel
-  // (se ignora mientras el grip tenga un panel agarrado — el grip manda)
-  useFrame((_, delta) => {
-    if ((globalThis as { __vrGrabbed?: string | null }).__vrGrabbed) return;
-    if (rayDrag.active && rayDrag.panelId === ev.id && groupRef.current) {
-      // detectar release del trigger derecho (button 0)
-      const session = gl.xr.getSession?.();
-      let triggerDown = false;
-      if (session) {
-        for (const src of session.inputSources) {
-          if (src.handedness === "right" && src.gamepad) {
-            triggerDown = src.gamepad.buttons[0]?.pressed ?? false;
-            break;
-          }
-        }
-      }
-      if (!triggerDown) {
-        rayDrag.active = false;
-        rayDrag.panelId = null;
-        draggingRef.current = false;
-        return;
-      }
-      // mover panel por el rayo del control derecho a rayDrag.distance (suavizado)
-      for (const src of session?.inputSources ?? []) {
-        if (src.handedness !== "right") continue;
-        const c = (src as unknown as { targetRaySpace?: THREE.Object3D }).targetRaySpace;
-        if (!c) continue;
-        const cam = new THREE.Object3D();
-        cam.matrixWorld.copy(c.matrixWorld);
-        const origin = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
-        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(c.getWorldQuaternion(new THREE.Quaternion()));
-        const targetDist = THREE.MathUtils.clamp(rayDrag.distance, 0.5, 2.5);
-        const targetPos = origin.clone().addScaledVector(dir, targetDist);
-        groupRef.current.position.lerp(targetPos, 1 - Math.exp(-14 * Math.min(delta, 0.05)));
-        const camPos = new THREE.Vector3().setFromMatrixPosition((gl.xr.getCamera() as unknown as THREE.Camera).matrixWorld ?? new THREE.Matrix4());
-        const m = new THREE.Matrix4().lookAt(groupRef.current.position, camPos, new THREE.Vector3(0, 1, 0));
-        groupRef.current.quaternion.slerp(new THREE.Quaternion().setFromRotationMatrix(m), 1 - Math.exp(-14 * Math.min(delta, 0.05)));
-        break;
-      }
-    }
-  }, -1);
 
   const wt = ev.windowType as WindowType;
   const entry = widgetRegistry[wt];
@@ -1456,21 +1422,6 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
               flexDirection="row"
               alignItems="center"
               justifyContent="space-between"
-              onPointerDown={() => {
-                // A2: mantener trigger sobre el header = arrastrar por rayo
-                draggingRef.current = true;
-                rayDrag.active = true;
-                rayDrag.panelId = ev.id;
-                const cam = gl.xr.getCamera();
-                const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
-                rayDrag.distance = THREE.MathUtils.clamp(groupRef.current!.position.distanceTo(camPos), 0.5, 2.5);
-                // FIX freeze: el click del header dispara pointerdown; si el botón
-                // dispara onMinimize/onClose, rayDrag queda activo para siempre →
-                // el useFrame del panel muere con él y NADIE lo limpia.
-                setTimeout(() => {
-                  if (draggingRef.current && !rayDrag.active) draggingRef.current = false;
-                }, 300);
-              }}
             >
               <Container flexDirection="row" alignItems="center" gap={6}>
                 {/* dot de color por tipo — distinguible de lejos */}
@@ -1484,11 +1435,11 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
               </Container>
               <Container flexDirection="row" gap={4}>
                 {/* "–" = minimizar: colapsa el panel a una mini-card flotante abajo (pinch la restaura) */}
-                <Container width={26} height={22} backgroundColor="#1e293b" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#38bdf8" }} onClick={() => { rayDrag.active = false; rayDrag.panelId = null; onMinimize(); }}>
+                <Container width={26} height={22} backgroundColor="#1e293b" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#38bdf8" }} onClick={onMinimize}>
                   <UIKitText fontSize={12} color="#38bdf8">–</UIKitText>
                 </Container>
                 {/* "✕" = cerrar: quita el artefacto del mundo (sigue en el chat) */}
-                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { rayDrag.active = false; rayDrag.panelId = null; setFocusedPanel(null); onClose(); }}>
+                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { setFocusedPanel(null); onClose(); }}>
                   <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
                 </Container>
               </Container>
