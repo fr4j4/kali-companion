@@ -1628,21 +1628,18 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   // (code/document/diff/html/mermaid) aparece solo en el mundo; los no-streamables
   // (table/quiz/chart/...) aparecen al completarse. Los cerrados por el usuario
   // (userClosedRef) no se re-abren.
+  // Auto-spawn: cualquier artefacto vivo que tenga contenido Y no haya sido
+  // cerrado por el usuario se muestra solo. No filtramos por windowType/phase:
+  // si está vivo y tiene algo que mostrar, aparece (el backend garantiza que
+  // cada update de streaming tiene `content !== ""` salvo el primer marker).
+  // El usuario lo cierra → no vuelve a abrirse.
   const userClosedRef = useRef<Set<string>>(new Set());
-  const knownIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const ev of live) {
-      if (knownIdsRef.current.has(ev.id)) continue;
-      knownIdsRef.current.add(ev.id);
       if (userClosedRef.current.has(ev.id)) continue;
-      const streamable = ["code", "document", "diff", "html", "mermaid"].includes(ev.windowType);
-      const ready = streamable ? ev.content !== "" : ev.phase === "complete";
-      if (ready) {
-        setWorldIds((prev) => (prev.size < 6 ? new Set(prev).add(ev.id) : prev));
-      } else {
-        // aún vacío — reintentar cuando llegue contenido: quitar del known
-        knownIdsRef.current.delete(ev.id);
-      }
+      // vivo (no cerrado) y con contenido no vacío
+      if (ev.content === "" || ev.content == null) continue;
+      setWorldIds((prev) => (prev.has(ev.id) || prev.size >= 6 ? prev : new Set(prev).add(ev.id)));
     }
   }, [live]);
   const closeArtifact = useCallback((id: string) => {
