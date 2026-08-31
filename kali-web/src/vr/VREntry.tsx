@@ -715,6 +715,7 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   // Modo de agarre: drag (seguir la mano) o zoom (stick modifica targetDist).
   const mode = useRef<"drag" | "zoom">("drag");
   const targetDist = useRef(0.5);
+  const zoomDir = useRef(new THREE.Vector3(0, 0, -1));
 
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     const group = groupRef.current;
@@ -758,11 +759,9 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     const g = grabbing.current;
     if (!g || !group) return;
 
-    // ── DRAG: el panel sigue la mano (matriz prev→curr) ──
-    group.applyMatrix4(prev);
-    group.applyMatrix4(g.controller.matrixWorld);
-
-    // ── ZOOM por stick derecho (opcional dentro del drag) ──
+    // ── ZOOM por stick derecho: distancia a lo largo de la dirección CONGELADA
+    // control→panel (sin recalcular el rayo cada frame — el panel nunca sale
+    // del frustum aunque la mano apunte a otro lado) ──
     let zoom = 0;
     const session = gl.xr.getSession?.();
     if (session) {
@@ -777,23 +776,27 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
         }
       }
     }
+    const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
+
     if (zoom !== 0) {
-      mode.current = "zoom";
-      targetDist.current = THREE.MathUtils.clamp(targetDist.current + zoom * delta, 0.4, 2.5);
-    } else if (mode.current === "drag") {
-      const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
-      targetDist.current = Math.max(0.4, group.position.distanceTo(ctrlPos));
+      if (mode.current !== "zoom") {
+        // entrar a zoom: congelar la dirección actual control→panel
+        mode.current = "zoom";
+        zoomDir.current.copy(group.position).sub(ctrlPos).normalize();
+        if (zoomDir.current.lengthSq() < 1e-6) zoomDir.current.set(0, 0, -1).applyQuaternion(group.quaternion);
+      }
+      targetDist.current = THREE.MathUtils.clamp(targetDist.current + zoom * delta, 0.45, 2.5);
+      // recolocar SOLO la distancia sobre la dirección congelada — la orientación no cambia
+      group.position.copy(ctrlPos).addScaledVector(zoomDir.current, targetDist.current);
+      group.updateMatrixWorld();
+      prev.copy(g.controller.matrixWorld).invert();
+      return;
     }
-    if (mode.current === "zoom") {
-      const ctrlPos = g.controller.getWorldPosition(new THREE.Vector3());
-      const ctrlDir = new THREE.Vector3(0, 0, -1).applyQuaternion(
-        g.controller.getWorldQuaternion(new THREE.Quaternion()),
-      );
-      const pos = ctrlPos.clone().addScaledVector(ctrlDir, targetDist.current);
-      const m = new THREE.Matrix4().lookAt(pos, ctrlPos, new THREE.Vector3(0, 1, 0));
-      group.quaternion.setFromRotationMatrix(m);
-      group.position.copy(pos);
-    }
+
+    // ── DRAG normal: el panel sigue la mano (matriz prev→curr) ──
+    mode.current = "drag";
+    group.applyMatrix4(prev);
+    group.applyMatrix4(g.controller.matrixWorld);
 
     group.updateMatrixWorld();
     prev.copy(g.controller.matrixWorld).invert();
