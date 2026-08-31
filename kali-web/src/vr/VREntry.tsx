@@ -24,6 +24,7 @@ import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { WindowType } from "../workspace/types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
+import { VrHtml } from "./widgets/VrHtml";
 import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { useVrFont } from "./useVrFont";
 import { XrPointerBridge } from "./XrPointerBridge";
@@ -1394,25 +1395,29 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
   const Widget = entry?.component;
 
   if (isImmersive) {
-    // Fallback nativo garantizado: si uikit no pinta, el título sigue visible.
-    // El VrWidgetRenderer queda encima con clip; el Text de respaldo queda detrás.
+    // Render diferenciado por tipo: "html" usa VrHtml (mesh nativo three.js
+    // con textura del iframe) — NO puede ir dentro del Root uikit porque
+    // uikit aborta Yoga al encontrar un <mesh>. Para html renderizamos solo
+    // el header en uikit y el cuerpo como mesh hermano.
+    const isHtml = wt === "html";
     return (
       <GripGrab>
         <group ref={groupRef}>
-          {/* backing sutil — solo borde, no tapa el VrWidgetRenderer */}
+          {/* backing sutil — solo borde, no tapa el contenido */}
           <mesh position={[0, 0, -0.012]}>
             <planeGeometry args={[0.94, 0.76]} />
             <meshBasicMaterial color={focused ? "#0ea5e9" : "#0b0f14"} transparent opacity={focused ? 0.35 : 0.98} side={THREE.DoubleSide} />
           </mesh>
-          {/* A4: barra de progreso de scroll (borde derecho) */}
-          {scrollPct < 0.99 && (
+          {/* A4: barra de progreso de scroll (borde derecho) — solo uikit */}
+          {!isHtml && scrollPct < 0.99 && (
             <mesh position={[0.455, 0.36 - (0.72 * (1 - scrollPct)) / 2 - 0.36 * scrollPct, 0.014]}>
               <planeGeometry args={[0.006, 0.7 * scrollPct]} />
               <meshBasicMaterial color="#38bdf8" transparent opacity={0.9} />
             </mesh>
           )}
 
-          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6} fontFamilies={vrFont ?? undefined} onPointerDown={focusPanel}>
+          {/* HEADER en uikit (todos los tipos) */}
+          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.06} flexDirection="row" gap={6} padding={6} fontFamilies={vrFont ?? undefined} onPointerDown={focusPanel}>
             <Container
               width="100%"
               height={32}
@@ -1444,32 +1449,60 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
                 </Container>
               </Container>
             </Container>
-            <Container
-              ref={scrollRef as never}
-              width="100%"
-              flexGrow={1}
-              backgroundColor="#0b0f14"
-              borderRadius={8}
-              padding={8}
-              overflow="scroll"
-              scrollbarWidth={4}
-              flexDirection="column"
-            >
-              {(ev.content ?? "") === "" ? (
-                <Container flexDirection="column" gap={8} justifyContent="center" alignItems="center" height="100%">
-                  <UIKitText fontSize={13} color="#38bdf8">✍ escribiendo…</UIKitText>
-                  <Container width={200} height={10} backgroundColor="#1e293b" borderRadius={5} />
-                  <Container width={160} height={10} backgroundColor="#1e293b" borderRadius={5} />
-                  <Container width={180} height={10} backgroundColor="#1e293b" borderRadius={5} />
-                </Container>
-              ) : (
-                <VrWidgetRenderer
-                  ev={evThrottled}
-                  onSetContent={(next) => chat.setArtifactContent(ev.id, next)}
-                />
-              )}
-            </Container>
           </Root>
+
+          {/* CUERPO: rama por tipo. html → mesh nativo (NO Root uikit). */}
+          {isHtml ? (
+            (ev.content ?? "") === "" ? (
+              <group position={[0, -0.06, 0.01]}>
+                <mesh>
+                  <planeGeometry args={[0.84, 0.66]} />
+                  <meshBasicMaterial color="#0b0f14" side={THREE.DoubleSide} />
+                </mesh>
+                <Text fontSize={0.022} color="#38bdf8" position={[0, 0.08, 0.005]} anchorX="center" anchorY="middle">
+                  ✍ escribiendo…
+                </Text>
+              </group>
+            ) : (
+              <group position={[0, -0.05, 0.011]}>
+                {/* El mesh de VrHtml ya mide 1.2x1.4 m en coords locales.
+                    Lo escalamos a 0.84x0.66 para que entre en el panel. */}
+                <group scale={[0.7, 0.4714, 1]}>
+                  <VrHtml ev={evThrottled} />
+                </group>
+              </group>
+            )
+          ) : (
+            <group position={[0, -0.05, 0.01]}>
+              <Root pixelSize={0.002} sizeX={0.84} sizeY={0.66} flexDirection="column" padding={6} fontFamilies={vrFont ?? undefined}>
+                <Container
+                  ref={scrollRef as never}
+                  width="100%"
+                  flexGrow={1}
+                  backgroundColor="#0b0f14"
+                  borderRadius={8}
+                  padding={8}
+                  overflow="scroll"
+                  scrollbarWidth={4}
+                  flexDirection="column"
+                >
+                  {(ev.content ?? "") === "" ? (
+                    <Container flexDirection="column" gap={8} justifyContent="center" alignItems="center" height="100%">
+                      <UIKitText fontSize={13} color="#38bdf8">✍ escribiendo…</UIKitText>
+                      <Container width={200} height={10} backgroundColor="#1e293b" borderRadius={5} />
+                      <Container width={160} height={10} backgroundColor="#1e293b" borderRadius={5} />
+                      <Container width={180} height={10} backgroundColor="#1e293b" borderRadius={5} />
+                    </Container>
+                  ) : (
+                    <VrWidgetRenderer
+                      ev={evThrottled}
+                      onSetContent={(next) => chat.setArtifactContent(ev.id, next)}
+                    />
+                  )}
+                </Container>
+              </Root>
+            </group>
+          )}
         </group>
       </GripGrab>
     );
