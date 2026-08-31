@@ -1,6 +1,8 @@
-import { Container, Text, Image } from "@react-three/uikit";
+import { Container, Text } from "@react-three/uikit";
 import type { ArtifactEvent } from "../../lib/protocol";
 import { parseContent } from "../../components/widgets/base/DataWidget";
+import { SafeImage } from "../SafeImage";
+
 export function VrImage({ ev }: { ev: ArtifactEvent }) {
   const { data } = parseContent(ev);
   const d = data as any;
@@ -12,7 +14,7 @@ export function VrImage({ ev }: { ev: ArtifactEvent }) {
     <Container flexDirection="column" padding={8} gap={8} alignItems="center">
       {isUrl ? (
         <Container width="100%" height={200} borderRadius={8} overflow="hidden" backgroundColor="#020617" borderWidth={1} borderColor="#334155">
-          <Image key={clean} src={clean} width="100%" height="100%" objectFit="cover" />
+          <SafeImage url={clean} width="100%" height="100%" objectFit="cover" />
         </Container>
       ) : (
         <Container width="100%" height={180} backgroundColor="#1e293b" borderRadius={8} alignItems="center" justifyContent="center">

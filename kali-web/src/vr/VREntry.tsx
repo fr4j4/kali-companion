@@ -25,6 +25,7 @@ import type { WindowType } from "../workspace/types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
 import { Root, Container, Text as UIKitText } from "@react-three/uikit";
+import { useVrFont } from "./useVrFont";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -701,6 +702,7 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   const grabbing = useRef<{ controller: THREE.Object3D } | null>(null);
   const groupRef = useRef<THREE.Group>(null);
   const prev = useMemo(() => new THREE.Matrix4(), []);
+  const gl = useThree((s) => s.gl);
 
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     if (!groupRef.current) return;
@@ -720,6 +722,23 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     group.applyMatrix4(g.controller.matrixWorld);
     group.updateMatrixWorld();
     prev.copy(g.controller.matrixWorld).invert();
+
+    // grip + palanca derecha (stick Y): acercar/alejar el panel a lo largo
+    // del eje controlador->panel, sin soltar el agarre.
+    const session = gl.xr.getSession?.();
+    if (!session) return;
+    for (const src of session.inputSources) {
+      if (src.handedness !== "right" || !src.gamepad) continue;
+      const axes = src.gamepad.axes;
+      const y = axes[3] ?? axes[1] ?? 0; // stick derecho Y
+      if (Math.abs(y) < 0.25) continue;
+      const dir = group.position.clone().sub(g.controller.getWorldPosition(new THREE.Vector3()));
+      dir.y = 0;
+      if (dir.lengthSq() < 1e-6) continue;
+      dir.normalize();
+      group.position.addScaledVector(dir, -y * 0.015);
+      group.updateMatrixWorld();
+    }
   });
 
   return <group ref={groupRef}>{children}</group>;
@@ -1204,6 +1223,8 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
  * <Text>) agarrable. El bug del "todo negro" era <Html> invisible +
  * Suspensión sin boundary.
  */
+
+
 function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: number; onClose: () => void }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -1211,6 +1232,7 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
   const isImmersive = xrPresenting || (gl.xr as { isPresenting?: boolean }).isPresenting;
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
+  const vrFont = useVrFont();
 
   // Colocación: al montar y al entrar en XR (la pose cambia entre modos).
   useEffect(() => {
@@ -1253,7 +1275,7 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
             <meshBasicMaterial color="#0b0f14" transparent opacity={0.98} side={THREE.DoubleSide} />
           </mesh>
 
-          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6}>
+          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6} fontFamilies={vrFont ?? undefined}>
             <Container width="100%" height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
               <UIKitText fontSize={11} color="#38bdf8">{(ev.title || ev.windowType) + " · " + ev.windowType}</UIKitText>
               <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
