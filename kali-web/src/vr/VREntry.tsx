@@ -1276,6 +1276,23 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
 
 
 
+
+/** A5: streaming fuera de foco -> throttled a 1 update / 2s. */
+function useThrottledEv(ev: ArtifactEvent, focused: boolean): ArtifactEvent {
+  const [, bump] = useState(0);
+  const snapshot = useRef(ev);
+  const lastLive = useRef(0);
+  const frozen = ev.phase === "streaming" && !focused && Date.now() - lastLive.current < 2000;
+  useEffect(() => {
+    if (!frozen) {
+      snapshot.current = ev;
+      lastLive.current = Date.now();
+      bump((v) => v + 1);
+    }
+  }, [ev, frozen]);
+  return frozen ? snapshot.current : ev;
+}
+
 /** A3: resumen de 1 línea por tipo para la mini-card. */
 function VrWidgetSummary(ev: { windowType: string; content: string | null }): string {
   const c = ev.content ?? "";
@@ -1301,6 +1318,8 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
   const vrFont = useVrFont();
   const [focused, setFocused] = useState(false);
   useEffect(() => subscribeFocusedPanel((f) => setFocused(f?.id === ev.id)), [ev.id]);
+  // A5: streaming + panel sin foco => congelar ev a 1 actualización/2s (ahorra GPU en Quest)
+  const evThrottled = useThrottledEv(ev, focused);
   // A4: barra de progreso de scroll
   const scrollRef = useRef<{ scrollPosition?: { value: [number, number] }; maxScrollPosition?: { value: [number, number] } } | null>(null);
   const [scrollPct, setScrollPct] = useState(1);
@@ -1472,7 +1491,7 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
                 </Container>
               ) : (
                 <VrWidgetRenderer
-                  ev={ev}
+                  ev={evThrottled}
                   onSetContent={(next) => chat.setArtifactContent(ev.id, next)}
                 />
               )}
