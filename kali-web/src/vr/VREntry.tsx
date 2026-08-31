@@ -713,8 +713,17 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
     targetDist.current = Math.max(0.4, groupRef.current!.position.distanceTo(e.target.controller.getWorldPosition(new THREE.Vector3())));
     prev.copy(e.target.controller.matrixWorld).invert();
   });
+  // A1: snap-to-face — al soltar en pose rara, re-orienta suavemente hacia el usuario
+  const snapQuat = useRef<THREE.Quaternion | null>(null);
   useInteraction(groupRef, "onSqueezeEnd", () => {
     grabbing.current = null;
+    const group = groupRef.current;
+    if (!group) return;
+    const cam = gl.xr.getCamera();
+    const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
+    // objetivo: mirar al usuario (solo yaw+pitch), roll 0
+    const m = new THREE.Matrix4().lookAt(group.position, camPos, new THREE.Vector3(0, 1, 0));
+    snapQuat.current = new THREE.Quaternion().setFromRotationMatrix(m);
   });
 
   // Modo de agarre: "drag" (mover libre con grip) o "zoom" (stick modifica targetDist).
@@ -724,8 +733,13 @@ function GripGrab({ children }: { children?: React.ReactNode }) {
   const targetDist = useRef(0.5);
   // stick con deadzone-sticky: mientras esté fuera de deadzone, actualiza; al volver a 0, congela.
   useFrame((_, delta) => {
-    const g = grabbing.current;
     const group = groupRef.current;
+    // A1: snap-to-face corre siempre que no se agarre
+    if (snapQuat.current && group && !grabbing.current) {
+      group.quaternion.slerp(snapQuat.current, 1 - Math.exp(-12 * Math.min(delta, 0.05)));
+      if (group.quaternion.angleTo(snapQuat.current) < 0.01) snapQuat.current = null;
+    }
+    const g = grabbing.current;
     if (!g || !group) return;
     // leer stick ANTES de recolocar: si hay input, modo zoom; si no, modo drag normal
     let zoom = 0;
