@@ -27,6 +27,7 @@ import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
 import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { useVrFont } from "./useVrFont";
 import { XrPointerBridge } from "./XrPointerBridge";
+import { setFocusedPanel, subscribeFocusedPanel } from "./panelFocus";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
 import { fetchArtifact } from "../lib/artifacts";
@@ -1277,6 +1278,12 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
   const groupRef = useRef<THREE.Group>(null);
   const [placed, setPlaced] = useState(false);
   const vrFont = useVrFont();
+  const [focused, setFocused] = useState(false);
+  useEffect(() => subscribeFocusedPanel((f) => setFocused(f?.id === ev.id)), [ev.id]);
+  const focusPanel = useCallback(() => {
+    if (!groupRef.current) return;
+    setFocusedPanel({ id: ev.id, title: ev.title || ev.windowType, rootObj: groupRef.current });
+  }, [ev.id, ev.title, ev.windowType]);
 
   // Colocación: al montar y al entrar en XR (la pose cambia entre modos).
   useEffect(() => {
@@ -1314,12 +1321,12 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
       <GripGrab>
         <group ref={groupRef}>
           {/* backing sutil — solo borde, no tapa el VrWidgetRenderer */}
-          <mesh position={[0, 0, -0.01]}>
-            <planeGeometry args={[0.92, 0.74]} />
-            <meshBasicMaterial color="#0b0f14" transparent opacity={0.98} side={THREE.DoubleSide} />
+          <mesh position={[0, 0, -0.012]}>
+            <planeGeometry args={[0.94, 0.76]} />
+            <meshBasicMaterial color={focused ? "#0ea5e9" : "#0b0f14"} transparent opacity={focused ? 0.35 : 0.98} side={THREE.DoubleSide} />
           </mesh>
 
-          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6} fontFamilies={vrFont ?? undefined}>
+          <Root pixelSize={0.002} sizeX={0.84} sizeY={0.74} flexDirection="column" gap={6} padding={6} fontFamilies={vrFont ?? undefined} onPointerDown={focusPanel}>
             <Container width="100%" height={32} backgroundColor="#111827" borderRadius={8} padding={6} flexDirection="row" alignItems="center" justifyContent="space-between">
               <Container flexDirection="row" alignItems="center" gap={6}>
                 {/* dot de color por tipo — distinguible de lejos */}
@@ -1331,7 +1338,7 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
                   </Container>
                 )}
               </Container>
-              <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={onClose}>
+              <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { setFocusedPanel(null); onClose(); }}>
                 <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
               </Container>
             </Container>
