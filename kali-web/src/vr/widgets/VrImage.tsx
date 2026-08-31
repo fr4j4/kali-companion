@@ -8,13 +8,11 @@ export function VrImage({ ev }: { ev: ArtifactEvent }) {
   const caption = d?.caption ? String(d.caption) : "";
   const clean = String(url).trim();
   const isUrl = clean.startsWith("http") || clean.startsWith("data:");
-  // picsum a veces tarda/CORS; uikit Image carga async — mostramos url como respaldo siempre
   return (
     <Container flexDirection="column" padding={8} gap={8} alignItems="center">
       {isUrl ? (
         <Container width="100%" height={200} borderRadius={8} overflow="hidden" backgroundColor="#020617" borderWidth={1} borderColor="#334155">
-          {/* @ts-ignore uikit Image src — carga textura externa; si falla queda fondo oscuro + url debajo */}
-          <Image src={clean} width="100%" height="100%" objectFit="cover" />
+          <Image key={clean} src={clean} width="100%" height="100%" objectFit="cover" />
         </Container>
       ) : (
         <Container width="100%" height={180} backgroundColor="#1e293b" borderRadius={8} alignItems="center" justifyContent="center">
