@@ -1301,20 +1301,18 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
 
 
 
-/** A5: streaming fuera de foco -> throttled a 1 update / 2s. */
+/** A5: streaming fuera de foco -> throttled a 1 update / 2s (sin setState en effect). */
 function useThrottledEv(ev: ArtifactEvent, focused: boolean): ArtifactEvent {
-  const [, bump] = useState(0);
   const snapshot = useRef(ev);
   const lastLive = useRef(0);
-  const frozen = ev.phase === "streaming" && !focused && Date.now() - lastLive.current < 2000;
-  useEffect(() => {
-    if (!frozen) {
-      snapshot.current = ev;
-      lastLive.current = Date.now();
-      bump((v) => v + 1);
-    }
-  }, [ev, frozen]);
-  return frozen ? snapshot.current : ev;
+  const now = Date.now();
+  if (focused || ev.phase !== "streaming") return ev;
+  if (now - lastLive.current >= 2000) {
+    lastLive.current = now;
+    snapshot.current = ev;
+    return snapshot.current;
+  }
+  return snapshot.current;
 }
 
 /** A3: resumen de 1 línea por tipo para la mini-card. */
@@ -1360,8 +1358,12 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
   }, []);
   // A2: drag por rayo desde el header (trigger mantenido)
   const draggingRef = useRef(false);
-  useEffect(() => {
-    if (draggingRef.current && rayDrag.panelId !== ev.id) draggingRef.current = false;
+  useEffect(() => () => {
+    // FIX freeze: si el panel se desmonta mientras arrastraba, soltar rayDrag global
+    if (rayDrag.panelId === ev.id) {
+      rayDrag.active = false;
+      rayDrag.panelId = null;
+    }
   }, [ev.id]);
   const focusPanel = useCallback(() => {
     if (!groupRef.current) return;
@@ -1474,6 +1476,12 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
                 const cam = gl.xr.getCamera();
                 const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld ?? cam.matrix);
                 rayDrag.distance = THREE.MathUtils.clamp(groupRef.current!.position.distanceTo(camPos), 0.5, 2.5);
+                // FIX freeze: el click del header dispara pointerdown; si el botón
+                // dispara onMinimize/onClose, rayDrag queda activo para siempre →
+                // el useFrame del panel muere con él y NADIE lo limpia.
+                setTimeout(() => {
+                  if (draggingRef.current && !rayDrag.active) draggingRef.current = false;
+                }, 300);
               }}
             >
               <Container flexDirection="row" alignItems="center" gap={6}>
@@ -1487,10 +1495,12 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
                 )}
               </Container>
               <Container flexDirection="row" gap={4}>
-                <Container width={26} height={22} backgroundColor="#1e293b" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#38bdf8" }} onClick={onMinimize}>
+                {/* "–" = minimizar: colapsa el panel a una mini-card flotante abajo (pinch la restaura) */}
+                <Container width={26} height={22} backgroundColor="#1e293b" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#38bdf8" }} onClick={() => { rayDrag.active = false; rayDrag.panelId = null; onMinimize(); }}>
                   <UIKitText fontSize={12} color="#38bdf8">–</UIKitText>
                 </Container>
-                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { setFocusedPanel(null); onClose(); }}>
+                {/* "✕" = cerrar: quita el artefacto del mundo (sigue en el chat) */}
+                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { rayDrag.active = false; rayDrag.panelId = null; setFocusedPanel(null); onClose(); }}>
                   <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
                 </Container>
               </Container>
