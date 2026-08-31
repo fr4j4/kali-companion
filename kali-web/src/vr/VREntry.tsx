@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Text, Html } from "@react-three/drei";
+import { OrbitControls, Text, Html, PerspectiveCamera } from "@react-three/drei";
 import { XR, Controllers, Hands, Interactive, useXR, useInteraction } from "@react-three/xr";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { WindowType } from "../workspace/types";
@@ -1724,7 +1724,12 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 1.6, 2], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, localClippingEnabled: true }}>
+      {/* Sin prop `camera` aquí: el XR rig provee su propia cámara cuando
+          hay sesión activa. Una PerspectiveCamera explícita como default
+          evita que la cámara del lobby se quede activa durante el primer
+          frame de XR (eso causaba "todo negro"). */}
+      <Canvas dpr={[1, 2]} gl={{ antialias: true, localClippingEnabled: true }}>
+        <PerspectiveCamera makeDefault position={[0, 1.6, 2]} fov={60} near={0.05} far={200} />
         <color attach="background" args={["#04070a"]} />
         <fog attach="fog" args={["#04070a", 10, 40]} />
         <ambientLight intensity={0.5} />
