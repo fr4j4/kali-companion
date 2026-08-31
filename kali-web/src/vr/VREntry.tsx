@@ -27,6 +27,7 @@ import { VrWidgetRenderer } from "./widgets/VrWidgetRenderer";
 import { Root, Container, Text as UIKitText } from "@react-three/uikit";
 import { useVrFont } from "./useVrFont";
 import { XrPointerBridge } from "./XrPointerBridge";
+import { VrMiniCard, TYPE_COLORS } from "./VrMiniCard";
 import { setFocusedPanel, subscribeFocusedPanel } from "./panelFocus";
 import { StageProvider, useStage } from "../stage/StageProvider";
 import { AuthGate } from "../components/AuthGate";
@@ -1274,17 +1275,22 @@ function ArtifactBody({ ev }: { ev: ArtifactEvent }) {
  */
 
 
-/** Color representativo por windowType (dot del header, distinguible de lejos). */
-const TYPE_COLORS: Record<string, string> = {
-  html: "#f59e0b", document: "#38bdf8", code: "#a78bfa", json: "#fbbf24",
-  table: "#22d3ee", checklist: "#34d399", chart: "#22d3ee", mermaid: "#a78bfa",
-  qr: "#10b981", link: "#60a5fa", image: "#8b5cf6", media: "#8b5cf6",
-  entity: "#f472b6", resource: "#fb7185", place: "#f97316", terminal: "#22c55e",
-  diff: "#eab308", quiz: "#a78bfa", reasoning: "#94a3b8", game: "#f43f5e",
-  controls: "#64748b", widget: "#64748b", ui3d: "#38bdf8",
-};
 
-function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: number; onClose: () => void }) {
+/** A3: resumen de 1 línea por tipo para la mini-card. */
+function VrWidgetSummary(ev: { windowType: string; content: string | null }): string {
+  const c = ev.content ?? "";
+  try {
+    const d = JSON.parse(c);
+    if (Array.isArray(d?.rows)) return `${d.rows.length} filas`;
+    if (Array.isArray(d?.items)) return `${d.items.length} items`;
+    if (Array.isArray(d?.questions)) return `${d.questions.length} preguntas`;
+  } catch { /* texto plano */ }
+  const lines = c.split("\n").filter(Boolean).length;
+  if (lines > 1) return `${lines} líneas`;
+  return c.slice(0, 30) || "vacío";
+}
+
+function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; index: number; onClose: () => void; onMinimize: () => void }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const xrPresenting = useXR((s: unknown) => (s as { isPresenting?: boolean; session?: unknown }).isPresenting ?? (s as { session?: unknown }).session != null);
@@ -1352,8 +1358,13 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
                   </Container>
                 )}
               </Container>
-              <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { setFocusedPanel(null); onClose(); }}>
-                <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
+              <Container flexDirection="row" gap={4}>
+                <Container width={26} height={22} backgroundColor="#1e293b" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#38bdf8" }} onClick={onMinimize}>
+                  <UIKitText fontSize={12} color="#38bdf8">–</UIKitText>
+                </Container>
+                <Container width={30} height={22} backgroundColor="#fb7185" borderRadius={6} justifyContent="center" alignItems="center" hover={{ backgroundColor: "#ff6b7a" }} onClick={() => { setFocusedPanel(null); onClose(); }}>
+                  <UIKitText fontSize={12} color="#04070a">✕</UIKitText>
+                </Container>
               </Container>
             </Container>
             <Container
@@ -1451,22 +1462,36 @@ function Widget2DPanel({ ev, index, onClose }: { ev: ArtifactEvent; index: numbe
 
 /** Puente: los artefactos marcados como "en el mundo" se renderizan. */
 function Widget2DPanels({
-  sessionId, live, worldIds, onClose,
+  sessionId, live, worldIds, minimized, onMinimize, onRestore, onClose,
 }: {
   sessionId: string | null;
   live: ArtifactEvent[];
   worldIds: Set<string>;
+  minimized: Set<string>;
+  onMinimize: (id: string) => void;
+  onRestore: (id: string) => void;
   onClose: (id: string) => void;
 }) {
   const inWorld = live.filter((ev) => worldIds.has(ev.id));
   const twoD = inWorld.filter((ev) => ev.windowType !== "ui3d").slice(0, 6);
+  const minList = twoD.filter((ev) => minimized.has(ev.id));
   // worldIds es un Set ordenado por inserción: el slot queda estable aunque
-  // lleguen artefactos nuevos o se actualicen (no re-coloca los existentes).
+  // lleguen artefactos nuevos o se actualicen (no re-coloca a los existentes).
   const slotOf = (id: string) => [...worldIds].filter((wid) => twoD.some((e) => e.id === wid)).indexOf(id);
   return (
     <>
-      {twoD.map((ev) => (
-        <Widget2DPanel key={ev.id} ev={ev} index={slotOf(ev.id)} onClose={() => onClose(ev.id)} />
+      {twoD.filter((ev) => !minimized.has(ev.id)).map((ev) => (
+        <Widget2DPanel key={ev.id} ev={ev} index={slotOf(ev.id)} onClose={() => onClose(ev.id)} onMinimize={() => onMinimize(ev.id)} />
+      ))}
+      {minList.map((ev) => (
+        <VrMiniCard
+          key={`mini-${ev.id}`}
+          title={ev.title || ev.windowType}
+          windowType={ev.windowType}
+          summary={VrWidgetSummary(ev)}
+          slot={minList.indexOf(ev)}
+          onRestore={() => onRestore(ev.id)}
+        />
       ))}
       {/* los ui3d siguen por su camino propio (ScenePanel) */}
       {inWorld.filter((ev) => ev.windowType === "ui3d").slice(0, 9).map((ev, i) => (
@@ -1511,6 +1536,7 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
   const [debugOpen, setDebugOpen] = useState(false);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [worldIds, setWorldIds] = useState<Set<string>>(new Set());
+  const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
   const exitVR = useExitVR();
   const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
   const toggleCommands = useCallback(() => setCommandsOpen((o) => !o), []);
@@ -1622,7 +1648,15 @@ function RoomCanvas({ sessionId, live }: { sessionId: string | null; live: Artif
           {/* pelotitas removidas — solo artefactos reales */}
           <XrPointerBridge />
           <ArtifactPanels sessionId={sessionId} live={live} />
-          <Widget2DPanels sessionId={sessionId} live={live} worldIds={worldIds} onClose={closeArtifact} />
+          <Widget2DPanels
+            sessionId={sessionId}
+            live={live}
+            worldIds={worldIds}
+            minimized={minimizedIds}
+            onMinimize={(id) => setMinimizedIds((prev) => new Set(prev).add(id))}
+            onRestore={(id) => setMinimizedIds((prev) => { const n = new Set(prev); n.delete(id); return n; })}
+            onClose={closeArtifact}
+          />
         </XR>
 
         <OrbitControls makeDefault target={[0, 1.2, -2]} maxPolarAngle={Math.PI / 2} />
