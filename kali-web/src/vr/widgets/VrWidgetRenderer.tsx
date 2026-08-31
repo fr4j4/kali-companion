@@ -14,8 +14,9 @@ import { VrImage } from "./VrImage";
 import { VrEntity } from "./VrEntity";
 import { VrQuiz } from "./VrQuiz";
 import { VrHtml } from "./VrHtml";
+import { VrGameHost } from "../games/VrGameHost";
 
-type Props = { ev: ArtifactEvent; onAction?: (type: string, payload?: unknown) => void };
+type Props = { ev: ArtifactEvent; onAction?: (type: string, payload?: unknown) => void; onSetContent?: (ev: ArtifactEvent) => void };
 
 function Fallback({ ev }: { ev: ArtifactEvent }) {
   return (
@@ -26,7 +27,7 @@ function Fallback({ ev }: { ev: ArtifactEvent }) {
   );
 }
 
-export function VrWidgetRenderer({ ev, onAction }: Props) {
+export function VrWidgetRenderer({ ev, onAction, onSetContent }: Props) {
   const wt = ev.windowType as string;
   switch (wt) {
     case "table": return <VrTable ev={ev} />;
@@ -50,7 +51,17 @@ export function VrWidgetRenderer({ ev, onAction }: Props) {
     case "html": return <VrHtml ev={ev} />;
     case "controls": return <Fallback ev={ev} />;
     case "widget": return <Fallback ev={ev} />;
-    case "game": return <Fallback ev={ev} />;
+    case "game": return <GameRoute ev={ev} onSetContent={onSetContent} onAction={onAction} />;
     default: return <Fallback ev={ev} />;
   }
+}
+
+
+/** B1: ruta del artefacto game — launchpad o juego activo. */
+function GameRoute({ ev, onSetContent, onAction }: { ev: ArtifactEvent; onSetContent?: (ev: ArtifactEvent) => void; onAction?: Props["onAction"] }) {
+  const setGameContent = (content: unknown) => {
+    if (onSetContent) onSetContent({ ...ev, content: JSON.stringify(content) });
+    else onAction?.("game_set_content", content); // fallback: el host decide
+  };
+  return <VrGameHost ev={ev as never} setGameContent={setGameContent as never} />;
 }

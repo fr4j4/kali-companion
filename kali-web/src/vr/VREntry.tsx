@@ -609,7 +609,7 @@ function DebugPanel({ onClose, onOpenArtifact }: { onClose: () => void; onOpenAr
     { wt: "diff", label: "diff", color: "#eab308", make: () => ["Diff", "diff --git a/app.py b/app.py\n@@ -1,3 +1,4 @@\n-const x=1\n+const x=2 // fix VR\n+// fidelidad\n console.log(x)"] },
     { wt: "quiz", label: "quiz", color: "#a78bfa", make: () => ["Quiz VR", JSON.stringify({ questions: [ { q: "¿Capital de Chile?", options: ["Santiago", "Lima", "Bogotá", "Buenos Aires"], answer: 0 }, { q: "¿Cuántos grados de libertad tiene un Quest 3?", options: ["3DoF", "6DoF", "9DoF"], answer: 1 }, { q: "¿Qué empresa fabrica el chip Snapdragon XR2?", options: ["Intel", "AMD", "Qualcomm"], answer: 2 }, { q: "¿Cuál NO es un controlador de WebXR?", options: ["grip", "trigger", "joystick B", "select"], answer: 2 } ] })] },
     { wt: "reasoning", label: "reason", color: "#94a3b8", make: () => ["Reasoning", "## Razonamiento\n\n1. El usuario quiere fidelidad 1:1.\n2. Canvas2D → CanvasTexture es el camino estable.\n3. HTML vivo requiere raster offscreen (next slice)."] },
-    { wt: "game", label: "game", color: "#f43f5e", make: () => ["Game", JSON.stringify({ game: "tic-tac-toe", board: [["X","","O"],["","X",""],["","",""]] })] },
+    { wt: "game", label: "game", color: "#f43f5e", make: () => ["Juegos VR", JSON.stringify({ mode: "launchpad" })] },
     { wt: "controls", label: "controls", color: "#64748b", make: () => ["Controls", JSON.stringify({ controls: [{ type: "slider", label: "Vol", value: 0.7 }] })] },
     { wt: "widget", label: "widget", color: "#64748b", make: () => ["Widget", JSON.stringify({ msg: "widget genérico demo", ts: Date.now() })] },
     { wt: "ui3d", label: "ui3d", color: "#38bdf8", make: () => ["UI3D", JSON.stringify({ root: "root", elements: { root: { type: "group", position: [0,0,0], children: ["box1","sphere1"] }, box1: { type: "box", position: [0,0.6,0], color: "#38bdf8" }, sphere1: { type: "sphere", position: [0.5,0.4,0], color: "#f59e0b" } } })] },
@@ -1291,6 +1291,7 @@ function VrWidgetSummary(ev: { windowType: string; content: string | null }): st
 }
 
 function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; index: number; onClose: () => void; onMinimize: () => void }) {
+  const chat = useStage().chat;
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const xrPresenting = useXR((s: unknown) => (s as { isPresenting?: boolean; session?: unknown }).isPresenting ?? (s as { session?: unknown }).session != null);
@@ -1385,7 +1386,10 @@ function Widget2DPanel({ ev, index, onClose, onMinimize }: { ev: ArtifactEvent; 
                   <Container width={180} height={10} backgroundColor="#1e293b" borderRadius={5} />
                 </Container>
               ) : (
-                <VrWidgetRenderer ev={ev} />
+                <VrWidgetRenderer
+                  ev={ev}
+                  onSetContent={(next) => chat.setArtifactContent(ev.id, next)}
+                />
               )}
             </Container>
           </Root>
