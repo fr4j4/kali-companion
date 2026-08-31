@@ -4,37 +4,59 @@ import { useInteraction } from "@react-three/xr";
 import * as THREE from "three";
 
 /**
- * Grip + zoom — modelo definitivo (sin diagonales, sin inversiones, sin snaps).
+ * Grip + zoom — modelo simple y correcto.
  *
- * Mientras dura el grip, el panel queda pegado a un punto del espacio LOCAL del
- * control — su offset (en coordenadas del control) se captura al apretar el grip
- * y se recalcula cada frame al final, de modo que la ventana sigue tu mano 1:1.
+ * AGARRAR (squeezeStart):
+ *   1) Capturar la DISTANCIA horizontal actual entre control y panel.
+ *   2) Capturar la DIRECCIÓN horizontal actual (panel - control), normalizada.
  *
- * Stick derecho (Y):
- *   - Modifica la LONGITUD de grabOffsetLocal en su componente forward local del
- *     control (es decir, "lejos/cerca" respecto de la dirección a la que apunta
- *     tu control en ese momento, sin componente vertical para no salirse del
- *     plano horizontal).
- *   - Stick hacia abajo (raw<0) -> ALEJA (suma distancia).
- *   - Stick hacia arriba (raw>0) -> ACERCA (resta distancia).
- *   - Curva cuadrática suave, clamp 0.4..2.6 m.
+ * MIENTRAS DURA EL GRIP (cada frame):
+ *   - Calcular la nueva posición del panel:
+ *       nuevaDist = clamp(distActual + zoomInput * speed * delta, MIN, MAX)
+ *       group.position = controlPosXZ + dir * nuevaDist
+ *       group.quaternion = ctrl.quat * grabQuatOffset
  *
- * Soltar grip:
- *   - El polling físico del botón detecta release al instante (sin raycast).
- *   - El panel QUEDA EXACTAMENTE donde está el último frame: ni snap, ni
- *     re-orientación fantasma, ni "atado a la mano" residual.
+ *     donde zoomInput viene del stick derecho:
+ *       stick arriba (raw<0) => zoomInput < 0 => ACERCA (reduce dist)
+ *       stick abajo (raw>0) => zoomInput > 0 => ALEJA (aumenta dist)
  *
- * Multi-agarre: guard global __vrGrabbed — solo un panel agarrado a la vez.
+ *   - Si el stick está en deadzone, zoomInput=0 => la distancia se mantiene
+ *     exactamente, sin deriva, sin acumulación. Mover la mano simplemente
+ *     arrastra la ventana porque controlPosXZ cambia (drag 1:1 natural).
+ *
+ * SOLTAR (squeezeEnd o polling físico buttons[1]=false):
+ *   - El panel queda EXACTAMENTE donde el último frame lo dejó. Sin snap,
+ *     sin re-orientación. Limpieza del guard global.
+ *
+ * Por qué este modelo es correcto:
+ *   - El zoom modifica directamente `group.position` cada frame, sin pasar
+ *     por offsets locales intermedios que se re-proyectan mal.
+ *   - La dirección se congela al AGARRAR y se reusa mientras dura el grip
+ *     (no se recalcula cada frame — eso era la fuente de los movimientos
+ *     diagonales: si el frame siguiente recalculabas con un nuevo controlPosXZ,
+ *     el panel se desviaba de la línea recta).
+ *   - El drag 1:1 es consecuencia natural: si zoomInput=0 y tu mano se mueve,
+ *     controlPosXZ cambia, la fórmula `controlPosXZ + dir*dist` mueve el panel
+ *     en la misma dirección y distancia que tu mano.
  */
 export function GripGrab({ children }: { children?: React.ReactNode }) {
-  const grabbing = useRef<{ controller: THREE.Object3D; handedness: string } | null>(null);
+  const grabbing = useRef<{
+    controller: THREE.Object3D;
+    handedness: string;
+    /** Dirección horizontal congelada al agarrar (panel - control), normalizada en XZ. */
+    dir: THREE.Vector3;
+    /** Distancia horizontal al agarrar (clamp MIN..MAX). */
+    dist: number;
+    /** Rotación relativa panel↔control capturada al agarrar. */
+    quatOffset: THREE.Quaternion;
+  } | null>(null);
+
   const groupRef = useRef<THREE.Group>(null);
   const gl = useThree((s) => s.gl);
 
-  // Offset del panel en el espacio LOCAL del control, capturado al apretar.
-  const grabOffsetLocal = useRef(new THREE.Vector3(0, 0, -0.6));
-  // Rotación relativa panel↔control, capturada al apretar.
-  const grabQuatOffset = useRef(new THREE.Quaternion());
+  const MIN_DIST = 0.5;
+  const MAX_DIST = 3.0;
+  const SPEED = 1.2; // m/s al máximo del stick
 
   const doRelease = () => {
     grabbing.current = null;
@@ -44,35 +66,49 @@ export function GripGrab({ children }: { children?: React.ReactNode }) {
   useInteraction(groupRef, "onSqueezeStart", (e) => {
     const group = groupRef.current;
     if (!group) return;
-    // anti multi-agarre: un panel a la vez
+    // anti multi-agarre
     if ((globalThis as { __vrGrabbed?: string | null }).__vrGrabbed) return;
+
     const ctrl = e.target.controller;
     const handedness =
       (e.target as { inputSource?: { handedness?: string } }).inputSource?.handedness ?? "right";
     (globalThis as { __vrGrabbed?: string | null }).__vrGrabbed = handedness;
-    grabbing.current = { controller: ctrl, handedness };
 
-    // Capturar offset panel→control en el espacio LOCAL del control.
     ctrl.updateMatrixWorld();
-    const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
-    grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
-
-    // Respetar clamp mínimo en el momento de agarre (no atravesar la mano).
-    if (grabOffsetLocal.current.length() < 0.4) {
-      grabOffsetLocal.current.normalize().multiplyScalar(0.4);
+    const ctrlPos = new THREE.Vector3().setFromMatrixPosition(ctrl.matrixWorld);
+    const toPanel = group.position.clone().sub(ctrlPos);
+    // Aplanar a XZ para que el zoom nunca vaya hacia arriba/abajo.
+    toPanel.y = 0;
+    let dist = toPanel.length();
+    let dir = new THREE.Vector3();
+    if (dist < 1e-3) {
+      // El panel está exactamente encima del control — usar el forward del control como fallback.
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(
+        ctrl.getWorldQuaternion(new THREE.Quaternion()),
+      );
+      fwd.y = 0;
+      if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+      fwd.normalize();
+      dir.copy(fwd);
+      dist = Math.max(MIN_DIST, 0.6);
+    } else {
+      dir.copy(toPanel).divideScalar(dist);
+      // Respetar clamp de distancia al agarrar (no atravesar la mano).
+      dist = Math.min(Math.max(dist, MIN_DIST), MAX_DIST);
     }
 
-    // Capturar rotación relativa panel↔control.
-    grabQuatOffset.current
-      .copy(ctrl.getWorldQuaternion(new THREE.Quaternion()).invert())
+    const quatOffset = ctrl
+      .getWorldQuaternion(new THREE.Quaternion())
+      .invert()
       .multiply(group.getWorldQuaternion(new THREE.Quaternion()));
+
+    grabbing.current = { controller: ctrl, handedness, dir, dist, quatOffset };
   });
 
   useInteraction(groupRef, "onSqueezeEnd", () => {
     if (grabbing.current) doRelease();
   });
 
-  // Cleanup si el panel se desmonta mientras está agarrado.
   useEffect(
     () => () => {
       if (grabbing.current) doRelease();
@@ -101,65 +137,40 @@ export function GripGrab({ children }: { children?: React.ReactNode }) {
       return;
     }
 
-    // ── Stick derecho: ZOOM modificando la Z local del offset (recto, sin diagonales) ──
-    let zoomInput = 0; // -1..+1, + = alejar, - = acercar
+    // ── Stick derecho: zoom sobre la dirección congelada ──
+    let zoomInput = 0;
     for (const src of session.inputSources) {
       if (src.handedness !== "right" || !src.gamepad) continue;
       const axes = src.gamepad.axes;
-      // axes[1] = Y del stick principal (estándar Quest). Si no, fallback axes[3].
+      // En Quest: axes[1] = Y del stick principal (estándar WebXR).
       const raw = axes[1] ?? axes[3] ?? 0;
-      const dz = 0.25;
+      const dz = 0.18;
       if (Math.abs(raw) > dz) {
         const norm = (Math.abs(raw) - dz) / (1 - dz);
-        // Convención: raw<0 cuando se empuja el stick HACIA ARRIBA en el mando.
-        // Sentido NATURAL: stick arriba (raw<0) = ACERCAR => zoomInput NEGATIVO.
-        zoomInput = Math.sign(-raw) * norm * norm; // cuadrática suave, máx 1
+        // raw<0 = stick ARRIBA. Sentido natural: ARRIBA ACERCA => zoomInput NEGATIVO.
+        zoomInput = Math.sign(-raw) * norm * norm;
       }
     }
+
+    // Integrar la distancia con el stick (cuadrática suave).
     if (zoomInput !== 0) {
-      // El "frente" del control en coords locales es -Z. La Z local del offset
-      // es grabOffsetLocal.z. Modificamos su MAGNITUD proyectando sobre la
-      // dirección forward del control, SIN componente vertical (no diagonales).
-      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(
-        ctrl.getWorldQuaternion(new THREE.Quaternion()),
+      g.dist = Math.min(
+        Math.max(g.dist + zoomInput * SPEED * delta, MIN_DIST),
+        MAX_DIST,
       );
-      fwd.y = 0;
-      if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
-      fwd.normalize();
-
-      // Dirección actual panel→control (también horizontal) — para que el zoom
-      // se aplique SOBRE la línea visible mano→panel (no fuerces la dirección).
-      const ctrlPos = new THREE.Vector3().setFromMatrixPosition(ctrl.matrixWorld);
-      ctrlPos.y = group.position.y; // forzar plano horizontal
-      const toPanel = group.position.clone().sub(ctrlPos);
-      const horizLen = Math.hypot(toPanel.x, toPanel.z);
-      const dir =
-        horizLen > 1e-3
-          ? new THREE.Vector3(toPanel.x / horizLen, 0, toPanel.z / horizLen)
-          : fwd;
-
-      // Distancia objetivo: partimos de la distancia horizontal actual y la
-      // variamos con el stick (cuadrática suave, máx 1 m/s).
-      const speed = 1.0;
-      const targetDist = Math.min(
-        Math.max(horizLen + zoomInput * speed * delta, 0.4),
-        2.6,
-      );
-
-      // Reconstruir la posición objetivo sobre esa línea horizontal.
-      group.position.copy(ctrlPos).addScaledVector(dir, targetDist);
-
-      // Re-proyectar la nueva posición al espacio LOCAL del control para que el
-      // drag siga siendo coherente tras el zoom.
-      const inv = new THREE.Matrix4().copy(ctrl.matrixWorld).invert();
-      grabOffsetLocal.current.copy(group.position).applyMatrix4(inv);
     }
 
-    // ── DRAG 1:1 con offset vivo (al final de todo, manda el offset actualizado) ──
-    group.position.copy(grabOffsetLocal.current).applyMatrix4(ctrl.matrixWorld);
+    // ── Posicionar el panel ──
+    // controlPosXZ (sin componente vertical para mantener el panel a la altura del control)
+    const ctrlPos = new THREE.Vector3().setFromMatrixPosition(ctrl.matrixWorld);
+    group.position.set(
+      ctrlPos.x + g.dir.x * g.dist,
+      group.position.y, // conservar altura actual del panel (no subir/bajar con la mano)
+      ctrlPos.z + g.dir.z * g.dist,
+    );
     group.quaternion
       .copy(ctrl.getWorldQuaternion(new THREE.Quaternion()))
-      .multiply(grabQuatOffset.current);
+      .multiply(g.quatOffset);
     group.updateMatrixWorld();
   });
 
