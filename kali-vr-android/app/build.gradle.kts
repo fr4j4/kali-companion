@@ -5,6 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import java.io.File
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.jetbrains.kotlin.android)
@@ -89,25 +91,16 @@ dependencies {
 }
 
 val projectDir = layout.projectDirectory
-val sceneDirectory = projectDir.dir("scenes")
+
+// POC sin escena de Meta Spatial Editor: todo se construye en runtime Kotlin
+// (Entity.create). Cuando agreguemos escenas .metaspatial hay que instalar el
+// Meta Spatial Editor CLI (requiere login developer) y reactivar exportItems.
 
 spatial {
-  allowUsageDataCollection.set(true)
-  scenes {
-    // if you have installed Meta Spatial Editor somewhere else, update the file path.
-
-    // cliPath.set("/Applications/Meta Spatial Editor.app/Contents/MacOS/CLI")
-
-    exportItems {
-      item {
-        projectPath.set(sceneDirectory.file("Main.metaspatial"))
-        outputPath.set(projectDir.dir("src/main/assets/scenes"))
-      }
-    }
-    hotReload {
-      appPackage.set("com.kali.vr")
-      appMainActivity.set(".BallRunActivity")
-      assetsDir.set(File("src/main/assets"))
-    }
+  allowUsageDataCollection.set(false)
+  hotReload {
+    appPackage.set("com.kali.vr")
+    appMainActivity.set(".KaliVrActivity")
+    assetsDir.set(File("src/main/assets"))
   }
 }

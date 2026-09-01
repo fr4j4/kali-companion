@@ -1,9 +1,0 @@
-entities:
-  components:
-    com.meta.components.Name:
-      name: texture2
-    com.meta.components.Texture:
-      image: ref:Wood1
-      sampler: ref:sampler0
-metadata:
-  version: 1.34

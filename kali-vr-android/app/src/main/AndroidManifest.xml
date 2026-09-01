@@ -47,7 +47,14 @@
   <application android:allowBackup="false" android:label="Kali VR">
     <meta-data
       android:name="com.oculus.supportedDevices"
-      android:value="quest2|questpro|quest3"
+      android:value="quest2|questpro|quest3|quest3s"
+    />
+    <!-- Panel Activity: contenido 2D/WebView del artefacto (no es LAUNCHER) -->
+    <activity
+      android:name="com.kali.vr.ArtifactPanelActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode"
     />
     <meta-data
       android:name="com.oculus.handtracking.version"
@@ -65,7 +72,7 @@
       See: https://developer.android.com/develop/ui/compose/quick-guides/content/manage-detachable-keyboards
     -->
     <activity
-      android:name="com.kali.vr.BallRunActivity"
+      android:name="com.kali.vr.KaliVrActivity"
       android:launchMode="singleTask"
       android:excludeFromRecents="false"
       android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode"

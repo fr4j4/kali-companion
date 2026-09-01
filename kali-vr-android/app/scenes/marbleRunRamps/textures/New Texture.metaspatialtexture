@@ -1,9 +1,0 @@
-entities:
-  components:
-    com.meta.components.Name:
-      name: New Texture
-    com.meta.components.Texture:
-      image: ref:MergedBake_BakeA_PBR_Diffuse
-      sampler: ref:Sampler
-metadata:
-  version: 1.0
