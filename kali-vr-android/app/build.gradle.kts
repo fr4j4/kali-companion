@@ -88,6 +88,9 @@ dependencies {
   implementation(libs.meta.spatial.sdk.hotreload)
   implementation(libs.meta.spatial.sdk.datamodelinspector)
   implementation(libs.meta.spatial.sdk.uiset)
+
+  // WebSocket a kali-core (kali-yarn) + org.json (incluido en Android)
+  implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 
 val projectDir = layout.projectDirectory

@@ -15,6 +15,12 @@ import androidx.activity.ComponentActivity
 class ArtifactPanelActivity : ComponentActivity() {
   companion object {
     const val TAG = "KaliVrPanel"
+
+    /** URL del WS kali-yarn (LAN). TODO: settings UI / BuildConfig por flavor. */
+    const val WS_URL = "ws://192.168.1.14:8900/ws"
+
+    /** Token opcional (KALI_API_TOKEN del core). Vacío = sin auth (default dev). */
+    const val WS_TOKEN = ""
     val TIENDA_HTML = """
       <!DOCTYPE html>
       <html lang="es"><head><meta charset="utf-8"/>
@@ -56,6 +62,8 @@ class ArtifactPanelActivity : ComponentActivity() {
     """.trimIndent()
   }
 
+  private var wsClient: KaliYarnClient? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.artifact_panel)
@@ -71,7 +79,67 @@ class ArtifactPanelActivity : ComponentActivity() {
             Log.i(TAG, "Artefacto HTML cargado en WebView del panel")
           }
         }
+    // POC: arranque con la Tienda Kali local. Los artefactos reales llegan por WS.
     webView.loadDataWithBaseURL(null, TIENDA_HTML, "text/html", "utf-8", null)
     Log.i(TAG, "WebView inicializado con Tienda Kali")
+
+    // Cliente kali-yarn: los artefactos que llegue el core los renderiza el WebView
+    val client = KaliYarnClient(WS_URL, WS_TOKEN)
+    client.listener =
+        object : KaliYarnClient.Listener {
+          override fun onConnected() {
+            runOnUiThread { status.text = "● kali-core conectado" }
+          }
+
+          override fun onDisconnected() {
+            runOnUiThread { status.text = "○ kali-core desconectado (reintento…)" }
+          }
+
+          override fun onArtifact(ev: KaliArtifactEvent) {
+            Log.i(TAG, "artefacto ${ev.update}: ${ev.title} (${ev.windowType}, ${ev.content?.length ?: 0} chars)")
+            val html =
+                when {
+                  ev.content != null && ev.windowType == "html" -> ev.content
+                  ev.content != null -> wrapNonHtml(ev)
+                  else -> null
+                }
+            html?.let {
+              runOnUiThread {
+                status.text = "✓ ${ev.title}"
+                webView.loadDataWithBaseURL(null, it, "text/html", "utf-8", null)
+              }
+            }
+          }
+        }
+    client.connect()
+    wsClient = client
+  }
+
+  /** Envuelve artefactos no-html (markdown/json/etc.) en un viewer mínimo legible. */
+  private fun wrapNonHtml(ev: KaliArtifactEvent): String {
+    val escaped =
+        (ev.content ?: "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    return """
+      <!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/>
+      <meta name="viewport" content="width=device-width, initial-scale=1"/>
+      <style>
+        body{font-family:system-ui,sans-serif;background:#0b0f14;color:#e2e8f0;padding:16px;margin:0}
+        h1{font-size:18px;color:#38bdf8;margin:0 0 8px}
+        pre{white-space:pre-wrap;font-size:13px;line-height:1.5;font-family:monospace}
+        .badge{display:inline-block;background:#1e293b;color:#94a3b8;border-radius:6px;padding:2px 8px;font-size:11px;margin-bottom:8px}
+      </style></head><body>
+      <h1>${ev.title}</h1><span class="badge">${ev.windowType}</span>
+      <pre>$escaped</pre>
+      </body></html>
+    """
+        .trimIndent()
+  }
+
+  override fun onDestroy() {
+    super.onDestroy()
+    wsClient?.close()
   }
 }
