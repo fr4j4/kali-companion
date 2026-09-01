@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { StageProvider } from "./stage/StageProvider";
 import { AuthGate, AUTH_REQUIRED_EVT } from "./components/AuthGate";
 import { NeuralCanvas } from "./stage/NeuralCanvas";
@@ -17,7 +18,6 @@ function shouldUseLowPerfProfile(): boolean {
   const cores = navigator.hardwareConcurrency || 8;
   return isWebkitGtk || cores <= 4;
 }
-
 /**
  * Detect low-performance environments and mark <html> with `kali-perf-low`.
  *
@@ -109,6 +109,14 @@ export default function App() {
     <StageProvider>
       <AuthGate onLocked={setAuthLocked} />
       {!authLocked && (
+      <>
+      <Link
+        to="/vr"
+        className="fixed bottom-3 right-3 z-50 px-3 py-1.5 rounded-md text-xs font-medium border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+        title="Abrir el entorno inmersivo VR (escena predeterminada)"
+      >
+        🥽 VR
+      </Link>
       <NeuralCanvas
         theme={theme}
         onThemeChange={setTheme}
@@ -122,6 +130,7 @@ export default function App() {
         uiScale={scale}
         onUIScaleChange={setScale}
       />
+      </>
       )}
     </StageProvider>
   );

@@ -31,7 +31,8 @@ export type WindowType =
   | "document"
   | "image"
   | "reasoning"
-  | "game";
+  | "game"
+  | "ui3d";
 
 /** Position on the canvas (px). */
 export interface Position {
@@ -199,6 +200,7 @@ export const DEFAULT_SIZES: Record<WindowType, { width: number; height: number |
   image: { width: 260, height: null },
   reasoning: { width: 420, height: 350 },
   game: { width: 440, height: 440 },
+  ui3d: { width: 520, height: 420 },
 };
 
 /** Icons (emoji) by window type. */
@@ -225,4 +227,5 @@ export const WINDOW_ICONS: Record<WindowType, string> = {
   image: "\u{1F5BC}\uFE0F",
   reasoning: "\u{1F9E0}",
   game: "\u{1F3AE}",
+  ui3d: "\u{1F9F1}",
 };

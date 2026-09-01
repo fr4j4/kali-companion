@@ -88,7 +88,7 @@ _VALID_WINDOW_TYPES: frozenset[str] = frozenset({
     "code", "link", "mermaid", "qr", "chart", "json",
     "terminal", "checklist", "quiz", "diff", "table", "controls",
     "html", "widget", "entity", "resource", "place", "media",
-    "document", "image",
+    "document", "image", "ui3d",
 })
 
 # Default fallback when nothing matches.
