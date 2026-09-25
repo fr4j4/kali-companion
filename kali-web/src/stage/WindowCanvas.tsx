@@ -34,6 +34,13 @@ export function WindowCanvas({ api, winScale = 1 }: Props) {
     return undefined;
   };
 
+  const detachAction = (artifactId?: string) => window.kaliDesktop && artifactId ? (
+    <button className="rounded px-2 py-1 text-xs text-muted hover:text-fg" title="Abrir en ventana independiente"
+      onClick={(event) => { event.stopPropagation(); const sid = localStorage.getItem("kali.sessionId"); if (sid) void window.kaliDesktop?.openArtifact(sid, artifactId); }}>
+      Desprender
+    </button>
+  ) : undefined;
+
   if (gridMode) {
     return (
       <div className="artifact-layer-grid pointer-events-none" style={{ display: "flex", flexWrap: "wrap", gap: "calc(16px * var(--mul-density))", padding: "calc(80px * var(--mul-density)) calc(20px * var(--mul-density)) calc(120px * var(--mul-density))", alignItems: "flex-start", justifyContent: "center", alignContent: "flex-start" }}>
@@ -56,6 +63,7 @@ export function WindowCanvas({ api, winScale = 1 }: Props) {
               minH={entry?.minH}
               winScale={winScale}
               bodyAspectRatio={bodyAspectRatio}
+              headerActions={detachAction(w.artifactId)}
             >
               <WindowContentRouter window={w} api={api} />
             </KaliWindow>
@@ -87,6 +95,7 @@ export function WindowCanvas({ api, winScale = 1 }: Props) {
               minH={entry?.minH}
               winScale={winScale}
               bodyAspectRatio={bodyAspectRatio}
+              headerActions={detachAction(w.artifactId)}
             >
               <WindowContentRouter window={w} api={api} />
             </KaliWindow>

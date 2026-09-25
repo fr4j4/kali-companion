@@ -5,7 +5,7 @@
 | Format | Status |
 |---|---|
 | **Docker** | Complete and functional (`docker/Dockerfile`, `docker/Dockerfile.gpu`) |
-| **Electron (AppImage/deb)** | Partial — `kali-shell/electron-builder.yml` defines targets but currently only bundles the Electron shell |
+| **Electron (AppImage/deb)** | Builds an independent client with the compiled web UI; backend configured on first launch |
 | **pip install** | Working — `kali-core` is a valid Python package with `pyproject.toml` (hatchling) |
 | **Snap/Flatpak** | Not started |
 

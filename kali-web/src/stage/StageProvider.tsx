@@ -68,8 +68,8 @@ async function fetchWithRetry(
   return null;
 }
 
-export function StageProvider({ children }: { children: ReactNode }) {
-  const chat = useChat();
+export function StageProvider({ children, detachedSessionId }: { children: ReactNode; detachedSessionId?: string }) {
+  const chat = useChat(detachedSessionId);
   const tts = useTTS(chat.subscribeTts, chat.onTtsEnded);
   const navigate = useNavigate();
   const { sid: urlSid } = useParams<{ sid?: string }>();
@@ -146,6 +146,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   // URL -> state: attach to the session in the URL once ready.
   const lastAttachedRef = useRef<string | null>(null);
   useEffect(() => {
+    if (detachedSessionId) return;
     // While the user explicitly requested a new session, do not re-attach to the
     // previous session URL. The effect below will move the URL to root and then
     // to /session/<newId> once the backend responds.
@@ -158,6 +159,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
 
   // State -> URL: bookmark the active session, or clear URL if no session.
   useEffect(() => {
+    if (detachedSessionId) return;
     if (chat.isCreatingSession && urlSid) {
       // User pressed "new session"; move to the URL root immediately and record
       // the old URL session id so the attach effect above does not pull us back.

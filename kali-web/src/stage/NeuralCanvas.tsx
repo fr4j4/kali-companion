@@ -83,10 +83,19 @@ export function NeuralCanvas({
   });
   const perfMetrics = usePerfMetrics(api.windows, performanceProfile);
   const [typing, setTyping] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => window.location.hash.includes("panel=settings"));
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [artifactsOpen, setArtifactsOpen] = useState(false);
+  const [artifactsOpen, setArtifactsOpen] = useState(() => window.location.hash.includes("panel=artifacts"));
+
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash.includes("panel=settings")) setSettingsOpen(true);
+      if (window.location.hash.includes("panel=artifacts")) setArtifactsOpen(true);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
@@ -109,6 +118,12 @@ export function NeuralCanvas({
 
   // Mood engine — derives state + emotion from runtime context
   const { state: avatarState, emotion: avatarEmotion } = useAvatarMoodEngine(typing, overrideEmotion);
+
+  useEffect(() => {
+    if (!window.kaliDesktop) return;
+    const last = [...chat.messages].reverse().find((m) => m.role === "assistant" && m.content);
+    window.kaliDesktop.setPresence({ mood: avatarState, emotion: avatarEmotion, text: last?.content?.slice(-160) || "", connected: chat.status === "ready" });
+  }, [avatarState, avatarEmotion, chat.messages, chat.status]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("kali-mobile-stage", isMobile);

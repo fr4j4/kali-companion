@@ -19,7 +19,7 @@ Supports two tool-calling mechanisms:
 """
 
 from __future__ import annotations
-
+import contextvars
 import json
 import logging
 import uuid
@@ -162,7 +162,7 @@ class AgentRuntime:
         # Optional: tool definitions to pass to the LLM.
         self._tools: list | None = None
         # Optional: callback to emit tool events to the frontend.
-        self._emit_event: Any | None = None
+        self._emit_event_ctx: contextvars.ContextVar[Any] = contextvars.ContextVar("runtime_emit", default=None)
         # Optional: session store for persisting streamed artifacts so they
         # survive page refresh. Set by the server.
         self._session_store: Any = None
@@ -174,7 +174,11 @@ class AgentRuntime:
         self._tools = tools
 
     def set_emit_callback(self, callback: Any) -> None:
-        self._emit_event = callback
+        self._emit_event_ctx.set(callback)
+
+    @property
+    def _emit_event(self) -> Any:
+        return self._emit_event_ctx.get()
 
     def set_session_store(self, store: Any) -> None:
         """Wire the session store so streamed artifacts are persisted on close."""

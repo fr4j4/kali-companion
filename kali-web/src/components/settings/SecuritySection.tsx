@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import { SectionHeader } from "./SectionHeader";
+import { DesktopConnectionSettings } from "../../desktop/DesktopConnectionSettings";
 import { SettingsCard } from "./SettingsCard";
 
 const LS_KEY = "kali.apiToken";
@@ -34,6 +35,7 @@ export function SecuritySection() {
 
   return (
     <div className="flex flex-col gap-4">
+      {window.kaliDesktop && <DesktopConnectionSettings />}
       <SectionHeader
         icon={Lock}
         title={t("security.title", "Seguridad")}
@@ -43,7 +45,7 @@ export function SecuritySection() {
         )}
       />
 
-      <SettingsCard>
+      {!window.kaliDesktop && <SettingsCard>
         <label className="text-xs font-medium text-muted" htmlFor="kali-api-token">
           {t("security.token_label", "Token de API")}
         </label>
@@ -85,7 +87,7 @@ export function SecuritySection() {
             "Déjalo vacío si el server no tiene auth activada. Cambia y recarga para aplicar.",
           )}
         </p>
-      </SettingsCard>
+      </SettingsCard>}
     </div>
   );
 }

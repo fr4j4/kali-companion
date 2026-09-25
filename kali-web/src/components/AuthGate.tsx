@@ -12,12 +12,13 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
+import { getApiToken, getDesktopConfig } from "../lib/desktop";
 
 const LS_KEY = "kali.apiToken";
 export const AUTH_REQUIRED_EVT = "kali:auth-required";
 
 export function readApiToken(): string {
-  return localStorage.getItem(LS_KEY) || "";
+  return getApiToken();
 }
 
 export function AuthGate({ onLocked }: { onLocked?: (locked: boolean) => void }) {
@@ -42,14 +43,18 @@ export function AuthGate({ onLocked }: { onLocked?: (locked: boolean) => void })
     return () => window.removeEventListener(AUTH_REQUIRED_EVT, handler);
   }, []);
 
-  const submit = () => {
+  const submit = async () => {
     const trimmed = token.trim();
     if (!trimmed) {
       setError(true);
       return;
     }
     setBusy(true);
-    localStorage.setItem(LS_KEY, trimmed);
+    if (window.kaliDesktop) {
+      await window.kaliDesktop.saveConfig({ backendUrl: getDesktopConfig()?.backendUrl || "", token: trimmed, capabilityToken: getDesktopConfig()?.capabilityToken || "" });
+    } else {
+      localStorage.setItem(LS_KEY, trimmed);
+    }
     // Full reload so EVERY consumer (authHeaders, WSClient) boots with the
     // new token and the app renders from scratch behind a verified session.
     window.location.reload();

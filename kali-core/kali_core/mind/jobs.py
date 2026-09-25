@@ -199,6 +199,9 @@ class JobManager:
         })
 
     async def _emit_event(self, payload: dict) -> None:
+        job = self._jobs.get(str(payload.get("id", "")))
+        if job and "session_id" not in payload:
+            payload = {**payload, "session_id": job.session_id}
         if self._emit is not None:
             try:
                 await self._emit(payload)

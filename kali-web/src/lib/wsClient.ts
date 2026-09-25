@@ -4,6 +4,7 @@
 // listeners, and provides helpers for sending events to the core.
 
 import type { OutgoingEvent, EventName } from "./protocol";
+import { getApiToken, getDesktopConfig } from "./desktop";
 
 const DEFAULT_SEND_TIMEOUT_MS = 10_000;
 
@@ -33,8 +34,11 @@ export class WSClient {
       this.reconnectDelay = 1000;
       // With core-side auth enabled, the first message MUST be the auth
       // challenge. Token empty = server skips validation (dev default).
-      const token = localStorage.getItem("kali.apiToken") || "";
+      const token = getApiToken();
       this.send({ event: "auth", token });
+      if (getDesktopConfig()?.capabilityToken && window.kaliDesktop && !window.location.hash.startsWith("#/desktop/artifact/")) {
+        this.send({ event: "desktop_register", token: getDesktopConfig()!.capabilityToken });
+      }
       const hello: Record<string, unknown> = { event: "hello", client: "kali-web", version: "0.1.0" };
       if (this.sessionId) {
         hello.session_id = this.sessionId;
@@ -53,6 +57,13 @@ export class WSClient {
           // (submit reloads the page with the new token in localStorage).
           this.shouldReconnect = false;
           window.dispatchEvent(new CustomEvent("kali:auth-required"));
+          return;
+        }
+        if (event === "desktop_action" && window.kaliDesktop) {
+          const action = payload as unknown as { id: string; action: string; params: Record<string, unknown> };
+          void window.kaliDesktop.performAction(action.action, action.params || {})
+            .then((result) => this.send({ event: "desktop_action_result", id: action.id, ok: true, result }))
+            .catch((error: unknown) => this.send({ event: "desktop_action_result", id: action.id, ok: false, error: error instanceof Error ? error.message : String(error) }));
           return;
         }
         this.dispatch(event, payload);

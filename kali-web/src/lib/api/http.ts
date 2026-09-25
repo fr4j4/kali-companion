@@ -1,4 +1,5 @@
 import { getSidecarPort } from "./sidecar";
+import { getApiToken, isDesktop } from "../desktop";
 
 export async function apiBase(): Promise<string> {
   // Devuelve ruta vacía (URL relativa) para que el browser use el mismo
@@ -6,14 +7,14 @@ export async function apiBase(): Promise<string> {
   // la página está en HTTPS (e.g. https://companion.local/) y el backend
   // está en HTTP interno. Vite/nginx proxy se encargan de rutear /stt, /api,
   // /voices, /llm etc. hacia kali-core.
-  await getSidecarPort();
+  if (!isDesktop()) await getSidecarPort();
   return "";
 }
 
 // Auth token for kali-core HTTP endpoints. Stored by the user in
 // localStorage (kali.apiToken); empty when the core has no auth enabled.
 export function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("kali.apiToken") || "";
+  const token = getApiToken();
   if (!token) return {};
   return { "X-API-Token": token };
 }
