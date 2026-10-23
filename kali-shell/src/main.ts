@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { randomBytes, X509Certificate } from "node:crypto";
 import { homedir } from "node:os";
 import { AVATAR_SIZES, defaultConfig, loadSharedConfig, nativeAgentRunning, saveSharedConfig, type SharedConfig } from "./config.js";
+import { loadBounds, saveBounds } from "./windowState.js";
 import { sidecarPort, superviseSidecar, waitForPort } from "./sidecar.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -218,9 +219,15 @@ function openArtifact(sessionId: string, artifactId: string): void {
   const key = `${sessionId}:${artifactId}`;
   const existing = artifactWindows.get(key);
   if (existing && !existing.isDestroyed()) { existing.show(); existing.focus(); return; }
-  const win = new BrowserWindow({ title: `kali-artifact · ${artifactId}`, width: 850, height: 650, minWidth: 400, minHeight: 300,
+  const boundsFile = join(app.getPath("userData"), "artifact-window.json");
+  const bounds = loadBounds(boundsFile, screen.getAllDisplays().map((d) => d.workArea));
+  const win = new BrowserWindow({ title: `kali-artifact · ${artifactId}`, ...bounds, minWidth: 400, minHeight: 300,
     webPreferences: { preload: join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   artifactWindows.set(key, win);
+  // Remember the last size/position the user left an artifact window at (position is ignored under Wayland).
+  win.on("close", () => { if (!win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) saveBounds(boundsFile, win.getBounds()); });
+  win.on("closed", updateTray);
+  updateTray();
   notifyArtifactNative(sessionId, artifactId, true, false);
   win.on("closed", () => {
     artifactWindows.delete(key);
@@ -272,16 +279,28 @@ async function runDesktopAction(action: string, params: Record<string, unknown>)
   throw new Error("Unsupported desktop action");
 }
 
+const TRAY_TEXT = {
+  es: { show: "Mostrar Kali", chat: "Abrir chat", artifacts: "Artefactos", hide: "Ocultar avatar", showAvatar: "Mostrar avatar", settings: "Configuración", quit: "Salir", online: "Conectado", offline: "Sin conexión", open: "ventanas de artefacto abiertas" },
+  en: { show: "Show Kali", chat: "Open chat", artifacts: "Artifacts", hide: "Hide avatar", showAvatar: "Show avatar", settings: "Settings", quit: "Quit", online: "Connected", offline: "Offline", open: "artifact windows open" },
+};
+let backendConnected = false;
+
 function updateTray(): void {
   if (!tray) return;
+  const text = app.getLocale().toLowerCase().startsWith("es") ? TRAY_TEXT.es : TRAY_TEXT.en;
+  const open = [...artifactWindows.values()].filter((w) => !w.isDestroyed()).length;
+  tray.setToolTip(`Kali Companion · ${backendConnected ? text.online : text.offline}`);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Mostrar Kali", click: () => openMain() },
-    { label: "Abrir chat", click: () => openMain("/") },
-    { label: "Artefactos", click: () => openMain("/?panel=artifacts") },
-    { label: config.avatar.visible ? "Ocultar avatar" : "Mostrar avatar", click: () => setAvatarVisible(!config.avatar.visible) },
-    { label: "Configuración", click: () => openMain("/?panel=settings") },
+    { label: backendConnected ? `● ${text.online}` : `○ ${text.offline}`, enabled: false },
+    ...(open > 0 ? [{ label: `${open} ${text.open}`, enabled: false } as const] : []),
     { type: "separator" },
-    { label: "Salir", click: () => { quitting = true; app.quit(); } },
+    { label: text.show, click: () => openMain() },
+    { label: text.chat, click: () => openMain("/") },
+    { label: text.artifacts, click: () => openMain("/?panel=artifacts") },
+    { label: config.avatar.visible ? text.hide : text.showAvatar, click: () => setAvatarVisible(!config.avatar.visible) },
+    { label: text.settings, click: () => openMain("/?panel=settings") },
+    { type: "separator" },
+    { label: text.quit, click: () => { quitting = true; app.quit(); } },
   ]));
 }
 
@@ -367,6 +386,7 @@ app.whenReady().then(() => {
   });
   ipcMain.on("desktop:presence", (_event, state: { mood: string; emotion: string; text: string; connected: boolean }) => {
     avatarWindow?.webContents.send("desktop:presence", state);
+    if (state.connected !== backendConnected) { backendConnected = state.connected; updateTray(); }
     tray?.setToolTip(state.connected ? "Kali Companion — conectado" : "Kali Companion — sin conexión");
   });
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(permission === "media" && wc.getURL().startsWith(`${APP_ORIGIN}/`)));
