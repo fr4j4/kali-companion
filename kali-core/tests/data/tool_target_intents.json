@@ -1,0 +1,252 @@
+[
+ {
+  "text": "revisa la ram de mi pc",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "cuánta ram tengo",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "qué gpu tiene mi computador",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "cuánto espacio libre queda en mi disco",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "how much RAM does my computer have",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "what CPU do I have",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "check my disk space",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "qué tan cargado está mi equipo",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "cuánta memoria me queda libre",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "dime las specs de mi máquina",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "is my PC running out of memory?",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "cuánto tiempo lleva encendido mi pc",
+  "expect": "system_info:desktop",
+  "group": "pc-hardware"
+ },
+ {
+  "text": "ejecuta ls en mi carpeta personal",
+  "expect": "run_command:desktop",
+  "group": "pc-shell"
+ },
+ {
+  "text": "corre git status en mi proyecto",
+  "expect": "run_command:desktop",
+  "group": "pc-shell"
+ },
+ {
+  "text": "abre una terminal y haz ping a google",
+  "expect": "run_command:desktop",
+  "group": "pc-shell"
+ },
+ {
+  "text": "run df -h on my machine",
+  "expect": "run_command:desktop",
+  "group": "pc-shell"
+ },
+ {
+  "text": "check which processes are using the most CPU on my PC",
+  "expect": "run_command:desktop",
+  "group": "pc-shell"
+ },
+ {
+  "text": "instala htop en mi computador",
+  "expect": "run_command:desktop",
+  "group": "pc-shell"
+ },
+ {
+  "text": "qué archivos tengo en mis descargas",
+  "expect": "fs_list:desktop",
+  "group": "pc-files"
+ },
+ {
+  "text": "lista mi carpeta de documentos",
+  "expect": "fs_list:desktop",
+  "group": "pc-files"
+ },
+ {
+  "text": "show me what's in my Downloads folder",
+  "expect": "fs_list:desktop",
+  "group": "pc-files"
+ },
+ {
+  "text": "lee el archivo ~/notas.txt",
+  "expect": "fs_read:desktop",
+  "group": "pc-files"
+ },
+ {
+  "text": "muéstrame mi archivo ~/.bashrc",
+  "expect": "fs_read:desktop",
+  "group": "pc-files"
+ },
+ {
+  "text": "read ~/todo.md for me",
+  "expect": "fs_read:desktop",
+  "group": "pc-files"
+ },
+ {
+  "text": "cuánta ram tiene el servidor de kali",
+  "expect": "system_info:server",
+  "group": "server"
+ },
+ {
+  "text": "how much memory does the Kali server have",
+  "expect": "system_info:server",
+  "group": "server"
+ },
+ {
+  "text": "revisa los recursos de la máquina donde corre kali",
+  "expect": "system_info:server",
+  "group": "server"
+ },
+ {
+  "text": "cuánto disco le queda al contenedor de kali",
+  "expect": "system_info:server",
+  "group": "server"
+ },
+ {
+  "text": "check the load on the machine hosting you",
+  "expect": "system_info:server",
+  "group": "server"
+ },
+ {
+  "text": "cuál es el límite de memoria del contenedor de kali",
+  "expect": "system_info:server",
+  "group": "server"
+ },
+ {
+  "text": "ejecuta en el servidor de kali: docker ps",
+  "expect": "run_command:server",
+  "group": "server"
+ },
+ {
+  "text": "run uptime on the Kali server",
+  "expect": "run_command:server",
+  "group": "server"
+ },
+ {
+  "text": "revisa los logs de kali en el servidor con tail",
+  "expect": "run_command:server",
+  "group": "server"
+ },
+ {
+  "text": "en la máquina donde estás alojado, corre df -h",
+  "expect": "run_command:server",
+  "group": "server"
+ },
+ {
+  "text": "lee el archivo de configuración de kali en el servidor",
+  "expect": "fs_read:server",
+  "group": "server"
+ },
+ {
+  "text": "read the Kali server's .env file location /app/data/ai_config.json",
+  "expect": "fs_read:server",
+  "group": "server"
+ },
+ {
+  "text": "busca en internet las novedades de Rust",
+  "expect": "web_search:server",
+  "group": "server-only"
+ },
+ {
+  "text": "search the web for the latest Python release",
+  "expect": "web_search:server",
+  "group": "server-only"
+ },
+ {
+  "text": "hazme un diagrama del flujo de login",
+  "expect": "create_artifact:server",
+  "group": "server-only"
+ },
+ {
+  "text": "create a table comparing three databases",
+  "expect": "create_artifact:server",
+  "group": "server-only"
+ },
+ {
+  "text": "cómo se juega Pudge en dota",
+  "expect": "fetch_game_resource:server",
+  "group": "server-only"
+ },
+ {
+  "text": "best build for Ahri",
+  "expect": "fetch_game_resource:server",
+  "group": "server-only"
+ },
+ {
+  "text": "abre firefox",
+  "expect": "launch_app:desktop",
+  "group": "desktop-only"
+ },
+ {
+  "text": "open the calculator",
+  "expect": "launch_app:desktop",
+  "group": "desktop-only"
+ },
+ {
+  "text": "mira mi pantalla y dime qué ves",
+  "expect": "look_at_screen:desktop",
+  "group": "desktop-only"
+ },
+ {
+  "text": "look at my screen",
+  "expect": "look_at_screen:desktop",
+  "group": "desktop-only"
+ },
+ {
+  "text": "hola, cómo estás",
+  "expect": "none",
+  "group": "none"
+ },
+ {
+  "text": "tell me a joke",
+  "expect": "none",
+  "group": "none"
+ },
+ {
+  "text": "explícame qué es un contenedor docker",
+  "expect": "none",
+  "group": "none"
+ },
+ {
+  "text": "gracias",
+  "expect": "none",
+  "group": "none"
+ }
+]

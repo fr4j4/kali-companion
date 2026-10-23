@@ -48,6 +48,9 @@ fn what(request: &ConsentRequest) -> String {
     match request.action.as_str() {
         "launch_app" => format!("Abrir la aplicación «{}»", request.label.as_deref().unwrap_or(target)),
         "core_tool" => format!("{}", request.label.as_deref().unwrap_or("Usar una herramienta")),
+        "run_command" => format!("Ejecutar este comando en tu equipo:\n{target}"),
+        "fs_read" => format!("Leer el archivo «{}»", request.label.as_deref().unwrap_or(target)),
+        "fs_list" => format!("Listar la carpeta «{}»", request.label.as_deref().unwrap_or(target)),
         "list_windows" => "Ver la lista de ventanas abiertas (títulos y aplicaciones)".to_string(),
         "focus_window" => format!("Cambiar el foco a la ventana «{}»", request.label.as_deref().unwrap_or(target)),
         "screenshot" if target == "region" => "Capturar una región de la pantalla que tú eliges".to_string(),
@@ -71,12 +74,19 @@ pub fn show(app: &gtk4::Application, request: ConsentRequest, reply: Sender<Deci
     title.set_markup(&format!("<b>{}</b>", glib::markup_escape_text(&what(&request))));
     title.set_halign(Align::Start);
     title.set_wrap(true);
+    title.set_max_width_chars(48);
     content.append(&title);
     let class = gtk4::Label::new(Some(&format!("Tipo: {}", request.class.name())));
     class.set_halign(Align::Start);
     content.append(&class);
-    if request.action == "screenshot" {
-        let note = gtk4::Label::new(Some("La imagen se enviará al modelo de IA configurado para describirla."));
+    let sent = match request.action.as_str() {
+        "screenshot" => Some("La imagen se enviará al modelo de IA configurado para describirla."),
+        "run_command" => Some("La salida del comando se enviará al modelo de IA configurado."),
+        "fs_read" | "fs_list" => Some("Lo que se lea se enviará al modelo de IA configurado."),
+        _ => None,
+    };
+    if let Some(text) = sent {
+        let note = gtk4::Label::new(Some(text));
         note.set_halign(Align::Start);
         note.set_wrap(true);
         note.set_max_width_chars(48);

@@ -15,6 +15,7 @@ import asyncio
 import logging
 
 from .base import ToolContext, ToolResult
+from ..targets import TARGET_SCHEMA
 
 logger = logging.getLogger("kali_core.claws.command")
 
@@ -26,7 +27,9 @@ _TAIL_LINES = 200
 class RunCommandTool:
     name = "run_command"
     description = (
-        "Run a shell command (subject to whitelist + consent). "
+        "Run a shell command. By default it runs on the USER'S PC and they approve every command "
+        "on a card; pass target='server' only for the machine that hosts Kali (the server "
+        "keeps its whitelist + consent rules). The result says which machine ran it in `origin`. "
         "Optionally pass terminal_session_id to group this command under "
         "a named terminal session created with create_terminal_session."
     )
@@ -39,6 +42,7 @@ class RunCommandTool:
                 "type": "integer",
                 "description": "Timeout in seconds (default 30).",
             },
+            "target": TARGET_SCHEMA,
             "terminal_session_id": {
                 "type": "string",
                 "description": (
@@ -55,7 +59,9 @@ class RunCommandTool:
 
     async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
         command = params.get("command", "")
-        cwd = params.get("cwd", ctx.working_dir)
+        on_desktop = ctx.route is not None and ctx.route.via_agent and ctx.desktop_exec is not None
+        # The server's working directory means nothing on the user's PC: the agent picks their home.
+        cwd = params.get("cwd") or (None if on_desktop else ctx.working_dir)
         timeout = int(params.get("timeout", 30))
         terminal_session_id = params.get("terminal_session_id")
 
@@ -71,6 +77,9 @@ class RunCommandTool:
                 logger.warning("Failed to get/create terminal session", exc_info=True)
 
         call_id = ctx.call_id or f"cmd_{id(self)}"
+
+        if on_desktop:
+            return await self._run_on_desktop(ctx, store, terminal_session_id, call_id, command, cwd, timeout)
 
         if ctx.emit:
             await ctx.emit({
@@ -187,6 +196,63 @@ class RunCommandTool:
                 "terminal_session_id": terminal_session_id,
             }
         )
+
+    async def _run_on_desktop(
+        self, ctx: ToolContext, store, terminal_session_id: str | None, call_id: str,
+        command: str, cwd: str | None, timeout: int,
+    ) -> ToolResult:
+        """Run on the user's PC through the desktop agent, which asks the user first."""
+        host = ctx.route.label
+        if ctx.emit:
+            await ctx.emit({
+                "event": "command_start", "session_id": ctx.session_id,
+                "terminal_session_id": terminal_session_id, "call_id": call_id,
+                "command": command, "cwd": cwd or "~", "host": host,
+            })
+
+        async def end(status: str, exit_code: int = -1) -> None:
+            if ctx.emit:
+                await ctx.emit({
+                    "event": "command_end", "session_id": ctx.session_id, "call_id": call_id,
+                    "exit_code": exit_code, "status": status, "host": host,
+                })
+
+        params: dict = {"command": command, "timeout": timeout}
+        if cwd:
+            params["cwd"] = cwd
+        try:
+            result = await ctx.desktop_exec("run_command", params, timeout=timeout + 100)
+        except asyncio.CancelledError:
+            await end("cancelled")
+            raise
+        except TimeoutError:
+            await end("timeout")
+            return ToolResult(error=f"No answer from the desktop agent for the command (waited {timeout + 100}s).")
+        except RuntimeError as e:
+            await end("error")
+            return ToolResult(error=str(e))
+
+        stdout = str(result.get("stdout", ""))
+        stderr = str(result.get("stderr", ""))
+        exit_code = int(result.get("exit_code", -1))
+        stdout_lines = [("stdout", t) for t in stdout.splitlines()]
+        stderr_lines = [("stderr", t) for t in stderr.splitlines()]
+        if ctx.emit:
+            for stream, text in stdout_lines + stderr_lines:
+                await ctx.emit({
+                    "event": "command_output", "session_id": ctx.session_id,
+                    "call_id": call_id, "stream": stream, "line": text,
+                })
+        status = "done" if exit_code == 0 else "error"
+        await end(status, exit_code)
+        resolved_cwd = str(result.get("cwd") or cwd or "~")
+        await self._persist(store, terminal_session_id, call_id, command, resolved_cwd,
+                            stdout_lines, stderr_lines, exit_code, status)
+        return ToolResult(output={
+            "exit_code": exit_code, "stdout": stdout, "stderr": stderr, "command": command,
+            "cwd": resolved_cwd, "terminal_session_id": terminal_session_id,
+            **({"truncated": True} if result.get("truncated") else {}),
+        })
 
     async def _persist(
         self,

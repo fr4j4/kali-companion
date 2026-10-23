@@ -8,7 +8,9 @@ Regla: **toda acción que observe o controle el PC requiere consentimiento expl�
 
 | Clase | Acciones hoy | Consentimiento |
 |---|---|---|
-| `info` | `list_monitors`, `find_apps` | No |
+| `info` | `list_monitors`, `find_apps`, `system_info` | No |
+| `shell` | `run_command` | Sí, **cada vez**: sin concesión de tarea; la tarjeta muestra el comando |
+| `files` | `fs_read`, `fs_list` | Sí (concesión de tarea posible); solo bajo la carpeta personal y nunca credenciales |
 | `observe` | `screenshot` (pantalla, monitor o región), `list_windows` | Sí |
 | `window` | `focus_window` | Sí |
 | `launch` | `launch_app` | Sí (salvo apps de la lista del usuario) |
@@ -28,6 +30,8 @@ Medidas contra errores y abusos:
 - En compositores con layer-shell (Hyprland, Sway, KDE) la tarjeta se dibuja en la capa `overlay`, sin robar el teclado hasta que se hace clic.
 - Para `launch_app` el agente resuelve el nombre a una única aplicación instalada (id exacto) y la tarjeta muestra su nombre real; el core no puede poner etiquetas. Si el nombre es ambiguo no se lanza nada y se devuelven sugerencias.
 - Para `screenshot` la tarjeta avisa de que la imagen se enviará al modelo de IA.
+
+Las acciones `system_info`, `run_command`, `fs_read` y `fs_list` son el destino por defecto de las herramientas del mismo nombre del core (ver `TOOL_TARGETS.md`). Para `fs_*` el agente resuelve la ruta real (enlaces simbólicos incluidos) antes de preguntar; las rutas prohibidas se rechazan sin tarjeta.
 
 ## Una sola tarjeta
 

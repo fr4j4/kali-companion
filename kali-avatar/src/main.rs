@@ -10,6 +10,7 @@ mod ask;
 mod config;
 mod core_consent;
 mod link;
+mod machine;
 mod perms;
 mod platform;
 mod suggestion;

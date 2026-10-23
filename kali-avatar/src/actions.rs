@@ -1,4 +1,5 @@
-//! Native desktop actions requested by the core (`desktop_action`): launch_app, list_monitors, screenshot.
+//! Native desktop actions requested by the core (`desktop_action`): launch_app, list_monitors, screenshot,
+//! and the machine tools (`system_info`, `run_command`, `fs_read`, `fs_list`).
 //!
 //! Monitor listing and capture go through [`DesktopServices`], so this module has no
 //! compositor-specific code.
@@ -12,12 +13,19 @@ pub use crate::platform::{Monitor, Monitors};
 /// `local_consent` is not an action: it tells the core that this agent asks the user itself, so the
 /// core must not show a second card for the same request. `consent_ui` says it can also show the
 /// cards for the core's own tools (`consent_request` with `native`), so they appear on the desktop.
-pub const CAPABILITIES: [&str; 8] = ["launch_app", "find_apps", "list_monitors", "screenshot", "list_windows", "focus_window", "local_consent", "consent_ui"];
+pub const CAPABILITIES: [&str; 12] = [
+    "launch_app", "find_apps", "list_monitors", "screenshot", "list_windows", "focus_window",
+    "system_info", "run_command", "fs_read", "fs_list", "local_consent", "consent_ui",
+];
 const MAX_PNG_BYTES: usize = 12 * 1024 * 1024;
 
 pub fn perform(action: &str, params: &Value, monitors: &Monitors, services: &dyn DesktopServices) -> Result<Value, String> {
     match action {
         "launch_app" => launch_app(params),
+        "system_info" => Ok(crate::machine::system_info()),
+        "run_command" => crate::machine::run_command(params),
+        "fs_read" => crate::machine::fs_read(params),
+        "fs_list" => crate::machine::fs_list(params),
         "find_apps" => crate::apps::find(params),
         "list_monitors" => Ok(json!({ "monitors": platform::monitors_json(&services.monitors(monitors)?) })),
         "screenshot" => screenshot(params, monitors, services),
@@ -133,6 +141,19 @@ mod tests {
         let m: Monitors = Default::default();
         assert!(perform("focus_window", &json!({ "id": "x;y" }), &m, &Fake).is_err());
         assert!(perform("list_windows", &json!({}), &m, &Fake).is_err(), "default services do not list windows");
+    }
+
+    #[test]
+    fn machine_tools_are_advertised_and_dispatched() {
+        for cap in ["system_info", "run_command", "fs_read", "fs_list"] {
+            assert!(CAPABILITIES.contains(&cap), "{cap}");
+        }
+        let m: Monitors = Default::default();
+        let info = perform("system_info", &json!({}), &m, &Fake).unwrap();
+        assert!(info["host"].is_string());
+        assert!(perform("run_command", &json!({}), &m, &Fake).is_err());
+        assert!(perform("fs_read", &json!({}), &m, &Fake).is_err());
+        assert!(perform("fs_list", &json!({ "path": "/etc" }), &m, &Fake).is_err(), "outside the home folder");
     }
 
     #[test]

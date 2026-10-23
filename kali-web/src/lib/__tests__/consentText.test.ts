@@ -18,4 +18,10 @@ describe("consent texts", () => {
     expect(texts.reason.startsWith("consent.reason.screenshot|")).toBe(true);
     expect(texts.command).toBe("");
   });
+
+  it("names the machine when the core says where the call runs", () => {
+    const texts = consentTexts({ ...base, reason_params: { command: "df -h", where: "[server]" } }, t);
+    expect(texts.reason.endsWith(" [server]")).toBe(true);
+    expect(consentTexts(base, t).reason.endsWith("]")).toBe(false);
+  });
 });

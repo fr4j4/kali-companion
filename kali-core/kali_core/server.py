@@ -56,6 +56,7 @@ from kali_core.claws.game.image_cache import download_game_images_handler
 from kali_core.claws.git import GitDiffTool, GitWorktreeTool
 from kali_core.claws.launcher import FindAppsTool, LaunchAppTool
 from kali_core.claws.windows import FocusWindowTool, ListWindowsTool
+from kali_core.claws.system_info import SystemInfoTool
 from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.manage_artifacts import (
     GetArtifactConsoleTool,
@@ -73,6 +74,7 @@ from kali_core.claws.terminal_session import CreateTerminalSessionTool
 from kali_core.claws.tests import RunTestsTool
 from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
+from kali_core import targets
 from kali_core.desktop import LEGACY_CAPABILITIES, DesktopBroker
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
@@ -348,6 +350,7 @@ def _register_tools() -> None:
     register(FsReadTool())
     register(FsListTool())
     register(RunCommandTool())
+    register(SystemInfoTool())
     register(CreateTerminalSessionTool())
     register(WebSearchTool())
     register(WebFetchTool())
@@ -493,6 +496,7 @@ class Server:
             job_mgr=self.job_mgr,
             console_requester=self.console_requester,
             desktop_broker=self.desktop_broker,
+            local_mode=targets.local_mode(self.host),
         )
         # Wire executor + tools into the agent.
         self.agent.set_executor(self.executor)
@@ -1704,6 +1708,7 @@ class Connection:
         self.session_id: str | None = None
         self.is_desktop = False
         self.desktop_capabilities: frozenset[str] | None = None
+        self.desktop_hostname: str | None = None
         self.mode = "client"  # "client" (full UI) or "presence" (avatar agent)
         self._current_task: asyncio.Task | None = None
         self._send_lock = asyncio.Lock()
@@ -1797,6 +1802,11 @@ class Connection:
                 caps = event.get("capabilities")
                 if isinstance(caps, list):
                     self.desktop_capabilities = frozenset(c for c in caps if isinstance(c, str))
+                hostname = event.get("hostname")
+                if isinstance(hostname, str):
+                    # Shown in every answer ("[minigun]"): keep it short and printable.
+                    clean = "".join(ch for ch in hostname if ch.isalnum() or ch in "-_.")[:40]
+                    self.desktop_hostname = clean or None
                 self.server.desktop_broker.register(self)
             # uvicorn.error: visible in `docker logs` even when the app logger is unconfigured.
             logging.getLogger("uvicorn.error").info(
