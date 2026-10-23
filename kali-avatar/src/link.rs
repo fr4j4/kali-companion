@@ -25,6 +25,8 @@ pub enum ToUi {
     Connected(bool),
     /// Global pointer position in compositor coordinates.
     Cursor(i32, i32),
+    /// Window position (compositor coordinates) after the window manager moved it (X11).
+    Moved(i32, i32),
     Command(Cmd),
 }
 

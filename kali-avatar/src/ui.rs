@@ -165,7 +165,7 @@ pub fn launch_shell(target: &str) {
 
 /// Click opens the UI; dragging moves the avatar. Layer-shell surfaces cannot be moved by the
 /// compositor, so the margins are updated by hand and the final spot is saved.
-fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
+fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>, tx: async_channel::Sender<ToUi>) {
     let gesture = gtk4::GestureDrag::new();
     gesture.set_button(1);
     {
@@ -176,6 +176,7 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
     }
     {
         let state = state.clone();
+        let tx = tx.clone();
         gesture.connect_drag_update(move |gesture, ox, oy| {
             let mut st = state.borrow_mut();
             let layer = st.layer;
@@ -191,7 +192,7 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
                         (st.window.surface().and_downcast::<gdk::Toplevel>(), gesture.device(), gesture.start_point())
                     {
                         toplevel.begin_move(&device, 1, sx, sy, gesture.current_event_time());
-                        remember_x11_position(st.monitor_origin);
+                        remember_x11_position(st.monitor_origin, tx.clone());
                     }
                 }
                 return;
@@ -231,7 +232,7 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
 
 /// The window manager runs the move on X11, so GTK never sees where the window ends up: poll
 /// wmctrl until the geometry settles and store it relative to the monitor.
-fn remember_x11_position(origin: (i32, i32)) {
+fn remember_x11_position(origin: (i32, i32), tx: async_channel::Sender<ToUi>) {
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
         return;
     }
@@ -247,6 +248,9 @@ fn remember_x11_position(origin: (i32, i32)) {
         for _ in 0..200 {
             std::thread::sleep(std::time::Duration::from_millis(300));
             let now = read();
+            if let Some((x, y)) = now {
+                let _ = tx.send_blocking(ToUi::Moved(x, y));
+            }
             if now.is_some() && now == last { stable += 1 } else { stable = 0 }
             last = now;
             if stable >= 3 {
@@ -462,7 +466,7 @@ pub fn build(
             }
         });
     }
-    install_drag(&window, state.clone());
+    install_drag(&window, state.clone(), tx.clone());
     webview.load_uri(&format!("{HOST}/avatar.html"));
 
     // Core events, tray commands and connection state.
@@ -475,6 +479,10 @@ pub fn build(
                     ToUi::Presence(json) => push(&mut state.borrow_mut(), &json),
                     ToUi::Connected(false) => push(&mut state.borrow_mut(), r#"{"event":"disconnected"}"#),
                     ToUi::Connected(true) => {}
+                    ToUi::Moved(x, y) => {
+                        let mut st = state.borrow_mut();
+                        st.pos = (x - st.monitor_origin.0, y - st.monitor_origin.1);
+                    }
                     ToUi::Cursor(x, y) => {
                         let st = state.borrow();
                         if st.ready {
