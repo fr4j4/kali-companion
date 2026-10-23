@@ -54,7 +54,8 @@ from kali_core.claws.game.dota_live import DotaLiveStateTool
 from kali_core.claws.game.fetch_resource import FetchGameResourceTool
 from kali_core.claws.game.image_cache import download_game_images_handler
 from kali_core.claws.git import GitDiffTool, GitWorktreeTool
-from kali_core.claws.launcher import LaunchAppTool
+from kali_core.claws.launcher import FindAppsTool, LaunchAppTool
+from kali_core.claws.windows import FocusWindowTool, ListWindowsTool
 from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.manage_artifacts import (
     GetArtifactConsoleTool,
@@ -63,7 +64,9 @@ from kali_core.claws.manage_artifacts import (
     UpdateArtifactTool,
 )
 from kali_core.claws.organize import OrganizeFolderTool
-from kali_core.claws.screenshot import ScreenshotTool
+from kali_core.claws.screenshot import LookAtScreenTool, ScreenshotTool
+from kali_core import captures as capture_store
+from kali_core.claws.suggest import SuggestCaptureTool, limiter as suggestion_limiter
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
 from kali_core.claws.games import GameStartTool, GameActionTool, GameEndTool
 from kali_core.claws.terminal_session import CreateTerminalSessionTool
@@ -353,10 +356,15 @@ def _register_tools() -> None:
     register(GitWorktreeTool())
     register(GitDiffTool())
     register(LaunchAppTool())
+    register(FindAppsTool())
+    register(ListWindowsTool())
+    register(FocusWindowTool())
     register(OrganizeFolderTool())
     # Phase 3 tools.
     register(ListMonitorsTool())
     register(ScreenshotTool())
+    register(LookAtScreenTool())
+    register(SuggestCaptureTool())
     # Phase 4 tools.
     register(FetchGameResourceTool())
     # Generic artifact generation (documents, diagrams, tables, code, etc.).
@@ -385,6 +393,7 @@ def _build_tool_defs() -> list[ToolDef]:
             schema=tool.schema,
         )
         for tool in available_tools()
+        if not getattr(tool, "hidden", False)
     ]
 
 
@@ -392,7 +401,7 @@ def _build_tool_defs() -> list[ToolDef]:
 PRESENCE_EVENTS = frozenset({
     "turn_start", "delta", "reasoning_delta", "turn_end", "message",
     "stt_partial", "stt_final", "tts_audio", "tool_event", "consent_request",
-    "wake_word", "error",
+    "wake_word", "error", "suggestion",
 })
 
 
@@ -458,6 +467,7 @@ class Server:
         self.gateway = PermissionGateway()
         self.desktop_broker = DesktopBroker()
         self.last_active_session: str | None = None
+        self.capture_inbox = capture_store.CaptureInbox()
         self.desktop_token = os.environ.get("KALI_DESKTOP_TOKEN", "").strip()
         self.consent = ConsentMgr(send_callback=self._send_consent)
         # Register tools + set up executor.
@@ -506,13 +516,17 @@ class Server:
             except Exception:
                 pass
 
-    async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> None:
+    async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> int:
+        """Send to the full-UI connections on a session; returns how many received it."""
+        delivered = 0
         for conn in list(self._connections):
             if conn.session_id == session_id and conn.mode != "presence":
                 try:
                     await conn.send(payload)
+                    delivered += 1
                 except Exception:
                     pass
+        return delivered
 
     async def set_avatar_config(self, config: Any) -> bool:
         """Store a new avatar appearance and push it to every connection (canvas, Electron, native)."""
@@ -551,11 +565,23 @@ class Server:
                     pass
 
     async def _send_consent(self, payload: dict[str, Any]) -> None:
+        """Ask the user. A desktop agent that can show cards gets the question on the desktop (so it
+        shows even with the canvas closed) and the chat UIs are told not to draw their own."""
+        session_id = payload.get("session_id", "")
+        agent = self.desktop_broker.find(session_id, "consent_ui")
+        caps = getattr(agent, "desktop_capabilities", None) if agent is not None else None
+        if agent is not None and caps is not None and "consent_ui" in caps:
+            try:
+                await agent.send({**payload, "native": True})
+                await self.broadcast_session(session_id, {**payload, "handled_by_agent": True})
+                return
+            except Exception:
+                logger.exception("desktop agent could not show the consent card; falling back to the chat UI")
         conn = self.desktop_broker.current()
-        if conn and conn.session_id == payload.get("session_id"):
+        if conn and conn.session_id == session_id:
             await conn.send(payload)
         else:
-            await self.broadcast_session(payload.get("session_id", ""), payload)
+            await self.broadcast_session(session_id, payload)
 
     async def _send_job_event(self, payload: dict[str, Any]) -> None:
         sid = payload.get("session_id")
@@ -1496,6 +1522,7 @@ class Server:
             "input_mode": settings.input_mode,
             "feedback_mode": "minimal",
             "plan_mode": False,
+            "screen_suggestions": True,
             "voice_instructions": "",
             "voice_seed": -1,
             "game_session_path": None,
@@ -1734,6 +1761,8 @@ class Connection:
             self._feedback_mode = str(cfg.feedback_mode)
         if cfg.plan_mode is not None:
             self._plan_mode = bool(cfg.plan_mode)
+        if cfg.screen_suggestions is not None:
+            suggestion_limiter.enabled = bool(cfg.screen_suggestions)
         if cfg.voice_instructions is not None:
             self._voice_instructions = str(cfg.voice_instructions)
         if cfg.voice_seed is not None:
@@ -1827,6 +1856,7 @@ class Connection:
                         {"event": "ready", "session_id": requested_sid, "version": "0.1.0"}
                     )
                     await self._emit_status()
+                    await self._replay_attached_capture(requested_sid)
                     if self._wake_word_enabled:
                         await self._start_wake_word()
                     msgs = await self.server.session_store.get_messages(requested_sid)
@@ -1979,6 +2009,28 @@ class Connection:
         elif kind == "settings":
             await self._apply_settings(event)
 
+        elif kind == "suggestion_response":
+            # The user answered a suggestion chip. Accepting only starts a normal turn (sent by
+            # the client as a message), so the consent card still decides about the capture.
+            sid = str(event.get("id", ""))
+            choice = str(event.get("choice", ""))
+            session = str(event.get("session_id") or self.session_id or "")
+            if sid and choice in ("region", "screen", "dismiss") and suggestion_limiter.respond(session, sid, choice):
+                if choice != "dismiss" and self.mode == "presence":
+                    # The avatar cannot start a chat turn on the user's session: hand the choice to
+                    # the chat UI attached to it, which sends the message like the user would.
+                    delivered = await self.server.broadcast_session(
+                        session, {"event": "suggestion_accepted", "session_id": session, "id": sid, "kind": choice})
+                    await self.send({"event": "suggestion_ack", "id": sid, "delivered": delivered > 0})
+
+        elif kind == "user_capture" and self.mode == "presence":
+            await self._handle_user_capture(event)
+
+        elif kind == "capture_discard":
+            session = str(event.get("session_id") or self.session_id or "")
+            if self.server.capture_inbox.discard(session, str(event.get("id", ""))):
+                await self.server.broadcast_session(session, {"event": "capture_cleared", "session_id": session, "id": event.get("id")})
+
         elif kind == "download_tts_model":
             asyncio.create_task(self._handle_download_tts_model(event))
 
@@ -2054,7 +2106,9 @@ class Connection:
             decision = event.get("decision", "deny")
             if decision not in ("allow", "allow_session", "deny"):
                 decision = "deny"
-            self.server.consent.respond(request_id, decision)
+            if self.server.consent.respond(request_id, decision):
+                # Whoever answered first wins: close the question everywhere else.
+                await self.server.broadcast({"event": "consent_resolved", "id": request_id})
 
         elif kind == "console_response":
             # Resolve a pending console-log request from the agent.
@@ -3124,6 +3178,27 @@ class Connection:
         if self._wake_word is not None:
             self._wake_word.stop()
 
+    async def _handle_user_capture(self, event: dict[str, Any]) -> None:
+        """A capture the user sent from the avatar's preview: hold it for their next message."""
+        png = capture_store.decode(event.get("png_base64"))
+        session = self.session_id or self.server.last_active_session or ""
+        if png is None or not session:
+            await self.send({"event": "user_capture_ack", "ok": False, "delivered": False,
+                             "reason": "invalid capture" if png is None else "no active chat"})
+            return
+        cap = self.server.capture_inbox.put(session, png, str(event.get("mode", "")))
+        delivered = await self.server.broadcast_session(session, {
+            "event": "capture_attached", "session_id": session, "id": cap.id, "mode": cap.mode,
+            "thumb": capture_store.thumbnail(png),
+        })
+        await self.send({"event": "user_capture_ack", "ok": True, "delivered": delivered > 0})
+
+    async def _replay_attached_capture(self, session_id: str) -> None:
+        cap = self.server.capture_inbox.peek(session_id)
+        if cap:
+            await self.send({"event": "capture_attached", "session_id": session_id, "id": cap.id,
+                             "mode": cap.mode, "thumb": capture_store.thumbnail(cap.png)})
+
     # ── Agent turn ─────────────────────────────────────────
 
     async def _handle_input(
@@ -3173,6 +3248,7 @@ class Connection:
         # before the first token arrives (especially important for reasoning
         # models that take 10-20s to produce output).
         await self.send({"event": "turn_start", "session_id": session_id})
+        suggestion_limiter.note_user_turn(session_id)
 
         # Inject selected-artifact context so the agent knows which
         # artifacts the user currently has in focus. The context is
@@ -3195,6 +3271,23 @@ class Connection:
             lines.append("")
             lines.append(f"USER MESSAGE: {content}")
             agent_message = "\n".join(lines)
+
+        # A capture the user sent from their own shortcut: describe it for this very message.
+        shared = self.server.capture_inbox.take(session_id)
+        if shared is not None:
+            from kali_core.mind.vision import VisionProcessor
+            description = await VisionProcessor(llm_provider=self.server.llm_provider).process(shared.png, "image/png", content)
+            agent_message = capture_store.with_capture(description, agent_message)
+            suggestion_limiter.note_capture(session_id)
+            await self.server.broadcast_session(session_id, {"event": "capture_cleared", "session_id": session_id, "id": shared.id})
+
+        # What the user's desktop can do right now (hides what the connected agent lacks).
+        desktop_line = self.server.desktop_broker.describe(
+            session_id,
+            server_screen=os.environ.get("KALI_ALLOW_SERVER_SCREEN", "1").strip().lower() not in ("0", "false", "no"),
+        )
+        if desktop_line:
+            agent_message = f"{desktop_line}\n\n{agent_message}"
 
         # Feedback mode: inject a confirmation instruction before the user
         # message when confirm or plan mode is active.
@@ -3565,6 +3658,8 @@ class Connection:
             self._feedback_mode = event["feedback_mode"]
         if "plan_mode" in event:
             self._plan_mode = bool(event["plan_mode"])
+        if "screen_suggestions" in event:
+            suggestion_limiter.enabled = bool(event["screen_suggestions"])
         if "game_session_path" in event:
             new_path = event["game_session_path"]
             if new_path:
@@ -3711,6 +3806,7 @@ class Connection:
             input_mode=self._input_mode,
             feedback_mode=self._feedback_mode,
             plan_mode=self._plan_mode,
+            screen_suggestions=suggestion_limiter.enabled,
             voice_instructions=self._voice_instructions or "",
             voice_seed=self._voice_seed,
         )
@@ -3729,6 +3825,7 @@ class Connection:
             "input_mode": self._input_mode,
             "feedback_mode": self._feedback_mode,
             "plan_mode": self._plan_mode,
+            "screen_suggestions": suggestion_limiter.enabled,
             "artifact_diff_preview": settings.artifact_diff_preview,
             "tools": [t.name for t in available_tools()],
             "available_profiles": [p["id"] for p in self.server.gateway.list_profiles()],

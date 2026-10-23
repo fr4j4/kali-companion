@@ -244,7 +244,10 @@ fn apply_prefs(state: &mut State) {
     state.surface.apply(&state.window, state.pos, monitor.as_ref());
     state.window.set_visible(prefs.visible);
     let _ = state.webview.evaluate_javascript(
-        &format!("window.kaliAvatar&&window.kaliAvatar.configure({{showText:{}}})", prefs.show_text),
+        &format!(
+            "window.kaliAvatar&&window.kaliAvatar.configure({{showText:{},captureThumbnail:{},captureSound:{}}})",
+            prefs.show_text, prefs.capture_thumbnail, prefs.capture_sound
+        ),
         None,
         None,
         None::<&gio::Cancellable>,
@@ -311,6 +314,7 @@ pub fn build(
     window.set_child(Some(&webview));
 
     let surface = backend.surface.clone();
+    let services = backend.services.clone();
     surface.init(&window);
     let layer = surface.drag_mode() == DragMode::Margins;
 
@@ -392,6 +396,34 @@ pub fn build(
                         st.last_mtime = Config::mtime();
                         apply_prefs(&mut st);
                     }
+                    ToUi::Captured(thumb) => {
+                        let st = state.borrow();
+                        if st.ready {
+                            let arg = thumb.map(|t| serde_json::Value::String(t).to_string()).unwrap_or_else(|| "null".into());
+                            st.webview.evaluate_javascript(&format!("window.kaliAvatar&&window.kaliAvatar.captured({arg})"), None, None, None::<&gio::Cancellable>, |_| {});
+                        }
+                    }
+                    ToUi::Ask(mode) => {
+                        let (services, monitors, tx) = (services.clone(), monitors.clone(), tx.clone());
+                        std::thread::spawn(move || match crate::ask::capture(mode, services.as_ref(), &monitors) {
+                            Ok(png) => {
+                                let _ = tx.send_blocking(ToUi::Preview(png, mode));
+                            }
+                            Err(e) => {
+                                crate::ask::BUSY.store(false, std::sync::atomic::Ordering::SeqCst);
+                                let _ = tx.send_blocking(ToUi::Notice(e));
+                            }
+                        });
+                    }
+                    ToUi::Preview(png, mode) => crate::ask::show_preview(&app, png, mode),
+                    ToUi::Notice(text) => crate::ask::show_notice(&app, &text),
+                    ToUi::Suggestion(s) => crate::suggestion::show(&app, s),
+                    ToUi::Consent(request, reply) => crate::perms::card::show(&app, request, reply),
+                    ToUi::Command(Cmd::Panic) => {
+                        if let Some(guard) = crate::perms::global() {
+                            guard.panic("tray");
+                        }
+                    }
                     ToUi::Command(Cmd::Quit) => app.quit(),
                 }
             }
@@ -409,6 +441,9 @@ pub fn build(
                 if let Some(next) = Config::load() {
                     if next != st.config {
                         st.config = next.clone();
+                        if let Some(guard) = crate::perms::global() {
+                            guard.set_policy(crate::perms::Policy { launch_allowlist: next.permissions.launch_allowlist.clone() });
+                        }
                         if let Ok(mut guard) = shared.lock() {
                             *guard = next;
                         }
@@ -420,5 +455,12 @@ pub fn build(
         });
     }
     let _ = tx;
+    // `kali-avatar --panic` signals the running instance.
+    glib::unix_signal_add_local(10, || {
+        if let Some(guard) = crate::perms::global() {
+            guard.panic("signal");
+        }
+        glib::ControlFlow::Continue
+    });
     window.present();
 }

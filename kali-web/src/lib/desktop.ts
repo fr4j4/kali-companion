@@ -10,6 +10,10 @@ export interface DesktopConnectionConfig {
   nativeAgent: boolean;
   /** Open every new artifact as its own native window instead of a canvas window. */
   artifactsNative: boolean;
+  /** Show a thumbnail next to the avatar after a screen capture. */
+  captureThumbnail: boolean;
+  /** Play a shutter sound after a screen capture. */
+  captureSound: boolean;
 }
 
 export interface NativeArtifactRef { sessionId: string; id: string }
@@ -25,6 +29,9 @@ export interface DesktopBridge {
   /** Screen corner the native avatar anchors to (layer-shell / X11). */
   setAvatarCorner(corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"): Promise<void>;
   setArtifactsNative(value: boolean): Promise<void>;
+  setCaptureFeedback(options: { thumbnail: boolean; sound: boolean }): Promise<void>;
+  /** Electron fallback avatar only: a capture was taken (thumb is null when the thumbnail is off). */
+  onCapture?(callback: (state: { thumb: string | null; sound: boolean }) => void): () => void;
   /** Artifacts currently in native windows, and ones sent back to the canvas while the main window was away. */
   getNativeArtifacts(): Promise<{ open: NativeArtifactRef[]; returned: NativeArtifactRef[] }>;
   /** From a native artifact window: close it and restore the artifact in the canvas. */
@@ -34,6 +41,8 @@ export interface DesktopBridge {
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
   setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;
   onPresence(callback: (state: { mood: string; emotion: string; text: string; connected: boolean }) => void): () => void;
+  /** System dialog for a consent question; resolves to allow, allow_session or deny. */
+  askConsent?(text: { title: string; detail: string; allow: string; allowSession: string; deny: string }): Promise<"allow" | "allow_session" | "deny">;
   onNavigate(callback: (hash: string) => void): () => void;
 }
 

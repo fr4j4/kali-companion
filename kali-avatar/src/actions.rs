@@ -6,18 +6,27 @@
 use crate::platform::{self, DesktopServices};
 use base64::Engine;
 use serde_json::{json, Value};
-use std::process::Command;
 
 pub use crate::platform::{Monitor, Monitors};
 
-pub const CAPABILITIES: [&str; 3] = ["launch_app", "list_monitors", "screenshot"];
+/// `local_consent` is not an action: it tells the core that this agent asks the user itself, so the
+/// core must not show a second card for the same request. `consent_ui` says it can also show the
+/// cards for the core's own tools (`consent_request` with `native`), so they appear on the desktop.
+pub const CAPABILITIES: [&str; 8] = ["launch_app", "find_apps", "list_monitors", "screenshot", "list_windows", "focus_window", "local_consent", "consent_ui"];
 const MAX_PNG_BYTES: usize = 12 * 1024 * 1024;
 
 pub fn perform(action: &str, params: &Value, monitors: &Monitors, services: &dyn DesktopServices) -> Result<Value, String> {
     match action {
         "launch_app" => launch_app(params),
+        "find_apps" => crate::apps::find(params),
         "list_monitors" => Ok(json!({ "monitors": platform::monitors_json(&services.monitors(monitors)?) })),
         "screenshot" => screenshot(params, monitors, services),
+        "list_windows" => list_windows(services),
+        "focus_window" => {
+            let id = params.get("id").and_then(Value::as_str).filter(|id| valid_window_id(id)).ok_or("Invalid window id")?;
+            services.focus_window(id)?;
+            Ok(json!({ "focused": id }))
+        }
         _ => Err("Unsupported desktop action".into()),
     }
 }
@@ -26,16 +35,26 @@ pub fn valid_desktop_entry(name: &str) -> bool {
     !name.is_empty() && name.len() <= 100 && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
+/// Window ids are hex addresses or numbers; anything else never reaches a command line.
+pub fn valid_window_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 20 && id.chars().all(|c| c.is_ascii_hexdigit() || c == 'x')
+}
+
+fn list_windows(services: &dyn DesktopServices) -> Result<Value, String> {
+    let windows: Vec<Value> = services
+        .windows()?
+        .into_iter()
+        .map(|w| json!({ "id": w.id, "title": w.title, "app_id": w.app_id, "focused": w.focused }))
+        .collect();
+    Ok(json!({ "windows": windows }))
+}
+
 fn launch_app(params: &Value) -> Result<Value, String> {
     let name = params.get("name").and_then(Value::as_str).ok_or("Invalid desktop entry")?;
     if !valid_desktop_entry(name) {
         return Err("Invalid desktop entry".into());
     }
-    let status = Command::new("gtk-launch").arg(name).status().map_err(|e| format!("gtk-launch unavailable: {e}"))?;
-    if !status.success() {
-        return Err(format!("Could not launch {name}"));
-    }
-    Ok(json!({ "name": name, "message": format!("Launched {name}") }))
+    crate::apps::launch(name)
 }
 
 /// Resolve the `output` parameter ("primary", "secondary" or a monitor name) to a monitor.
@@ -53,10 +72,15 @@ fn screenshot(params: &Value, monitors: &Monitors, services: &dyn DesktopService
         Some(Value::String(s)) => Some(s.as_str()),
         Some(_) => return Err("Invalid output".into()),
     };
-    let target = resolve_output(output, &services.monitors(monitors)?)?;
+    let region = params.get("region").and_then(Value::as_bool).unwrap_or(false);
     let tmp = crate::config::runtime_dir().join(format!("shot-{}.png", std::process::id()));
     let _ = std::fs::create_dir_all(tmp.parent().unwrap());
-    let png = services.screenshot(target.as_ref(), &tmp)?;
+    let png = if region {
+        services.screenshot_region(&tmp)?
+    } else {
+        let target = resolve_output(output, &services.monitors(monitors)?)?;
+        services.screenshot(target.as_ref(), &tmp)?
+    };
     if png.is_empty() {
         return Err("Capture returned an empty image".into());
     }
@@ -98,6 +122,17 @@ mod tests {
         let m: Monitors = Default::default();
         let v = perform("screenshot", &json!({}), &m, crate::platform::Backend::detect().services.as_ref()).expect("capture");
         assert!(v["png_base64"].as_str().unwrap().len() > 1000);
+    }
+
+    #[test]
+    fn window_ids_are_restricted_before_reaching_a_command() {
+        assert!(valid_window_id("0x5000002") && valid_window_id("42"));
+        for bad in ["", "0x1; rm", "a b", "--help", "0x1\n", "../x"] {
+            assert!(!valid_window_id(bad), "{bad:?}");
+        }
+        let m: Monitors = Default::default();
+        assert!(perform("focus_window", &json!({ "id": "x;y" }), &m, &Fake).is_err());
+        assert!(perform("list_windows", &json!({}), &m, &Fake).is_err(), "default services do not list windows");
     }
 
     #[test]

@@ -35,6 +35,7 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
   const sttEnabled = systemStatus?.stt_enabled ?? false;
   const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
   const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
+  const screenSuggestions = (systemStatus as { screen_suggestions?: boolean })?.screen_suggestions ?? true;
   const artifactDiffPreview = systemStatus?.artifact_diff_preview ?? true;
 
   const desktop = isDesktop();
@@ -91,6 +92,13 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
             onChange={(v) => onUpdate({ plan_mode: v })}
           />
         )}
+
+        <ToggleField
+          label={t("suggestion.setting")}
+          checked={screenSuggestions}
+          helperText={t("suggestion.setting_hint")}
+          onChange={(v) => onUpdate({ screen_suggestions: v })}
+        />
       </SettingsCard>
 
       <SettingsCard title={t("settings.behavior.system_group")}>

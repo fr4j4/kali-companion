@@ -35,20 +35,21 @@ class VisionProcessor:
     def _model_name(self) -> str:
         return getattr(self._llm, "_model", "unknown")
 
-    async def process(self, image_bytes: bytes, mime: str = "image/png") -> str:
+    async def process(self, image_bytes: bytes, mime: str = "image/png", question: str = "") -> str:
+        """Describe the image; with ``question`` the answer is aimed at what the user wants to know."""
         mode = _MODE
         if mode == "llm":
-            return await self._via_llm(image_bytes, mime)
+            return await self._via_llm(image_bytes, mime, question)
         elif mode == "ocr":
             return self._via_ocr(image_bytes)
         else:
-            result = await self._via_llm(image_bytes, mime)
+            result = await self._via_llm(image_bytes, mime, question)
             if result.startswith("[vision"):
                 fallback = self._via_ocr(image_bytes)
                 result = f"{result} Fallback OCR: {fallback}"
             return result
 
-    async def _via_llm(self, image_bytes: bytes, mime: str) -> str:
+    async def _via_llm(self, image_bytes: bytes, mime: str, question: str = "") -> str:
         if self._llm is None:
             return (
                 "[vision via LLM unavailable: no LLM provider configured]"
@@ -73,11 +74,7 @@ class VisionProcessor:
                     "content": [
                         {
                             "type": "text",
-                            "text": (
-                                "Describe what is on this screen concisely. "
-                                "List any visible text, UI elements, code, "
-                                "or images you see."
-                            ),
+                            "text": self._prompt(question),
                         },
                         {
                             "type": "image_url",
@@ -103,6 +100,22 @@ class VisionProcessor:
             self._failed_models.add(self._model_name)
             logger.warning("LLM vision failed: %s", e)
             return f"[vision via LLM failed: {e}]"
+
+    @staticmethod
+    def _prompt(question: str = "") -> str:
+        question = " ".join((question or "").split())[:500]
+        if not question:
+            return (
+                "Describe what is on this screen concisely. "
+                "List any visible text, UI elements, code, "
+                "or images you see."
+            )
+        return (
+            f"The user asked: {question}\n"
+            "Look at this screenshot and answer that, concisely and in the user's language. "
+            "Quote any relevant text exactly (error messages, numbers, names). "
+            "Mention anything else only if it matters for the question."
+        )
 
     @staticmethod
     def _compress_image(image_bytes: bytes, mime: str) -> tuple[bytes, str]:

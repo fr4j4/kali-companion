@@ -41,6 +41,7 @@ impl ksni::Tray for KaliTray {
             self.item("Configuración", || Cmd::OpenShell("settings")),
             self.item(if self.avatar_visible { "Ocultar avatar" } else { "Mostrar avatar" }, || Cmd::ToggleAvatar),
             MenuItem::Separator,
+            self.item("Revocar todos los permisos", || Cmd::Panic),
             self.item("Salir", || Cmd::Quit),
         ]
     }

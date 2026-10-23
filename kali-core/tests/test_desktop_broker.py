@@ -126,3 +126,57 @@ class DesktopBrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(other_session.sent, [])
         self.assertEqual(client.sent, [])
         self.assertEqual(server.last_active_session, "s1")
+
+
+class DesktopBrokerConsentTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reason_is_forwarded_and_truncated(self):
+        broker = DesktopBroker()
+        agent = FakeConnection(broker)
+        token = broker.activate(agent)
+        try:
+            task = asyncio.create_task(broker.request("session-a", "screenshot", {}, reason="x" * 500))
+            await asyncio.sleep(0)
+            self.assertEqual(len(agent.sent[0]["reason"]), 300)
+            broker.respond(agent, {"id": agent.sent[0]["id"], "ok": True, "result": {}})
+            await task
+        finally:
+            broker.reset(token)
+
+    async def test_actions_that_may_need_consent_wait_longer_than_read_only_ones(self):
+        from kali_core.desktop import ACTION_TIMEOUT, CONSENT_ACTION_TIMEOUT
+
+        self.assertGreater(CONSENT_ACTION_TIMEOUT, 60)  # the card on the agent times out after 60 s
+        self.assertLess(ACTION_TIMEOUT, CONSENT_ACTION_TIMEOUT)
+
+    async def test_denied_action_surfaces_the_agent_error(self):
+        broker = DesktopBroker()
+        agent = FakeConnection(broker)
+        token = broker.activate(agent)
+        try:
+            task = asyncio.create_task(broker.request("session-a", "screenshot", {}))
+            await asyncio.sleep(0)
+            broker.respond(agent, {"id": agent.sent[0]["id"], "ok": False, "error": "Denied by the user"})
+            with self.assertRaisesRegex(RuntimeError, "Denied by the user"):
+                await task
+        finally:
+            broker.reset(token)
+
+
+class RemoteGazeRegionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_region_is_forwarded_only_when_asked(self):
+        from kali_core.desktop import RemoteGazeClient
+
+        broker = DesktopBroker()
+        agent = FakeConnection(broker)
+        token = broker.activate(agent)
+        gaze = RemoteGazeClient(broker, "session-a")
+        try:
+            for kwargs, expected in (({}, {"output": None}), ({"region": True}, {"output": None, "region": True})):
+                task = asyncio.create_task(gaze.capture_full(**kwargs))
+                await asyncio.sleep(0)
+                sent = agent.sent[-1]
+                self.assertEqual(sent["params"], expected)
+                broker.respond(agent, {"id": sent["id"], "ok": True, "result": {"png_base64": "aGk="}})
+                self.assertEqual(await task, b"hi")
+        finally:
+            broker.reset(token)

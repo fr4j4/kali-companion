@@ -67,6 +67,18 @@ class ScreenshotTool:
                     "/ 'secondary'. Omit for the whole composition."
                 ),
             },
+            "region": {
+                "type": "boolean",
+                "description": (
+                    "True to let the user drag a rectangle and capture only that "
+                    "region (best when they say 'look at this'). Needs the desktop "
+                    "agent; ignores `monitor`."
+                ),
+            },
+            "question": {
+                "type": "string",
+                "description": "What you want to know from the image (the user's question).",
+            },
             "reason": {
                 "type": "string",
                 "description": (
@@ -84,6 +96,8 @@ class ScreenshotTool:
         },
     }
     risk_level = "sensitive"
+    # Kept so old conversations and profiles keep working; the model is offered look_at_screen.
+    hidden = True
 
     async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
         gaze = getattr(ctx, "gaze_client", None)
@@ -97,7 +111,8 @@ class ScreenshotTool:
         output = monitor or None
 
         try:
-            png_bytes = await gaze.capture_full(output=output)
+            extra = {"region": True} if params.get("region") is True else {}
+            png_bytes = await gaze.capture_full(output=output, reason=str(params.get("reason") or ""), **extra)
         except (ConnectionError, RuntimeError) as e:
             return ToolResult(error=str(e))
 
@@ -111,7 +126,7 @@ class ScreenshotTool:
             try:
                 from kali_core.mind.vision import VisionProcessor
                 vp = VisionProcessor(llm_provider=getattr(ctx, "llm_provider", None))
-                description = await vp.process(png_bytes, "image/png")
+                description = await vp.process(png_bytes, "image/png", str(params.get("question") or ""))
             except Exception as e:
                 logger.warning("Vision processor failed: %s", e)
                 description = "[vision unavailable]"
@@ -142,6 +157,8 @@ class ScreenshotTool:
                     "title": f"Screenshot — {monitor_label}",
                 },
                 window_type="image",
+                # The capture is for Kali to look at; it goes to the library without popping up.
+                silent=True,
             ).to_payload()
 
         return ToolResult(
@@ -155,3 +172,77 @@ class ScreenshotTool:
             },
             artifact=artifact,
         )
+
+
+_UNSUPPORTED = (
+    "I cannot do that capture: the desktop agent on the user's computer is not connected "
+    "(or does not support it). Tell the user to start kali-avatar, or ask what they see."
+)
+
+
+class LookAtScreenTool(ScreenshotTool):
+    """What the model is offered for 'look at my screen': by intent, not by mechanism."""
+
+    name = "look_at_screen"
+    hidden = False
+    description = (
+        "Look at the user's screen to answer something about what is on it. The user always "
+        "approves each capture on their own computer, so call it whenever seeing the screen is "
+        "the way to help; do not ask permission in chat first. Call it when they say things like "
+        "'mira esto', 'qué dice este error', 'qué ves', 'ayúdame con lo que tengo abierto', "
+        "'is this right?', 'look at my screen', 'check this', 'qué hay en el otro monitor'. "
+        "`target`: 'region' (default) lets them drag a rectangle around what matters, best for "
+        "'this', an error, a dialog or a part of a window; 'screen' captures a whole monitor, best "
+        "for 'my desktop', 'everything', games and layouts. `question` is what you want to know, "
+        "in their words. `monitor` only when they name one. Never call list_monitors first."
+    )
+    schema = {
+        "type": "object",
+        "properties": {
+            "question": {"type": "string", "description": "What you want to know about the image."},
+            "target": {
+                "type": "string",
+                "enum": ["region", "screen"],
+                "description": "region = the user selects an area (default); screen = a whole monitor.",
+            },
+            "monitor": {
+                "type": "string",
+                "description": "Only with target=screen: output name, 'primary' (default) or 'secondary'.",
+            },
+            "reason": {"type": "string", "description": "Short reason shown on the approval card."},
+        },
+    }
+
+    async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
+        target = params.get("target") or "region"
+        if target not in ("region", "screen"):
+            return ToolResult(error="target must be 'region' or 'screen'")
+        mapped = {
+            "question": params.get("question") or "",
+            "reason": params.get("reason") or params.get("question") or "",
+        }
+        if target == "region":
+            mapped["region"] = True
+        elif params.get("monitor"):
+            mapped["monitor"] = params["monitor"]
+        result = await super().run(mapped, ctx)
+        if result.error:
+            result.error = _actionable(result.error)
+        else:
+            from .suggest import limiter
+            limiter.note_capture(ctx.session_id)
+        return result
+
+
+def _actionable(error: str) -> str:
+    low = error.lower()
+    if "desktop agent" in low or "desktop client" in low or "not available" in low or "gazeclient" in low:
+        return _UNSUPPORTED
+    if "region" in low and ("support" in low or "wayland" in low or "locally" in low):
+        return (
+            "Selecting a region is not supported on this desktop. Offer target='screen' instead "
+            "(the user still approves it)."
+        )
+    if "cancel" in low or "denied" in low or "deneg" in low:
+        return f"The user did not approve or cancelled the capture ({error}). Do not insist; ask what they see."
+    return error

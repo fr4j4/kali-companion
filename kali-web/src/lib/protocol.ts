@@ -66,6 +66,7 @@ export interface SettingsEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  screen_suggestions?: boolean;
   artifact_diff_preview?: boolean;
   // Qwen3 VoiceDesign fields
   voice_instructions?: string;
@@ -295,6 +296,11 @@ export interface ArtifactEvent {
   update: "create" | "update" | "close";
   phase?: "streaming" | "complete";
   language?: string;
+  /**
+   * The agent produced this as a side effect (a screen capture) and the user did not ask to see it:
+   * keep it in the library but do not open a window, in the canvas or natively.
+   */
+  silent?: boolean;
   /** Short text preview (HTML stripped). Present on metadata-only replays. */
   preview?: string;
 }
@@ -328,7 +334,43 @@ export interface ConsentRequestEvent {
   reason_key: string;
   reason_params: Record<string, string>;
   summary_key: string;
+  /** The desktop agent shows this question itself; chat UIs must not draw it. */
+  handled_by_agent?: boolean;
 }
+
+/** Kali offers to look at the screen. It never captures: the user picks and the agent asks for consent. */
+export interface SuggestionEvent {
+  event: "suggestion";
+  id: string;
+  session_id: string;
+  kind: "region" | "screen";
+  reason: string;
+}
+
+/** The user accepted a suggestion on another surface (the avatar); the chat sends the message. */
+export interface SuggestionAcceptedEvent {
+  event: "suggestion_accepted";
+  id: string;
+  session_id: string;
+  kind: "region" | "screen";
+}
+
+/** A capture the user sent from the avatar's preview; it rides along with their next message. */
+export interface CaptureAttachedEvent {
+  event: "capture_attached";
+  id: string;
+  session_id: string;
+  mode: "region" | "screen";
+  thumb: string | null;
+}
+
+export interface CaptureClearedEvent {
+  event: "capture_cleared";
+  id: string;
+  session_id: string;
+}
+
+export type SuggestionChoice = "region" | "screen" | "dismiss";
 
 export interface SessionListEvent {
   event: "session_list";
@@ -456,6 +498,7 @@ export interface StatusEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  screen_suggestions?: boolean;
   artifact_diff_preview?: boolean;
   game_session_path?: string;
   game_ai_global_timeout_ms?: number;

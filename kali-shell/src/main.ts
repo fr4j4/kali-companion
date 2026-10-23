@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, nativeImage, net, protocol, safeStorage, screen, session, Tray } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, nativeImage, net, protocol, safeStorage, screen, session, Tray } from "electron";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,8 @@ interface RendererConfig {
   avatarSize: number;
   mode: "local" | "remote";
   artifactsNative: boolean;
+  captureThumbnail: boolean;
+  captureSound: boolean;
   /** True when kali-avatar is running and owns the avatar, tray and native actions. */
   nativeAgent: boolean;
 }
@@ -43,7 +45,7 @@ interface RendererConfig {
 function rendererConfig(): RendererConfig {
   return {
     backendUrl: config.backendUrl, token: config.token, capabilityToken: config.capabilityToken,
-    showAvatar: config.avatar.visible, avatarSize: config.avatar.size, mode: config.mode, artifactsNative: config.artifactsNative, nativeAgent: nativeAgentRunning(),
+    showAvatar: config.avatar.visible, avatarSize: config.avatar.size, mode: config.mode, artifactsNative: config.artifactsNative, captureThumbnail: config.avatar.captureThumbnail, captureSound: config.avatar.captureSound, nativeAgent: nativeAgentRunning(),
   };
 }
 
@@ -240,6 +242,18 @@ function openArtifact(sessionId: string, artifactId: string): void {
   win.loadURL(`${APP_ORIGIN}/#/desktop/artifact/${encodeURIComponent(sessionId)}/${encodeURIComponent(artifactId)}`);
 }
 
+/** Feedback for a capture that already happened: thumbnail and shutter in the fallback avatar. Informational only. */
+function announceCapture(png: Buffer): void {
+  const { captureThumbnail, captureSound } = config.avatar;
+  if (!avatarWindow || avatarWindow.isDestroyed() || !avatarWindow.isVisible() || (!captureThumbnail && !captureSound)) return;
+  let thumb: string | null = null;
+  if (captureThumbnail) {
+    const image = nativeImage.createFromBuffer(png);
+    if (!image.isEmpty()) thumb = image.resize({ width: 200, quality: "good" }).toDataURL();
+  }
+  avatarWindow.webContents.send("desktop:capture", { thumb, sound: captureSound });
+}
+
 async function runDesktopAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (action === "launch_app") {
     const name = params.name;
@@ -269,12 +283,15 @@ async function runDesktopAction(action: string, params: Record<string, unknown>)
         : output === "secondary" ? available.find((m) => !m.primary)?.name : available.find((m) => m.primary)?.name;
       if (selected && !available.some((m) => m.name === selected)) throw new Error("Unknown monitor");
       const { stdout } = await execFileAsync("grim", selected ? ["-o", selected, "-"] : ["-"], { encoding: "buffer", maxBuffer: 25 * 1024 * 1024, timeout: 15000 });
+      announceCapture(stdout as Buffer);
       return { png_base64: (stdout as Buffer).toString("base64") };
     }
     const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 3840, height: 2160 } });
     const source = output && output !== "primary" ? sources.find((s) => s.display_id === output || s.name === output) : sources[0];
     if (!source) throw new Error("Monitor unavailable");
-    return { png_base64: source.thumbnail.toPNG().toString("base64") };
+    const png = source.thumbnail.toPNG();
+    announceCapture(png);
+    return { png_base64: png.toString("base64") };
   }
   throw new Error("Unsupported desktop action");
 }
@@ -348,6 +365,25 @@ app.whenReady().then(() => {
     return true;
   });
   ipcMain.handle("desktop:keep-alive", (_event, value: boolean) => { keepAlive = value === true; });
+  // Consent as a system dialog, so it shows even when the canvas window is closed or hidden.
+  // Anything but an explicit button press (Escape, closing, the timeout) is a denial.
+  ipcMain.handle("desktop:consent", async (_event, text: { title?: unknown; detail?: unknown; allow?: unknown; allowSession?: unknown; deny?: unknown }) => {
+    const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+    const buttons = [str(text.deny, 40) || "Deny", str(text.allow, 40) || "Allow once", str(text.allowSession, 60) || "Allow for this chat"];
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60_000);
+    try {
+      const result = await dialog.showMessageBox({
+        type: "question", title: "Kali", message: str(text.title, 200), detail: str(text.detail, 800),
+        buttons, defaultId: 0, cancelId: 0, noLink: true, signal: abort.signal,
+      });
+      return result.response === 1 ? "allow" : result.response === 2 ? "allow_session" : "deny";
+    } catch {
+      return "deny";
+    } finally {
+      clearTimeout(timer);
+    }
+  });
   ipcMain.handle("desktop:open-main", (_event, hash?: string) => openMain(hash));
   ipcMain.handle("desktop:show-avatar", (_event, visible: boolean) => setAvatarVisible(visible));
   ipcMain.handle("desktop:set-avatar-size", (_event, size: number) => {
@@ -361,6 +397,11 @@ app.whenReady().then(() => {
     config.avatar.corner = corner as SharedConfig["avatar"]["corner"];
     delete config.avatar.x;
     delete config.avatar.y;
+    saveConfig();
+  });
+  ipcMain.handle("desktop:set-capture-feedback", (_event, options: { thumbnail?: unknown; sound?: unknown }) => {
+    config.avatar.captureThumbnail = options?.thumbnail === true;
+    config.avatar.captureSound = options?.sound === true;
     saveConfig();
   });
   ipcMain.handle("desktop:set-artifacts-native", (_event, value: boolean) => { config.artifactsNative = value === true; saveConfig(); });

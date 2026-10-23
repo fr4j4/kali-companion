@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { initializeDesktop } from "../../lib/desktop";
 import { useWorkspace } from "../useWorkspace";
 import type { WorkspaceAPI } from "../types";
 import type { ArtifactEvent } from "../../lib/protocol";
@@ -51,5 +52,41 @@ describe("artifact in a single place (desktop)", () => {
     act(() => emit({ sessionId: "s1", id: "a1", open: true, returned: false }));
     act(() => emit({ sessionId: "s1", id: "a1", open: false, returned: true }));
     expect(api.windows.find((w) => w.artifactId === "a1")?.closed).toBe(false);
+  });
+});
+
+describe("silent captures with native windows enabled", () => {
+  let api: WorkspaceAPI;
+  const openArtifact = vi.fn(() => Promise.resolve());
+
+  beforeEach(async () => {
+    openArtifact.mockClear();
+    window.localStorage.setItem("kali.sessionId", "s1");
+    (window as unknown as { kaliDesktop: unknown }).kaliDesktop = {
+      getConfig: () => Promise.resolve({ artifactsNative: true }),
+      getNativeArtifacts: () => Promise.resolve({ open: [], returned: [] }),
+      onArtifactNative: () => () => undefined,
+      openArtifact,
+    };
+    await initializeDesktop();
+    const container = document.createElement("div");
+    function Probe() { api = useWorkspace({ sessionId: "s1" }); return null; }
+    act(() => { createRoot(container).render(createElement(Probe)); });
+  });
+  afterEach(() => { delete (window as unknown as { kaliDesktop?: unknown }).kaliDesktop; });
+
+  it("opens an ordinary artifact in a native window", () => {
+    act(() => api.syncArtifact({ ...html, id: "a2" }));
+    expect(openArtifact).toHaveBeenCalledWith("s1", "a2");
+  });
+
+  it("files a capture in the library without opening a native window or a canvas window", () => {
+    const capture = { event: "artifact", id: "shot1", type: "widget", windowType: "image", title: "Screenshot", content: "{}", update: "create", silent: true } as ArtifactEvent;
+    act(() => api.syncArtifact(capture));
+    expect(openArtifact).not.toHaveBeenCalled();
+    expect(api.windows.find((w) => w.artifactId === "shot1")?.closed).toBe(true);
+    // Still reachable from the library.
+    act(() => api.reopenArtifact("shot1"));
+    expect(api.windows.find((w) => w.artifactId === "shot1")?.closed).toBe(false);
   });
 });

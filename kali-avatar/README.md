@@ -51,6 +51,20 @@ and tray.
 Screenshots shell out to `grim` / `spectacle` / `gnome-screenshot` (Wayland) or `maim` / `scrot` (X11).
 If `libgtk4-layer-shell` must be loaded before libwayland, start with `LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so`.
 
+## Shortcuts: show Kali a region or the screen
+
+`kali-avatar --ask-region` and `kali-avatar --ask-screen` talk to the running agent (unix socket in
+`$XDG_RUNTIME_DIR/kali/`, mode 0600). It lets you select a region (or grabs the main monitor), shows
+a preview, and sends the image to Kali only if you press "Enviar a Kali". Bind them in your compositor:
+
+```
+# Hyprland (hyprland.conf)
+bind = SUPER SHIFT, S, exec, kali-avatar --ask-region
+bind = SUPER SHIFT, A, exec, kali-avatar --ask-screen
+```
+
+KDE: System Settings → Keyboard → Shortcuts → Add Command, with the same commands.
+
 ## Platform layer
 
 All environment-specific code lives in `src/platform/`. `Backend::detect()` picks the session once

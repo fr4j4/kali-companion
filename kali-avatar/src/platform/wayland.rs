@@ -102,4 +102,16 @@ impl DesktopServices for WaylandServices {
     fn screenshot(&self, target: Option<&Monitor>, tmp: &Path) -> Result<Vec<u8>, String> {
         capture::wayland(self.desktop, target, tmp)
     }
+
+    fn screenshot_region(&self, tmp: &Path) -> Result<Vec<u8>, String> {
+        capture::region_wayland(self.desktop, tmp)
+    }
+
+    fn windows(&self) -> Result<Vec<super::windows::Window>, String> {
+        super::windows::list(super::Session::Wayland, self.desktop)
+    }
+
+    fn focus_window(&self, id: &str) -> Result<(), String> {
+        super::windows::focus(super::Session::Wayland, self.desktop, id)
+    }
 }

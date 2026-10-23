@@ -402,7 +402,9 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     // later updates are ignored here because the native window follows the session over its own WS.
     // Hollow replays (reconnect) are not opened again; the library still lists the artifact.
     if (nativeIdsRef.current.has(event.id)) return;
-    if (artifactsNativeEnabled() && event.update === "create" && !isHollow && !windowsRef.current.some((w) => w.artifactId === event.id)) {
+    // Silent artifacts (screen captures) are filed in the library without opening anything.
+    const silent = event.silent === true && event.update === "create" && !isHollow;
+    if (!silent && artifactsNativeEnabled() && event.update === "create" && !isHollow && !windowsRef.current.some((w) => w.artifactId === event.id)) {
       const sid = localStorage.getItem("kali.sessionId");
       if (sid) {
         nativeIdsRef.current.add(event.id);
@@ -433,6 +435,10 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
       artifactId: event.id,
       content: isHollow ? null : event,
     });
+    if (silent) {
+      setWindows((prev) => prev.map((w) => w.id === id ? { ...w, closed: true, focused: false } : w));
+      return;
+    }
     // Restore saved position/size/state if available.
     const saved = persistence.getSavedState(event.id);
     let shouldFetch = false;

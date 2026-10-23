@@ -101,4 +101,16 @@ impl DesktopServices for X11Services {
     fn screenshot(&self, target: Option<&Monitor>, tmp: &Path) -> Result<Vec<u8>, String> {
         capture::x11(target, tmp)
     }
+
+    fn screenshot_region(&self, tmp: &Path) -> Result<Vec<u8>, String> {
+        capture::region_x11(tmp)
+    }
+
+    fn windows(&self) -> Result<Vec<super::windows::Window>, String> {
+        super::windows::list(super::Session::X11, super::Desktop::Other)
+    }
+
+    fn focus_window(&self, id: &str) -> Result<(), String> {
+        super::windows::focus(super::Session::X11, super::Desktop::Other, id)
+    }
 }

@@ -12,6 +12,8 @@ export function DesktopConnectionSettings() {
   const [capabilityToken, setCapabilityToken] = useState(config?.capabilityToken || "");
   const [showAvatar, setShowAvatar] = useState(config?.showAvatar !== false);
   const [avatarSize, setAvatarSize] = useState(config?.avatarSize || 220);
+  const [captureThumbnail, setCaptureThumbnail] = useState(config?.captureThumbnail !== false);
+  const [captureSound, setCaptureSound] = useState(config?.captureSound !== false);
   const [showText, setShowText] = useState(() => localStorage.getItem("kali.desktop.showText") === "true");
   const [message, setMessage] = useState("");
   if (!window.kaliDesktop) return null;
@@ -40,6 +42,12 @@ export function DesktopConnectionSettings() {
     </label>
     <label className="flex items-center gap-2 text-sm">
       <input type="checkbox" checked={showText} onChange={(e) => { setShowText(e.target.checked); localStorage.setItem("kali.desktop.showText", String(e.target.checked)); }} /> {t("desktop.settings.show_text")}
+    </label>
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={captureThumbnail} onChange={(e) => { setCaptureThumbnail(e.target.checked); void window.kaliDesktop!.setCaptureFeedback({ thumbnail: e.target.checked, sound: captureSound }); }} /> {t("desktop.settings.capture_thumbnail")}
+    </label>
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={captureSound} onChange={(e) => { setCaptureSound(e.target.checked); void window.kaliDesktop!.setCaptureFeedback({ thumbnail: captureThumbnail, sound: e.target.checked }); }} /> {t("desktop.settings.capture_sound")}
     </label>
     <label className="block text-sm">{t("desktop.settings.avatar_size")}
       <select className="mt-1 w-full rounded-lg border border-border bg-bg p-2" value={avatarSize} onChange={(e) => { const size = Number(e.target.value); setAvatarSize(size); void window.kaliDesktop!.setAvatarSize(size); }}>

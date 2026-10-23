@@ -19,10 +19,25 @@ from typing import Any
 from kali_core.canvas import is_game_resource, resolve_window_type
 from kali_core.claws.base import ToolContext, ToolResult, get
 from kali_core.collar.consent import ConsentManager
-from kali_core.collar.gateway import PermissionGateway
+from kali_core.collar.gateway import PermissionDecision, PermissionGateway
 from kali_core.desktop import DesktopBroker, RemoteGazeClient
 
 logger = logging.getLogger("kali_core.mind.executor")
+
+
+# Tools served by the desktop agent, with the parameters it accepts. ``screenshot`` goes through
+# RemoteGazeClient instead, which keeps the capture tool's vision and snapshot handling.
+AGENT_ACTIONS: dict[str, tuple[str, ...]] = {
+    "launch_app": ("name",),
+    "find_apps": ("query",),
+    "list_windows": (),
+    "focus_window": ("id",),
+    "screenshot": ("output",),
+}
+
+
+# Tools the model sees under another name than the action the agent serves.
+AGENT_ALIASES: dict[str, str] = {"look_at_screen": "screenshot"}
 
 
 class Executor:
@@ -75,8 +90,28 @@ class Executor:
         if tool is None:
             return ToolResult(error=f"Unknown tool: {tool_name}")
 
+        # Window tools only exist on the user's desktop agent: do not ask for consent to fail.
+        if tool_name in ("list_windows", "focus_window") and not (
+            self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name)
+        ):
+            return await tool.run(params, ToolContext(session_id=session_id, working_dir=self.working_dir, profile=self.profile))
+
         # Check permissions.
         decision = self.gateway.check(tool_name, tool.risk_level, params, self.profile)
+
+        # An agent that enforces consent on the user's machine shows the only card for the
+        # actions it serves; asking here as well would make the user approve twice.
+        agent_action = AGENT_ALIASES.get(tool_name, tool_name)
+        agent_action = agent_action if agent_action in AGENT_ACTIONS else None
+        if (
+            not decision.allow
+            and decision.needs_consent
+            and agent_action
+            and self.desktop_broker
+            and self.desktop_broker.enforces_consent(session_id, agent_action)
+        ):
+            logger.info("[consent] '%s' is confirmed by the desktop agent", tool_name)
+            decision = PermissionDecision(allow=True)
 
         if not decision.allow and decision.needs_consent:
             # If the user already granted permission for this session, allow.
@@ -150,8 +185,10 @@ class Executor:
         )
 
         try:
-            if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "launch_app"):
-                result = ToolResult(output=await self.desktop_broker.request(session_id, "launch_app", {"name": params.get("name", "")}))
+            if tool_name in AGENT_ACTIONS and tool_name not in ("screenshot", "look_at_screen") and self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name):
+                # Run on the user's machine; the agent resolves, asks the user and enforces.
+                agent_params = {k: params[k] for k in AGENT_ACTIONS[tool_name] if k in params}
+                result = ToolResult(output=await self.desktop_broker.request(session_id, tool_name, agent_params))
             else:
                 result = await tool.run(params, ctx)
         except Exception as e:

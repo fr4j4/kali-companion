@@ -14,6 +14,12 @@ from typing import Any
 LEGACY_CAPABILITIES = frozenset({"launch_app", "list_monitors", "screenshot"})
 
 
+# Seconds to wait for a read-only action, and for one that may need the user's answer on the
+# agent's consent card (the card itself times out after 60 s).
+ACTION_TIMEOUT = 30.0
+CONSENT_ACTION_TIMEOUT = 90.0
+
+
 class DesktopBroker:
     def __init__(self) -> None:
         self._current: contextvars.ContextVar[Any] = contextvars.ContextVar("desktop_connection", default=None)
@@ -66,10 +72,51 @@ class DesktopBroker:
                 return agent
         return None
 
+    def enforces_consent(self, session_id: str, action: str) -> bool:
+        """True when the agent that would run ``action`` asks the user itself.
+
+        Such an agent shows its own card and refuses without an answer, so the core must not
+        stack a second card on top of it. Legacy agents (no explicit capability list) never
+        claim it.
+        """
+        conn = self.find(session_id, action)
+        caps = getattr(conn, "desktop_capabilities", None) if conn is not None else None
+        return caps is not None and "local_consent" in caps
+
+    def describe(self, session_id: str, server_screen: bool = True) -> str:
+        """One line for the model about what the user's desktop can do right now."""
+        names = {
+            "launch_app": "open apps", "find_apps": "search apps", "screenshot": "look at the screen",
+            "list_windows": "list windows", "focus_window": "focus windows",
+        }
+        conn = self.find(session_id)
+        if conn is None:
+            if server_screen:
+                return ""
+            return ("DESKTOP: no desktop agent is connected, so you cannot open apps, look at the screen or "
+                    "manage windows. Say so plainly if asked; do not call those tools.")
+        caps = getattr(conn, "desktop_capabilities", None)
+        caps = LEGACY_CAPABILITIES if caps is None else caps
+        can = [label for action, label in names.items() if action in caps]
+        cannot = [label for action, label in names.items() if action not in caps]
+        line = "DESKTOP: agent connected; you can " + (", ".join(can) or "do nothing on the desktop") + " (each action needs the user's approval)."
+        if cannot:
+            line += " Not supported here: " + ", ".join(cannot) + "."
+        return line
+
     def has_desktop(self, session_id: str, action: str | None = None) -> bool:
         return self.find(session_id, action) is not None
 
-    async def request(self, session_id: str, action: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def request(
+        self, session_id: str, action: str, params: dict[str, Any], reason: str = "", timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Ask the desktop agent to run ``action``.
+
+        The agent enforces permissions itself and may show the user a consent card, so every
+        action except the read-only ``list_monitors`` waits long enough for a person to answer.
+        """
+        if timeout is None:
+            timeout = ACTION_TIMEOUT if action == "list_monitors" else CONSENT_ACTION_TIMEOUT
         conn = self.find(session_id, action)
         if conn is None:
             raise RuntimeError("desktop client unavailable")
@@ -77,8 +124,11 @@ class DesktopBroker:
         future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = (conn, future)
         try:
-            await conn.send({"event": "desktop_action", "id": request_id, "action": action, "params": params})
-            result = await asyncio.wait_for(future, timeout=30)
+            event: dict[str, Any] = {"event": "desktop_action", "id": request_id, "action": action, "params": params}
+            if reason:
+                event["reason"] = reason[:300]
+            await conn.send(event)
+            result = await asyncio.wait_for(future, timeout=timeout)
             if not result.get("ok"):
                 raise RuntimeError(str(result.get("error", "desktop action failed")))
             return result.get("result") or {}
@@ -106,6 +156,13 @@ class RemoteGazeClient:
         result = await self.broker.request(self.session_id, "list_monitors", {})
         return result.get("monitors", [])
 
-    async def capture_full(self, output: str | None = None) -> bytes:
-        result = await self.broker.request(self.session_id, "screenshot", {"output": output})
+    async def capture_full(self, output: str | None = None, reason: str = "", region: bool = False) -> bytes:
+        params: dict[str, Any] = {"output": output}
+        if region:
+            params["region"] = True
+        # Selecting a region waits for the user to drag it, on top of any consent card.
+        result = await self.broker.request(
+            self.session_id, "screenshot", params, reason=reason,
+            timeout=CONSENT_ACTION_TIMEOUT + 60 if region else None,
+        )
         return base64.b64decode(result["png_base64"], validate=True)

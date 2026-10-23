@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ConsentDecision, ConsentRequestEvent } from "../lib/protocol";
+import { consentTexts } from "../lib/consentText";
 import { Modal } from "./ui/Modal";
 
 interface Props {
@@ -44,12 +45,7 @@ export function ConsentModal({ request, onRespond }: Props) {
 
   if (!request) return null;
 
-  const reasonParams = request.reason_params || {};
-  const hasReason = Boolean(reasonParams.reason && String(reasonParams.reason).trim());
-  const reasonKey = hasReason ? request.reason_key : `${request.reason_key}.generic`;
-  const reasonText = t(reasonKey, { defaultValue: "", ...reasonParams });
-  const summaryText = t(request.summary_key, { defaultValue: request.tool });
-  const commandText = request.tool === "run_command" ? String(reasonParams.command || "") : "";
+  const { summary: summaryText, reason: reasonText, command: commandText } = consentTexts(request, t as never);
   const isLongCommand = commandText.length > LONG_COMMAND_THRESHOLD;
   const modalSize = isLongCommand ? "lg" : commandText.length > MEDIUM_COMMAND_THRESHOLD ? "md" : "sm";
 

@@ -12,6 +12,10 @@ pub struct AvatarPrefs {
     pub corner: String,
     pub monitor: String,
     pub show_text: bool,
+    /// Thumbnail next to the avatar after a capture, and the shutter sound. Feedback only: consent
+    /// is asked before the capture.
+    pub capture_thumbnail: bool,
+    pub capture_sound: bool,
     /// Dragged position in logical pixels relative to the monitor origin; `None` = anchor to `corner`.
     pub x: Option<i32>,
     pub y: Option<i32>,
@@ -19,8 +23,17 @@ pub struct AvatarPrefs {
 
 impl Default for AvatarPrefs {
     fn default() -> Self {
-        Self { visible: true, size: 220, corner: "bottom-right".into(), monitor: String::new(), show_text: false, x: None, y: None }
+        Self { visible: true, size: 220, corner: "bottom-right".into(), monitor: String::new(), show_text: false, capture_thumbnail: true, capture_sound: true, x: None, y: None }
     }
+}
+
+/// Permission settings the user controls. Only launching can be pre-approved; observing and
+/// controlling the desktop is always asked for.
+#[derive(Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Permissions {
+    /// Desktop entries `launch_app` may open without a card (the user's own list, empty by default).
+    pub launch_allowlist: Vec<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Default)]
@@ -31,6 +44,7 @@ pub struct Config {
     pub token: String,
     pub capability_token: String,
     pub avatar: AvatarPrefs,
+    pub permissions: Permissions,
 }
 
 pub fn config_dir() -> PathBuf {
@@ -149,10 +163,12 @@ mod tests {
     #[test]
     fn parses_shell_written_file() {
         let raw = r#"{"version":1,"mode":"remote","backendUrl":"https://a","token":"t","capabilityToken":"c",
-            "avatar":{"visible":false,"size":300,"corner":"top-left","monitor":"DP-1","showText":true,"x":40,"y":60}}"#;
+            "avatar":{"visible":false,"size":300,"corner":"top-left","monitor":"DP-1","showText":true,"captureSound":false,"x":40,"y":60}}"#;
         let c: Config = serde_json::from_str(raw).unwrap();
-        assert_eq!(c.avatar, AvatarPrefs { visible: false, size: 300, corner: "top-left".into(), monitor: "DP-1".into(), show_text: true, x: Some(40), y: Some(60) });
+        assert_eq!(c.avatar, AvatarPrefs { visible: false, size: 300, corner: "top-left".into(), monitor: "DP-1".into(), show_text: true, capture_thumbnail: true, capture_sound: false, x: Some(40), y: Some(60) });
         let partial: Config = serde_json::from_str(r#"{"backendUrl":"https://a"}"#).unwrap();
         assert!(partial.avatar.visible && partial.avatar.size == 220);
+        // Capture feedback is on unless the user turned it off.
+        assert!(partial.avatar.capture_thumbnail && partial.avatar.capture_sound);
     }
 }

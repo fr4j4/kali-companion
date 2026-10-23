@@ -28,13 +28,46 @@ pub enum ToUi {
     Cursor(i32, i32),
     /// Window position (compositor coordinates) after the window manager moved it (X11).
     Moved(i32, i32),
+    /// A consent card to show; the answer goes back through the sender.
+    Consent(crate::perms::ConsentRequest, std::sync::mpsc::Sender<crate::perms::Decision>),
+    /// A screen capture was just taken: thumbnail as a PNG data URL (`None` when turned off).
+    Captured(Option<String>),
+    /// Kali suggests looking at the screen; the user answers on chips the agent draws.
+    Suggestion(crate::suggestion::Suggestion),
+    /// The user's shortcut asked to show Kali a region or the screen.
+    Ask(crate::ask::Mode),
+    /// What the user captured, waiting for them to send or discard it.
+    Preview(Vec<u8>, crate::ask::Mode),
+    /// A short message for the user.
+    Notice(String),
     Command(Cmd),
 }
 
 pub enum Cmd {
     ToggleAvatar,
     OpenShell(&'static str),
+    /// Revoke every permission now.
+    Panic,
     Quit,
+}
+
+/// Frames the UI thread wants to send to the core (the current session's reply channel).
+static OUTBOX: Mutex<Option<Sender<String>>> = Mutex::new(None);
+
+/// Send a frame to the core when connected. Returns false when there is no link.
+pub fn send_frame(frame: Value) -> bool {
+    OUTBOX.lock().ok().and_then(|o| o.as_ref().map(|tx| tx.send(frame.to_string()).is_ok())).unwrap_or(false)
+}
+
+/// True while the link to the core is up.
+pub fn is_connected() -> bool {
+    OUTBOX.lock().map(|o| o.is_some()).unwrap_or(false)
+}
+
+fn set_outbox(tx: Option<Sender<String>>) {
+    if let Ok(mut o) = OUTBOX.lock() {
+        *o = tx;
+    }
 }
 
 pub type SharedConfig = Arc<Mutex<Config>>;
@@ -60,6 +93,11 @@ fn run(config: SharedConfig, monitors: Monitors, services: Arc<dyn DesktopServic
         };
         let started = Instant::now();
         let outcome = session(&url, &cfg, &config, &monitors, &services, &ui);
+        set_outbox(None);
+        // Task grants do not survive the link to the core.
+        if let Some(guard) = crate::perms::global() {
+            guard.session_ended();
+        }
         let _ = ui.send_blocking(ToUi::Connected(false));
         if let Err(reason) = &outcome {
             if std::env::var_os("KALI_AVATAR_DEBUG").is_some() {
@@ -181,6 +219,7 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
     send_json(&mut socket, json!({ "event": "hello", "mode": "presence", "client": "kali-avatar", "version": env!("CARGO_PKG_VERSION") }))?;
 
     let (reply_tx, reply_rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+    set_outbox(Some(reply_tx.clone()));
     let mut last_ping = Instant::now();
     let mut pong_deadline: Option<Instant> = None;
 
@@ -206,7 +245,34 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
                 match event["event"].as_str().unwrap_or_default() {
                     "pong" => pong_deadline = None,
                     "auth_required" => return Err(LinkError::AuthRequired),
-                    "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone()),
+                    "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone(), ui.clone(), shared.clone()),
+                    "consent_request" if event["native"].as_bool() == Some(true) => {
+                        let _ = ui.send_blocking(ToUi::Presence(text.to_string()));
+                        let reply = reply_tx.clone();
+                        thread::spawn(move || {
+                            if let Some(frame) = crate::core_consent::answer(&event) {
+                                let _ = reply.send(frame.to_string());
+                            }
+                        });
+                    }
+                    "suggestion" => {
+                        if let Some(s) = crate::suggestion::parse(&event) {
+                            let _ = ui.send_blocking(ToUi::Suggestion(s));
+                        }
+                    }
+                    // Nobody has the chat open to take the accepted suggestion: open it.
+                    "suggestion_ack" if event["delivered"].as_bool() == Some(false) => {
+                        let _ = ui.send_blocking(ToUi::Command(Cmd::OpenShell("chat")));
+                    }
+                    "suggestion_ack" => {}
+                    "user_capture_ack" => {
+                        if event["ok"].as_bool() != Some(true) {
+                            let _ = ui.send_blocking(ToUi::Notice("Kali no pudo recibir la captura: abre el chat e inténtalo de nuevo.".into()));
+                        } else if event["delivered"].as_bool() == Some(false) {
+                            // No chat is open: open it so the user can write what they want to ask.
+                            let _ = ui.send_blocking(ToUi::Command(Cmd::OpenShell("chat")));
+                        }
+                    }
                     "ready" => {
                         let _ = ui.send_blocking(ToUi::Connected(true));
                         let _ = ui.send_blocking(ToUi::Presence(text.to_string()));
@@ -224,15 +290,71 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
     }
 }
 
-fn spawn_action(event: Value, monitors: Monitors, services: Arc<dyn DesktopServices>, reply: Sender<String>) {
+fn spawn_action(event: Value, monitors: Monitors, services: Arc<dyn DesktopServices>, reply: Sender<String>, ui: async_channel::Sender<ToUi>, shared: SharedConfig) {
     thread::spawn(move || {
         let id = event["id"].clone();
         let action = event["action"].as_str().unwrap_or_default().to_string();
         let params = event.get("params").cloned().unwrap_or(Value::Null);
-        let frame = match actions::perform(&action, &params, &monitors, services.as_ref()) {
+        let reason = event["reason"].as_str().unwrap_or_default().to_string();
+        let result = authorized_perform(&action, &params, &reason, &monitors, services.as_ref());
+        if action == "screenshot" {
+            if let Ok(value) = &result {
+                announce_capture(value, &shared, &ui);
+            }
+        }
+        let frame = match result {
             Ok(result) => json!({ "event": "desktop_action_result", "id": id, "ok": true, "result": result }),
             Err(error) => json!({ "event": "desktop_action_result", "id": id, "ok": false, "error": error }),
         };
         let _ = reply.send(frame.to_string());
     });
+}
+
+/// Run an action only after the local permission layer allows it, whatever the core asked for.
+fn authorized_perform(action: &str, params: &Value, reason: &str, monitors: &Monitors, services: &dyn DesktopServices) -> Result<Value, String> {
+    let Some(guard) = crate::perms::global() else {
+        return Err("Permission layer unavailable".into());
+    };
+    // The card names what the agent itself resolved, never a label or id the core supplied.
+    let mut params = params.clone();
+    if let Some(map) = params.as_object_mut() {
+        map.remove("label");
+    }
+    if action == "launch_app" {
+        let name = params["name"].as_str().ok_or("Invalid desktop entry")?;
+        if name.is_empty() || name.len() > 100 {
+            return Err("Invalid desktop entry".into());
+        }
+        let (id, label) = crate::apps::resolve_for_launch(name)?;
+        params = json!({ "name": id, "label": label });
+    }
+    if action == "focus_window" {
+        // Name the window on the card from the agent's own listing, never from the core.
+        let id = params["id"].as_str().filter(|id| actions::valid_window_id(id)).ok_or("Invalid window id")?.to_string();
+        let window = services.windows()?.into_iter().find(|w| w.id == id).ok_or("Unknown window")?;
+        params = json!({ "id": id, "label": format!("{} ({})", window.title, window.app_id) });
+    }
+    let auth = guard.authorize(action, &params, reason)?;
+    let outcome = actions::perform(action, &params, monitors, services);
+    guard.finish(action, &params, &auth, &outcome);
+    outcome
+}
+
+/// After an authorized capture: tell the avatar so it can show a thumbnail and click. Purely
+/// informational; it happens after the user already said yes on the consent card.
+fn announce_capture(result: &Value, shared: &SharedConfig, ui: &async_channel::Sender<ToUi>) {
+    let prefs = shared.lock().map(|c| c.avatar.clone()).unwrap_or_default();
+    if !prefs.capture_thumbnail && !prefs.capture_sound {
+        return;
+    }
+    let thumb = if prefs.capture_thumbnail {
+        use base64::Engine;
+        result["png_base64"]
+            .as_str()
+            .and_then(|b64| base64::engine::general_purpose::STANDARD.decode(b64).ok())
+            .and_then(|png| crate::thumb::data_url(&png, crate::thumb::MAX_SIDE))
+    } else {
+        None
+    };
+    let _ = ui.send_blocking(ToUi::Captured(thumb));
 }
