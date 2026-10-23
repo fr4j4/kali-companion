@@ -38,6 +38,17 @@ class DesktopBrokerTests(unittest.IsolatedAsyncioTestCase):
         finally:
             broker.reset(token)
 
+    async def test_registered_agent_serves_any_chat_session(self):
+        broker = DesktopBroker()
+        agent = FakeConnection(broker)
+        agent.session_id = "presence-session"
+        agent.desktop_capabilities = frozenset({"screenshot"})
+        broker.register(agent)
+        self.assertTrue(broker.has_desktop("chat-session", "screenshot"))
+        self.assertFalse(broker.has_desktop("chat-session", "launch_app"))
+        broker.unregister(agent)
+        self.assertFalse(broker.has_desktop("chat-session", "screenshot"))
+
     async def test_disconnect_fails_pending_request(self):
         broker = DesktopBroker()
         owner = FakeConnection(broker)

@@ -58,6 +58,12 @@ class DesktopBroker:
         for agent in self._agents:
             if agent.is_desktop and agent.session_id in (None, "", session_id) and self._supports(agent, action):
                 return agent
+        # Single-user deployment: native agents authenticate with the desktop
+        # token, not a chat, so serve any session from an agent that has the
+        # capability.
+        for agent in self._agents:
+            if agent.is_desktop and self._supports(agent, action):
+                return agent
         return None
 
     def has_desktop(self, session_id: str, action: str | None = None) -> bool:
