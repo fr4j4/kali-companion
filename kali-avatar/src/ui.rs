@@ -191,6 +191,7 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
                         (st.window.surface().and_downcast::<gdk::Toplevel>(), gesture.device(), gesture.start_point())
                     {
                         toplevel.begin_move(&device, 1, sx, sy, gesture.current_event_time());
+                        remember_x11_position(st.monitor_origin);
                     }
                 }
                 return;
@@ -226,6 +227,36 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
         }
     });
     window.add_controller(gesture);
+}
+
+/// The window manager runs the move on X11, so GTK never sees where the window ends up: poll
+/// wmctrl until the geometry settles and store it relative to the monitor.
+fn remember_x11_position(origin: (i32, i32)) {
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        return;
+    }
+    std::thread::spawn(move || {
+        let read = || -> Option<(i32, i32)> {
+            let out = std::process::Command::new("wmctrl").arg("-lG").output().ok()?;
+            let text = String::from_utf8_lossy(&out.stdout).into_owned();
+            let line = text.lines().find(|l| l.ends_with("Kali Avatar"))?;
+            let f: Vec<&str> = line.split_whitespace().collect();
+            Some((f.get(2)?.parse().ok()?, f.get(3)?.parse().ok()?))
+        };
+        let (mut last, mut stable) = (None, 0);
+        for _ in 0..200 {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let now = read();
+            if now.is_some() && now == last { stable += 1 } else { stable = 0 }
+            last = now;
+            if stable >= 3 {
+                break;
+            }
+        }
+        if let Some((x, y)) = last {
+            let _ = config::save_position(Some(((x - origin.0).max(0), (y - origin.1).max(0))));
+        }
+    });
 }
 
 fn monitor_list(display: &gdk::Display) -> Vec<gdk::Monitor> {
