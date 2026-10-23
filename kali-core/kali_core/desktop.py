@@ -14,6 +14,12 @@ from typing import Any
 LEGACY_CAPABILITIES = frozenset({"launch_app", "list_monitors", "screenshot"})
 
 
+# Seconds to wait for a read-only action, and for one that may need the user's answer on the
+# agent's consent card (the card itself times out after 60 s).
+ACTION_TIMEOUT = 30.0
+CONSENT_ACTION_TIMEOUT = 90.0
+
+
 class DesktopBroker:
     def __init__(self) -> None:
         self._current: contextvars.ContextVar[Any] = contextvars.ContextVar("desktop_connection", default=None)
@@ -69,7 +75,16 @@ class DesktopBroker:
     def has_desktop(self, session_id: str, action: str | None = None) -> bool:
         return self.find(session_id, action) is not None
 
-    async def request(self, session_id: str, action: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def request(
+        self, session_id: str, action: str, params: dict[str, Any], reason: str = "", timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Ask the desktop agent to run ``action``.
+
+        The agent enforces permissions itself and may show the user a consent card, so every
+        action except the read-only ``list_monitors`` waits long enough for a person to answer.
+        """
+        if timeout is None:
+            timeout = ACTION_TIMEOUT if action == "list_monitors" else CONSENT_ACTION_TIMEOUT
         conn = self.find(session_id, action)
         if conn is None:
             raise RuntimeError("desktop client unavailable")
@@ -77,8 +92,11 @@ class DesktopBroker:
         future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = (conn, future)
         try:
-            await conn.send({"event": "desktop_action", "id": request_id, "action": action, "params": params})
-            result = await asyncio.wait_for(future, timeout=30)
+            event: dict[str, Any] = {"event": "desktop_action", "id": request_id, "action": action, "params": params}
+            if reason:
+                event["reason"] = reason[:300]
+            await conn.send(event)
+            result = await asyncio.wait_for(future, timeout=timeout)
             if not result.get("ok"):
                 raise RuntimeError(str(result.get("error", "desktop action failed")))
             return result.get("result") or {}
@@ -106,6 +124,6 @@ class RemoteGazeClient:
         result = await self.broker.request(self.session_id, "list_monitors", {})
         return result.get("monitors", [])
 
-    async def capture_full(self, output: str | None = None) -> bytes:
-        result = await self.broker.request(self.session_id, "screenshot", {"output": output})
+    async def capture_full(self, output: str | None = None, reason: str = "") -> bytes:
+        result = await self.broker.request(self.session_id, "screenshot", {"output": output}, reason=reason)
         return base64.b64decode(result["png_base64"], validate=True)

@@ -28,12 +28,16 @@ pub enum ToUi {
     Cursor(i32, i32),
     /// Window position (compositor coordinates) after the window manager moved it (X11).
     Moved(i32, i32),
+    /// A consent card to show; the answer goes back through the sender.
+    Consent(crate::perms::ConsentRequest, std::sync::mpsc::Sender<crate::perms::Decision>),
     Command(Cmd),
 }
 
 pub enum Cmd {
     ToggleAvatar,
     OpenShell(&'static str),
+    /// Revoke every permission now.
+    Panic,
     Quit,
 }
 
@@ -60,6 +64,10 @@ fn run(config: SharedConfig, monitors: Monitors, services: Arc<dyn DesktopServic
         };
         let started = Instant::now();
         let outcome = session(&url, &cfg, &config, &monitors, &services, &ui);
+        // Task grants do not survive the link to the core.
+        if let Some(guard) = crate::perms::global() {
+            guard.session_ended();
+        }
         let _ = ui.send_blocking(ToUi::Connected(false));
         if let Err(reason) = &outcome {
             if std::env::var_os("KALI_AVATAR_DEBUG").is_some() {
@@ -229,10 +237,23 @@ fn spawn_action(event: Value, monitors: Monitors, services: Arc<dyn DesktopServi
         let id = event["id"].clone();
         let action = event["action"].as_str().unwrap_or_default().to_string();
         let params = event.get("params").cloned().unwrap_or(Value::Null);
-        let frame = match actions::perform(&action, &params, &monitors, services.as_ref()) {
+        let reason = event["reason"].as_str().unwrap_or_default().to_string();
+        let result = authorized_perform(&action, &params, &reason, &monitors, services.as_ref());
+        let frame = match result {
             Ok(result) => json!({ "event": "desktop_action_result", "id": id, "ok": true, "result": result }),
             Err(error) => json!({ "event": "desktop_action_result", "id": id, "ok": false, "error": error }),
         };
         let _ = reply.send(frame.to_string());
     });
+}
+
+/// Run an action only after the local permission layer allows it, whatever the core asked for.
+fn authorized_perform(action: &str, params: &Value, reason: &str, monitors: &Monitors, services: &dyn DesktopServices) -> Result<Value, String> {
+    let Some(guard) = crate::perms::global() else {
+        return Err("Permission layer unavailable".into());
+    };
+    let auth = guard.authorize(action, params, reason)?;
+    let outcome = actions::perform(action, params, monitors, services);
+    guard.finish(action, params, &auth, &outcome);
+    outcome
 }

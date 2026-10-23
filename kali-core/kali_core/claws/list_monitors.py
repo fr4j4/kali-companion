@@ -28,7 +28,7 @@ class ListMonitorsTool:
         "type": "object",
         "properties": {},
     }
-    risk_level = "sensitive"
+    risk_level = "safe"
 
     async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
         gaze = getattr(ctx, "gaze_client", None)

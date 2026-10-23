@@ -11,6 +11,7 @@
 //! Override for debugging: `KALI_AVATAR_BACKEND=x11|wayland` (forces the session type) and
 //! `KALI_AVATAR_NO_LAYER=1` (regular window on Wayland).
 
+pub mod caps;
 pub mod capture;
 mod hyprland;
 mod kwin;

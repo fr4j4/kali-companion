@@ -19,6 +19,7 @@ url = "2"
 base64 = "0.22"
 async-channel = "2"
 x11rb = "0.13"
+sha2 = "0.10"
 
 [profile.release]
 opt-level = "s"

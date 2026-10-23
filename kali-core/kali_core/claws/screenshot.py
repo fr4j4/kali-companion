@@ -97,7 +97,7 @@ class ScreenshotTool:
         output = monitor or None
 
         try:
-            png_bytes = await gaze.capture_full(output=output)
+            png_bytes = await gaze.capture_full(output=output, reason=str(params.get("reason") or ""))
         except (ConnectionError, RuntimeError) as e:
             return ToolResult(error=str(e))
 

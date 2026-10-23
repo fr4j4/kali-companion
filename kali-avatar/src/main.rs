@@ -7,6 +7,7 @@
 mod actions;
 mod config;
 mod link;
+mod perms;
 mod platform;
 mod tray;
 mod ui;
@@ -29,6 +30,21 @@ fn write_pid() {
     let _ = std::fs::write(path, std::process::id().to_string());
 }
 
+/// `--panic`: ask the running agent (SIGUSR1) to revoke every permission.
+fn panic_running() -> glib_exit::ExitCode {
+    let pid = std::fs::read_to_string(pid_file()).ok().and_then(|s| s.trim().parse::<u32>().ok());
+    match pid.map(|p| std::process::Command::new("kill").args(["-USR1", &p.to_string()]).status()) {
+        Some(Ok(status)) if status.success() => {
+            println!("permissions revoked");
+            glib_exit::ExitCode::SUCCESS
+        }
+        _ => {
+            eprintln!("kali-avatar is not running");
+            glib_exit::ExitCode::FAILURE
+        }
+    }
+}
+
 fn main() -> glib_exit::ExitCode {
     if std::env::args().any(|a| a == "--version") {
         println!("kali-avatar {}", env!("CARGO_PKG_VERSION"));
@@ -36,6 +52,14 @@ fn main() -> glib_exit::ExitCode {
     }
     if std::env::args().any(|a| a == "--print-web-root") {
         println!("{}", ui::web_root().map(|p| p.display().to_string()).unwrap_or_else(|| "not found".into()));
+        return glib_exit::ExitCode::SUCCESS;
+    }
+
+    if std::env::args().any(|a| a == "--panic") {
+        return panic_running();
+    }
+    if std::env::args().any(|a| a == "--doctor") {
+        println!("{}", platform::caps::report());
         return glib_exit::ExitCode::SUCCESS;
     }
 
@@ -50,6 +74,11 @@ fn main() -> glib_exit::ExitCode {
         let monitors: actions::Monitors = Default::default();
         let (tx, rx) = async_channel::unbounded();
         let backend = platform::Backend::detect();
+        perms::install(Arc::new(perms::Guard::new(
+            Arc::new(perms::card::CardDecider { ui: tx.clone() }),
+            perms::audit::Audit::new(perms::audit::default_path()),
+            perms::Policy { launch_allowlist: initial.permissions.launch_allowlist.clone() },
+        )));
         let _ = SERVICES.set(backend.services.clone());
 
         link::spawn(shared.clone(), monitors.clone(), backend.services.clone(), tx.clone());

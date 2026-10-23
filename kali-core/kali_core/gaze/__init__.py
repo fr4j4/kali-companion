@@ -51,7 +51,7 @@ class GazeClient:
         """
         return await self._capture.list_monitors()
 
-    async def capture_full(self, output: str | None = None) -> bytes:
+    async def capture_full(self, output: str | None = None, reason: str = "") -> bytes:
         """Capture the screen. Returns PNG bytes.
 
         If `output` is given, captures that specific monitor (by name

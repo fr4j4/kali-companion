@@ -334,7 +334,7 @@ async def test_screenshot_tool_passes_monitor_to_gaze():
             ctx,
         )
     assert result.error is None
-    gaze_mock.capture_full.assert_awaited_once_with(output="HDMI-A-1")
+    gaze_mock.capture_full.assert_awaited_once_with(output="HDMI-A-1", reason="verify game")
     assert result.output["monitor"] == "HDMI-A-1"
     assert result.output["path"]
 
@@ -356,7 +356,7 @@ async def test_screenshot_tool_no_monitor_passes_none():
         )
         result = await tool.run({"description": False}, ctx)
     assert result.error is None
-    gaze_mock.capture_full.assert_awaited_once_with(output=None)
+    gaze_mock.capture_full.assert_awaited_once_with(output=None, reason="")
 
 
 # ── ListMonitorsTool ─────────────────────────────────────────

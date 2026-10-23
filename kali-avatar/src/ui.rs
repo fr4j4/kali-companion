@@ -392,6 +392,12 @@ pub fn build(
                         st.last_mtime = Config::mtime();
                         apply_prefs(&mut st);
                     }
+                    ToUi::Consent(request, reply) => crate::perms::card::show(&app, request, reply),
+                    ToUi::Command(Cmd::Panic) => {
+                        if let Some(guard) = crate::perms::global() {
+                            guard.panic("tray");
+                        }
+                    }
                     ToUi::Command(Cmd::Quit) => app.quit(),
                 }
             }
@@ -409,6 +415,9 @@ pub fn build(
                 if let Some(next) = Config::load() {
                     if next != st.config {
                         st.config = next.clone();
+                        if let Some(guard) = crate::perms::global() {
+                            guard.set_policy(crate::perms::Policy { launch_allowlist: next.permissions.launch_allowlist.clone() });
+                        }
                         if let Ok(mut guard) = shared.lock() {
                             *guard = next;
                         }
@@ -420,5 +429,12 @@ pub fn build(
         });
     }
     let _ = tx;
+    // `kali-avatar --panic` signals the running instance.
+    glib::unix_signal_add_local(10, || {
+        if let Some(guard) = crate::perms::global() {
+            guard.panic("signal");
+        }
+        glib::ControlFlow::Continue
+    });
     window.present();
 }

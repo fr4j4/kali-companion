@@ -23,6 +23,15 @@ impl Default for AvatarPrefs {
     }
 }
 
+/// Permission settings the user controls. Only launching can be pre-approved; observing and
+/// controlling the desktop is always asked for.
+#[derive(Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Permissions {
+    /// Desktop entries `launch_app` may open without a card (the user's own list, empty by default).
+    pub launch_allowlist: Vec<String>,
+}
+
 #[derive(Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Config {
@@ -31,6 +40,7 @@ pub struct Config {
     pub token: String,
     pub capability_token: String,
     pub avatar: AvatarPrefs,
+    pub permissions: Permissions,
 }
 
 pub fn config_dir() -> PathBuf {
