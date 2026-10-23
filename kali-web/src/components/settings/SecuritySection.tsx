@@ -9,7 +9,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import { SectionHeader } from "./SectionHeader";
-import { DesktopConnectionSettings } from "../../desktop/DesktopConnectionSettings";
 import { SettingsCard } from "./SettingsCard";
 
 const LS_KEY = "kali.apiToken";
@@ -35,7 +34,6 @@ export function SecuritySection() {
 
   return (
     <div className="flex flex-col gap-4">
-      {window.kaliDesktop && <DesktopConnectionSettings />}
       <SectionHeader
         icon={Lock}
         title={t("security.title", "Seguridad")}

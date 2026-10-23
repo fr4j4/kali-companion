@@ -862,5 +862,18 @@
   "settings.font_hint": "Las fuentes del sistema y monoespaciada no cargan nada extra.",
   "font.default": "Kali (predeterminada)",
   "font.system": "Sistema",
-  "font.mono": "Monoespaciada"
+  "font.mono": "Monoespaciada",
+  "settings.section.desktop": "Escritorio",
+  "settings.search": "Buscar ajustes…",
+  "settings.search_empty": "Sin secciones coincidentes",
+  "settings.keywords.ai": "modelo llm proveedor conexión api temperatura tokens",
+  "settings.keywords.voice": "tts voz habla piper qwen hablar",
+  "settings.keywords.stt": "micrófono microfono stt transcripción vosk palabra clave pulsar hablar",
+  "settings.keywords.behavior": "comportamiento personalidad memoria proactivo",
+  "settings.keywords.gaming": "juego juegos dota coach",
+  "settings.keywords.security": "token autenticación contraseña consentimiento permisos",
+  "settings.keywords.appearance": "tema color fuente escala idioma contraste rendimiento animación",
+  "settings.keywords.desktop": "avatar flotante bandeja ventana esquina backend nativo",
+  "settings.keywords.about": "versión acerca info licencia",
+  "customizer.random": "Sorpréndeme"
 }

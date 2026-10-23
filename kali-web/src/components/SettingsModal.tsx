@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cpu, Volume2, Sliders, Palette, Mic, Info, Gamepad2, Lock } from "lucide-react";
+import { Cpu, Volume2, Sliders, Palette, Mic, Info, Gamepad2, Lock, Monitor, Search } from "lucide-react";
 import type { StatusEvent, SettingsEvent } from "../lib/protocol";
 import { Modal } from "./ui/Modal";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -18,6 +18,8 @@ import { GenerationSection } from "./settings/GenerationSection";
 import { AboutSection } from "./settings/AboutSection";
 import { SecuritySection } from "./settings/SecuritySection";
 import { GamingSection } from "./settings/GamingSection";
+import { DesktopConnectionSettings } from "../desktop/DesktopConnectionSettings";
+import { StateMessage } from "./ui/StateMessage";
 import type { PerformanceProfile } from "../App";
 
 interface Props {
@@ -41,7 +43,7 @@ interface Props {
   downloadError: string | null;
 }
 
-type SectionId = "ai" | "voice" | "stt" | "behavior" | "gaming" | "appearance" | "about" | "security";
+type SectionId = "ai" | "voice" | "stt" | "behavior" | "gaming" | "appearance" | "about" | "security" | "desktop";
 
 interface SectionDef {
   id: SectionId;
@@ -57,6 +59,7 @@ const SECTIONS: SectionDef[] = [
   { id: "gaming", icon: Gamepad2, labelKey: "settings.section.gaming" },
   { id: "security", icon: Lock, labelKey: "settings.section.security" },
   { id: "appearance", icon: Palette, labelKey: "settings.section.appearance" },
+  { id: "desktop", icon: Monitor, labelKey: "settings.section.desktop" },
   { id: "about", icon: Info, labelKey: "settings.section.about" },
 ];
 
@@ -83,15 +86,41 @@ export function SettingsModal({
   const { t } = useTranslation();
   const { isMobile } = useBreakpoint();
   const [active, setActive] = useState<SectionId>("ai");
+  const [query, setQuery] = useState("");
 
   if (!open) return null;
+
+  // The desktop section only exists inside the Electron shell; the search matches label or keywords.
+  const needle = query.trim().toLowerCase();
+  const visible = SECTIONS.filter((s) => (s.id !== "desktop" || !!window.kaliDesktop)
+    && (!needle || `${t(s.labelKey)} ${t(`settings.keywords.${s.id}`)}`.toLowerCase().includes(needle)));
+  const onSearch = (value: string) => {
+    setQuery(value);
+    const n = value.trim().toLowerCase();
+    const first = SECTIONS.find((s) => (s.id !== "desktop" || !!window.kaliDesktop)
+      && n && `${t(s.labelKey)} ${t(`settings.keywords.${s.id}`)}`.toLowerCase().includes(n));
+    if (first) setActive(first.id);
+  };
+  const search = (
+    <label className="relative block">
+      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => onSearch(e.target.value)}
+        placeholder={t("settings.search") as string}
+        aria-label={t("settings.search") as string}
+        className="w-full rounded-lg border border-border bg-bg py-1.5 pl-7 pr-2 text-xs text-fg placeholder:text-muted"
+      />
+    </label>
+  );
 
   // Teal AI accent applies to the unified AI engine section.
   const isAISection = (id: SectionId) => id === "ai";
 
   const rail = (
     <nav className="flex gap-1" role="tablist">
-      {SECTIONS.map((s) => {
+      {visible.map((s) => {
         const Icon = s.icon;
         const isActive = active === s.id;
         return (
@@ -128,7 +157,8 @@ export function SettingsModal({
       <div className="flex flex-col h-full">
         {isMobile ? (
           <div className="flex flex-col h-full">
-            <div className="px-4 pt-3 pb-2 border-b border-border overflow-x-auto scrollbar-thin shrink-0">
+            <div className="px-4 pt-3 pb-2 border-b border-border overflow-x-auto scrollbar-thin shrink-0 flex flex-col gap-2">
+              {search}
               {rail}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto stage-scroll p-4">
@@ -139,7 +169,8 @@ export function SettingsModal({
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <aside className="w-52 border-r border-border p-3 shrink-0 overflow-y-auto scrollbar-thin">
               <div className="flex flex-col gap-1">
-                {SECTIONS.map((s) => {
+                {search}
+                {visible.map((s) => {
                   const Icon = s.icon;
                   const isActive = active === s.id;
                   return (
@@ -159,6 +190,7 @@ export function SettingsModal({
                     </button>
                   );
                 })}
+                {visible.length === 0 && <StateMessage kind="empty" title={t("settings.search_empty") as string} className="p-3" />}
               </div>
             </aside>
             <div className="flex-1 min-h-0 overflow-y-auto stage-scroll p-5">{renderSection()}</div>
@@ -182,6 +214,7 @@ export function SettingsModal({
     if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "gaming") return <GamingSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "security") return <SecuritySection />;
+    if (active === "desktop") return <DesktopConnectionSettings />;
     if (active === "about") return <AboutSection />;
     return (
       <AppearanceSection

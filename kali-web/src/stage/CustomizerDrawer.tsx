@@ -149,6 +149,29 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
     setSelectedVariation(0);
   }, [onChange]);
 
+  /** Pick a random species, breed and variation from the built-in presets (accessories stay as they are). */
+  const handleRandom = useCallback(() => {
+    const speciesKeys = Object.keys(animalDatabase) as AvatarSpecies[];
+    const key = speciesKeys[Math.floor(Math.random() * speciesKeys.length)];
+    const breedKeys = Object.keys(animalDatabase[key].breeds).filter((b) => b !== "custom");
+    const breedKey = breedKeys[Math.floor(Math.random() * breedKeys.length)];
+    const breed = animalDatabase[key].breeds[breedKey];
+    const vIdx = Math.floor(Math.random() * breed.variations.length);
+    const variation = breed.variations[vIdx];
+    setSpecies(key);
+    setSelectedBreed(breedKey);
+    setSelectedVariation(vIdx);
+    onChange({
+      ...config,
+      species: key,
+      breed: breedKey,
+      ears: breed.ears || animalDatabase[key].ears,
+      pattern: variation.id,
+      colors: { base: variation.preset.base, spot1: variation.preset.s1, spot2: variation.preset.s2, ears: variation.preset.ears },
+      eyes: { light: variation.preset.eyeL, main: variation.preset.eyeM, dark: variation.preset.eyeD, pupil: variation.preset.pupil },
+    });
+  }, [config, onChange]);
+
   const currentBreed: Breed | undefined = animalDatabase[species]?.breeds[selectedBreed];
   const currentVariation: Variation | undefined = currentBreed?.variations[selectedVariation];
   const isCustom = currentBreed?.isCustom || false;
@@ -495,6 +518,12 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
             className="px-6 py-4 rounded-2xl bg-white/5 text-muted text-sm font-bold hover:bg-white/10 hover:text-fg transition-all active:scale-95"
           >
             {t("customizer.reset")}
+          </button>
+          <button
+            onClick={handleRandom}
+            className="px-4 py-4 rounded-2xl bg-white/5 text-muted text-sm font-bold hover:bg-white/10 hover:text-fg transition-all active:scale-95"
+          >
+            {t("customizer.random")}
           </button>
           <button 
             onClick={handleSave} 

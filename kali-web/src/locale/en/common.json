@@ -862,5 +862,18 @@
   "settings.font_hint": "System and monospace fonts load nothing extra.",
   "font.default": "Kali (default)",
   "font.system": "System",
-  "font.mono": "Monospace"
+  "font.mono": "Monospace",
+  "settings.section.desktop": "Desktop",
+  "settings.search": "Search settings…",
+  "settings.search_empty": "No matching sections",
+  "settings.keywords.ai": "model llm provider connection api temperature tokens",
+  "settings.keywords.voice": "tts speech piper qwen voice speak",
+  "settings.keywords.stt": "microphone mic stt transcription vosk wake push to talk",
+  "settings.keywords.behavior": "behavior personality memory proactive",
+  "settings.keywords.gaming": "game games dota coach",
+  "settings.keywords.security": "token auth password consent permissions",
+  "settings.keywords.appearance": "theme color font scale language contrast performance animation",
+  "settings.keywords.desktop": "avatar floating tray window corner backend native",
+  "settings.keywords.about": "version about info license",
+  "customizer.random": "Surprise me"
 }
