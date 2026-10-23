@@ -265,6 +265,12 @@ fn authorized_perform(action: &str, params: &Value, reason: &str, monitors: &Mon
         let (id, label) = crate::apps::resolve_for_launch(name)?;
         params = json!({ "name": id, "label": label });
     }
+    if action == "focus_window" {
+        // Name the window on the card from the agent's own listing, never from the core.
+        let id = params["id"].as_str().filter(|id| actions::valid_window_id(id)).ok_or("Invalid window id")?.to_string();
+        let window = services.windows()?.into_iter().find(|w| w.id == id).ok_or("Unknown window")?;
+        params = json!({ "id": id, "label": format!("{} ({})", window.title, window.app_id) });
+    }
     let auth = guard.authorize(action, &params, reason)?;
     let outcome = actions::perform(action, &params, monitors, services);
     guard.finish(action, &params, &auth, &outcome);

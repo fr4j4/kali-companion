@@ -25,6 +25,17 @@ from kali_core.desktop import DesktopBroker, RemoteGazeClient
 logger = logging.getLogger("kali_core.mind.executor")
 
 
+# Tools served by the desktop agent, with the parameters it accepts. ``screenshot`` goes through
+# RemoteGazeClient instead, which keeps the capture tool's vision and snapshot handling.
+AGENT_ACTIONS: dict[str, tuple[str, ...]] = {
+    "launch_app": ("name",),
+    "find_apps": ("query",),
+    "list_windows": (),
+    "focus_window": ("id",),
+    "screenshot": ("output",),
+}
+
+
 class Executor:
     """Executes tools with permission checks and consent."""
 
@@ -75,12 +86,18 @@ class Executor:
         if tool is None:
             return ToolResult(error=f"Unknown tool: {tool_name}")
 
+        # Window tools only exist on the user's desktop agent: do not ask for consent to fail.
+        if tool_name in ("list_windows", "focus_window") and not (
+            self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name)
+        ):
+            return await tool.run(params, ToolContext(session_id=session_id, working_dir=self.working_dir, profile=self.profile))
+
         # Check permissions.
         decision = self.gateway.check(tool_name, tool.risk_level, params, self.profile)
 
         # An agent that enforces consent on the user's machine shows the only card for the
         # actions it serves; asking here as well would make the user approve twice.
-        agent_action = {"screenshot": "screenshot", "launch_app": "launch_app"}.get(tool_name)
+        agent_action = tool_name if tool_name in AGENT_ACTIONS else None
         if (
             not decision.allow
             and decision.needs_consent
@@ -163,10 +180,10 @@ class Executor:
         )
 
         try:
-            if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "launch_app"):
-                result = ToolResult(output=await self.desktop_broker.request(session_id, "launch_app", {"name": params.get("name", "")}))
-            elif tool_name == "find_apps" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "find_apps"):
-                result = ToolResult(output=await self.desktop_broker.request(session_id, "find_apps", {"query": params.get("query", "")}))
+            if tool_name in AGENT_ACTIONS and tool_name != "screenshot" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name):
+                # Run on the user's machine; the agent resolves, asks the user and enforces.
+                agent_params = {k: params[k] for k in AGENT_ACTIONS[tool_name] if k in params}
+                result = ToolResult(output=await self.desktop_broker.request(session_id, tool_name, agent_params))
             else:
                 result = await tool.run(params, ctx)
         except Exception as e:

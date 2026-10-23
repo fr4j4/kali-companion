@@ -15,6 +15,7 @@ pub mod caps;
 pub mod capture;
 mod hyprland;
 mod kwin;
+pub mod windows;
 mod wayland;
 mod x11;
 
@@ -139,6 +140,18 @@ pub trait DesktopServices: Send + Sync {
     fn monitors(&self, snapshot: &Monitors) -> Result<Vec<Monitor>, String>;
     /// PNG of the target monitor (or the whole desktop when `None`). `tmp` is a scratch file path.
     fn screenshot(&self, target: Option<&Monitor>, tmp: &Path) -> Result<Vec<u8>, String>;
+    /// PNG of a rectangle the user drags on screen.
+    fn screenshot_region(&self, _tmp: &Path) -> Result<Vec<u8>, String> {
+        Err("Region capture is not supported on this desktop".into())
+    }
+    /// Open windows (titles are private: callers must be authorized to observe).
+    fn windows(&self) -> Result<Vec<windows::Window>, String> {
+        Err("Window listing is not supported on this desktop".into())
+    }
+    /// Bring a window from [`DesktopServices::windows`] to the front.
+    fn focus_window(&self, _id: &str) -> Result<(), String> {
+        Err("Window focus is not supported on this desktop".into())
+    }
 }
 
 pub struct Backend {

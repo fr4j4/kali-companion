@@ -71,6 +71,33 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Denied by the user", result.error)
 
 
+class WindowToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_without_an_agent_it_fails_without_asking(self):
+        executor, consent = make_executor(DesktopBroker())
+        result = await executor.execute("list_windows", {}, "s1")
+        consent.request.assert_not_awaited()
+        self.assertIn("No desktop agent", result.error)
+
+    async def test_focus_window_is_served_by_the_agent_with_only_known_params(self):
+        broker = DesktopBroker()
+        agent = FakeAgent(frozenset({"focus_window", "local_consent"}))
+        broker.register(agent)
+        executor, consent = make_executor(broker)
+        task = asyncio.create_task(executor.execute("focus_window", {"id": "0xabc", "evil": "x"}, "s1"))
+        await asyncio.sleep(0.05)
+        consent.request.assert_not_awaited()
+        sent = agent.sent[0]
+        self.assertEqual((sent["action"], sent["params"]), ("focus_window", {"id": "0xabc"}))
+        broker.respond(agent, {"id": sent["id"], "ok": True, "result": {"focused": "0xabc"}})
+        self.assertEqual((await task).output, {"focused": "0xabc"})
+
+    def test_window_tools_always_need_consent_even_when_a_profile_lists_them(self):
+        gateway = PermissionGateway()
+        for name in ("list_windows", "focus_window"):
+            decision = gateway.check(name, "sensitive", {}, "dev")
+            self.assertTrue(decision.needs_consent, name)
+
+
 class RankAppsTests(unittest.TestCase):
     APPS = [
         {"id": "org.mozilla.firefox", "name": "Firefox", "generic": "Web Browser", "keywords": "internet;", "categories": "Network;"},

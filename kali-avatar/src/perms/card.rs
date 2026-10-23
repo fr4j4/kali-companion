@@ -47,6 +47,9 @@ fn what(request: &ConsentRequest) -> String {
     let target = request.target.as_deref().unwrap_or("");
     match request.action.as_str() {
         "launch_app" => format!("Abrir la aplicación «{}»", request.label.as_deref().unwrap_or(target)),
+        "list_windows" => "Ver la lista de ventanas abiertas (títulos y aplicaciones)".to_string(),
+        "focus_window" => format!("Cambiar el foco a la ventana «{}»", request.label.as_deref().unwrap_or(target)),
+        "screenshot" if target == "region" => "Capturar una región de la pantalla que tú eliges".to_string(),
         "screenshot" if target.is_empty() => "Capturar la pantalla".to_string(),
         "screenshot" => format!("Capturar la pantalla ({target})"),
         other => format!("{other} {target}"),

@@ -160,3 +160,23 @@ class DesktopBrokerConsentTests(unittest.IsolatedAsyncioTestCase):
                 await task
         finally:
             broker.reset(token)
+
+
+class RemoteGazeRegionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_region_is_forwarded_only_when_asked(self):
+        from kali_core.desktop import RemoteGazeClient
+
+        broker = DesktopBroker()
+        agent = FakeConnection(broker)
+        token = broker.activate(agent)
+        gaze = RemoteGazeClient(broker, "session-a")
+        try:
+            for kwargs, expected in (({}, {"output": None}), ({"region": True}, {"output": None, "region": True})):
+                task = asyncio.create_task(gaze.capture_full(**kwargs))
+                await asyncio.sleep(0)
+                sent = agent.sent[-1]
+                self.assertEqual(sent["params"], expected)
+                broker.respond(agent, {"id": sent["id"], "ok": True, "result": {"png_base64": "aGk="}})
+                self.assertEqual(await task, b"hi")
+        finally:
+            broker.reset(token)

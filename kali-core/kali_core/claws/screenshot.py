@@ -67,6 +67,14 @@ class ScreenshotTool:
                     "/ 'secondary'. Omit for the whole composition."
                 ),
             },
+            "region": {
+                "type": "boolean",
+                "description": (
+                    "True to let the user drag a rectangle and capture only that "
+                    "region (best when they say 'look at this'). Needs the desktop "
+                    "agent; ignores `monitor`."
+                ),
+            },
             "reason": {
                 "type": "string",
                 "description": (
@@ -97,7 +105,8 @@ class ScreenshotTool:
         output = monitor or None
 
         try:
-            png_bytes = await gaze.capture_full(output=output, reason=str(params.get("reason") or ""))
+            extra = {"region": True} if params.get("region") is True else {}
+            png_bytes = await gaze.capture_full(output=output, reason=str(params.get("reason") or ""), **extra)
         except (ConnectionError, RuntimeError) as e:
             return ToolResult(error=str(e))
 

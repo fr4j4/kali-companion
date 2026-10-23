@@ -51,11 +51,13 @@ class GazeClient:
         """
         return await self._capture.list_monitors()
 
-    async def capture_full(self, output: str | None = None, reason: str = "") -> bytes:
+    async def capture_full(self, output: str | None = None, reason: str = "", region: bool = False) -> bytes:
         """Capture the screen. Returns PNG bytes.
 
         If `output` is given, captures that specific monitor (by name
         or alias like "primary"/"secondary"); otherwise captures the
         whole composition.
         """
+        if region:
+            raise RuntimeError("Region capture needs the desktop agent (kali-avatar) on the user's machine.")
         return await self._capture.capture_full(output)

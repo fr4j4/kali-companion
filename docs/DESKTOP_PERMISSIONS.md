@@ -9,7 +9,8 @@ Regla: **toda acción que observe o controle el PC requiere consentimiento expl�
 | Clase | Acciones hoy | Consentimiento |
 |---|---|---|
 | `info` | `list_monitors`, `find_apps` | No |
-| `observe` | `screenshot` | Sí |
+| `observe` | `screenshot` (pantalla, monitor o región), `list_windows` | Sí |
+| `window` | `focus_window` | Sí |
 | `launch` | `launch_app` | Sí (salvo apps de la lista del usuario) |
 | `clipboard-write`, `clipboard-read`, `window`, `input` | (fases 2 a 4) | Sí; `clipboard-read` nunca admite concesión de tarea |
 
@@ -68,3 +69,9 @@ Solo `launch_app` la respeta. Vacía por defecto.
 ## Aplicaciones
 
 `find_apps(query)` busca entre las aplicaciones instaladas (GIO: todos los directorios XDG, Flatpak y Snap) por nombre, tipo y palabras clave y devuelve hasta 5 con su `id`. `launch_app(name)` solo lanza si `name` identifica exactamente una aplicación (id o nombre); si no, devuelve sugerencias. El lanzamiento usa GIO, que gestiona terminal, activación por D-Bus y notificación de arranque.
+
+## Ventanas y región
+
+- `list_windows` (clase `observe`) devuelve id, título, aplicación y foco. Los títulos son privados, por eso pide permiso. Hyprland (`hyprctl`), Sway (`swaymsg`) y X11 (`wmctrl`, `xprop`). GNOME y KDE en Wayland no ofrecen una API utilizable y devuelven el motivo.
+- `focus_window` (clase `window`) solo acepta ids de la lista actual del compositor; la tarjeta muestra el título y la aplicación que el agente leyó, no texto del core.
+- `screenshot` con `region: true`: el usuario arrastra un rectángulo (`slurp`+`grim`, `spectacle -r`, `gnome-screenshot -a` o `maim -s`) y solo esa región se captura. Cancelar la selección es un error, nunca una captura de pantalla completa. La geometría de `slurp` se valida antes de llegar a `grim`.

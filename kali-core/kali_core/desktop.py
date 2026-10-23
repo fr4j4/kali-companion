@@ -135,6 +135,13 @@ class RemoteGazeClient:
         result = await self.broker.request(self.session_id, "list_monitors", {})
         return result.get("monitors", [])
 
-    async def capture_full(self, output: str | None = None, reason: str = "") -> bytes:
-        result = await self.broker.request(self.session_id, "screenshot", {"output": output}, reason=reason)
+    async def capture_full(self, output: str | None = None, reason: str = "", region: bool = False) -> bytes:
+        params: dict[str, Any] = {"output": output}
+        if region:
+            params["region"] = True
+        # Selecting a region waits for the user to drag it, on top of any consent card.
+        result = await self.broker.request(
+            self.session_id, "screenshot", params, reason=reason,
+            timeout=CONSENT_ACTION_TIMEOUT + 60 if region else None,
+        )
         return base64.b64decode(result["png_base64"], validate=True)

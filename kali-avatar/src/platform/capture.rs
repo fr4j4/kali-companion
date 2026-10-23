@@ -69,3 +69,58 @@ pub fn x11(target: Option<&Monitor>, tmp: &Path) -> Result<Vec<u8>, String> {
         Err("No screenshot tool for this X11 session (install maim or scrot)".into())
     }
 }
+
+/// A `slurp` geometry (`X,Y WxH`, possibly negative) and nothing else, before it reaches `grim -g`.
+pub fn valid_geometry(g: &str) -> bool {
+    let g = g.trim();
+    !g.is_empty() && g.len() <= 40 && g.chars().all(|c| c.is_ascii_digit() || matches!(c, ',' | ' ' | 'x' | '-')) && g.matches(' ').count() == 1
+}
+
+/// Wayland: the user drags a rectangle (slurp, or the compositor's own selector) and only that
+/// region is captured. Cancelling the selection is an error, not a full-screen fallback.
+pub fn region_wayland(desktop: Desktop, tmp: &Path) -> Result<Vec<u8>, String> {
+    let tmp_str = tmp.to_string_lossy().to_string();
+    if desktop == Desktop::Kde && which("spectacle") {
+        run("spectacle", &["-b", "-n", "-r", "-o", &tmp_str])?;
+        return read_and_remove(tmp);
+    }
+    if which("slurp") && which("grim") {
+        let geometry = String::from_utf8_lossy(&run("slurp", &[])?).trim().to_string();
+        if geometry.is_empty() {
+            return Err("Selection cancelled".into());
+        }
+        if !valid_geometry(&geometry) {
+            return Err("Unexpected selection geometry".into());
+        }
+        return run("grim", &["-g", &geometry, "-"]);
+    }
+    if desktop == Desktop::Gnome && which("gnome-screenshot") {
+        run("gnome-screenshot", &["-a", "-f", &tmp_str])?;
+        return read_and_remove(tmp);
+    }
+    Err("Region capture needs slurp and grim (or spectacle on KDE, gnome-screenshot on GNOME)".into())
+}
+
+/// X11: `maim -s`, the user drags a rectangle.
+pub fn region_x11(tmp: &Path) -> Result<Vec<u8>, String> {
+    if !which("maim") {
+        return Err("Region capture on X11 needs maim".into());
+    }
+    let tmp_str = tmp.to_string_lossy().to_string();
+    run("maim", &["-s", &tmp_str])?;
+    read_and_remove(tmp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_plain_geometries_reach_grim() {
+        assert!(valid_geometry("10,20 300x200\n"));
+        assert!(valid_geometry("-5,0 10x10"));
+        for bad in ["", "10,20 300x200; rm", "$(id)", "10,20 300x200 extra", "--help", "10,20,30"] {
+            assert!(!valid_geometry(bad), "{bad:?}");
+        }
+    }
+}

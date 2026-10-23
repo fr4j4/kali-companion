@@ -72,15 +72,21 @@ pub fn classify(action: &str) -> Option<ActionClass> {
         "list_monitors" | "find_apps" => Some(ActionClass::Info),
         "screenshot" => Some(ActionClass::Observe),
         "launch_app" => Some(ActionClass::Launch),
+        "list_windows" => Some(ActionClass::Observe),
+        "focus_window" => Some(ActionClass::Window),
         _ => None,
     }
 }
 
 /// What a grant is bound to: the app for `launch_app`, the monitor for `screenshot`.
 pub fn target_of(action: &str, params: &Value) -> Option<String> {
+    if action == "screenshot" && params.get("region").and_then(Value::as_bool) == Some(true) {
+        return Some("region".into());
+    }
     let key = match action {
         "launch_app" => "name",
         "screenshot" => "output",
+        "focus_window" => "id",
         _ => return None,
     };
     match params.get(key) {
@@ -444,6 +450,16 @@ mod tests {
         assert_eq!(d.1.load(Ordering::SeqCst), 3, "no fourth card");
         // Read-only info is unaffected.
         assert!(g.authorize("list_monitors", &json!({}), "").is_ok());
+    }
+
+    #[test]
+    fn window_actions_are_classified() {
+        assert_eq!(classify("list_windows"), Some(ActionClass::Observe));
+        assert_eq!(classify("focus_window"), Some(ActionClass::Window));
+        assert_eq!(target_of("focus_window", &json!({ "id": "0xabc" })).as_deref(), Some("0xabc"));
+        let (g, d, _) = guard(Decision::Deny);
+        assert!(g.authorize("focus_window", &json!({ "id": "0xabc" }), "").is_err());
+        assert_eq!(d.1.load(Ordering::SeqCst), 1);
     }
 
     #[test]

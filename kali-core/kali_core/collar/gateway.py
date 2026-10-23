@@ -71,12 +71,12 @@ TOOL_REASON_KEYS: dict[str, tuple[str, str, Any]] = {
 
 # Tools for which the session grant applies to the whole tool, regardless of
 # the parameter value. Invasive or single-purpose tools fit here.
-TOOL_LEVEL_GRANTS: frozenset[str] = frozenset({"screenshot", "list_monitors"})
+TOOL_LEVEL_GRANTS: frozenset[str] = frozenset({"screenshot", "list_monitors", "list_windows"})
 
 # Tools that always require explicit consent, even when the active profile
 # whitelists them. These are invasive actions (screen capture, etc.) that
 # should never run silently.
-ALWAYS_CONSENT_TOOLS: frozenset[str] = frozenset({"screenshot"})
+ALWAYS_CONSENT_TOOLS: frozenset[str] = frozenset({"screenshot", "list_windows", "focus_window"})
 
 
 def _normalize_path(value: Any) -> str:
