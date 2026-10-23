@@ -30,6 +30,8 @@ export interface SharedConfig {
   token: string;
   capabilityToken: string;
   avatar: AvatarPrefs;
+  /** Open every new artifact straight into its own native window instead of the canvas. */
+  artifactsNative: boolean;
 }
 
 export const AVATAR_SIZES = [160, 220, 300];
@@ -42,6 +44,7 @@ export function defaultConfig(): SharedConfig {
     token: "",
     capabilityToken: "",
     avatar: { visible: true, size: 220, corner: "bottom-right", monitor: "", showText: false },
+    artifactsNative: false,
   };
 }
 
@@ -70,6 +73,7 @@ export function normalizeConfig(raw: unknown): SharedConfig {
     backendUrl: typeof r.backendUrl === "string" ? r.backendUrl : "",
     token: typeof r.token === "string" ? r.token : "",
     capabilityToken: typeof r.capabilityToken === "string" ? r.capabilityToken : "",
+    artifactsNative: r.artifactsNative === true,
     avatar: {
       visible: av.visible !== false,
       size: AVATAR_SIZES.includes(av.size as number) ? (av.size as number) : base.avatar.size,

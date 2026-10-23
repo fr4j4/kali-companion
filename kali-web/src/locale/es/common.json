@@ -74,6 +74,8 @@
   "settings.feedback_plan": "Planificar Antes de Actuar",
   "settings.plan_mode": "Requerir confirmación explícita",
   "settings.artifact_diff_preview": "Mostrar diffs de parches en el canvas",
+  "settings.artifacts_native": "Abrir artefactos nuevos como ventanas nativas",
+  "settings.artifacts_native_hint": "Solo disponible en modo desktop.",
   "settings.game_session_path": "Ruta de sesiones de juego",
   "settings.game_session_path_hint": "Carpeta donde se guardan las partidas (vacío = ~/.kali/game-sessions)",
   "settings.game_ai_global_timeout_ms": "Tiempo máximo de razonamiento IA",

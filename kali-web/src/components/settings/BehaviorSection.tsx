@@ -1,7 +1,9 @@
 // BehaviorSection — input mode, wake word, feedback mode, plan mode, profile.
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sliders } from "lucide-react";
+import { artifactsNativeEnabled, isDesktop, setArtifactsNative } from "../../lib/desktop";
 import type { StatusEvent } from "../../lib/protocol";
 import { SelectField, ToggleField } from "./fields";
 import { SectionHeader } from "./SectionHeader";
@@ -34,6 +36,9 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
   const feedbackMode = (systemStatus as { feedback_mode?: string })?.feedback_mode ?? "minimal";
   const planMode = (systemStatus as { plan_mode?: boolean })?.plan_mode ?? false;
   const artifactDiffPreview = systemStatus?.artifact_diff_preview ?? true;
+
+  const desktop = isDesktop();
+  const [artifactsNative, setArtifactsNativeState] = useState(artifactsNativeEnabled);
 
   const handleInputModeChange = (mode: string) => {
     if (mode === "continuous") {
@@ -100,6 +105,14 @@ export function BehaviorSection({ systemStatus, onUpdate }: Props) {
           label={t("settings.artifact_diff_preview")}
           checked={artifactDiffPreview}
           onChange={(v) => onUpdate({ artifact_diff_preview: v })}
+        />
+
+        <ToggleField
+          label={t("settings.artifacts_native")}
+          checked={desktop && artifactsNative}
+          onChange={(v) => { setArtifactsNativeState(v); void setArtifactsNative(v); }}
+          disabled={!desktop}
+          helperText={!desktop ? t("settings.artifacts_native_hint") : undefined}
         />
       </SettingsCard>
     </div>

@@ -32,6 +32,7 @@ interface RendererConfig {
   showAvatar: boolean;
   avatarSize: number;
   mode: "local" | "remote";
+  artifactsNative: boolean;
   /** True when kali-avatar is running and owns the avatar, tray and native actions. */
   nativeAgent: boolean;
 }
@@ -39,7 +40,7 @@ interface RendererConfig {
 function rendererConfig(): RendererConfig {
   return {
     backendUrl: config.backendUrl, token: config.token, capabilityToken: config.capabilityToken,
-    showAvatar: config.avatar.visible, avatarSize: config.avatar.size, mode: config.mode, nativeAgent: nativeAgentRunning(),
+    showAvatar: config.avatar.visible, avatarSize: config.avatar.size, mode: config.mode, artifactsNative: config.artifactsNative, nativeAgent: nativeAgentRunning(),
   };
 }
 
@@ -280,6 +281,10 @@ function createTray(): void {
   updateTray();
 }
 
+// Stable WM_CLASS / Wayland app_id so compositor rules (KWin, Hyprland, ...) can match Kali windows.
+// Electron cannot set it per window, so artifact windows are told apart by their "kali-artifact · " title.
+app.setName("kali-shell");
+app.commandLine.appendSwitch("class", "kali-shell");
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.on("second-instance", (_event, argv) => { if (!handleArgs(argv)) openMain(); });
 
@@ -325,6 +330,7 @@ app.whenReady().then(() => {
     delete config.avatar.y;
     saveConfig();
   });
+  ipcMain.handle("desktop:set-artifacts-native", (_event, value: boolean) => { config.artifactsNative = value === true; saveConfig(); });
   ipcMain.handle("desktop:open-artifact", (_event, sid: string, id: string) => openArtifact(sid, id));
   ipcMain.handle("desktop:action", (event, action: string, params: Record<string, unknown>) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Only main window may execute desktop actions");

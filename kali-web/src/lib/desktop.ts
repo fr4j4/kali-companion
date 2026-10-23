@@ -8,6 +8,8 @@ export interface DesktopConnectionConfig {
   mode: "local" | "remote";
   /** True when the native avatar agent is running and owns the avatar, tray and native actions. */
   nativeAgent: boolean;
+  /** Open every new artifact as its own native window instead of a canvas window. */
+  artifactsNative: boolean;
 }
 
 export interface DesktopBridge {
@@ -20,6 +22,7 @@ export interface DesktopBridge {
   setAvatarSize(size: number): Promise<void>;
   /** Screen corner the native avatar anchors to (layer-shell / X11). */
   setAvatarCorner(corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"): Promise<void>;
+  setArtifactsNative(value: boolean): Promise<void>;
   openArtifact(sessionId: string, artifactId: string): Promise<void>;
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
   setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;
@@ -36,6 +39,15 @@ export async function initializeDesktop(): Promise<DesktopConnectionConfig | nul
   desktopConfig = await window.kaliDesktop.getConfig();
   return desktopConfig;
 }
+
+/** Persist the "artifacts as native windows" preference in the shell config and mirror it locally. */
+export async function setArtifactsNative(value: boolean): Promise<void> {
+  if (!window.kaliDesktop) return;
+  await window.kaliDesktop.setArtifactsNative(value);
+  if (desktopConfig) desktopConfig.artifactsNative = value;
+}
+
+export function artifactsNativeEnabled(): boolean { return isDesktop() && desktopConfig?.artifactsNative === true; }
 
 export function isDesktop(): boolean { return !!window.kaliDesktop; }
 export function getDesktopConfig(): DesktopConnectionConfig | null { return desktopConfig; }

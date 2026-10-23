@@ -35,6 +35,7 @@ import {
 } from "./windowManager";
 import type { ArtifactEvent } from "../lib/protocol";
 import { fetchArtifact } from "../lib/artifacts";
+import { artifactsNativeEnabled } from "../lib/desktop";
 
 export interface UseWorkspaceOpts {
   /** Current session id — used to fetch artifact content by id. */
@@ -71,6 +72,8 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   onCloseArtifactRef.current = opts.onCloseArtifact;
   const onContentLoadedRef = useRef(opts.onContentLoaded);
   onContentLoadedRef.current = opts.onContentLoaded;
+  // Artifacts already handed to a native window (so replays/updates don't duplicate them).
+  const nativeOpenedRef = useRef(new Set<string>());
   // In-flight content fetches, keyed by artifactId, so we don't double-fetch.
   const fetchingRef = useRef<Set<string>>(new Set());
 
@@ -391,6 +394,18 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
       return;
     }
     const isHollow = event.content == null;
+    // Native-window mode: a live `create` goes straight to an OS window and never touches the canvas;
+    // later updates are ignored here because the native window follows the session over its own WS.
+    // Hollow replays (reconnect) are not opened again; the library still lists the artifact.
+    if (nativeOpenedRef.current.has(event.id)) return;
+    if (artifactsNativeEnabled() && event.update === "create" && !isHollow && !windowsRef.current.some((w) => w.artifactId === event.id)) {
+      const sid = localStorage.getItem("kali.sessionId");
+      if (sid) {
+        nativeOpenedRef.current.add(event.id);
+        void window.kaliDesktop?.openArtifact(sid, event.id).catch(() => nativeOpenedRef.current.delete(event.id));
+        return;
+      }
+    }
     const windowType = resolveWindowType(event);
     const existing = windowsRef.current.find((w) => w.artifactId === event.id);
     if (existing) {
