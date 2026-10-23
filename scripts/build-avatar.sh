@@ -13,6 +13,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX="${1:-$HOME/.local}"
 
+# Pick up libraries built from source into the prefix (e.g. gtk4-layer-shell).
+for d in "$PREFIX"/lib/pkgconfig "$PREFIX"/lib/*/pkgconfig "$PREFIX"/share/pkgconfig; do
+  [ -d "$d" ] && PKG_CONFIG_PATH="$d${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+done
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}"
+
 npm --prefix "$ROOT/kali-web" run build
 cargo build --release --manifest-path "$ROOT/kali-avatar/Cargo.toml"
 
