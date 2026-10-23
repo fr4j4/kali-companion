@@ -334,6 +334,8 @@ export interface ConsentRequestEvent {
   reason_key: string;
   reason_params: Record<string, string>;
   summary_key: string;
+  /** The desktop agent shows this question itself; chat UIs must not draw it. */
+  handled_by_agent?: boolean;
 }
 
 /** Kali offers to look at the screen. It never captures: the user picks and the agent asks for consent. */

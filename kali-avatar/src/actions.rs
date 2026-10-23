@@ -10,8 +10,9 @@ use serde_json::{json, Value};
 pub use crate::platform::{Monitor, Monitors};
 
 /// `local_consent` is not an action: it tells the core that this agent asks the user itself, so the
-/// core must not show a second card for the same request.
-pub const CAPABILITIES: [&str; 7] = ["launch_app", "find_apps", "list_monitors", "screenshot", "list_windows", "focus_window", "local_consent"];
+/// core must not show a second card for the same request. `consent_ui` says it can also show the
+/// cards for the core's own tools (`consent_request` with `native`), so they appear on the desktop.
+pub const CAPABILITIES: [&str; 8] = ["launch_app", "find_apps", "list_monitors", "screenshot", "list_windows", "focus_window", "local_consent", "consent_ui"];
 const MAX_PNG_BYTES: usize = 12 * 1024 * 1024;
 
 pub fn perform(action: &str, params: &Value, monitors: &Monitors, services: &dyn DesktopServices) -> Result<Value, String> {

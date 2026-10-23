@@ -565,11 +565,23 @@ class Server:
                     pass
 
     async def _send_consent(self, payload: dict[str, Any]) -> None:
+        """Ask the user. A desktop agent that can show cards gets the question on the desktop (so it
+        shows even with the canvas closed) and the chat UIs are told not to draw their own."""
+        session_id = payload.get("session_id", "")
+        agent = self.desktop_broker.find(session_id, "consent_ui")
+        caps = getattr(agent, "desktop_capabilities", None) if agent is not None else None
+        if agent is not None and caps is not None and "consent_ui" in caps:
+            try:
+                await agent.send({**payload, "native": True})
+                await self.broadcast_session(session_id, {**payload, "handled_by_agent": True})
+                return
+            except Exception:
+                logger.exception("desktop agent could not show the consent card; falling back to the chat UI")
         conn = self.desktop_broker.current()
-        if conn and conn.session_id == payload.get("session_id"):
+        if conn and conn.session_id == session_id:
             await conn.send(payload)
         else:
-            await self.broadcast_session(payload.get("session_id", ""), payload)
+            await self.broadcast_session(session_id, payload)
 
     async def _send_job_event(self, payload: dict[str, Any]) -> None:
         sid = payload.get("session_id")
@@ -2094,7 +2106,9 @@ class Connection:
             decision = event.get("decision", "deny")
             if decision not in ("allow", "allow_session", "deny"):
                 decision = "deny"
-            self.server.consent.respond(request_id, decision)
+            if self.server.consent.respond(request_id, decision):
+                # Whoever answered first wins: close the question everywhere else.
+                await self.server.broadcast({"event": "consent_resolved", "id": request_id})
 
         elif kind == "console_response":
             # Resolve a pending console-log request from the agent.

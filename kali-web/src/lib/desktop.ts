@@ -41,6 +41,8 @@ export interface DesktopBridge {
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
   setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;
   onPresence(callback: (state: { mood: string; emotion: string; text: string; connected: boolean }) => void): () => void;
+  /** System dialog for a consent question; resolves to allow, allow_session or deny. */
+  askConsent?(text: { title: string; detail: string; allow: string; allowSession: string; deny: string }): Promise<"allow" | "allow_session" | "deny">;
   onNavigate(callback: (hash: string) => void): () => void;
 }
 

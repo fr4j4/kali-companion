@@ -47,6 +47,7 @@ fn what(request: &ConsentRequest) -> String {
     let target = request.target.as_deref().unwrap_or("");
     match request.action.as_str() {
         "launch_app" => format!("Abrir la aplicación «{}»", request.label.as_deref().unwrap_or(target)),
+        "core_tool" => format!("{}", request.label.as_deref().unwrap_or("Usar una herramienta")),
         "list_windows" => "Ver la lista de ventanas abiertas (títulos y aplicaciones)".to_string(),
         "focus_window" => format!("Cambiar el foco a la ventana «{}»", request.label.as_deref().unwrap_or(target)),
         "screenshot" if target == "region" => "Capturar una región de la pantalla que tú eliges".to_string(),
@@ -117,7 +118,11 @@ pub fn show(app: &gtk4::Application, request: ConsentRequest, reply: Sender<Deci
     row.append(&once_button);
     let task_button = request.allow_task.then(|| {
         let minutes = request.task_ttl.as_secs() / 60;
-        button(&format!("Permitir esta tarea ({minutes} min)"), Decision::Task)
+        if request.action == "core_tool" {
+            button("Permitir en esta conversación", Decision::Task)
+        } else {
+            button(&format!("Permitir esta tarea ({minutes} min)"), Decision::Task)
+        }
     });
     if let Some(b) = &task_button {
         row.append(b);

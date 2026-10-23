@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import i18n from "../lib/i18n";
+import { consentTexts } from "../lib/consentText";
 import { SUGGESTION_VISIBLE_MS } from "../components/SuggestionChips";
 import { WSClient } from "../lib/wsClient";
 import { handleRemoteAvatarConfig } from "../avatar/avatarSync";
@@ -521,7 +522,29 @@ export function useChat(sessionOverride?: string): ChatState {
       });
 
       client.on("consent_request", (p) => {
-        setConsentRequest(p as ConsentRequestEvent);
+        const request = p as ConsentRequestEvent;
+        // The desktop agent already shows this question on the desktop.
+        if (request.handled_by_agent) return;
+        const ask = window.kaliDesktop?.askConsent;
+        if (ask) {
+          // Desktop app: a system dialog, which shows even when the canvas is closed.
+          const texts = consentTexts(request, i18n.t.bind(i18n) as never);
+          void ask.call(window.kaliDesktop, {
+            title: texts.summary,
+            detail: [texts.reason, texts.command].filter(Boolean).join("\n\n"),
+            allow: i18n.t("consent.allow_once") as string,
+            allowSession: i18n.t("consent.allow_always") as string,
+            deny: i18n.t("consent.deny") as string,
+          }).catch(() => "deny" as const).then((decision) => {
+            clientRef.current?.send({ event: "consent_response", id: request.id, decision });
+          });
+          return;
+        }
+        setConsentRequest(request);
+      });
+      client.on("consent_resolved", (p) => {
+        const { id } = p as { id: string };
+        setConsentRequest((cur) => (cur && cur.id === id ? null : cur));
       });
 
       client.on("capture_attached", (p) => setAttachedCapture(p as CaptureAttachedEvent));

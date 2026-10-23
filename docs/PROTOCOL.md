@@ -250,6 +250,19 @@ Supported actions are `list_monitors`, `screenshot` and `launch_app`. Failed
 actions return `ok: false` and an `error` string. The core rejects responses
 from another connection and cancels pending requests on disconnect.
 
+### Consent questions on the desktop
+
+`consent_request` (core tools that need the user's OK) is shown where the user can see it:
+1. A desktop agent that registered the `consent_ui` capability receives it with `"native": true`
+   and shows its own card (Deny is the default; Escape, closing and the 60 s timeout deny). It
+   answers with the usual `consent_response`. Chat UIs get the same request with
+   `"handled_by_agent": true` and must not draw it.
+2. Without such an agent, the Electron app shows a system dialog (`dialog.showMessageBox`).
+3. Only the plain web version draws the dialog inside the canvas.
+
+When one surface answers, the core broadcasts `{"event":"consent_resolved","id":...}` so the
+others close the question. Nothing but an explicit "allow" button allows.
+
 ### Screen suggestions and shared captures
 
 Kali can offer to look at the screen, and the user can send a capture on their own initiative.

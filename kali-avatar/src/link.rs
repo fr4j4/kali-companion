@@ -246,6 +246,15 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
                     "pong" => pong_deadline = None,
                     "auth_required" => return Err(LinkError::AuthRequired),
                     "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone(), ui.clone(), shared.clone()),
+                    "consent_request" if event["native"].as_bool() == Some(true) => {
+                        let _ = ui.send_blocking(ToUi::Presence(text.to_string()));
+                        let reply = reply_tx.clone();
+                        thread::spawn(move || {
+                            if let Some(frame) = crate::core_consent::answer(&event) {
+                                let _ = reply.send(frame.to_string());
+                            }
+                        });
+                    }
                     "suggestion" => {
                         if let Some(s) = crate::suggestion::parse(&event) {
                             let _ = ui.send_blocking(ToUi::Suggestion(s));

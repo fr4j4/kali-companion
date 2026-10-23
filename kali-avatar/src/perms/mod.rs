@@ -30,6 +30,8 @@ pub enum ActionClass {
     ClipboardRead,
     Window,
     Input,
+    /// A core tool (shell command, file read...) whose consent card the agent shows for the core.
+    Tool,
 }
 
 impl ActionClass {
@@ -42,6 +44,7 @@ impl ActionClass {
             ActionClass::ClipboardRead => "clipboard-read",
             ActionClass::Window => "window",
             ActionClass::Input => "input",
+            ActionClass::Tool => "tool",
         }
     }
 
@@ -145,6 +148,18 @@ static GUARD: OnceLock<Arc<Guard>> = OnceLock::new();
 
 pub fn install(guard: Arc<Guard>) {
     let _ = GUARD.set(guard);
+}
+
+static DECIDER: OnceLock<Arc<dyn Decider>> = OnceLock::new();
+
+/// The card shown for questions the core itself asks (its own tools), sharing the one-at-a-time
+/// queue with the agent's own cards.
+pub fn install_decider(decider: Arc<dyn Decider>) {
+    let _ = DECIDER.set(decider);
+}
+
+pub fn decider() -> Option<&'static Arc<dyn Decider>> {
+    DECIDER.get()
 }
 
 pub fn global() -> Option<&'static Arc<Guard>> {
@@ -276,6 +291,11 @@ impl Guard {
         self.generation.fetch_add(1, Ordering::SeqCst);
         let count = self.grants.lock().unwrap().revoke_all();
         self.audit.append(Entry::new("panic", "-", None, None, "revoke", why, &format!("{count} grants")));
+    }
+
+    /// Audit the user's answer to a card shown on behalf of a core tool.
+    pub fn record_core_consent(&self, tool: &str, decision: &str) {
+        self.audit.append(Entry::new("core_tool", "tool", Some(tool), None, decision, "click", "answered"));
     }
 
     /// Audit a capture the user took on purpose with their own shortcut and then sent or discarded.

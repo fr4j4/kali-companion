@@ -8,6 +8,7 @@ mod actions;
 mod apps;
 mod ask;
 mod config;
+mod core_consent;
 mod link;
 mod perms;
 mod platform;
@@ -81,8 +82,10 @@ fn main() -> glib_exit::ExitCode {
         let monitors: actions::Monitors = Default::default();
         let (tx, rx) = async_channel::unbounded();
         let backend = platform::Backend::detect();
+        let decider: Arc<dyn perms::Decider> = Arc::new(perms::card::CardDecider::new(tx.clone()));
+        perms::install_decider(decider.clone());
         perms::install(Arc::new(perms::Guard::new(
-            Arc::new(perms::card::CardDecider::new(tx.clone())),
+            decider,
             perms::audit::Audit::new(perms::audit::default_path()),
             perms::Policy { launch_allowlist: initial.permissions.launch_allowlist.clone() },
         )));

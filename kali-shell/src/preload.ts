@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("kaliDesktop", {
   getConfig: () => ipcRenderer.invoke("desktop:get-config"),
   saveConfig: (config: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }) => ipcRenderer.invoke("desktop:save-config", config),
   setKeepAlive: (value: boolean) => ipcRenderer.invoke("desktop:keep-alive", value),
+  askConsent: (text: { title: string; detail: string; allow: string; allowSession: string; deny: string }) => ipcRenderer.invoke("desktop:consent", text),
   openMain: (hash?: string) => ipcRenderer.invoke("desktop:open-main", hash),
   showAvatar: (visible: boolean) => ipcRenderer.invoke("desktop:show-avatar", visible),
   setAvatarCorner: (corner: string) => ipcRenderer.invoke("desktop:set-avatar-corner", corner),

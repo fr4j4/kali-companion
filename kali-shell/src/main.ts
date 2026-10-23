@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, nativeImage, net, protocol, safeStorage, screen, session, Tray } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, nativeImage, net, protocol, safeStorage, screen, session, Tray } from "electron";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -365,6 +365,25 @@ app.whenReady().then(() => {
     return true;
   });
   ipcMain.handle("desktop:keep-alive", (_event, value: boolean) => { keepAlive = value === true; });
+  // Consent as a system dialog, so it shows even when the canvas window is closed or hidden.
+  // Anything but an explicit button press (Escape, closing, the timeout) is a denial.
+  ipcMain.handle("desktop:consent", async (_event, text: { title?: unknown; detail?: unknown; allow?: unknown; allowSession?: unknown; deny?: unknown }) => {
+    const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+    const buttons = [str(text.deny, 40) || "Deny", str(text.allow, 40) || "Allow once", str(text.allowSession, 60) || "Allow for this chat"];
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60_000);
+    try {
+      const result = await dialog.showMessageBox({
+        type: "question", title: "Kali", message: str(text.title, 200), detail: str(text.detail, 800),
+        buttons, defaultId: 0, cancelId: 0, noLink: true, signal: abort.signal,
+      });
+      return result.response === 1 ? "allow" : result.response === 2 ? "allow_session" : "deny";
+    } catch {
+      return "deny";
+    } finally {
+      clearTimeout(timer);
+    }
+  });
   ipcMain.handle("desktop:open-main", (_event, hash?: string) => openMain(hash));
   ipcMain.handle("desktop:show-avatar", (_event, visible: boolean) => setAvatarVisible(visible));
   ipcMain.handle("desktop:set-avatar-size", (_event, size: number) => {
