@@ -76,6 +76,8 @@
   "settings.artifact_diff_preview": "Show patch diffs on canvas",
   "settings.artifacts_native": "Open new artifacts as native windows",
   "settings.artifacts_native_hint": "Only available in desktop mode.",
+  "desktop.return_to_canvas": "Back to canvas",
+  "desktop.return_to_canvas_hint": "Close this window and show the artifact in the Kali canvas",
   "settings.game_session_path": "Game sessions path",
   "settings.game_session_path_hint": "Folder for saved games (empty = ~/.kali/game-sessions)",
   "settings.game_ai_global_timeout_ms": "AI thinking timeout",

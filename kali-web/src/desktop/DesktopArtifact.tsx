@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { fetchArtifact } from "../lib/artifacts";
 import { WSClient } from "../lib/wsClient";
@@ -16,6 +17,7 @@ export function DesktopArtifact() {
 }
 
 function DesktopArtifactContent({ sid, aid }: { sid: string; aid: string }) {
+  const { t } = useTranslation();
   const [artifact, setArtifact] = useState<ArtifactEvent | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -37,7 +39,16 @@ function DesktopArtifactContent({ sid, aid }: { sid: string; aid: string }) {
   if (!artifact) return <main className="p-6 text-muted">Cargando artefacto…</main>;
   const win = createWindowData({ type: resolveWindowType(artifact), title: artifact.title, artifactId: aid, content: artifact });
   return <main className="h-screen flex flex-col bg-bg text-fg">
-    <header className="shrink-0 border-b border-border px-4 py-3 font-semibold">{artifact.title}</header>
-    <section className="flex-1 min-h-0 overflow-auto"><SidePanelProvider><WindowContentRouter window={win} /></SidePanelProvider></section>
+    <header className="shrink-0 flex items-center gap-3 border-b border-border px-4 py-3">
+      <span className="font-semibold truncate">{artifact.title}</span>
+      <button className="ml-auto shrink-0 rounded border border-border px-2 py-1 text-xs text-muted hover:text-fg"
+        title={t("desktop.return_to_canvas_hint") as string}
+        onClick={() => { void window.kaliDesktop?.returnArtifact(sid, aid); }}>
+        {t("desktop.return_to_canvas")}
+      </button>
+    </header>
+    {/* Widgets are written for a flex-column parent (as in the canvas window body): without it
+        flex-1 children such as the HTML preview iframe collapse to their intrinsic height. */}
+    <section className="flex-1 min-h-0 flex flex-col overflow-hidden"><SidePanelProvider><WindowContentRouter window={win} /></SidePanelProvider></section>
   </main>;
 }

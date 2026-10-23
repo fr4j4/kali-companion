@@ -12,6 +12,8 @@ export interface DesktopConnectionConfig {
   artifactsNative: boolean;
 }
 
+export interface NativeArtifactRef { sessionId: string; id: string }
+
 export interface DesktopBridge {
   getConfig(): Promise<DesktopConnectionConfig>;
   saveConfig(config: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }): Promise<boolean>;
@@ -23,6 +25,11 @@ export interface DesktopBridge {
   /** Screen corner the native avatar anchors to (layer-shell / X11). */
   setAvatarCorner(corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"): Promise<void>;
   setArtifactsNative(value: boolean): Promise<void>;
+  /** Artifacts currently in native windows, and ones sent back to the canvas while the main window was away. */
+  getNativeArtifacts(): Promise<{ open: NativeArtifactRef[]; returned: NativeArtifactRef[] }>;
+  /** From a native artifact window: close it and restore the artifact in the canvas. */
+  returnArtifact(sessionId: string, artifactId: string): Promise<void>;
+  onArtifactNative(callback: (state: NativeArtifactRef & { open: boolean; returned: boolean }) => void): () => void;
   openArtifact(sessionId: string, artifactId: string): Promise<void>;
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
   setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;

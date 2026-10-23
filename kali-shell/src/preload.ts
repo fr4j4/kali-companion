@@ -9,6 +9,13 @@ contextBridge.exposeInMainWorld("kaliDesktop", {
   setAvatarCorner: (corner: string) => ipcRenderer.invoke("desktop:set-avatar-corner", corner),
   setAvatarSize: (size: number) => ipcRenderer.invoke("desktop:set-avatar-size", size),
   setArtifactsNative: (value: boolean) => ipcRenderer.invoke("desktop:set-artifacts-native", value),
+  getNativeArtifacts: () => ipcRenderer.invoke("desktop:native-artifacts"),
+  returnArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:return-artifact", sessionId, artifactId),
+  onArtifactNative: (callback: (state: { sessionId: string; id: string; open: boolean; returned: boolean }) => void) => {
+    const handler = (_event: unknown, state: { sessionId: string; id: string; open: boolean; returned: boolean }) => callback(state);
+    ipcRenderer.on("desktop:artifact-native", handler);
+    return () => ipcRenderer.removeListener("desktop:artifact-native", handler);
+  },
   openArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:open-artifact", sessionId, artifactId),
   performAction: (action: string, params: Record<string, unknown>) => ipcRenderer.invoke("desktop:action", action, params),
   setPresence: (state: { mood: string; emotion: string; text: string; connected: boolean }) => ipcRenderer.send("desktop:presence", state),

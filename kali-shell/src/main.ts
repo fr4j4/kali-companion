@@ -24,6 +24,8 @@ let keepAlive = false;
 let sidecar: ReturnType<typeof superviseSidecar> | null = null;
 const execFileAsync = promisify(execFile);
 const artifactWindows = new Map<string, BrowserWindow>();
+/** Artifacts whose native window asked to go back to the canvas and whose main window has not been told yet. */
+const pendingReturns = new Map<string, { sessionId: string; id: string }>();
 
 interface RendererConfig {
   backendUrl: string;
@@ -203,6 +205,14 @@ function setAvatarVisible(visible: boolean): void {
   avatarWindow.show(); updateTray();
 }
 
+/** Tell the main window whether an artifact lives in a native window; false when nobody could receive it. */
+function notifyArtifactNative(sessionId: string, id: string, open: boolean, returned: boolean): boolean {
+  const wc = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null;
+  if (!wc || wc.isLoading()) return false;
+  wc.send("desktop:artifact-native", { sessionId, id, open, returned });
+  return true;
+}
+
 function openArtifact(sessionId: string, artifactId: string): void {
   if (!/^[\w-]{1,128}$/.test(sessionId) || !/^[\w-]{1,128}$/.test(artifactId)) throw new Error("Invalid artifact reference");
   const key = `${sessionId}:${artifactId}`;
@@ -211,8 +221,12 @@ function openArtifact(sessionId: string, artifactId: string): void {
   const win = new BrowserWindow({ title: `kali-artifact · ${artifactId}`, width: 850, height: 650, minWidth: 400, minHeight: 300,
     webPreferences: { preload: join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   artifactWindows.set(key, win);
+  notifyArtifactNative(sessionId, artifactId, true, false);
   win.on("closed", () => {
     artifactWindows.delete(key);
+    const returned = pendingReturns.has(key);
+    // Keep the pending return until a live main window has received it (it may not exist yet).
+    if (notifyArtifactNative(sessionId, artifactId, false, returned) && returned) pendingReturns.delete(key);
     if (nativeAgentRunning() && !keepAlive && artifactWindows.size === 0 && (!mainWindow || !mainWindow.isVisible())) { quitting = true; app.quit(); }
   });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -331,6 +345,21 @@ app.whenReady().then(() => {
     saveConfig();
   });
   ipcMain.handle("desktop:set-artifacts-native", (_event, value: boolean) => { config.artifactsNative = value === true; saveConfig(); });
+  ipcMain.handle("desktop:native-artifacts", () => {
+    const open = [...artifactWindows.keys()].map((key) => { const [sessionId, id] = key.split(":"); return { sessionId, id }; });
+    const returned = [...pendingReturns.values()];
+    pendingReturns.clear();
+    return { open, returned };
+  });
+  // The artifact window asks to go back to the canvas: remember it, show the main window, close this one.
+  ipcMain.handle("desktop:return-artifact", (event, sid: string, id: string) => {
+    const key = `${sid}:${id}`;
+    const win = artifactWindows.get(key);
+    if (!win || win.isDestroyed() || event.sender !== win.webContents) throw new Error("Only the artifact window may return it");
+    pendingReturns.set(key, { sessionId: sid, id });
+    openMain("/");
+    win.close();
+  });
   ipcMain.handle("desktop:open-artifact", (_event, sid: string, id: string) => openArtifact(sid, id));
   ipcMain.handle("desktop:action", (event, action: string, params: Record<string, unknown>) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Only main window may execute desktop actions");
