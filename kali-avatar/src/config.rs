@@ -12,11 +12,14 @@ pub struct AvatarPrefs {
     pub corner: String,
     pub monitor: String,
     pub show_text: bool,
+    /// Dragged position in logical pixels relative to the monitor origin; `None` = anchor to `corner`.
+    pub x: Option<i32>,
+    pub y: Option<i32>,
 }
 
 impl Default for AvatarPrefs {
     fn default() -> Self {
-        Self { visible: true, size: 220, corner: "bottom-right".into(), monitor: String::new(), show_text: false }
+        Self { visible: true, size: 220, corner: "bottom-right".into(), monitor: String::new(), show_text: false, x: None, y: None }
     }
 }
 
@@ -83,8 +86,8 @@ impl Config {
     }
 }
 
-/// Persist `avatar.visible` without disturbing the other fields (the file is shared with kali-shell).
-pub fn save_visible(visible: bool) -> std::io::Result<()> {
+/// Read-modify-write one `avatar.<key>` field, leaving the rest of the shared file intact.
+fn update_avatar(update: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>)) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     let path = config_file();
     let mut root: serde_json::Value = std::fs::read_to_string(&path)
@@ -96,13 +99,34 @@ pub fn save_visible(visible: bool) -> std::io::Result<()> {
     }
     let avatar = root.as_object_mut().unwrap().entry("avatar").or_insert_with(|| serde_json::json!({}));
     if let Some(map) = avatar.as_object_mut() {
-        map.insert("visible".into(), serde_json::Value::Bool(visible));
+        update(map);
     }
     std::fs::create_dir_all(config_dir())?;
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
     std::fs::write(&tmp, serde_json::to_vec_pretty(&root)?)?;
     std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
     std::fs::rename(tmp, path)
+}
+
+/// Persist `avatar.visible`.
+pub fn save_visible(visible: bool) -> std::io::Result<()> {
+    update_avatar(|m| {
+        m.insert("visible".into(), serde_json::Value::Bool(visible));
+    })
+}
+
+/// Persist the dragged position (`None` clears it and returns to the corner anchor).
+pub fn save_position(pos: Option<(i32, i32)>) -> std::io::Result<()> {
+    update_avatar(|m| match pos {
+        Some((x, y)) => {
+            m.insert("x".into(), x.into());
+            m.insert("y".into(), y.into());
+        }
+        None => {
+            m.remove("x");
+            m.remove("y");
+        }
+    })
 }
 
 #[cfg(test)]
@@ -125,9 +149,9 @@ mod tests {
     #[test]
     fn parses_shell_written_file() {
         let raw = r#"{"version":1,"mode":"remote","backendUrl":"https://a","token":"t","capabilityToken":"c",
-            "avatar":{"visible":false,"size":300,"corner":"top-left","monitor":"DP-1","showText":true}}"#;
+            "avatar":{"visible":false,"size":300,"corner":"top-left","monitor":"DP-1","showText":true,"x":40,"y":60}}"#;
         let c: Config = serde_json::from_str(raw).unwrap();
-        assert_eq!(c.avatar, AvatarPrefs { visible: false, size: 300, corner: "top-left".into(), monitor: "DP-1".into(), show_text: true });
+        assert_eq!(c.avatar, AvatarPrefs { visible: false, size: 300, corner: "top-left".into(), monitor: "DP-1".into(), show_text: true, x: Some(40), y: Some(60) });
         let partial: Config = serde_json::from_str(r#"{"backendUrl":"https://a"}"#).unwrap();
         assert!(partial.avatar.visible && partial.avatar.size == 220);
     }

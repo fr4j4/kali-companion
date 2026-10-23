@@ -306,6 +306,8 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:set-avatar-corner", (_event, corner: string) => {
     if (!["top-left", "top-right", "bottom-left", "bottom-right"].includes(corner)) throw new Error("Invalid corner");
     config.avatar.corner = corner as SharedConfig["avatar"]["corner"];
+    delete config.avatar.x;
+    delete config.avatar.y;
     saveConfig();
   });
   ipcMain.handle("desktop:open-artifact", (_event, sid: string, id: string) => openArtifact(sid, id));

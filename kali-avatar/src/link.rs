@@ -23,6 +23,8 @@ pub enum ToUi {
     /// Raw JSON text of a core event.
     Presence(String),
     Connected(bool),
+    /// Global pointer position in compositor coordinates.
+    Cursor(i32, i32),
     Command(Cmd),
 }
 

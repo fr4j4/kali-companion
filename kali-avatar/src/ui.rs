@@ -16,6 +16,27 @@ use webkit6::{UserContentManager, WebContext, WebView};
 const MARGIN: i32 = 24;
 const HOST: &str = "kali://app";
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn prefs(corner: &str, x: Option<i32>, y: Option<i32>) -> config::AvatarPrefs {
+        config::AvatarPrefs { corner: corner.into(), size: 220, x, y, ..Default::default() }
+    }
+
+    #[test]
+    fn corner_positions() {
+        assert_eq!(position(&prefs("bottom-right", None, None), (1920, 1080)), (1920 - 220 - 24, 1080 - 240 - 24));
+        assert_eq!(position(&prefs("top-left", None, None), (1920, 1080)), (24, 24));
+    }
+
+    #[test]
+    fn dragged_position_is_clamped_to_the_monitor() {
+        assert_eq!(position(&prefs("top-left", Some(100), Some(200)), (1920, 1080)), (100, 200));
+        assert_eq!(position(&prefs("top-left", Some(5000), Some(-9)), (1920, 1080)), (1700, 0));
+    }
+}
+
 struct State {
     window: gtk4::ApplicationWindow,
     webview: WebView,
@@ -24,6 +45,32 @@ struct State {
     pending: Vec<String>,
     layer: bool,
     last_mtime: Option<std::time::SystemTime>,
+    /// Origin and size of the monitor the avatar lives on (logical px) and the avatar position inside it.
+    monitor_origin: (i32, i32),
+    monitor_size: (i32, i32),
+    pos: (i32, i32),
+    drag: Option<Drag>,
+}
+
+/// State of an in-progress pointer drag.
+struct Drag {
+    last_offset: (f64, f64),
+    moved: bool,
+}
+
+const DRAG_THRESHOLD: f64 = 5.0;
+
+/// Avatar position inside a monitor of `size`: the dragged `x`/`y` (clamped to the monitor) or the
+/// configured corner.
+pub fn position(prefs: &config::AvatarPrefs, monitor: (i32, i32)) -> (i32, i32) {
+    let (w, h) = (prefs.size as i32, prefs.size as i32 + 20);
+    let (mw, mh) = monitor;
+    if let (Some(x), Some(y)) = (prefs.x, prefs.y) {
+        return (x.clamp(0, (mw - w).max(0)), y.clamp(0, (mh - h).max(0)));
+    }
+    let x = if prefs.corner.ends_with("left") { MARGIN } else { mw - w - MARGIN };
+    let y = if prefs.corner.starts_with("top") { MARGIN } else { mh - h - MARGIN };
+    (x.max(0), y.max(0))
 }
 
 pub fn web_root() -> Option<PathBuf> {
@@ -84,11 +131,101 @@ fn register_scheme(context: &WebContext, root: PathBuf) {
     }
 }
 
-pub fn launch_shell(target: &str) {
-    let cmd = std::env::var("KALI_SHELL_CMD").unwrap_or_else(|_| "kali-shell".into());
-    if let Err(e) = std::process::Command::new(&cmd).arg(format!("--open={target}")).spawn() {
-        eprintln!("[kali-avatar] could not start {cmd}: {e}");
+/// Find the UI launcher: `$KALI_SHELL_CMD`, `kali-shell` on PATH, or `~/.local/bin/kali-shell`.
+fn shell_command() -> String {
+    if let Ok(cmd) = std::env::var("KALI_SHELL_CMD") {
+        if !cmd.is_empty() {
+            return cmd;
+        }
     }
+    let local = std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/bin/kali-shell"));
+    let on_path = std::env::var_os("PATH").map_or(false, |p| std::env::split_paths(&p).any(|d| d.join("kali-shell").is_file()));
+    match local {
+        Some(path) if !on_path && path.is_file() => path.to_string_lossy().to_string(),
+        _ => "kali-shell".into(),
+    }
+}
+
+pub fn launch_shell(target: &str) {
+    let cmd = shell_command();
+    match std::process::Command::new(&cmd).arg(format!("--open={target}")).spawn() {
+        Ok(mut child) => {
+            // Reap the child without blocking the UI thread.
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
+        Err(e) => {
+            let message = format!("No se pudo abrir la interfaz de Kali ({cmd}): {e}");
+            eprintln!("[kali-avatar] {message}");
+            let _ = std::process::Command::new("notify-send").args(["Kali", &message]).spawn();
+        }
+    }
+}
+
+/// Click opens the UI; dragging moves the avatar. Layer-shell surfaces cannot be moved by the
+/// compositor, so the margins are updated by hand and the final spot is saved.
+fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>) {
+    let gesture = gtk4::GestureDrag::new();
+    gesture.set_button(1);
+    {
+        let state = state.clone();
+        gesture.connect_drag_begin(move |_, _, _| {
+            state.borrow_mut().drag = Some(Drag { last_offset: (0.0, 0.0), moved: false });
+        });
+    }
+    {
+        let state = state.clone();
+        gesture.connect_drag_update(move |gesture, ox, oy| {
+            let mut st = state.borrow_mut();
+            let layer = st.layer;
+            let Some(drag) = st.drag.as_mut() else { return };
+            if !drag.moved && ox.hypot(oy) < DRAG_THRESHOLD {
+                return;
+            }
+            if !layer {
+                // Regular window: let the compositor run the move.
+                if !drag.moved {
+                    drag.moved = true;
+                    if let (Some(toplevel), Some(device), Some((sx, sy))) =
+                        (st.window.surface().and_downcast::<gdk::Toplevel>(), gesture.device(), gesture.start_point())
+                    {
+                        toplevel.begin_move(&device, 1, sx, sy, gesture.current_event_time());
+                    }
+                }
+                return;
+            }
+            // Incremental: the window moves under the pointer, so offsets are applied as deltas.
+            let (dx, dy) = (ox - drag.last_offset.0, oy - drag.last_offset.1);
+            drag.last_offset = (ox, oy);
+            drag.moved = true;
+            let size = st.config.avatar.size as i32;
+            let max_x = (st.monitor_size.0 - size).max(0);
+            let max_y = (st.monitor_size.1 - size - 20).max(0);
+            st.pos = ((st.pos.0 + dx.round() as i32).clamp(0, max_x), (st.pos.1 + dy.round() as i32).clamp(0, max_y));
+            st.window.set_margin(Edge::Left, st.pos.0);
+            st.window.set_margin(Edge::Top, st.pos.1);
+        });
+    }
+    gesture.connect_drag_end(move |_, _, _| {
+        let mut st = state.borrow_mut();
+        let Some(drag) = st.drag.take() else { return };
+        if !drag.moved {
+            drop(st);
+            launch_shell("chat");
+            return;
+        }
+        if st.layer {
+            let pos = st.pos;
+            st.config.avatar.x = Some(pos.0);
+            st.config.avatar.y = Some(pos.1);
+            if let Err(e) = config::save_position(Some(pos)) {
+                eprintln!("[kali-avatar] could not save position: {e}");
+            }
+            st.last_mtime = Config::mtime();
+        }
+    });
+    window.add_controller(gesture);
 }
 
 fn monitor_list(display: &gdk::Display) -> Vec<gdk::Monitor> {
@@ -120,26 +257,30 @@ fn refresh_monitors(display: &gdk::Display, shared: &Monitors) {
     }
 }
 
-fn corner_edges(corner: &str) -> (Edge, Edge) {
-    let vertical = if corner.starts_with("top") { Edge::Top } else { Edge::Bottom };
-    let horizontal = if corner.ends_with("left") { Edge::Left } else { Edge::Right };
-    (vertical, horizontal)
+fn target_monitor(prefs: &config::AvatarPrefs) -> Option<gdk::Monitor> {
+    let list = gdk::Display::default().map(|d| monitor_list(&d)).unwrap_or_default();
+    list.iter().find(|m| !prefs.monitor.is_empty() && m.connector().as_deref() == Some(prefs.monitor.as_str())).cloned().or_else(|| list.into_iter().next())
 }
 
-fn apply_prefs(state: &State) {
-    let prefs = &state.config.avatar;
+fn apply_prefs(state: &mut State) {
+    let prefs = state.config.avatar.clone();
     let size = prefs.size as i32;
     state.window.set_default_size(size, size + 20);
     state.window.set_size_request(size, size + 20);
+    let monitor = target_monitor(&prefs);
+    if let Some(m) = &monitor {
+        let g = m.geometry();
+        state.monitor_origin = (g.x(), g.y());
+        state.monitor_size = (g.width(), g.height());
+    }
+    state.pos = position(&prefs, state.monitor_size);
     if state.layer {
-        let (vertical, horizontal) = corner_edges(&prefs.corner);
+        // Always anchor top-left and place with margins: that makes the dragged position exact.
         for edge in [Edge::Top, Edge::Bottom, Edge::Left, Edge::Right] {
-            state.window.set_anchor(edge, edge == vertical || edge == horizontal);
-            state.window.set_margin(edge, MARGIN);
+            state.window.set_anchor(edge, edge == Edge::Top || edge == Edge::Left);
         }
-        let monitor = gdk::Display::default()
-            .map(|d| monitor_list(&d))
-            .and_then(|list| list.into_iter().find(|m| !prefs.monitor.is_empty() && m.connector().as_deref() == Some(prefs.monitor.as_str())));
+        state.window.set_margin(Edge::Left, state.pos.0);
+        state.window.set_margin(Edge::Top, state.pos.1);
         state.window.set_monitor(monitor.as_ref());
     }
     state.window.set_visible(prefs.visible);
@@ -172,16 +313,10 @@ fn x11_place(prefs: &config::AvatarPrefs, monitors: &Monitors) {
     let target = monitors.lock().ok().and_then(|list| {
         list.iter().find(|m| !prefs.monitor.is_empty() && m.name == prefs.monitor).or(list.first()).cloned()
     });
-    let size = prefs.size as i32;
-    let (w, h) = (size, size + 20);
-    let (x, y) = match &target {
-        Some(m) => {
-            let x = if prefs.corner.ends_with("left") { m.x + MARGIN } else { m.x + m.width - w - MARGIN };
-            let y = if prefs.corner.starts_with("top") { m.y + MARGIN } else { m.y + m.height - h - MARGIN };
-            (x, y)
-        }
-        None => return,
-    };
+    let Some(m) = target else { return };
+    let (px, py) = position(prefs, (m.width, m.height));
+    let (x, y) = (m.x + px, m.y + py);
+    let (w, h) = (prefs.size as i32, prefs.size as i32 + 20);
     std::thread::spawn(move || {
         // The window must be mapped before the window manager accepts the request.
         std::thread::sleep(std::time::Duration::from_millis(600));
@@ -235,6 +370,9 @@ pub fn build(
 
     let window = gtk4::ApplicationWindow::builder().application(app).title("Kali Avatar").decorated(false).resizable(false).build();
     window.add_css_class("kali-avatar");
+    // The page is display-only: the window itself handles click (open the UI) and drag (move).
+    webview.set_can_target(false);
+    webview.set_focusable(false);
     window.set_child(Some(&webview));
 
     let want_layer = std::env::var_os("KALI_AVATAR_NO_LAYER").is_none();
@@ -256,8 +394,12 @@ pub fn build(
         pending: Vec::new(),
         layer,
         last_mtime: Config::mtime(),
+        monitor_origin: (0, 0),
+        monitor_size: (1920, 1080),
+        pos: (0, 0),
+        drag: None,
     }));
-    apply_prefs(&state.borrow());
+    apply_prefs(&mut state.borrow_mut());
     if !layer {
         x11_place(&state.borrow().config.avatar, &monitors);
     }
@@ -278,7 +420,7 @@ pub fn build(
                     for item in queued {
                         push(&mut st, &item);
                     }
-                    apply_prefs(&st);
+                    apply_prefs(&mut st);
                 }
                 Some("open") => launch_shell(match message["target"].as_str() {
                     Some("artifacts") => "artifacts",
@@ -289,6 +431,7 @@ pub fn build(
             }
         });
     }
+    install_drag(&window, state.clone());
     webview.load_uri(&format!("{HOST}/avatar.html"));
 
     // Core events, tray commands and connection state.
@@ -301,6 +444,13 @@ pub fn build(
                     ToUi::Presence(json) => push(&mut state.borrow_mut(), &json),
                     ToUi::Connected(false) => push(&mut state.borrow_mut(), r#"{"event":"disconnected"}"#),
                     ToUi::Connected(true) => {}
+                    ToUi::Cursor(x, y) => {
+                        let st = state.borrow();
+                        if st.ready {
+                            let (cx, cy) = (x - st.monitor_origin.0 - st.pos.0, y - st.monitor_origin.1 - st.pos.1);
+                            st.webview.evaluate_javascript(&format!("window.kaliAvatar&&window.kaliAvatar.cursor({cx},{cy})"), None, None, None::<&gio::Cancellable>, |_| {});
+                        }
+                    }
                     ToUi::Command(Cmd::OpenShell(target)) => launch_shell(target),
                     ToUi::Command(Cmd::ToggleAvatar) => {
                         let mut st = state.borrow_mut();
@@ -309,7 +459,7 @@ pub fn build(
                             eprintln!("[kali-avatar] could not save preference: {e}");
                         }
                         st.last_mtime = Config::mtime();
-                        apply_prefs(&st);
+                        apply_prefs(&mut st);
                     }
                     ToUi::Command(Cmd::Quit) => app.quit(),
                 }
@@ -331,7 +481,7 @@ pub fn build(
                         if let Ok(mut guard) = shared.lock() {
                             *guard = next;
                         }
-                        apply_prefs(&st);
+                        apply_prefs(&mut st);
                     }
                 }
             }

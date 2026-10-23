@@ -12,6 +12,8 @@ interface AvatarHost {
   push(event: PresenceEvent | string): void;
   /** Called by the agent when its preferences change. */
   configure(options: { showText?: boolean }): void;
+  /** Global pointer position relative to the avatar window (the WebView never receives real pointer events). */
+  cursor(x: number, y: number): void;
 }
 declare global {
   interface Window {
@@ -44,6 +46,7 @@ function NativeAvatar() {
           schedule();
         } catch { /* ignore malformed frames */ }
       },
+      cursor(x, y) { document.dispatchEvent(new MouseEvent("mousemove", { clientX: x, clientY: y })); },
       configure(options) { if (options.showText !== undefined) setShowText(options.showText); },
     };
     postToAgent({ type: "ready" });

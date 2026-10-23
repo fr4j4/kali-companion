@@ -17,6 +17,9 @@ export interface AvatarPrefs {
   corner: AvatarCorner;
   monitor: string;
   showText: boolean;
+  /** Dragged position in monitor pixels; absent means "use the corner". */
+  x?: number;
+  y?: number;
 }
 
 export interface SharedConfig {
@@ -73,6 +76,7 @@ export function normalizeConfig(raw: unknown): SharedConfig {
       corner: corners.includes(av.corner as AvatarCorner) ? (av.corner as AvatarCorner) : base.avatar.corner,
       monitor: typeof av.monitor === "string" ? av.monitor : "",
       showText: av.showText === true,
+      ...(Number.isFinite(av.x) && Number.isFinite(av.y) ? { x: Math.round(av.x as number), y: Math.round(av.y as number) } : {}),
     },
   };
 }

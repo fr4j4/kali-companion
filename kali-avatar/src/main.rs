@@ -6,6 +6,8 @@
 
 mod actions;
 mod config;
+mod cursor;
+mod kwin;
 mod link;
 mod tray;
 mod ui;
@@ -53,9 +55,20 @@ fn main() -> glib_exit::ExitCode {
         } else {
             eprintln!("[kali-avatar] no D-Bus session bus: tray disabled");
         }
+        // Pointer source for eye tracking over other windows (see cursor.rs / kwin.rs).
+        if kwin::is_kde_wayland() {
+            kwin::start(tx.clone());
+        } else if let Some(source) = cursor::spawn(tx.clone()) {
+            if cursor::debug() {
+                eprintln!("[kali-avatar] cursor source: {source}");
+            }
+        }
         ui::build(app, initial, shared, monitors, rx, tx);
     });
     app.connect_shutdown(|_| {
+        if kwin::is_kde_wayland() {
+            kwin::stop();
+        }
         let _ = std::fs::remove_file(pid_file());
     });
     glib_exit::from(app.run())
