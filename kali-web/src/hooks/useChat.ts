@@ -6,6 +6,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WSClient } from "../lib/wsClient";
+import { handleRemoteAvatarConfig } from "../avatar/avatarSync";
+import { websocketUrl } from "../lib/desktop";
 import type {
   ArtifactEvent,
   ConnectedEvent,
@@ -14,6 +16,7 @@ import type {
   DeltaEvent,
   MessageEvent,
   ReadyEvent,
+  AvatarConfigEvent,
   ReasoningDeltaEvent,
   SessionListEvent,
   StepStartEvent,
@@ -191,7 +194,7 @@ export async function getSidecarPort(): Promise<number | undefined> {
   return Number(import.meta.env.VITE_KALI_PORT ?? 8900);
 }
 
-export function useChat(): ChatState {
+export function useChat(sessionOverride?: string): ChatState {
   const [status, setStatus] = useState<ConnStatus>("connecting");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -322,13 +325,15 @@ export function useChat(): ChatState {
 
     async function connect() {
       const port = await getSidecarPort();
-      if (!port || cancelled) {
+      if ((!port && !window.kaliDesktop) || cancelled) {
         setStatus("error");
         return;
       }
       const isElectron = !!(window as unknown as { kali?: unknown }).kali;
       let wsUrl: string;
-      if (isElectron) {
+      if (window.kaliDesktop) {
+        wsUrl = websocketUrl();
+      } else if (isElectron) {
         // Electron: connect directly to the core sidecar.
         wsUrl = `ws://127.0.0.1:${port}/ws`;
       } else {
@@ -337,7 +342,7 @@ export function useChat(): ChatState {
         const host = window.location.host;
         wsUrl = `${proto}//${host}/ws`;
       }
-      const savedSessionId = localStorage.getItem("kali.sessionId") || undefined;
+      const savedSessionId = sessionOverride || localStorage.getItem("kali.sessionId") || undefined;
       client = new WSClient(wsUrl, savedSessionId);
       clientRef.current = client;
 
@@ -345,7 +350,9 @@ export function useChat(): ChatState {
         const ev = p as ReadyEvent;
         setError(null);
         setSessionId(ev.session_id || null);
-        if (ev.session_id) {
+        if (sessionOverride) {
+          // Detached windows keep their own session without changing the main UI.
+        } else if (ev.session_id) {
           localStorage.setItem("kali.sessionId", ev.session_id);
         } else {
           localStorage.removeItem("kali.sessionId");
@@ -353,13 +360,17 @@ export function useChat(): ChatState {
         setStatus("ready");
         setIsCreatingSession(false);
         client?.send({ event: "list_sessions" });
+        client?.send({ event: "avatar_config_get" });
       });
+      client.on("avatar_config", (p) => handleRemoteAvatarConfig((p as unknown as AvatarConfigEvent).config, client));
       client.on("connected", (p) => {
         const ev = p as ConnectedEvent;
         setError(null);
         setSessionId(ev.session_id || null);
         setIsCreatingSession(false);
-        if (ev.session_id) {
+        if (sessionOverride) {
+          // Detached windows keep their own session without changing the main UI.
+        } else if (ev.session_id) {
           localStorage.setItem("kali.sessionId", ev.session_id);
         } else {
           localStorage.removeItem("kali.sessionId");
@@ -468,6 +479,9 @@ export function useChat(): ChatState {
       });
 
       client.on("status", (p) => {
+        const st = p as StatusEvent & { wake_word_enabled?: boolean; input_mode?: string };
+        // Voice input needs this window's audio pipeline, so keep the shell resident while it is on.
+        if (!sessionOverride) void window.kaliDesktop?.setKeepAlive?.(!!st.wake_word_enabled || st.input_mode === "continuous");
         setSystemStatus(prev => ({ ...prev, ...(p as StatusEvent) }));
       });
 
@@ -955,7 +969,7 @@ export function useChat(): ChatState {
     // previous session URL and the workspace reset effect can fire as soon as
     // the backend assigns a new id.
     setSessionId(null);
-    localStorage.removeItem("kali.sessionId");
+    if (!sessionOverride) localStorage.removeItem("kali.sessionId");
     consoleProvidersRef.current.clear();
     // Mark that we are explicitly creating a new session. StageProvider uses
     // this to navigate to the URL root and to suppress re-attachment to the old

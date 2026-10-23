@@ -1,0 +1,75 @@
+export interface DesktopConnectionConfig {
+  backendUrl: string;
+  token: string;
+  capabilityToken: string;
+  showAvatar: boolean;
+  avatarSize: number;
+  /** "local": the shell supervises a loopback kali-core; "remote": connect to backendUrl. */
+  mode: "local" | "remote";
+  /** True when the native avatar agent is running and owns the avatar, tray and native actions. */
+  nativeAgent: boolean;
+  /** Open every new artifact as its own native window instead of a canvas window. */
+  artifactsNative: boolean;
+}
+
+export interface NativeArtifactRef { sessionId: string; id: string }
+
+export interface DesktopBridge {
+  getConfig(): Promise<DesktopConnectionConfig>;
+  saveConfig(config: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }): Promise<boolean>;
+  /** Ask the shell to stay resident after its windows close (voice/wake word active). */
+  setKeepAlive(value: boolean): Promise<void>;
+  openMain(hash?: string): Promise<void>;
+  showAvatar(visible: boolean): Promise<void>;
+  setAvatarSize(size: number): Promise<void>;
+  /** Screen corner the native avatar anchors to (layer-shell / X11). */
+  setAvatarCorner(corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"): Promise<void>;
+  setArtifactsNative(value: boolean): Promise<void>;
+  /** Artifacts currently in native windows, and ones sent back to the canvas while the main window was away. */
+  getNativeArtifacts(): Promise<{ open: NativeArtifactRef[]; returned: NativeArtifactRef[] }>;
+  /** From a native artifact window: close it and restore the artifact in the canvas. */
+  returnArtifact(sessionId: string, artifactId: string): Promise<void>;
+  onArtifactNative(callback: (state: NativeArtifactRef & { open: boolean; returned: boolean }) => void): () => void;
+  openArtifact(sessionId: string, artifactId: string): Promise<void>;
+  performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
+  setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;
+  onPresence(callback: (state: { mood: string; emotion: string; text: string; connected: boolean }) => void): () => void;
+  onNavigate(callback: (hash: string) => void): () => void;
+}
+
+declare global { interface Window { kaliDesktop?: DesktopBridge } }
+
+let desktopConfig: DesktopConnectionConfig | null = null;
+
+export async function initializeDesktop(): Promise<DesktopConnectionConfig | null> {
+  if (!window.kaliDesktop) return null;
+  desktopConfig = await window.kaliDesktop.getConfig();
+  return desktopConfig;
+}
+
+/** Persist the "artifacts as native windows" preference in the shell config and mirror it locally. */
+export async function setArtifactsNative(value: boolean): Promise<void> {
+  if (!window.kaliDesktop) return;
+  await window.kaliDesktop.setArtifactsNative(value);
+  if (desktopConfig) desktopConfig.artifactsNative = value;
+}
+
+export function artifactsNativeEnabled(): boolean { return isDesktop() && desktopConfig?.artifactsNative === true; }
+
+export function isDesktop(): boolean { return !!window.kaliDesktop; }
+export function getDesktopConfig(): DesktopConnectionConfig | null { return desktopConfig; }
+export function getApiToken(): string {
+  return desktopConfig?.token || (!isDesktop() ? localStorage.getItem("kali.apiToken") || "" : "");
+}
+
+export function websocketUrl(): string {
+  if (desktopConfig?.backendUrl) {
+    const url = new URL(desktopConfig.backendUrl);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = "/ws";
+    url.search = "";
+    return url.toString();
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/ws`;
+}

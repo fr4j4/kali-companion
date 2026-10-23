@@ -6,7 +6,7 @@
  * manage the artifact canvas.
  */
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type {
   WindowData,
   WindowType,
@@ -20,6 +20,7 @@ import { useUndoRedo } from "./useUndoRedo";
 import { useMultiSelect } from "./useMultiSelect";
 import { usePersistence } from "./usePersistence";
 import {
+  applyLoadedArtifact,
   createWindowData,
   focusInArray,
   unfocusAllInArray,
@@ -35,6 +36,7 @@ import {
 } from "./windowManager";
 import type { ArtifactEvent } from "../lib/protocol";
 import { fetchArtifact } from "../lib/artifacts";
+import { artifactsNativeEnabled } from "../lib/desktop";
 
 export interface UseWorkspaceOpts {
   /** Current session id — used to fetch artifact content by id. */
@@ -71,6 +73,11 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   onCloseArtifactRef.current = opts.onCloseArtifact;
   const onContentLoadedRef = useRef(opts.onContentLoaded);
   onContentLoadedRef.current = opts.onContentLoaded;
+  // Artifacts living in a native desktop window: hidden from the canvas, ignored by replays/updates.
+  // Returned ones wait here for a session id before being restored.
+  const [returnTick, setReturnTick] = useState(0);
+  const pendingReturnRef = useRef<string[]>([]);
+  const nativeIdsRef = useRef(new Set<string>());
   // In-flight content fetches, keyed by artifactId, so we don't double-fetch.
   const fetchingRef = useRef<Set<string>>(new Set());
 
@@ -100,7 +107,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
         };
         // Fill the window content (if still open/not closed meanwhile).
         setWindows((prev) => prev.map((w) =>
-          w.artifactId === artifactId ? { ...w, content: ev } : w
+          w.artifactId === artifactId ? applyLoadedArtifact(w, ev) : w
         ));
         onContentLoadedRef.current?.(artifactId, ev);
       })
@@ -391,6 +398,18 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
       return;
     }
     const isHollow = event.content == null;
+    // Native-window mode: a live `create` goes straight to an OS window and never touches the canvas;
+    // later updates are ignored here because the native window follows the session over its own WS.
+    // Hollow replays (reconnect) are not opened again; the library still lists the artifact.
+    if (nativeIdsRef.current.has(event.id)) return;
+    if (artifactsNativeEnabled() && event.update === "create" && !isHollow && !windowsRef.current.some((w) => w.artifactId === event.id)) {
+      const sid = localStorage.getItem("kali.sessionId");
+      if (sid) {
+        nativeIdsRef.current.add(event.id);
+        void window.kaliDesktop?.openArtifact(sid, event.id).catch(() => nativeIdsRef.current.delete(event.id));
+        return;
+      }
+    }
     const windowType = resolveWindowType(event);
     const existing = windowsRef.current.find((w) => w.artifactId === event.id);
     if (existing) {
@@ -433,6 +452,34 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     }
     if (shouldFetch) loadArtifactContent(event.id);
   }, [createWindow, persistence, loadArtifactContent]);
+
+  // Desktop only: an artifact is shown in one place at a time. While it lives in a native window it is
+  // hidden from the canvas; "back to canvas" restores it, closing the window with X leaves it in the library.
+  useEffect(() => {
+    const bridge = window.kaliDesktop;
+    if (!bridge?.onArtifactNative) return;
+    const hide = (id: string) => {
+      nativeIdsRef.current.add(id);
+      setWindows((prev) => prev.map((w) => w.artifactId === id ? { ...w, closed: true, focused: false, content: null } : w));
+    };
+    const giveBack = (id: string) => { pendingReturnRef.current.push(id); setReturnTick((n) => n + 1); };
+    const unsubscribe = bridge.onArtifactNative((state) => {
+      if (state.open) { hide(state.id); return; }
+      nativeIdsRef.current.delete(state.id);
+      if (state.returned) giveBack(state.id);
+    });
+    void bridge.getNativeArtifacts().then((native) => {
+      native.open.forEach((ref) => hide(ref.id));
+      native.returned.forEach((ref) => giveBack(ref.id));
+    }).catch(() => undefined);
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!opts.sessionId || pendingReturnRef.current.length === 0) return;
+    const ids = pendingReturnRef.current.splice(0);
+    ids.forEach((id) => { nativeIdsRef.current.delete(id); reopenArtifact(id); });
+  }, [returnTick, opts.sessionId, reopenArtifact]);
 
   return useMemo(() => ({
     windows,

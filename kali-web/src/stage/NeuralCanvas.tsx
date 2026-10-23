@@ -18,6 +18,7 @@
  * Artifacts from the backend spawn as floating windows on the canvas.
  */
 
+import { Spinner } from "../components/ui/Spinner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
@@ -25,6 +26,7 @@ import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { useAvatarMoodEngine } from "../avatar/AvatarMoodEngine";
 import { AvatarSVG } from "../avatar/AvatarSVG";
+import { publishAvatarConfig, subscribeAvatarConfig } from "../avatar/avatarSync";
 import { loadAvatarConfig, saveAvatarConfig, type AvatarConfig, type AvatarEmotion } from "../avatar/avatarConfig";
 import { useWorkspace } from "../workspace/useWorkspace";
 import type { SelectedArtifactRef } from "../lib/protocol";
@@ -83,16 +85,33 @@ export function NeuralCanvas({
   });
   const perfMetrics = usePerfMetrics(api.windows, performanceProfile);
   const [typing, setTyping] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => window.location.hash.includes("panel=settings"));
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [artifactsOpen, setArtifactsOpen] = useState(false);
+  const [artifactsOpen, setArtifactsOpen] = useState(() => window.location.hash.includes("panel=artifacts"));
+
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash.includes("panel=settings")) setSettingsOpen(true);
+      if (window.location.hash.includes("panel=artifacts")) setArtifactsOpen(true);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSwitcherOpen, setMobileSwitcherOpen] = useState(false);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => loadAvatarConfig());
+  // Appearance changes made elsewhere (another window, the core) update the canvas avatar live.
+  useEffect(() => subscribeAvatarConfig(setAvatarConfig), []);
+  const publishTimerRef = useRef<number | undefined>(undefined);
+  const onCustomizerChange = useCallback((next: AvatarConfig) => {
+    setAvatarConfig(next);
+    window.clearTimeout(publishTimerRef.current);
+    publishTimerRef.current = window.setTimeout(() => { saveAvatarConfig(next); publishAvatarConfig(chat.wsClient, next); }, 300);
+  }, [chat.wsClient]);
   const reasoningWindowIdRef = useRef<number | null>(null);
   const terminalWindowIdRef = useRef<number | null>(null);
 
@@ -109,6 +128,12 @@ export function NeuralCanvas({
 
   // Mood engine — derives state + emotion from runtime context
   const { state: avatarState, emotion: avatarEmotion } = useAvatarMoodEngine(typing, overrideEmotion);
+
+  useEffect(() => {
+    if (!window.kaliDesktop) return;
+    const last = [...chat.messages].reverse().find((m) => m.role === "assistant" && m.content);
+    window.kaliDesktop.setPresence({ mood: avatarState, emotion: avatarEmotion, text: last?.content?.slice(-160) || "", connected: chat.status === "ready" });
+  }, [avatarState, avatarEmotion, chat.messages, chat.status]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("kali-mobile-stage", isMobile);
@@ -464,6 +489,14 @@ export function NeuralCanvas({
         isMobile={isMobile}
       />
 
+      {/* Reconnection banner: the WS client retries with backoff on its own. */}
+      {chat.status === "disconnected" && (
+        <div role="status" className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-border bg-elevated px-4 py-1.5 text-xs text-fg max-w-[90vw]">
+          <Spinner size={14} className="text-accent" label={t("status.reconnecting") as string} />
+          {t("status.reconnecting")}
+        </div>
+      )}
+
       {/* Stopped toast */}
       <AnimatePresence>
         {chat.stopped && (
@@ -482,7 +515,7 @@ export function NeuralCanvas({
       <AnimatePresence>
         {chat.error && (
           <motion.div
-            className="fixed top-16 left-1/2 -translate-x-1/2 bg-err text-white px-4 py-2 rounded-md text-sm z-50 max-w-[90vw]"
+            role="alert" className="fixed top-16 left-1/2 -translate-x-1/2 bg-err text-white px-4 py-2 rounded-md text-sm z-50 max-w-[90vw]"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -492,7 +525,7 @@ export function NeuralCanvas({
         )}
         {ptt.error && (
           <motion.div
-            className="fixed top-16 left-1/2 -translate-x-1/2 bg-err text-white px-4 py-2 rounded-md text-sm z-50 max-w-[90vw]"
+            role="alert" className="fixed top-16 left-1/2 -translate-x-1/2 bg-err text-white px-4 py-2 rounded-md text-sm z-50 max-w-[90vw]"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -646,9 +679,9 @@ export function NeuralCanvas({
 
       <CustomizerDrawer
         open={customizerOpen}
-        onClose={() => { setCustomizerOpen(false); saveAvatarConfig(avatarConfig); }}
+        onClose={() => { setCustomizerOpen(false); window.clearTimeout(publishTimerRef.current); saveAvatarConfig(avatarConfig); publishAvatarConfig(chat.wsClient, avatarConfig); }}
         config={avatarConfig}
-        onChange={setAvatarConfig}
+        onChange={onCustomizerChange}
       />
 
       <SettingsModal

@@ -71,8 +71,12 @@ function WindowContentRouterImpl({ window: w, api }: Props) {
 
 function LoadingPlaceholder() {
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <div className="w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+    <div className="flex-1 flex flex-col gap-3 p-4" role="status" aria-busy="true">
+      <div className="kali-skeleton h-4 w-2/5" />
+      <div className="kali-skeleton h-3 w-full" />
+      <div className="kali-skeleton h-3 w-11/12" />
+      <div className="kali-skeleton h-3 w-3/4" />
+      <div className="kali-skeleton flex-1 min-h-[3rem] w-full" />
     </div>
   );
 }

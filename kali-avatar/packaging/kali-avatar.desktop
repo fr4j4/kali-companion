@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Kali Avatar
+Comment=Kali companion avatar and tray
+Exec=kali-avatar
+Icon=kali-companion
+Terminal=false
+Categories=Utility;
+X-GNOME-Autostart-enabled=true

@@ -43,7 +43,7 @@ export function SecuritySection() {
         )}
       />
 
-      <SettingsCard>
+      {!window.kaliDesktop && <SettingsCard>
         <label className="text-xs font-medium text-muted" htmlFor="kali-api-token">
           {t("security.token_label", "Token de API")}
         </label>
@@ -85,7 +85,7 @@ export function SecuritySection() {
             "Déjalo vacío si el server no tiene auth activada. Cambia y recarga para aplicar.",
           )}
         </p>
-      </SettingsCard>
+      </SettingsCard>}
     </div>
   );
 }

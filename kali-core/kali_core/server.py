@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hmac
 import json
 import logging
 import os
@@ -69,10 +70,13 @@ from kali_core.claws.terminal_session import CreateTerminalSessionTool
 from kali_core.claws.tests import RunTestsTool
 from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
+from kali_core.desktop import LEGACY_CAPABILITIES, DesktopBroker
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
 from kali_core.ear.providers import get_stt_provider
+from kali_core import avatar_config
+from kali_core.presence import tts_duration
 from kali_core.user_config import UserConfig, load_or_default as load_user_config, save as save_user_config
 from kali_core.game.gsi import gsi_state
 from kali_core.gaze import GazeClient
@@ -384,6 +388,14 @@ def _build_tool_defs() -> list[ToolDef]:
     ]
 
 
+# Turn events mirrored (in compact form) to presence-mode connections.
+PRESENCE_EVENTS = frozenset({
+    "turn_start", "delta", "reasoning_delta", "turn_end", "message",
+    "stt_partial", "stt_final", "tts_audio", "tool_event", "consent_request",
+    "wake_word", "error",
+})
+
+
 class Server:
     """WebSocket server host."""
 
@@ -444,7 +456,10 @@ class Server:
         self.voice_configs = VoiceConfigManager(settings.voice_configs_dir)
         # Permissions + consent.
         self.gateway = PermissionGateway()
-        self.consent = ConsentMgr()
+        self.desktop_broker = DesktopBroker()
+        self.last_active_session: str | None = None
+        self.desktop_token = os.environ.get("KALI_DESKTOP_TOKEN", "").strip()
+        self.consent = ConsentMgr(send_callback=self._send_consent)
         # Register tools + set up executor.
         _register_tools()
         self.tool_defs = _build_tool_defs()
@@ -455,7 +470,7 @@ class Server:
         self.session_store = SessionStore(settings.db_path)
         # Job system (background tasks with progress, logs, cancellation).
         self.job_store = JobStore(settings.db_path)
-        self.job_mgr = JobManager(self.job_store)
+        self.job_mgr = JobManager(self.job_store, emit_callback=self._send_job_event)
         self.job_mgr.register_handler("game_image_download", download_game_images_handler)
         self.executor = Executor(
             gateway=self.gateway,
@@ -467,6 +482,7 @@ class Server:
             session_store=self.session_store,
             job_mgr=self.job_mgr,
             console_requester=self.console_requester,
+            desktop_broker=self.desktop_broker,
         )
         # Wire executor + tools into the agent.
         self.agent.set_executor(self.executor)
@@ -480,6 +496,7 @@ class Server:
         # the UI can show a banner about settings that couldn't be restored.
         self._config_warnings: dict[str, str] = {}
         self._apply_server_level_user_config()
+        self.avatar_config: dict[str, Any] | None = avatar_config.load()
         self._register_routes()
 
     async def broadcast(self, payload: dict[str, Any]) -> None:
@@ -488,6 +505,64 @@ class Server:
                 await conn.send(payload)
             except Exception:
                 pass
+
+    async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> None:
+        for conn in list(self._connections):
+            if conn.session_id == session_id and conn.mode != "presence":
+                try:
+                    await conn.send(payload)
+                except Exception:
+                    pass
+
+    async def set_avatar_config(self, config: Any) -> bool:
+        """Store a new avatar appearance and push it to every connection (canvas, Electron, native)."""
+        clean = avatar_config.sanitize(config)
+        if clean is None:
+            return False
+        self.avatar_config = clean
+        avatar_config.save(clean)
+        await self.broadcast({"event": "avatar_config", "config": clean})
+        return True
+
+    async def mirror_presence(self, session_id: str | None, payload: dict[str, Any]) -> None:
+        """Forward a compact copy of a turn event to presence-mode connections.
+
+        Presence connections (avatar agents) get no history replay and no heavy
+        payloads; they only need enough to derive the avatar state.
+        """
+        event = payload.get("event")
+        if event not in PRESENCE_EVENTS:
+            return
+        if session_id:
+            self.last_active_session = session_id
+        compact = payload
+        if event == "tts_audio":
+            compact = {k: v for k, v in payload.items() if k != "audio"}
+            compact["duration"] = tts_duration(payload)
+        elif event == "tool_event":
+            compact = {k: payload.get(k) for k in ("event", "session_id", "tool", "status", "call_id")}
+        if session_id and "session_id" not in compact:
+            compact = {**compact, "session_id": session_id}
+        for conn in list(self._connections):
+            if conn.mode == "presence" and conn.session_id in (None, "", session_id):
+                try:
+                    await conn.send(compact)
+                except Exception:
+                    pass
+
+    async def _send_consent(self, payload: dict[str, Any]) -> None:
+        conn = self.desktop_broker.current()
+        if conn and conn.session_id == payload.get("session_id"):
+            await conn.send(payload)
+        else:
+            await self.broadcast_session(payload.get("session_id", ""), payload)
+
+    async def _send_job_event(self, payload: dict[str, Any]) -> None:
+        sid = payload.get("session_id")
+        if sid:
+            await self.broadcast_session(sid, payload)
+        else:
+            await self.broadcast(payload)
 
     async def broadcast_status(self) -> None:
         """Send a full, per-connection status to all connected clients."""
@@ -728,6 +803,7 @@ class Server:
             except Exception:
                 logger.exception("connection error")
             finally:
+                self.desktop_broker.disconnect(conn)
                 self._connections.remove(conn)
 
         @self.app.get("/health")
@@ -1599,6 +1675,9 @@ class Connection:
         self.ws = ws
         self.server = server
         self.session_id: str | None = None
+        self.is_desktop = False
+        self.desktop_capabilities: frozenset[str] | None = None
+        self.mode = "client"  # "client" (full UI) or "presence" (avatar agent)
         self._current_task: asyncio.Task | None = None
         self._send_lock = asyncio.Lock()
         self._stt_session_active: bool = False
@@ -1678,16 +1757,72 @@ class Connection:
     async def dispatch(self, event: dict[str, Any]) -> None:
         kind = event.get("event", "")
 
+        if kind == "desktop_register":
+            token = event.get("token", "")
+            self.is_desktop = bool(
+                self.server.api_token and self.server.desktop_token
+                and isinstance(token, str)
+                and hmac.compare_digest(token.encode("utf-8"), self.server.desktop_token.encode("utf-8"))
+            )
+            if self.is_desktop:
+                caps = event.get("capabilities")
+                if isinstance(caps, list):
+                    self.desktop_capabilities = frozenset(c for c in caps if isinstance(c, str))
+                self.server.desktop_broker.register(self)
+            # uvicorn.error: visible in `docker logs` even when the app logger is unconfigured.
+            logging.getLogger("uvicorn.error").info(
+                "desktop_register ok=%s capabilities=%s",
+                self.is_desktop,
+                sorted(self.desktop_capabilities) if self.desktop_capabilities is not None else "legacy",
+            )
+            await self.send({
+                "event": "desktop_registered",
+                "ok": self.is_desktop,
+                "capabilities": sorted(self.desktop_capabilities) if self.desktop_capabilities is not None
+                else sorted(LEGACY_CAPABILITIES),
+            })
+            return
+        if kind == "ping":
+            await self.send({"event": "pong", "t": event.get("t")})
+            return
+        if kind == "desktop_action_result":
+            if self.is_desktop:
+                self.server.desktop_broker.respond(self, event)
+            return
+
+        if kind == "hello" and event.get("mode") == "presence":
+            # Lightweight avatar agent: no history/artifact replay, no wake word.
+            self.mode = "presence"
+            requested_sid = event.get("session_id") or None
+            if requested_sid and not await self.server.session_store.session_exists(requested_sid):
+                requested_sid = None
+            self.session_id = requested_sid
+            follow = requested_sid or self.server.last_active_session
+            await self.send({
+                "event": "ready",
+                "session_id": follow or "",
+                "version": "0.1.0",
+                "mode": "presence",
+                "turn_active": bool(self._turn_active_for(follow)),
+            })
+            await self._send_avatar_config()
+            return
+
+        if kind == "avatar_config_set":
+            await self.server.set_avatar_config(event.get("config"))
+            return
+
+        if kind == "avatar_config_get":
+            await self._send_avatar_config(always=True)
+            return
+
         if kind == "hello":
             requested_sid = event.get("session_id")
             if requested_sid:
                 exists = await self.server.session_store.session_exists(requested_sid)
                 if exists:
                     self.session_id = requested_sid
-                    if self.server.agent:
-                        self.server.agent.reset_history(requested_sid)
-                    self.server.consent.set_send_callback(self.send)
-                    self.server.job_mgr.set_emit_callback(self.send)
+                    load_history = self.server.agent and not self.server.agent._get_history(requested_sid)
                     await self.send(
                         {"event": "ready", "session_id": requested_sid, "version": "0.1.0"}
                     )
@@ -1696,10 +1831,10 @@ class Connection:
                         await self._start_wake_word()
                     msgs = await self.server.session_store.get_messages(requested_sid)
                     for msg in msgs:
-                        self.server.agent._get_history(requested_sid).append({
-                            "role": msg["role"],
-                            "content": msg["content"],
-                        })
+                        if load_history:
+                            self.server.agent._get_history(requested_sid).append({
+                                "role": msg["role"], "content": msg["content"],
+                            })
                         await self.send({
                             "event": "message",
                             "session_id": requested_sid,
@@ -1720,8 +1855,6 @@ class Connection:
                             "update": "create",
                         })
                     return
-            self.server.consent.set_send_callback(self.send)
-            self.server.job_mgr.set_emit_callback(self.send)
             await self.send(
                 {"event": "ready", "session_id": "", "version": "0.1.0"}
             )
@@ -1758,20 +1891,17 @@ class Connection:
             sid = event.get("session_id", "")
             if sid and await self.server.session_store.session_exists(sid):
                 self.session_id = sid
-                if self.server.agent:
-                    self.server.agent.reset_history(sid)
-                self.server.consent.set_send_callback(self.send)
-                self.server.job_mgr.set_emit_callback(self.send)
+                load_history = self.server.agent and not self.server.agent._get_history(sid)
                 await self.send({"event": "connected", "session_id": sid})
                 await self._emit_status()
                 if self._wake_word_enabled:
                     await self._start_wake_word()
                 msgs = await self.server.session_store.get_messages(sid)
                 for msg in msgs:
-                    self.server.agent._get_history(sid).append({
-                        "role": msg["role"],
-                        "content": msg["content"],
-                    })
+                    if load_history:
+                        self.server.agent._get_history(sid).append({
+                            "role": msg["role"], "content": msg["content"],
+                        })
                     await self.send({
                         "event": "message",
                         "session_id": sid,
@@ -3023,6 +3153,18 @@ class Connection:
         session_id: str,
         selected_artifacts: list[dict] | None = None,
     ) -> None:
+        token = self.server.desktop_broker.activate(self)
+        try:
+            await self._run_turn_impl(content, session_id, selected_artifacts)
+        finally:
+            self.server.desktop_broker.reset(token)
+
+    async def _run_turn_impl(
+        self,
+        content: str,
+        session_id: str,
+        selected_artifacts: list[dict] | None = None,
+    ) -> None:
         """Run one agent turn: stream deltas, execute tools, then synthesize TTS."""
         accumulated = ""
         turn_start_ts = time.monotonic()
@@ -3076,7 +3218,12 @@ class Connection:
 
         try:
             # Set the emit callback for tool events.
-            self.server.agent.set_emit_callback(self.send)
+            async def emit_event(payload: dict[str, Any]) -> None:
+                if payload.get("event") == "artifact":
+                    await self.server.broadcast_session(session_id, payload)
+                else:
+                    await self.send(payload)
+            self.server.agent.set_emit_callback(emit_event)
             first_token_ts: float | None = None
             tool_call_count = 0
             usage_stats: dict | None = None
@@ -3593,12 +3740,27 @@ class Connection:
         })
         await self.send(payload)
 
+    async def _send_avatar_config(self, *, always: bool = False) -> None:
+        """Replay the shared avatar appearance; `always` also answers "none stored" (config: null)."""
+        if always or self.server.avatar_config is not None:
+            await self.send({"event": "avatar_config", "config": self.server.avatar_config})
+
     async def send(self, payload: dict[str, Any]) -> None:
         async with self._send_lock:
             try:
                 await self.ws.send_json(payload)
             except Exception:
                 logger.exception("send failed")
+        if self.mode != "presence" and payload.get("event") in PRESENCE_EVENTS:
+            await self.server.mirror_presence(payload.get("session_id") or self.session_id, payload)
+
+    def _turn_active_for(self, session_id: str | None) -> bool:
+        if not session_id:
+            return False
+        return any(
+            c.session_id == session_id and c._current_task is not None and not c._current_task.done()
+            for c in self.server._connections
+        )
 
 
 def create_app() -> FastAPI:

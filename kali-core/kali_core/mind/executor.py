@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import uuid
 from typing import Any
@@ -19,6 +20,7 @@ from kali_core.canvas import is_game_resource, resolve_window_type
 from kali_core.claws.base import ToolContext, ToolResult, get
 from kali_core.collar.consent import ConsentManager
 from kali_core.collar.gateway import PermissionGateway
+from kali_core.desktop import DesktopBroker, RemoteGazeClient
 
 logger = logging.getLogger("kali_core.mind.executor")
 
@@ -37,6 +39,7 @@ class Executor:
         session_store: Any = None,
         job_mgr: Any = None,
         console_requester: Any = None,
+        desktop_broker: DesktopBroker | None = None,
     ) -> None:
         self.gateway = gateway
         self.consent = consent
@@ -47,6 +50,7 @@ class Executor:
         self.session_store = session_store
         self.job_mgr = job_mgr
         self.console_requester = console_requester
+        self.desktop_broker = desktop_broker
         # Per-session flag: True once a game_resource artifact has been returned.
         self._game_resource_returned: dict[str, bool] = {}
 
@@ -125,6 +129,11 @@ class Executor:
 
         # Build context and run.
         gaze = getattr(self, "gaze_client", None)
+        if self.desktop_broker and self.desktop_broker.has_desktop(session_id, "screenshot"):
+            gaze = RemoteGazeClient(self.desktop_broker, session_id)
+        elif os.environ.get("KALI_ALLOW_SERVER_SCREEN", "1").strip().lower() in ("0", "false", "no"):
+            # Remote deployments: never fall back to the server's own screen.
+            gaze = None
         llm = getattr(self, "llm_provider", None)
         ctx = ToolContext(
             session_id=session_id,
@@ -141,7 +150,10 @@ class Executor:
         )
 
         try:
-            result = await tool.run(params, ctx)
+            if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "launch_app"):
+                result = ToolResult(output=await self.desktop_broker.request(session_id, "launch_app", {"name": params.get("name", "")}))
+            else:
+                result = await tool.run(params, ctx)
         except Exception as e:
             logger.exception("Tool %s failed", tool_name)
             result = ToolResult(error=str(e))

@@ -14,6 +14,7 @@
 import { authHeaders } from "./http";
 
 export async function getSidecarPort(): Promise<number | null> {
+  if (window.kaliDesktop) return 8900;
   const w = window as unknown as { kali?: { getSidecarPort?: () => Promise<number | null> } };
   if (w.kali?.getSidecarPort) {
     return await w.kali.getSidecarPort();

@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Kali shell — Electron container (the cat's home). Replaces kali-home (Tauri/Rust).",
+  "homepage": "https://github.com/fr4j4/kali-companion",
+  "author": "Kali Companion contributors",
   "license": "MIT",
   "main": "dist/main.js",
   "scripts": {

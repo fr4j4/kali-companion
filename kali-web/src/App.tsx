@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { applyFont, loadFont } from "./lib/appearancePrefs";
 import { StageProvider } from "./stage/StageProvider";
 import { AuthGate, AUTH_REQUIRED_EVT } from "./components/AuthGate";
 import { NeuralCanvas } from "./stage/NeuralCanvas";
@@ -53,7 +54,7 @@ function usePerfProfile() {
 export default function App() {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem("kali.theme");
-    if (saved && ["amberwave", "foxglove", "vellum", "tidepool", "aether"].includes(saved)) return saved;
+    if (saved && ["amberwave", "foxglove", "vellum", "tidepool", "aether", "contrast"].includes(saved)) return saved;
     if (saved && ["synthwave", "midnight", "sunset", "forest"].includes(saved)) {
       localStorage.setItem("kali.theme", "amberwave");
       return "amberwave";
@@ -71,6 +72,7 @@ export default function App() {
   );
   const { scale, setScale } = useUIScale();
   usePerfProfile();
+  useEffect(() => { applyFont(loadFont()); }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);

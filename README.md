@@ -142,7 +142,7 @@ NVIDIA GPU + `nvidia-container-toolkit` only for Qwen3-TTS on GPU.
 | Try Kali / hack on the frontend & brain | **Native** (`scripts/dev.sh`) — no Docker, no compile |
 | Run it always-on (second monitor appliance) | **Docker** (`docker compose`) |
 | Work on TTS/voice with GPU | **Docker dev GPU** stack or native + `build-qwen-cpp.sh gpu` |
-| Full native shell (Electron, screen capture) on the desktop | **Native** (`scripts/prod.sh`) |
+| Run the independent desktop client (Electron, avatar, tray) | **Native** (`scripts/prod.sh`) |
 
 ---
 
@@ -187,15 +187,15 @@ Both share a common 12 kHz audio codec tokenizer
 VoiceDesign mode: set `KALI_TTS_PROVIDER=qwen3-voicedesign` (GPU strongly
 recommended for the 1.7B model).
 
-**Production mode (Electron + screen capture):**
+**Desktop client (separate from backend):**
 
 ```bash
-# Requires a Wayland session with Hyprland
 ./scripts/prod.sh
 ```
 
-`prod.sh` builds the production frontend, compiles the Electron shell, and
-launches kali as a native window.
+`prod.sh` builds the frontend and Electron shell, then opens the client. Run
+`kali-core` separately and enter its HTTPS URL and tokens on first launch.
+See [desktop client setup](docs/DESKTOP_CLIENT.md) for packaging and compatibility.
 
 ---
 

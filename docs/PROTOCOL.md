@@ -229,22 +229,35 @@ or the artifact is not rendered, `logs` is `null`.
 
 Screen capture is initiated by the core via `kali-gaze`, which uses the `mss` library to select the best backend (Wayland/X11/Windows). No external shell command is required for the capture itself, though the Wayland portal may prompt the user for permission.
 
-### `system_command`
+### Desktop capability channel
 
-A request that kali-shell should handle (it requires OS access the core
-does not have). The core is the one that sends these when a tool needs them;
-the web side does not initiate them.
+An independently deployed desktop client authenticates with `auth`, sends
+`desktop_register` with `KALI_DESKTOP_TOKEN`, then sends `hello`. The core
+accepts desktop registration only when both `KALI_API_TOKEN` and
+`KALI_DESKTOP_TOKEN` are configured and sends `desktop_registered` with `ok`.
+Native actions are tied to the connection and session that started a turn.
 
 ```json
-{
-  "event": "system_command",
-  "id": "cmd_001",
-  "command": "capture_screen",
-  "params": { "target": "full" }
-}
+{"event":"desktop_action","id":"desktop_123","action":"list_monitors","params":{}}
+{"event":"desktop_action_result","id":"desktop_123","ok":true,"result":{"monitors":[]}}
 ```
 
-kali-shell performs the action and returns the result via `system_result`.
+`desktop_register` may carry `"capabilities": ["launch_app","list_monitors","screenshot"]` and
+`"platform"`; `desktop_registered` echoes the accepted capabilities. A client that registers is
+served for every turn of its session (a client that never attached to one serves all sessions).
+
+Supported actions are `list_monitors`, `screenshot` and `launch_app`. Failed
+actions return `ok: false` and an `error` string. The core rejects responses
+from another connection and cancels pending requests on disconnect.
+
+### Presence mode and heartbeat
+
+`{"event":"hello","mode":"presence"}` joins as a lightweight avatar agent: no history or artifact
+replay, no wake word. `ready` returns `mode: "presence"` and `turn_active`. The core mirrors compact
+copies of `turn_start`, `delta`, `reasoning_delta`, `turn_end`, `message`, `stt_partial`, `stt_final`,
+`tts_audio` (without `audio`), `tool_event` (tool, status, call_id), `consent_request`, `wake_word` and
+`error` for the followed session. `{"event":"ping","t":...}` is answered with `{"event":"pong","t":...}`;
+clients ping every ~25 s and reconnect when no pong arrives.
 
 ## Events: core → web
 

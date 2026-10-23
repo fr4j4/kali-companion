@@ -837,7 +837,25 @@ export interface GameSessionPersistedEvent {
   path: string;
 }
 
+/** Client -> core: publish the avatar appearance so every avatar (canvas, floating, native) follows. */
+export interface AvatarConfigSetEvent {
+  event: "avatar_config_set";
+  config: Record<string, unknown>;
+}
+
+export interface AvatarConfigGetEvent {
+  event: "avatar_config_get";
+}
+
+/** Core -> clients: the shared avatar appearance changed (or is being replayed on connect). */
+export interface AvatarConfigEvent {
+  event: "avatar_config";
+  config: Record<string, unknown>;
+}
+
 export type IncomingEvent =
+  | AvatarConfigSetEvent
+  | AvatarConfigGetEvent
   | InputEvent
   | StopEvent
   | NewSessionEvent
