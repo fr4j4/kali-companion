@@ -20,6 +20,12 @@ ACTION_TIMEOUT = 30.0
 CONSENT_ACTION_TIMEOUT = 90.0
 
 
+def _server_name() -> str:
+    from kali_core.targets import server_host
+
+    return server_host()
+
+
 class DesktopBroker:
     def __init__(self) -> None:
         self._current: contextvars.ContextVar[Any] = contextvars.ContextVar("desktop_connection", default=None)
@@ -72,6 +78,12 @@ class DesktopBroker:
                 return agent
         return None
 
+    @staticmethod
+    def host_of(conn: Any) -> str:
+        """Name the user gave their machine (what the agent reported when it registered)."""
+        name = getattr(conn, "desktop_hostname", None)
+        return name if isinstance(name, str) and name else "desktop"
+
     def enforces_consent(self, session_id: str, action: str) -> bool:
         """True when the agent that would run ``action`` asks the user itself.
 
@@ -84,22 +96,35 @@ class DesktopBroker:
         return caps is not None and "local_consent" in caps
 
     def describe(self, session_id: str, server_screen: bool = True) -> str:
-        """One line for the model about what the user's desktop can do right now."""
+        """What the model needs to know about where its tools run right now."""
         names = {
             "launch_app": "open apps", "find_apps": "search apps", "screenshot": "look at the screen",
             "list_windows": "list windows", "focus_window": "focus windows",
+            "system_info": "read system info (RAM, CPU, disks)", "run_command": "run commands",
+            "fs_read": "read files", "fs_list": "list folders",
         }
+        server = _server_name()
         conn = self.find(session_id)
         if conn is None:
             if server_screen:
                 return ""
-            return ("DESKTOP: no desktop agent is connected, so you cannot open apps, look at the screen or "
-                    "manage windows. Say so plainly if asked; do not call those tools.")
+            return (
+                f"WHERE TOOLS RUN: the Kali server is '{server}'; there is no desktop agent connected, so "
+                "you cannot reach the user's PC: system_info, run_command, fs_read and fs_list fail "
+                "unless you pass target='server', and that would answer about the server, not about "
+                "their PC. Say so plainly if asked about the user's computer; do not call those tools."
+            )
         caps = getattr(conn, "desktop_capabilities", None)
         caps = LEGACY_CAPABILITIES if caps is None else caps
         can = [label for action, label in names.items() if action in caps]
         cannot = [label for action, label in names.items() if action not in caps]
-        line = "DESKTOP: agent connected; you can " + (", ".join(can) or "do nothing on the desktop") + " (each action needs the user's approval)."
+        host = self.host_of(conn)
+        line = (
+            f"WHERE TOOLS RUN: the user's PC is '{host}' (desktop agent connected); the Kali server is "
+            f"'{server}'. Tools that take `target` default to the PC: omit it for anything about the "
+            f"user's computer and use target='server' only when they ask about the Kali server. "
+            f"On the PC you can " + (", ".join(can) or "do nothing") + " (each action needs the user's approval)."
+        )
         if cannot:
             line += " Not supported here: " + ", ".join(cannot) + "."
         return line
@@ -113,10 +138,10 @@ class DesktopBroker:
         """Ask the desktop agent to run ``action``.
 
         The agent enforces permissions itself and may show the user a consent card, so every
-        action except the read-only ``list_monitors`` waits long enough for a person to answer.
+        action except the read-only ``list_monitors`` and ``system_info`` waits long enough for a person to answer.
         """
         if timeout is None:
-            timeout = ACTION_TIMEOUT if action == "list_monitors" else CONSENT_ACTION_TIMEOUT
+            timeout = ACTION_TIMEOUT if action in ("list_monitors", "system_info") else CONSENT_ACTION_TIMEOUT
         conn = self.find(session_id, action)
         if conn is None:
             raise RuntimeError("desktop client unavailable")

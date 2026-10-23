@@ -246,7 +246,12 @@ Native actions are tied to the connection and session that started a turn.
 `"platform"`; `desktop_registered` echoes the accepted capabilities. A client that registers is
 served for every turn of its session (a client that never attached to one serves all sessions).
 
-Supported actions are `list_monitors`, `screenshot` and `launch_app`. Failed
+`desktop_register` also carries `"hostname"` (sanitized, ≤ 40 chars): the name that prefixes every
+answer from that machine (`[minigun]`).
+
+Supported actions are `list_monitors`, `screenshot`, `launch_app`, `find_apps`, `list_windows`,
+`focus_window` and the machine tools `system_info`, `run_command` (`command`, `cwd`, `timeout`),
+`fs_read` (`path`, `max_lines`) and `fs_list` (`path`); see `docs/TOOL_TARGETS.md`. Failed
 actions return `ok: false` and an `error` string. The core rejects responses
 from another connection and cancels pending requests on disconnect.
 

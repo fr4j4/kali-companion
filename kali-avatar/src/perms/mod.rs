@@ -32,6 +32,10 @@ pub enum ActionClass {
     Input,
     /// A core tool (shell command, file read...) whose consent card the agent shows for the core.
     Tool,
+    /// A shell command on this machine. Asked every single time: no task grants.
+    Shell,
+    /// Reading files or listing folders under the home folder.
+    Files,
 }
 
 impl ActionClass {
@@ -45,12 +49,14 @@ impl ActionClass {
             ActionClass::Window => "window",
             ActionClass::Input => "input",
             ActionClass::Tool => "tool",
+            ActionClass::Shell => "shell",
+            ActionClass::Files => "files",
         }
     }
 
     /// Whether the user may hand out a time-boxed "allow this task" grant for the class.
     pub fn allows_task_grant(self) -> bool {
-        !matches!(self, ActionClass::ClipboardRead)
+        !matches!(self, ActionClass::ClipboardRead | ActionClass::Shell)
     }
 
     /// Longest task grant for the class.
@@ -72,7 +78,9 @@ impl ActionClass {
 /// Class of a native action. Unknown actions have none and are always rejected.
 pub fn classify(action: &str) -> Option<ActionClass> {
     match action {
-        "list_monitors" | "find_apps" => Some(ActionClass::Info),
+        "list_monitors" | "find_apps" | "system_info" => Some(ActionClass::Info),
+        "run_command" => Some(ActionClass::Shell),
+        "fs_read" | "fs_list" => Some(ActionClass::Files),
         "screenshot" => Some(ActionClass::Observe),
         "launch_app" => Some(ActionClass::Launch),
         "list_windows" => Some(ActionClass::Observe),
@@ -85,6 +93,10 @@ pub fn classify(action: &str) -> Option<ActionClass> {
 pub fn target_of(action: &str, params: &Value) -> Option<String> {
     if action == "screenshot" && params.get("region").and_then(Value::as_bool) == Some(true) {
         return Some("region".into());
+    }
+    if action == "run_command" {
+        // The card shows exactly what would run; it never becomes a grant (Shell has none).
+        return params.get("command").and_then(Value::as_str).map(|c| c.trim().chars().take(300).collect());
     }
     let key = match action {
         "launch_app" => "name",
@@ -485,6 +497,44 @@ mod tests {
         let (g, d, _) = guard(Decision::Deny);
         assert!(g.authorize("focus_window", &json!({ "id": "0xabc" }), "").is_err());
         assert_eq!(d.1.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn machine_actions_are_classified() {
+        assert_eq!(classify("system_info"), Some(ActionClass::Info));
+        assert_eq!(classify("run_command"), Some(ActionClass::Shell));
+        assert_eq!(classify("fs_read"), Some(ActionClass::Files));
+        assert_eq!(classify("fs_list"), Some(ActionClass::Files));
+        // The card shows the command itself, cut at 300 chars.
+        assert_eq!(target_of("run_command", &json!({ "command": "  df -h  " })).as_deref(), Some("df -h"));
+        assert_eq!(target_of("run_command", &json!({ "command": "x".repeat(500) })).unwrap().len(), 300);
+        assert_eq!(target_of("fs_read", &json!({ "path": "/home/u/a" })), None);
+    }
+
+    #[test]
+    fn system_info_never_asks_but_commands_always_do() {
+        let (g, d, _) = guard(Decision::Once);
+        assert!(g.authorize("system_info", &json!({}), "").is_ok());
+        assert_eq!(d.1.load(Ordering::SeqCst), 0);
+        for _ in 0..3 {
+            assert!(g.authorize("run_command", &json!({ "command": "df -h" }), "").is_ok());
+        }
+        assert_eq!(d.1.load(Ordering::SeqCst), 3, "one card per command");
+    }
+
+    #[test]
+    fn a_command_cannot_be_approved_for_the_task() {
+        assert!(!ActionClass::Shell.allows_task_grant());
+        let (g, d, _) = guard(Decision::Task);
+        assert!(g.authorize("run_command", &json!({ "command": "ls" }), "").is_err(), "'allow this task' is not honoured for shell");
+        assert!(!g.has_active_grants());
+        assert_eq!(d.1.load(Ordering::SeqCst), 1);
+        // Files may be granted for the task, but a grant for files never covers a command.
+        let (g, d, _) = guard(Decision::Task);
+        g.authorize("fs_list", &json!({ "path": "/home/u" }), "").unwrap();
+        g.authorize("fs_read", &json!({ "path": "/home/u/a" }), "").unwrap();
+        assert_eq!(d.1.load(Ordering::SeqCst), 1);
+        assert!(g.authorize("run_command", &json!({ "command": "ls" }), "").is_err());
     }
 
     #[test]

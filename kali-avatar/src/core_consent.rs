@@ -9,7 +9,8 @@ use serde_json::{json, Value};
 use std::time::Duration;
 
 const MAX_DETAIL: usize = 400;
-const KEYS: [&str; 9] = ["command", "path", "name", "url", "query", "framework", "branch", "reason", "monitor"];
+// `where` names the machine the core would run it on ("[server]").
+const KEYS: [&str; 10] = ["where", "command", "path", "name", "url", "query", "framework", "branch", "reason", "monitor"];
 
 /// What the card says for a tool. Unknown tools get a generic, sanitized sentence.
 fn summary(tool: &str) -> String {
@@ -98,6 +99,12 @@ mod tests {
         assert_eq!(r.label.as_deref(), Some("Ejecutar un comando en tu equipo"));
         assert_eq!(r.reason, "command: df -h /");
         assert_eq!(r.class, ActionClass::Tool);
+    }
+
+    #[test]
+    fn the_card_says_which_machine_the_core_would_use() {
+        let e = json!({ "id": "c", "tool": "run_command", "reason_params": { "where": "[server]", "command": "df -h" } });
+        assert_eq!(request_from(&e).unwrap().1.reason, "where: [server] · command: df -h");
     }
 
     #[test]

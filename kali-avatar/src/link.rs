@@ -212,7 +212,7 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
             &mut socket,
             json!({
                 "event": "desktop_register", "token": cfg.capability_token,
-                "capabilities": CAPABILITIES, "platform": std::env::consts::OS,
+                "capabilities": CAPABILITIES, "platform": std::env::consts::OS, "hostname": crate::machine::hostname(),
             }),
         )?;
     }
@@ -333,6 +333,12 @@ fn authorized_perform(action: &str, params: &Value, reason: &str, monitors: &Mon
         let id = params["id"].as_str().filter(|id| actions::valid_window_id(id)).ok_or("Invalid window id")?.to_string();
         let window = services.windows()?.into_iter().find(|w| w.id == id).ok_or("Unknown window")?;
         params = json!({ "id": id, "label": format!("{} ({})", window.title, window.app_id) });
+    }
+    if matches!(action, "fs_read" | "fs_list") {
+        // The card names the real path (symlinks resolved); forbidden places never reach the user as a question.
+        let real = crate::machine::resolve_path(&params)?.display().to_string();
+        params["path"] = json!(real);
+        params["label"] = json!(real);
     }
     let auth = guard.authorize(action, &params, reason)?;
     let outcome = actions::perform(action, &params, monitors, services);

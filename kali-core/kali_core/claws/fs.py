@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .base import ToolContext, ToolResult
 from . import paths as _paths
+from ..targets import TARGET_SCHEMA
 
 
 def _resolve_or_error(path_str: str, ctx: ToolContext) -> tuple[Path | None, ToolResult | None]:
@@ -33,7 +34,11 @@ def _check_allowed(path: Path, ctx: ToolContext) -> ToolResult | None:
 
 class FsReadTool:
     name = "fs_read"
-    description = "Read a file within the working directory."
+    description = (
+        "Read a text file. By default it reads on the USER'S PC (the agent asks them first); pass "
+        "target='server' only for files on the machine that hosts Kali. The result says which "
+        "machine it came from in `origin`."
+    )
     schema = {
         "type": "object",
         "properties": {
@@ -42,6 +47,7 @@ class FsReadTool:
                 "type": "integer",
                 "description": "Maximum number of lines to read (default 200).",
             },
+            "target": TARGET_SCHEMA,
         },
         "required": ["path"],
         "additionalProperties": False,
@@ -80,11 +86,16 @@ class FsListTool:
     """List files in a directory (safe risk level)."""
 
     name = "fs_list"
-    description = "List files in a directory."
+    description = (
+        "List the files in a folder. By default it lists on the USER'S PC (the agent asks them "
+        "first); pass target='server' only for folders on the machine that hosts Kali. The result "
+        "says which machine it came from in `origin`."
+    )
     schema = {
         "type": "object",
         "properties": {
             "path": {"type": "string", "description": "Directory to list."},
+            "target": TARGET_SCHEMA,
         },
         "required": ["path"],
         "additionalProperties": False,

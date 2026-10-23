@@ -21,6 +21,7 @@ from kali_core.claws.base import ToolContext, ToolResult, get
 from kali_core.collar.consent import ConsentManager
 from kali_core.collar.gateway import PermissionDecision, PermissionGateway
 from kali_core.desktop import DesktopBroker, RemoteGazeClient
+from kali_core import targets
 
 logger = logging.getLogger("kali_core.mind.executor")
 
@@ -33,6 +34,11 @@ AGENT_ACTIONS: dict[str, tuple[str, ...]] = {
     "list_windows": (),
     "focus_window": ("id",),
     "screenshot": ("output",),
+    # Tools that take ``target`` (see kali_core.targets): they go to the agent only when routed there.
+    "system_info": (),
+    "run_command": ("command", "cwd", "timeout"),
+    "fs_read": ("path", "max_lines"),
+    "fs_list": ("path",),
 }
 
 
@@ -55,6 +61,7 @@ class Executor:
         job_mgr: Any = None,
         console_requester: Any = None,
         desktop_broker: DesktopBroker | None = None,
+        local_mode: bool = True,
     ) -> None:
         self.gateway = gateway
         self.consent = consent
@@ -66,6 +73,8 @@ class Executor:
         self.job_mgr = job_mgr
         self.console_requester = console_requester
         self.desktop_broker = desktop_broker
+        # Core and desktop are the same machine: no agent is needed to act on "the PC".
+        self.local_mode = local_mode
         # Per-session flag: True once a game_resource artifact has been returned.
         self._game_resource_returned: dict[str, bool] = {}
 
@@ -90,6 +99,19 @@ class Executor:
         if tool is None:
             return ToolResult(error=f"Unknown tool: {tool_name}")
 
+        # Which machine runs this call. A missing agent is an explicit error, never a silent
+        # fallback to the server.
+        route = targets.resolve(tool_name, params, self.desktop_broker, session_id, is_local=self.local_mode)
+        if route is not None and route.error:
+            logger.info("[route] %s refused: %s", tool_name, route.error)
+            return ToolResult(error=route.error)
+        either_on_pc = bool(route and route.via_agent and tool_name in targets.EITHER_ACTIONS)
+        if either_on_pc and not self.desktop_broker.enforces_consent(session_id, tool_name):
+            return ToolResult(
+                error=f"{route.label} The desktop agent cannot ask for permission on the PC, so I will "
+                "not run '" + tool_name + "' there. Tell the user to update kali-avatar."
+            )
+
         # Window tools only exist on the user's desktop agent: do not ask for consent to fail.
         if tool_name in ("list_windows", "focus_window") and not (
             self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name)
@@ -103,6 +125,8 @@ class Executor:
         # actions it serves; asking here as well would make the user approve twice.
         agent_action = AGENT_ALIASES.get(tool_name, tool_name)
         agent_action = agent_action if agent_action in AGENT_ACTIONS else None
+        if tool_name in targets.EITHER_ACTIONS and not either_on_pc:
+            agent_action = None  # runs here: the core asks, not the agent
         if (
             not decision.allow
             and decision.needs_consent
@@ -123,7 +147,9 @@ class Executor:
                 )
             else:
                 # Request consent from the user.
-                reason_params = decision.reason_params or {"tool": tool_name}
+                reason_params = dict(decision.reason_params or {"tool": tool_name})
+                if route is not None:
+                    reason_params["where"] = route.label
                 consent_decision = await self.consent.request(
                     session_id=session_id,
                     tool=tool_name,
@@ -138,7 +164,8 @@ class Executor:
                         "[consent] %s for tool '%s' (%s)",
                         consent_decision, tool_name, session_id[:8],
                     )
-                    return ToolResult(error=f"Tool execution denied by user ({consent_decision}).")
+                    prefix = f"{route.label} " if route is not None else ""
+                    return ToolResult(error=f"{prefix}Tool execution denied by user ({consent_decision}).")
 
                 if consent_decision == "allow_session" and decision.permission_key:
                     self.consent.grant(session_id, decision.permission_key)
@@ -182,10 +209,22 @@ class Executor:
             emit=emit_event,
             language=language,
             call_id=call_id,
+            route=route,
         )
+        if either_on_pc:
+            broker = self.desktop_broker
+
+            async def desktop_exec(action: str, action_params: dict, timeout: float | None = None) -> dict:
+                return await broker.request(session_id, action, action_params, timeout=timeout)
+
+            ctx.desktop_exec = desktop_exec
 
         try:
-            if tool_name in AGENT_ACTIONS and tool_name not in ("screenshot", "look_at_screen") and self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name):
+            if either_on_pc and tool_name != "run_command":
+                # Shell goes through RunCommandTool (terminal events); the rest is one round trip.
+                agent_params = {k: params[k] for k in AGENT_ACTIONS[tool_name] if k in params}
+                result = ToolResult(output=await self.desktop_broker.request(session_id, tool_name, agent_params))
+            elif tool_name in AGENT_ACTIONS and tool_name not in targets.EITHER_ACTIONS and tool_name not in ("screenshot", "look_at_screen") and self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name):
                 # Run on the user's machine; the agent resolves, asks the user and enforces.
                 agent_params = {k: params[k] for k in AGENT_ACTIONS[tool_name] if k in params}
                 result = ToolResult(output=await self.desktop_broker.request(session_id, tool_name, agent_params))
@@ -194,6 +233,13 @@ class Executor:
         except Exception as e:
             logger.exception("Tool %s failed", tool_name)
             result = ToolResult(error=str(e))
+
+        if route is not None:
+            # Every answer says which machine it came from.
+            if result.error is None:
+                result.output = targets.stamp(result.output, route)
+            else:
+                result.error = f"{route.label} {result.error}"
 
         elapsed = time.monotonic() - tool_start
         status = "ok" if result.error is None else "err"

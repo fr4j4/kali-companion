@@ -45,6 +45,10 @@ class ToolContext:
     emit: Any = None  # emit_callback for sending WS events directly
     language: str = "en"  # user's language code (e.g. "es", "en")
     call_id: str = ""  # unique id for this tool call (e.g. "cmd_<hex>")
+    # Where this call runs (kali_core.targets.Route) and, when it runs on the user's PC, a
+    # coroutine ``(action, params, timeout=None) -> dict`` that asks the desktop agent.
+    route: Any = None
+    desktop_exec: Any = None
 
 
 @runtime_checkable
