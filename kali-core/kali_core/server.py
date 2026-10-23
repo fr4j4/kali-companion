@@ -514,13 +514,17 @@ class Server:
             except Exception:
                 pass
 
-    async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> None:
+    async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> int:
+        """Send to the full-UI connections on a session; returns how many received it."""
+        delivered = 0
         for conn in list(self._connections):
             if conn.session_id == session_id and conn.mode != "presence":
                 try:
                     await conn.send(payload)
+                    delivered += 1
                 except Exception:
                     pass
+        return delivered
 
     async def set_avatar_config(self, config: Any) -> bool:
         """Store a new avatar appearance and push it to every connection (canvas, Electron, native)."""
@@ -1995,8 +1999,14 @@ class Connection:
             # the client as a message), so the consent card still decides about the capture.
             sid = str(event.get("id", ""))
             choice = str(event.get("choice", ""))
-            if sid and choice in ("region", "screen", "dismiss"):
-                suggestion_limiter.respond(str(event.get("session_id") or self.session_id or ""), sid, choice)
+            session = str(event.get("session_id") or self.session_id or "")
+            if sid and choice in ("region", "screen", "dismiss") and suggestion_limiter.respond(session, sid, choice):
+                if choice != "dismiss" and self.mode == "presence":
+                    # The avatar cannot start a chat turn on the user's session: hand the choice to
+                    # the chat UI attached to it, which sends the message like the user would.
+                    delivered = await self.server.broadcast_session(
+                        session, {"event": "suggestion_accepted", "session_id": session, "id": sid, "kind": choice})
+                    await self.send({"event": "suggestion_ack", "id": sid, "delivered": delivered > 0})
 
         elif kind == "download_tts_model":
             asyncio.create_task(self._handle_download_tts_model(event))

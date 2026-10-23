@@ -47,6 +47,7 @@ import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { ConfigWarningsBanner } from "../components/ConfigWarningsBanner";
 import { ConsentModal } from "../components/ConsentModal";
+import { SuggestionChips } from "../components/SuggestionChips";
 import { JobsPanel } from "../components/JobsPanel";
 import { DebugPad } from "./DebugPad";
 import { Overlay } from "../components/ui/Overlay";
@@ -706,6 +707,7 @@ export function NeuralCanvas({
       />
 
       <ConsentModal request={chat.consentRequest} onRespond={chat.respondConsent} />
+      <SuggestionChips suggestion={chat.suggestion} onChoose={chat.answerSuggestion} />
 
       <JobsPanel
         open={jobsOpen}

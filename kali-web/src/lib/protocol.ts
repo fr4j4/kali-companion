@@ -66,6 +66,7 @@ export interface SettingsEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  screen_suggestions?: boolean;
   artifact_diff_preview?: boolean;
   // Qwen3 VoiceDesign fields
   voice_instructions?: string;
@@ -335,6 +336,25 @@ export interface ConsentRequestEvent {
   summary_key: string;
 }
 
+/** Kali offers to look at the screen. It never captures: the user picks and the agent asks for consent. */
+export interface SuggestionEvent {
+  event: "suggestion";
+  id: string;
+  session_id: string;
+  kind: "region" | "screen";
+  reason: string;
+}
+
+/** The user accepted a suggestion on another surface (the avatar); the chat sends the message. */
+export interface SuggestionAcceptedEvent {
+  event: "suggestion_accepted";
+  id: string;
+  session_id: string;
+  kind: "region" | "screen";
+}
+
+export type SuggestionChoice = "region" | "screen" | "dismiss";
+
 export interface SessionListEvent {
   event: "session_list";
   sessions: Array<{ id: string; title: string; updated: string }>;
@@ -461,6 +481,7 @@ export interface StatusEvent {
   input_mode?: string;
   feedback_mode?: string;
   plan_mode?: boolean;
+  screen_suggestions?: boolean;
   artifact_diff_preview?: boolean;
   game_session_path?: string;
   game_ai_global_timeout_ms?: number;

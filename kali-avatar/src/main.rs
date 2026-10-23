@@ -10,6 +10,7 @@ mod config;
 mod link;
 mod perms;
 mod platform;
+mod suggestion;
 mod thumb;
 mod tray;
 mod ui;

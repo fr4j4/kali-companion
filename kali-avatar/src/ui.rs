@@ -402,6 +402,7 @@ pub fn build(
                             st.webview.evaluate_javascript(&format!("window.kaliAvatar&&window.kaliAvatar.captured({arg})"), None, None, None::<&gio::Cancellable>, |_| {});
                         }
                     }
+                    ToUi::Suggestion(s) => crate::suggestion::show(&app, s),
                     ToUi::Consent(request, reply) => crate::perms::card::show(&app, request, reply),
                     ToUi::Command(Cmd::Panic) => {
                         if let Some(guard) = crate::perms::global() {

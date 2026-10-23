@@ -32,6 +32,8 @@ pub enum ToUi {
     Consent(crate::perms::ConsentRequest, std::sync::mpsc::Sender<crate::perms::Decision>),
     /// A screen capture was just taken: thumbnail as a PNG data URL (`None` when turned off).
     Captured(Option<String>),
+    /// Kali suggests looking at the screen; the user answers on chips the agent draws.
+    Suggestion(crate::suggestion::Suggestion),
     Command(Cmd),
 }
 
@@ -41,6 +43,20 @@ pub enum Cmd {
     /// Revoke every permission now.
     Panic,
     Quit,
+}
+
+/// Frames the UI thread wants to send to the core (the current session's reply channel).
+static OUTBOX: Mutex<Option<Sender<String>>> = Mutex::new(None);
+
+/// Send a frame to the core when connected. Returns false when there is no link.
+pub fn send_frame(frame: Value) -> bool {
+    OUTBOX.lock().ok().and_then(|o| o.as_ref().map(|tx| tx.send(frame.to_string()).is_ok())).unwrap_or(false)
+}
+
+fn set_outbox(tx: Option<Sender<String>>) {
+    if let Ok(mut o) = OUTBOX.lock() {
+        *o = tx;
+    }
 }
 
 pub type SharedConfig = Arc<Mutex<Config>>;
@@ -66,6 +82,7 @@ fn run(config: SharedConfig, monitors: Monitors, services: Arc<dyn DesktopServic
         };
         let started = Instant::now();
         let outcome = session(&url, &cfg, &config, &monitors, &services, &ui);
+        set_outbox(None);
         // Task grants do not survive the link to the core.
         if let Some(guard) = crate::perms::global() {
             guard.session_ended();
@@ -191,6 +208,7 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
     send_json(&mut socket, json!({ "event": "hello", "mode": "presence", "client": "kali-avatar", "version": env!("CARGO_PKG_VERSION") }))?;
 
     let (reply_tx, reply_rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+    set_outbox(Some(reply_tx.clone()));
     let mut last_ping = Instant::now();
     let mut pong_deadline: Option<Instant> = None;
 
@@ -217,6 +235,16 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
                     "pong" => pong_deadline = None,
                     "auth_required" => return Err(LinkError::AuthRequired),
                     "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone(), ui.clone(), shared.clone()),
+                    "suggestion" => {
+                        if let Some(s) = crate::suggestion::parse(&event) {
+                            let _ = ui.send_blocking(ToUi::Suggestion(s));
+                        }
+                    }
+                    // Nobody has the chat open to take the accepted suggestion: open it.
+                    "suggestion_ack" if event["delivered"].as_bool() == Some(false) => {
+                        let _ = ui.send_blocking(ToUi::Command(Cmd::OpenShell("chat")));
+                    }
+                    "suggestion_ack" => {}
                     "ready" => {
                         let _ = ui.send_blocking(ToUi::Connected(true));
                         let _ = ui.send_blocking(ToUi::Presence(text.to_string()));

@@ -5,6 +5,8 @@
 // and toggling settings.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import i18n from "../lib/i18n";
+import { SUGGESTION_VISIBLE_MS } from "../components/SuggestionChips";
 import { WSClient } from "../lib/wsClient";
 import { handleRemoteAvatarConfig } from "../avatar/avatarSync";
 import { websocketUrl } from "../lib/desktop";
@@ -25,6 +27,9 @@ import type {
   StatusEvent,
   ErrorEvent,
   ConsentRequestEvent,
+  SuggestionAcceptedEvent,
+  SuggestionChoice,
+  SuggestionEvent,
   ConsentDecision,
   ToolEvent,
   JobStartEvent,
@@ -112,6 +117,11 @@ export interface TerminalSessionData {
 
 export type ConnStatus = "connecting" | "ready" | "error" | "disconnected";
 
+/** What the user would have typed after picking a suggestion; it goes through the normal chat flow. */
+export function suggestionMessage(kind: "region" | "screen"): string {
+  return i18n.t(kind === "region" ? "suggestion.message_region" : "suggestion.message_screen") as string;
+}
+
 export interface ChatState {
   status: ConnStatus;
   messages: ChatMessage[];
@@ -129,6 +139,8 @@ export interface ChatState {
   systemStatus: StatusEvent | null;
   wsClient: WSClient | null;
   consentRequest: ConsentRequestEvent | null;
+  suggestion: SuggestionEvent | null;
+  answerSuggestion: (choice: SuggestionChoice) => void;
   toolEvents: ToolEvent[];
   isThinking: boolean;
   isTurnActive: boolean;
@@ -210,6 +222,17 @@ export function useChat(sessionOverride?: string): ChatState {
   const [error, setError] = useState<string | null>(null);
   const [systemStatus, setSystemStatus] = useState<StatusEvent | null>(null);
   const [consentRequest, setConsentRequest] = useState<ConsentRequestEvent | null>(null);
+  const [suggestion, setSuggestion] = useState<SuggestionEvent | null>(null);
+  const suggestionRef = useRef<SuggestionEvent | null>(null);
+  suggestionRef.current = suggestion;
+  const sendRef = useRef<((text: string) => void) | null>(null);
+  const suggestionId = suggestion?.id;
+  useEffect(() => {
+    // Ignoring the chips is not declining them: hide without telling the server.
+    if (!suggestionId) return;
+    const timer = window.setTimeout(() => setSuggestion(null), SUGGESTION_VISIBLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [suggestionId]);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isTurnActive, setIsTurnActive] = useState(false);
@@ -492,6 +515,14 @@ export function useChat(sessionOverride?: string): ChatState {
 
       client.on("consent_request", (p) => {
         setConsentRequest(p as ConsentRequestEvent);
+      });
+
+      client.on("suggestion", (p) => setSuggestion(p as SuggestionEvent));
+      client.on("suggestion_accepted", (p) => {
+        // Accepted on the avatar: say it in the chat as the user would; the consent card follows.
+        const ev = p as SuggestionAcceptedEvent;
+        setSuggestion((cur) => (cur && cur.id === ev.id ? null : cur));
+        sendRef.current?.(suggestionMessage(ev.kind));
       });
 
       client.on("tool_event", (p) => {
@@ -906,6 +937,7 @@ export function useChat(sessionOverride?: string): ChatState {
 
   const send = useCallback((text: string) => {
     if (!text.trim() || !clientRef.current) return;
+    setSuggestion(null);
     setMessages((prev) => [
       ...prev,
       { id: nextId(), role: "user", content: text },
@@ -919,6 +951,8 @@ export function useChat(sessionOverride?: string): ChatState {
       ...(selected.length > 0 ? { selected_artifacts: selected } : {}),
     });
   }, []);
+
+  sendRef.current = send;
 
   const setSelectedArtifactsProvider = useCallback(
     (fn: (() => SelectedArtifactRef[]) | null) => {
@@ -1008,6 +1042,15 @@ export function useChat(sessionOverride?: string): ChatState {
 
   const updateSettings = useCallback((patch: Record<string, unknown>) => {
     clientRef.current?.send({ event: "settings", ...patch });
+  }, []);
+
+  const answerSuggestion = useCallback((choice: SuggestionChoice) => {
+    const current = suggestionRef.current;
+    if (!current) return;
+    setSuggestion(null);
+    clientRef.current?.send({ event: "suggestion_response", id: current.id, session_id: current.session_id, choice });
+    // Choosing only says what to look at; the capture itself still waits for the consent card.
+    if (choice !== "dismiss") sendRef.current?.(suggestionMessage(choice));
   }, []);
 
   const respondConsent = useCallback((id: string, decision: ConsentDecision) => {
@@ -1106,6 +1149,8 @@ export function useChat(sessionOverride?: string): ChatState {
     systemStatus,
     wsClient: clientRef.current,
     consentRequest,
+    suggestion,
+    answerSuggestion,
     toolEvents,
     isThinking,
     isTurnActive,
@@ -1142,7 +1187,7 @@ export function useChat(sessionOverride?: string): ChatState {
   }), [
     status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
     ttsPlaying, ttsSegment, ttsTotal, ttsFilteredRaw, ttsFilteredOut,
-    error, systemStatus, consentRequest, toolEvents, isThinking, isTurnActive,
+    error, systemStatus, consentRequest, suggestion, answerSuggestion, toolEvents, isThinking, isTurnActive,
     currentStep, turnStats, stopped, downloadProgress, downloadError,
     isCreatingSession,
     terminalSessions, getTerminalSessionDetail,
