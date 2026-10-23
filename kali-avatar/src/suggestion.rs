@@ -4,7 +4,7 @@
 //! web content or the core can fake. Choosing only tells the core which chat message to start;
 //! the capture still goes through the consent card, which stays the only way to allow it.
 
-use crate::link::{self, ToUi};
+use crate::link;
 use gtk4::prelude::*;
 use gtk4::{gdk, glib, Align, Orientation};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};

@@ -27,6 +27,8 @@ import type {
   StatusEvent,
   ErrorEvent,
   ConsentRequestEvent,
+  CaptureAttachedEvent,
+  CaptureClearedEvent,
   SuggestionAcceptedEvent,
   SuggestionChoice,
   SuggestionEvent,
@@ -139,6 +141,8 @@ export interface ChatState {
   systemStatus: StatusEvent | null;
   wsClient: WSClient | null;
   consentRequest: ConsentRequestEvent | null;
+  attachedCapture: CaptureAttachedEvent | null;
+  discardCapture: () => void;
   suggestion: SuggestionEvent | null;
   answerSuggestion: (choice: SuggestionChoice) => void;
   toolEvents: ToolEvent[];
@@ -223,8 +227,11 @@ export function useChat(sessionOverride?: string): ChatState {
   const [systemStatus, setSystemStatus] = useState<StatusEvent | null>(null);
   const [consentRequest, setConsentRequest] = useState<ConsentRequestEvent | null>(null);
   const [suggestion, setSuggestion] = useState<SuggestionEvent | null>(null);
+  const [attachedCapture, setAttachedCapture] = useState<CaptureAttachedEvent | null>(null);
   const suggestionRef = useRef<SuggestionEvent | null>(null);
   suggestionRef.current = suggestion;
+  const attachedCaptureRef = useRef<CaptureAttachedEvent | null>(null);
+  attachedCaptureRef.current = attachedCapture;
   const sendRef = useRef<((text: string) => void) | null>(null);
   const suggestionId = suggestion?.id;
   useEffect(() => {
@@ -517,6 +524,11 @@ export function useChat(sessionOverride?: string): ChatState {
         setConsentRequest(p as ConsentRequestEvent);
       });
 
+      client.on("capture_attached", (p) => setAttachedCapture(p as CaptureAttachedEvent));
+      client.on("capture_cleared", (p) => {
+        const ev = p as CaptureClearedEvent;
+        setAttachedCapture((cur) => (cur && cur.id === ev.id ? null : cur));
+      });
       client.on("suggestion", (p) => setSuggestion(p as SuggestionEvent));
       client.on("suggestion_accepted", (p) => {
         // Accepted on the avatar: say it in the chat as the user would; the consent card follows.
@@ -1044,6 +1056,13 @@ export function useChat(sessionOverride?: string): ChatState {
     clientRef.current?.send({ event: "settings", ...patch });
   }, []);
 
+  const discardCapture = useCallback(() => {
+    const current = attachedCaptureRef.current;
+    if (!current) return;
+    setAttachedCapture(null);
+    clientRef.current?.send({ event: "capture_discard", id: current.id, session_id: current.session_id });
+  }, []);
+
   const answerSuggestion = useCallback((choice: SuggestionChoice) => {
     const current = suggestionRef.current;
     if (!current) return;
@@ -1149,6 +1168,8 @@ export function useChat(sessionOverride?: string): ChatState {
     systemStatus,
     wsClient: clientRef.current,
     consentRequest,
+    attachedCapture,
+    discardCapture,
     suggestion,
     answerSuggestion,
     toolEvents,
@@ -1187,7 +1208,7 @@ export function useChat(sessionOverride?: string): ChatState {
   }), [
     status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
     ttsPlaying, ttsSegment, ttsTotal, ttsFilteredRaw, ttsFilteredOut,
-    error, systemStatus, consentRequest, suggestion, answerSuggestion, toolEvents, isThinking, isTurnActive,
+    error, systemStatus, consentRequest, attachedCapture, discardCapture, suggestion, answerSuggestion, toolEvents, isThinking, isTurnActive,
     currentStep, turnStats, stopped, downloadProgress, downloadError,
     isCreatingSession,
     terminalSessions, getTerminalSessionDetail,

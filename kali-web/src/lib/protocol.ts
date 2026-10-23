@@ -353,6 +353,21 @@ export interface SuggestionAcceptedEvent {
   kind: "region" | "screen";
 }
 
+/** A capture the user sent from the avatar's preview; it rides along with their next message. */
+export interface CaptureAttachedEvent {
+  event: "capture_attached";
+  id: string;
+  session_id: string;
+  mode: "region" | "screen";
+  thumb: string | null;
+}
+
+export interface CaptureClearedEvent {
+  event: "capture_cleared";
+  id: string;
+  session_id: string;
+}
+
 export type SuggestionChoice = "region" | "screen" | "dismiss";
 
 export interface SessionListEvent {

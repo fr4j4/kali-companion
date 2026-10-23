@@ -278,6 +278,11 @@ impl Guard {
         self.audit.append(Entry::new("panic", "-", None, None, "revoke", why, &format!("{count} grants")));
     }
 
+    /// Audit a capture the user took on purpose with their own shortcut and then sent or discarded.
+    pub fn record_user_capture(&self, mode: &str, decision: &str) {
+        self.audit.append(Entry::new("user_capture", "observe", Some(mode), None, decision, "user", "ok"));
+    }
+
     /// Core disconnected or the session ended: task grants do not survive it.
     pub fn session_ended(&self) {
         if self.grants.lock().unwrap().revoke_all() > 0 {

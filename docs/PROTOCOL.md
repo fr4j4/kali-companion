@@ -250,12 +250,32 @@ Supported actions are `list_monitors`, `screenshot` and `launch_app`. Failed
 actions return `ok: false` and an `error` string. The core rejects responses
 from another connection and cancels pending requests on disconnect.
 
+### Screen suggestions and shared captures
+
+Kali can offer to look at the screen, and the user can send a capture on their own initiative.
+Neither path captures without the user: the first only draws buttons, the second starts from the
+user's own shortcut and sends only after they press "Enviar a Kali" on the agent's preview.
+
+| Event | Direction | Payload |
+| --- | --- | --- |
+| `suggestion` | core → web, presence | `id`, `session_id`, `kind` (`region`\|`screen`), `reason` (≤120 chars). Emitted by the safe `suggest_capture` tool after server-side limits (1 per 5 user turns, 3 per conversation, 10 turns of silence after a decline, none after 2 declines, or when turned off). |
+| `suggestion_response` | web, presence → core | `id`, `session_id`, `choice` (`region`\|`screen`\|`dismiss`). Accepting only makes the chat send a short message; the capture still waits for the agent's consent card. |
+| `suggestion_accepted` | core → web | `id`, `session_id`, `kind`. Sent when the avatar's chips were answered; the chat sends the message. |
+| `suggestion_ack` | core → presence | `id`, `delivered`. `false` when no chat is attached (the agent opens one). |
+| `user_capture` | presence → core | `mode`, `png_base64` (≤8 MB PNG). Only after the user approved the preview. |
+| `user_capture_ack` | core → presence | `ok`, `delivered`, `reason?`. |
+| `capture_attached` | core → web | `id`, `session_id`, `mode`, `thumb` (data URL or null). The capture rides along with the next `input` of the session (described with that message as the question) and expires after 10 minutes. |
+| `capture_discard` | web → core | `id`, `session_id`. |
+| `capture_cleared` | core → web | `id`, `session_id`. Sent when it was used or discarded. |
+
+`settings` / `status` carry `screen_suggestions` (boolean, default true).
+
 ### Presence mode and heartbeat
 
 `{"event":"hello","mode":"presence"}` joins as a lightweight avatar agent: no history or artifact
 replay, no wake word. `ready` returns `mode: "presence"` and `turn_active`. The core mirrors compact
 copies of `turn_start`, `delta`, `reasoning_delta`, `turn_end`, `message`, `stt_partial`, `stt_final`,
-`tts_audio` (without `audio`), `tool_event` (tool, status, call_id), `consent_request`, `wake_word` and
+`tts_audio` (without `audio`), `tool_event` (tool, status, call_id), `consent_request`, `suggestion`, `wake_word` and
 `error` for the followed session. `{"event":"ping","t":...}` is answered with `{"event":"pong","t":...}`;
 clients ping every ~25 s and reconnect when no pong arrives.
 

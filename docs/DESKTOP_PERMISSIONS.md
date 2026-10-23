@@ -83,3 +83,11 @@ Solo `launch_app` la respeta. Vacía por defecto.
 - Es solo un aviso de que ya se capturó; no sustituye ni concede consentimiento, que se pide antes en la tarjeta.
 - Ajustes (sección Escritorio): «Mostrar una miniatura junto al avatar» y «Reproducir un sonido de obturador», ambos activos por defecto. Se guardan en `avatar.captureThumbnail` y `avatar.captureSound` de `~/.config/kali/desktop.json`.
 - Una captura hecha por el propio core con `mss` (sin agente de escritorio) no muestra miniatura.
+
+## Ver la pantalla por intención, sugerencias y atajo propio
+
+- **`look_at_screen`** (`target`: `region`|`screen`, `question`, `monitor`, `reason`) reemplaza a `screenshot` en lo que ve el modelo; `screenshot` queda como alias oculto. Pasa por la misma tarjeta del agente, sin cambios en el consentimiento. La pregunta del usuario llega al paso de visión. Ya no hay procedimiento obligatorio de monitores: se llama directo.
+- **`suggest_capture`** es segura porque nunca captura: solo emite un evento `suggestion`. Los límites viven en el servidor (1 cada 5 turnos, 3 por conversación, silencio tras rechazar, ninguna tras dos rechazos) y se apagan con el ajuste «Sugerir mirar mi pantalla».
+- **Chips**: en el chat (`SuggestionChips`) y en el avatar (ventana GTK del agente, así el clic es verificable). Elegir solo hace que el chat envíe «Mira una zona de mi pantalla»; la captura sigue pidiendo la tarjeta de consentimiento.
+- **Atajo propio**: `kali-avatar --ask-region` y `kali-avatar --ask-screen` (enlazar en la configuración del compositor). El agente en ejecución recibe la orden por un socket unix 0600 en `$XDG_RUNTIME_DIR/kali/avatar.sock`, deja elegir la región (o toma el monitor principal) y muestra una **vista previa con «Descartar» por defecto**. Solo «Enviar a Kali» manda la imagen (`user_capture`); Esc, cerrar o 2 min sin respuesta descartan. Cada envío o descarte queda en la auditoría (`user_capture`). El núcleo la guarda en memoria para la siguiente pregunta de la sesión (10 min) y la describe con esa pregunta; el texto de la imagen se trata como dato, nunca como instrucciones.
+- Ningún mensaje de voz o chat puede disparar ni confirmar estos pasos.

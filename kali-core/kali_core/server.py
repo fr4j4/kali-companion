@@ -65,6 +65,7 @@ from kali_core.claws.manage_artifacts import (
 )
 from kali_core.claws.organize import OrganizeFolderTool
 from kali_core.claws.screenshot import LookAtScreenTool, ScreenshotTool
+from kali_core import captures as capture_store
 from kali_core.claws.suggest import SuggestCaptureTool, limiter as suggestion_limiter
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
 from kali_core.claws.games import GameStartTool, GameActionTool, GameEndTool
@@ -466,6 +467,7 @@ class Server:
         self.gateway = PermissionGateway()
         self.desktop_broker = DesktopBroker()
         self.last_active_session: str | None = None
+        self.capture_inbox = capture_store.CaptureInbox()
         self.desktop_token = os.environ.get("KALI_DESKTOP_TOKEN", "").strip()
         self.consent = ConsentMgr(send_callback=self._send_consent)
         # Register tools + set up executor.
@@ -1842,6 +1844,7 @@ class Connection:
                         {"event": "ready", "session_id": requested_sid, "version": "0.1.0"}
                     )
                     await self._emit_status()
+                    await self._replay_attached_capture(requested_sid)
                     if self._wake_word_enabled:
                         await self._start_wake_word()
                     msgs = await self.server.session_store.get_messages(requested_sid)
@@ -2007,6 +2010,14 @@ class Connection:
                     delivered = await self.server.broadcast_session(
                         session, {"event": "suggestion_accepted", "session_id": session, "id": sid, "kind": choice})
                     await self.send({"event": "suggestion_ack", "id": sid, "delivered": delivered > 0})
+
+        elif kind == "user_capture" and self.mode == "presence":
+            await self._handle_user_capture(event)
+
+        elif kind == "capture_discard":
+            session = str(event.get("session_id") or self.session_id or "")
+            if self.server.capture_inbox.discard(session, str(event.get("id", ""))):
+                await self.server.broadcast_session(session, {"event": "capture_cleared", "session_id": session, "id": event.get("id")})
 
         elif kind == "download_tts_model":
             asyncio.create_task(self._handle_download_tts_model(event))
@@ -3153,6 +3164,27 @@ class Connection:
         if self._wake_word is not None:
             self._wake_word.stop()
 
+    async def _handle_user_capture(self, event: dict[str, Any]) -> None:
+        """A capture the user sent from the avatar's preview: hold it for their next message."""
+        png = capture_store.decode(event.get("png_base64"))
+        session = self.session_id or self.server.last_active_session or ""
+        if png is None or not session:
+            await self.send({"event": "user_capture_ack", "ok": False, "delivered": False,
+                             "reason": "invalid capture" if png is None else "no active chat"})
+            return
+        cap = self.server.capture_inbox.put(session, png, str(event.get("mode", "")))
+        delivered = await self.server.broadcast_session(session, {
+            "event": "capture_attached", "session_id": session, "id": cap.id, "mode": cap.mode,
+            "thumb": capture_store.thumbnail(png),
+        })
+        await self.send({"event": "user_capture_ack", "ok": True, "delivered": delivered > 0})
+
+    async def _replay_attached_capture(self, session_id: str) -> None:
+        cap = self.server.capture_inbox.peek(session_id)
+        if cap:
+            await self.send({"event": "capture_attached", "session_id": session_id, "id": cap.id,
+                             "mode": cap.mode, "thumb": capture_store.thumbnail(cap.png)})
+
     # ── Agent turn ─────────────────────────────────────────
 
     async def _handle_input(
@@ -3225,6 +3257,15 @@ class Connection:
             lines.append("")
             lines.append(f"USER MESSAGE: {content}")
             agent_message = "\n".join(lines)
+
+        # A capture the user sent from their own shortcut: describe it for this very message.
+        shared = self.server.capture_inbox.take(session_id)
+        if shared is not None:
+            from kali_core.mind.vision import VisionProcessor
+            description = await VisionProcessor(llm_provider=self.server.llm_provider).process(shared.png, "image/png", content)
+            agent_message = capture_store.with_capture(description, agent_message)
+            suggestion_limiter.note_capture(session_id)
+            await self.server.broadcast_session(session_id, {"event": "capture_cleared", "session_id": session_id, "id": shared.id})
 
         # What the user's desktop can do right now (hides what the connected agent lacks).
         desktop_line = self.server.desktop_broker.describe(

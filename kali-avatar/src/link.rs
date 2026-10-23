@@ -34,6 +34,12 @@ pub enum ToUi {
     Captured(Option<String>),
     /// Kali suggests looking at the screen; the user answers on chips the agent draws.
     Suggestion(crate::suggestion::Suggestion),
+    /// The user's shortcut asked to show Kali a region or the screen.
+    Ask(crate::ask::Mode),
+    /// What the user captured, waiting for them to send or discard it.
+    Preview(Vec<u8>, crate::ask::Mode),
+    /// A short message for the user.
+    Notice(String),
     Command(Cmd),
 }
 
@@ -51,6 +57,11 @@ static OUTBOX: Mutex<Option<Sender<String>>> = Mutex::new(None);
 /// Send a frame to the core when connected. Returns false when there is no link.
 pub fn send_frame(frame: Value) -> bool {
     OUTBOX.lock().ok().and_then(|o| o.as_ref().map(|tx| tx.send(frame.to_string()).is_ok())).unwrap_or(false)
+}
+
+/// True while the link to the core is up.
+pub fn is_connected() -> bool {
+    OUTBOX.lock().map(|o| o.is_some()).unwrap_or(false)
 }
 
 fn set_outbox(tx: Option<Sender<String>>) {
@@ -245,6 +256,14 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
                         let _ = ui.send_blocking(ToUi::Command(Cmd::OpenShell("chat")));
                     }
                     "suggestion_ack" => {}
+                    "user_capture_ack" => {
+                        if event["ok"].as_bool() != Some(true) {
+                            let _ = ui.send_blocking(ToUi::Notice("Kali no pudo recibir la captura: abre el chat e inténtalo de nuevo.".into()));
+                        } else if event["delivered"].as_bool() == Some(false) {
+                            // No chat is open: open it so the user can write what they want to ask.
+                            let _ = ui.send_blocking(ToUi::Command(Cmd::OpenShell("chat")));
+                        }
+                    }
                     "ready" => {
                         let _ = ui.send_blocking(ToUi::Connected(true));
                         let _ = ui.send_blocking(ToUi::Presence(text.to_string()));

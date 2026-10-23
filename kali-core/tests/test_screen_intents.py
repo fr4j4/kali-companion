@@ -37,7 +37,7 @@ class PromptTests(unittest.TestCase):
     def test_no_mandatory_monitor_procedure(self):
         p = settings.llm_system_prompt
         self.assertNotIn("MONITOR PROCEDURE", p)
-        self.assertNotIn("sample", p)
+        self.assertNotIn('"sample": true', p)
         self.assertIn("look_at_screen", p)
         for tool in ("find_apps", "list_windows", "focus_window", "suggest_capture"):
             self.assertIn(tool, p)

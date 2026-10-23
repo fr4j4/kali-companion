@@ -6,6 +6,7 @@
 
 mod actions;
 mod apps;
+mod ask;
 mod config;
 mod link;
 mod perms;
@@ -58,6 +59,9 @@ fn main() -> glib_exit::ExitCode {
         return glib_exit::ExitCode::SUCCESS;
     }
 
+    if let Some(mode) = ask::requested(&std::env::args().collect::<Vec<_>>()) {
+        return glib_exit::ExitCode::from(ask::request(mode));
+    }
     if std::env::args().any(|a| a == "--panic") {
         return panic_running();
     }
@@ -84,6 +88,7 @@ fn main() -> glib_exit::ExitCode {
         )));
         let _ = SERVICES.set(backend.services.clone());
 
+        ask::serve(tx.clone());
         link::spawn(shared.clone(), monitors.clone(), backend.services.clone(), tx.clone());
         // The tray needs a session bus; without one (minimal sessions, containers) run without it.
         if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some() || std::env::var_os("XDG_RUNTIME_DIR").is_some_and(|d| std::path::Path::new(&d).join("bus").exists()) {
@@ -104,6 +109,7 @@ fn main() -> glib_exit::ExitCode {
             services.stop();
         }
         let _ = std::fs::remove_file(pid_file());
+        let _ = std::fs::remove_file(ask::socket_path());
     });
     glib_exit::from(app.run())
 }
