@@ -5,7 +5,7 @@
 //! the cursor to it. Best effort: failures are logged (with `KALI_AVATAR_DEBUG=1`) and the avatar
 //! simply keeps its in-window tracking.
 
-use crate::cursor::debug;
+use super::debug;
 use crate::link::ToUi;
 use gtk4::gio::{self, prelude::*};
 use gtk4::glib;
@@ -39,11 +39,6 @@ if (typeof QTimer !== "undefined") {
     print("kali-avatar: QTimer unavailable in this KWin; cursor following disabled");
 }
 "#;
-
-pub fn is_kde_wayland() -> bool {
-    std::env::var("XDG_CURRENT_DESKTOP").map(|d| d.to_lowercase().contains("kde")).unwrap_or(false)
-        && std::env::var_os("WAYLAND_DISPLAY").is_some()
-}
 
 pub fn parse_xy(raw: &str) -> Option<(i32, i32)> {
     let (x, y) = raw.split_once(',')?;

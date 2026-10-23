@@ -6,14 +6,16 @@
 
 mod actions;
 mod config;
-mod cursor;
-mod kwin;
 mod link;
+mod platform;
 mod tray;
 mod ui;
 
 use gtk4::prelude::*;
 use std::sync::{Arc, Mutex};
+
+/// Kept for the shutdown hook, which runs outside the activate closure.
+static SERVICES: std::sync::OnceLock<Arc<dyn platform::DesktopServices>> = std::sync::OnceLock::new();
 
 fn pid_file() -> std::path::PathBuf {
     config::runtime_dir().join("avatar.pid")
@@ -47,27 +49,27 @@ fn main() -> glib_exit::ExitCode {
         let shared: link::SharedConfig = Arc::new(Mutex::new(initial.clone()));
         let monitors: actions::Monitors = Default::default();
         let (tx, rx) = async_channel::unbounded();
+        let backend = platform::Backend::detect();
+        let _ = SERVICES.set(backend.services.clone());
 
-        link::spawn(shared.clone(), monitors.clone(), tx.clone());
+        link::spawn(shared.clone(), monitors.clone(), backend.services.clone(), tx.clone());
         // The tray needs a session bus; without one (minimal sessions, containers) run without it.
         if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some() || std::env::var_os("XDG_RUNTIME_DIR").is_some_and(|d| std::path::Path::new(&d).join("bus").exists()) {
             ksni::TrayService::new(tray::KaliTray { ui: tx.clone(), avatar_visible: initial.avatar.visible }).spawn();
         } else {
             eprintln!("[kali-avatar] no D-Bus session bus: tray disabled");
         }
-        // Pointer source for eye tracking over other windows (see cursor.rs / kwin.rs).
-        if kwin::is_kde_wayland() {
-            kwin::start(tx.clone());
-        } else if let Some(source) = cursor::spawn(tx.clone()) {
-            if cursor::debug() {
+        // Pointer source for eye tracking over other windows (compositor-specific, see platform/).
+        if let Some(source) = backend.services.start_cursor(tx.clone()) {
+            if platform::debug() {
                 eprintln!("[kali-avatar] cursor source: {source}");
             }
         }
-        ui::build(app, initial, shared, monitors, rx, tx);
+        ui::build(app, initial, shared, monitors, rx, tx, backend);
     });
     app.connect_shutdown(|_| {
-        if kwin::is_kde_wayland() {
-            kwin::stop();
+        if let Some(services) = SERVICES.get() {
+            services.stop();
         }
         let _ = std::fs::remove_file(pid_file());
     });

@@ -7,6 +7,7 @@
 
 use crate::actions::{self, Monitors, CAPABILITIES};
 use crate::config::Config;
+use crate::platform::DesktopServices;
 use serde_json::{json, Value};
 use std::io::ErrorKind;
 use std::net::{TcpStream, ToSocketAddrs};
@@ -42,14 +43,14 @@ const HEARTBEAT: Duration = Duration::from_secs(25);
 const PONG_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL: Duration = Duration::from_millis(500);
 
-pub fn spawn(config: SharedConfig, monitors: Monitors, ui: async_channel::Sender<ToUi>) {
+pub fn spawn(config: SharedConfig, monitors: Monitors, services: Arc<dyn DesktopServices>, ui: async_channel::Sender<ToUi>) {
     thread::Builder::new()
         .name("kali-link".into())
-        .spawn(move || run(config, monitors, ui))
+        .spawn(move || run(config, monitors, services, ui))
         .expect("spawn link thread");
 }
 
-fn run(config: SharedConfig, monitors: Monitors, ui: async_channel::Sender<ToUi>) {
+fn run(config: SharedConfig, monitors: Monitors, services: Arc<dyn DesktopServices>, ui: async_channel::Sender<ToUi>) {
     let mut backoff = Duration::from_secs(1);
     loop {
         let cfg = config.lock().map(|c| c.clone()).unwrap_or_default();
@@ -58,7 +59,7 @@ fn run(config: SharedConfig, monitors: Monitors, ui: async_channel::Sender<ToUi>
             continue;
         };
         let started = Instant::now();
-        let outcome = session(&url, &cfg, &config, &monitors, &ui);
+        let outcome = session(&url, &cfg, &config, &monitors, &services, &ui);
         let _ = ui.send_blocking(ToUi::Connected(false));
         if let Err(reason) = &outcome {
             if std::env::var_os("KALI_AVATAR_DEBUG").is_some() {
@@ -162,7 +163,7 @@ fn send_json(socket: &mut Socket, value: Value) -> Result<(), LinkError> {
     socket.send(Message::text(value.to_string())).map_err(io_err)
 }
 
-fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, ui: &async_channel::Sender<ToUi>) -> Result<(), LinkError> {
+fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, services: &Arc<dyn DesktopServices>, ui: &async_channel::Sender<ToUi>) -> Result<(), LinkError> {
     let mut socket = connect(url)?;
     let key = cfg.link_key();
 
@@ -205,7 +206,7 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
                 match event["event"].as_str().unwrap_or_default() {
                     "pong" => pong_deadline = None,
                     "auth_required" => return Err(LinkError::AuthRequired),
-                    "desktop_action" => spawn_action(event, monitors.clone(), reply_tx.clone()),
+                    "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone()),
                     "ready" => {
                         let _ = ui.send_blocking(ToUi::Connected(true));
                         let _ = ui.send_blocking(ToUi::Presence(text.to_string()));
@@ -223,12 +224,12 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
     }
 }
 
-fn spawn_action(event: Value, monitors: Monitors, reply: Sender<String>) {
+fn spawn_action(event: Value, monitors: Monitors, services: Arc<dyn DesktopServices>, reply: Sender<String>) {
     thread::spawn(move || {
         let id = event["id"].clone();
         let action = event["action"].as_str().unwrap_or_default().to_string();
         let params = event.get("params").cloned().unwrap_or(Value::Null);
-        let frame = match actions::perform(&action, &params, &monitors) {
+        let frame = match actions::perform(&action, &params, &monitors, services.as_ref()) {
             Ok(result) => json!({ "event": "desktop_action_result", "id": id, "ok": true, "result": result }),
             Err(error) => json!({ "event": "desktop_action_result", "id": id, "ok": false, "error": error }),
         };
