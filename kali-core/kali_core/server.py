@@ -1755,6 +1755,11 @@ class Connection:
                 if isinstance(caps, list):
                     self.desktop_capabilities = frozenset(c for c in caps if isinstance(c, str))
                 self.server.desktop_broker.register(self)
+            logger.info(
+                "desktop_register ok=%s capabilities=%s",
+                self.is_desktop,
+                sorted(self.desktop_capabilities) if self.desktop_capabilities is not None else "legacy",
+            )
             await self.send({
                 "event": "desktop_registered",
                 "ok": self.is_desktop,

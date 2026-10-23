@@ -129,7 +129,7 @@ class Executor:
 
         # Build context and run.
         gaze = getattr(self, "gaze_client", None)
-        if self.desktop_broker and self.desktop_broker.has_desktop(session_id):
+        if self.desktop_broker and self.desktop_broker.has_desktop(session_id, "screenshot"):
             gaze = RemoteGazeClient(self.desktop_broker, session_id)
         elif os.environ.get("KALI_ALLOW_SERVER_SCREEN", "1").strip().lower() in ("0", "false", "no"):
             # Remote deployments: never fall back to the server's own screen.
