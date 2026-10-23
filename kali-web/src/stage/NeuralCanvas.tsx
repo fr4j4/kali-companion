@@ -18,6 +18,7 @@
  * Artifacts from the backend spawn as floating windows on the canvas.
  */
 
+import { Spinner } from "../components/ui/Spinner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
@@ -487,6 +488,14 @@ export function NeuralCanvas({
         onReturnHome={minimizeFocusedWindow}
         isMobile={isMobile}
       />
+
+      {/* Reconnection banner: the WS client retries with backoff on its own. */}
+      {chat.status === "disconnected" && (
+        <div role="status" className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-border bg-elevated px-4 py-1.5 text-xs text-fg max-w-[90vw]">
+          <Spinner size={14} className="text-accent" label={t("status.reconnecting") as string} />
+          {t("status.reconnecting")}
+        </div>
+      )}
 
       {/* Stopped toast */}
       <AnimatePresence>

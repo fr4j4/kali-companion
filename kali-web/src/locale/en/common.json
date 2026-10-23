@@ -855,5 +855,6 @@
   "desktop.settings.save": "Save connection",
   "desktop.settings.saved": "Saved. Reloading connection…",
   "desktop.settings.save_error": "Couldn't save",
-  "chat.copy_message": "Copy message"
+  "chat.copy_message": "Copy message",
+  "status.reconnecting": "Connection lost. Reconnecting…"
 }
