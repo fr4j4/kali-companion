@@ -44,4 +44,11 @@ describe("AvatarStateTracker", () => {
     t.apply({ event: "turn_start" }, 1);
     expect(t.apply({ event: "disconnected" }, 2)).toMatchObject({ mood: "idle", connected: false });
   });
+
+  it("keeps speaking for a default time when the segment duration is unknown", () => {
+    const t = new AvatarStateTracker();
+    expect(t.apply({ event: "tts_audio", duration: 0 }, 1000).mood).toBe("hablando");
+    expect(t.view(2000).mood).toBe("hablando");
+    expect(t.view(3000).mood).toBe("idle");
+  });
 });

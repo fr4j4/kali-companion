@@ -76,6 +76,7 @@ from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
 from kali_core.ear.providers import get_stt_provider
 from kali_core import avatar_config
+from kali_core.presence import tts_duration
 from kali_core.user_config import UserConfig, load_or_default as load_user_config, save as save_user_config
 from kali_core.game.gsi import gsi_state
 from kali_core.gaze import GazeClient
@@ -537,6 +538,7 @@ class Server:
         compact = payload
         if event == "tts_audio":
             compact = {k: v for k, v in payload.items() if k != "audio"}
+            compact["duration"] = tts_duration(payload)
         elif event == "tool_event":
             compact = {k: payload.get(k) for k in ("event", "session_id", "tool", "status", "call_id")}
         if session_id and "session_id" not in compact:

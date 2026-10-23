@@ -25,6 +25,8 @@ export interface AvatarViewState {
 
 const TEXT_TAIL = 160;
 const WAKE_LISTEN_MS = 8000;
+/** Speech time assumed for a TTS segment whose duration is unknown (0 / missing). */
+const UNKNOWN_SPEECH_S = 1.5;
 const SUCCESS_MS = 2000;
 const ERROR_MS = 3000;
 const REACTION_MS = 3000;
@@ -74,7 +76,7 @@ export class AvatarStateTracker {
         this.reactToText(now);
         break;
       case "tts_audio": {
-        const seconds = typeof ev.duration === "number" ? ev.duration : 0;
+        const seconds = typeof ev.duration === "number" && ev.duration > 0 ? ev.duration : UNKNOWN_SPEECH_S;
         this.speakingUntil = Math.max(this.speakingUntil, now) + seconds * 1000;
         break;
       }
