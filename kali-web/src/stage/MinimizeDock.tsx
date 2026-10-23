@@ -22,7 +22,7 @@ export function MinimizeDock({ windows, onRestore }: Props) {
             role="button"
             tabIndex={0}
             aria-label={t("dock.minimize.restore", { title: w.title }) as string}
-            onKeyDown={(e) => { if (e.key === "Enter") onRestore(w.id); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRestore(w.id); } }}
             initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8, x: 20 }}

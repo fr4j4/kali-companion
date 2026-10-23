@@ -1,9 +1,10 @@
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Brain } from "lucide-react";
+import { Brain, Check, Copy } from "lucide-react";
 import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { Overlay } from "../components/ui/Overlay";
+import { StateMessage } from "../components/ui/StateMessage";
 import type { ChatMessage } from "../hooks/useChat";
 
 interface Props {
@@ -32,11 +33,9 @@ export function ConversationModal({ open, onClose }: Props) {
       size="xl"
       title={t("conversation.title")}
     >
-      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin -mx-5 -mb-5 p-5 space-y-3">
+      <div ref={scrollRef} role="log" aria-live="polite" className="flex-1 overflow-y-auto scrollbar-thin -mx-5 -mb-5 p-5 space-y-3">
         {messages.length === 0 && (
-          <p className="text-muted text-sm text-center py-8">
-            {t("conversation.empty")}
-          </p>
+          <StateMessage kind="empty" title={t("conversation.empty") as string} className="py-8" />
         )}
         {messages.map((msg) => (
           <MessageRow key={msg.id} msg={msg} />
@@ -49,6 +48,10 @@ export function ConversationModal({ open, onClose }: Props) {
 function MessageRow({ msg }: { msg: ChatMessage }) {
   const { t } = useTranslation();
   const isUser = msg.role === "user";
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(msg.content).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }).catch(() => undefined);
+  };
 
   const assistantHtml = useMemo(() => {
     if (isUser || !msg.content) return null;
@@ -115,8 +118,13 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
 
   return (
     <div className={`flex flex-col gap-0.5 ${isUser ? "items-end" : "items-start"}`}>
-      <span className="text-[10px] text-muted/40 badge px-1">
+      <span className="flex items-center gap-1 text-[10px] text-muted/40 badge px-1">
         {isUser ? t("conversation.you") : t("assistant.name")}
+        {!isUser && msg.content && (
+          <button type="button" className="text-muted/60 hover:text-fg" onClick={copy} aria-label={t("chat.copy_message") as string} title={t("chat.copy_message") as string}>
+            {copied ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
+          </button>
+        )}
       </span>
       <div
         className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
