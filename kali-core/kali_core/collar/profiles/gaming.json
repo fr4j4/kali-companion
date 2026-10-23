@@ -2,7 +2,7 @@
   "id": "gaming",
   "name": "Gaming",
   "description": "Profile for in-game assistance. No-spoiler game info, Dota builds, web lookups, screen capture.",
-  "allowed_tools": ["web_search", "web_fetch", "fetch_game_resource", "list_monitors", "screenshot"],
+  "allowed_tools": ["web_search", "web_fetch", "fetch_game_resource", "list_monitors", "screenshot", "look_at_screen"],
   "working_dirs": [],
   "command_whitelist": []
 }

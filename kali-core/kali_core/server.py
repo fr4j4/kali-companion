@@ -64,7 +64,8 @@ from kali_core.claws.manage_artifacts import (
     UpdateArtifactTool,
 )
 from kali_core.claws.organize import OrganizeFolderTool
-from kali_core.claws.screenshot import ScreenshotTool
+from kali_core.claws.screenshot import LookAtScreenTool, ScreenshotTool
+from kali_core.claws.suggest import SuggestCaptureTool, limiter as suggestion_limiter
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
 from kali_core.claws.games import GameStartTool, GameActionTool, GameEndTool
 from kali_core.claws.terminal_session import CreateTerminalSessionTool
@@ -361,6 +362,8 @@ def _register_tools() -> None:
     # Phase 3 tools.
     register(ListMonitorsTool())
     register(ScreenshotTool())
+    register(LookAtScreenTool())
+    register(SuggestCaptureTool())
     # Phase 4 tools.
     register(FetchGameResourceTool())
     # Generic artifact generation (documents, diagrams, tables, code, etc.).
@@ -389,6 +392,7 @@ def _build_tool_defs() -> list[ToolDef]:
             schema=tool.schema,
         )
         for tool in available_tools()
+        if not getattr(tool, "hidden", False)
     ]
 
 
@@ -396,7 +400,7 @@ def _build_tool_defs() -> list[ToolDef]:
 PRESENCE_EVENTS = frozenset({
     "turn_start", "delta", "reasoning_delta", "turn_end", "message",
     "stt_partial", "stt_final", "tts_audio", "tool_event", "consent_request",
-    "wake_word", "error",
+    "wake_word", "error", "suggestion",
 })
 
 
@@ -1500,6 +1504,7 @@ class Server:
             "input_mode": settings.input_mode,
             "feedback_mode": "minimal",
             "plan_mode": False,
+            "screen_suggestions": True,
             "voice_instructions": "",
             "voice_seed": -1,
             "game_session_path": None,
@@ -1738,6 +1743,8 @@ class Connection:
             self._feedback_mode = str(cfg.feedback_mode)
         if cfg.plan_mode is not None:
             self._plan_mode = bool(cfg.plan_mode)
+        if cfg.screen_suggestions is not None:
+            suggestion_limiter.enabled = bool(cfg.screen_suggestions)
         if cfg.voice_instructions is not None:
             self._voice_instructions = str(cfg.voice_instructions)
         if cfg.voice_seed is not None:
@@ -1982,6 +1989,14 @@ class Connection:
 
         elif kind == "settings":
             await self._apply_settings(event)
+
+        elif kind == "suggestion_response":
+            # The user answered a suggestion chip. Accepting only starts a normal turn (sent by
+            # the client as a message), so the consent card still decides about the capture.
+            sid = str(event.get("id", ""))
+            choice = str(event.get("choice", ""))
+            if sid and choice in ("region", "screen", "dismiss"):
+                suggestion_limiter.respond(str(event.get("session_id") or self.session_id or ""), sid, choice)
 
         elif kind == "download_tts_model":
             asyncio.create_task(self._handle_download_tts_model(event))
@@ -3177,6 +3192,7 @@ class Connection:
         # before the first token arrives (especially important for reasoning
         # models that take 10-20s to produce output).
         await self.send({"event": "turn_start", "session_id": session_id})
+        suggestion_limiter.note_user_turn(session_id)
 
         # Inject selected-artifact context so the agent knows which
         # artifacts the user currently has in focus. The context is
@@ -3199,6 +3215,14 @@ class Connection:
             lines.append("")
             lines.append(f"USER MESSAGE: {content}")
             agent_message = "\n".join(lines)
+
+        # What the user's desktop can do right now (hides what the connected agent lacks).
+        desktop_line = self.server.desktop_broker.describe(
+            session_id,
+            server_screen=os.environ.get("KALI_ALLOW_SERVER_SCREEN", "1").strip().lower() not in ("0", "false", "no"),
+        )
+        if desktop_line:
+            agent_message = f"{desktop_line}\n\n{agent_message}"
 
         # Feedback mode: inject a confirmation instruction before the user
         # message when confirm or plan mode is active.
@@ -3569,6 +3593,8 @@ class Connection:
             self._feedback_mode = event["feedback_mode"]
         if "plan_mode" in event:
             self._plan_mode = bool(event["plan_mode"])
+        if "screen_suggestions" in event:
+            suggestion_limiter.enabled = bool(event["screen_suggestions"])
         if "game_session_path" in event:
             new_path = event["game_session_path"]
             if new_path:
@@ -3715,6 +3741,7 @@ class Connection:
             input_mode=self._input_mode,
             feedback_mode=self._feedback_mode,
             plan_mode=self._plan_mode,
+            screen_suggestions=suggestion_limiter.enabled,
             voice_instructions=self._voice_instructions or "",
             voice_seed=self._voice_seed,
         )
@@ -3733,6 +3760,7 @@ class Connection:
             "input_mode": self._input_mode,
             "feedback_mode": self._feedback_mode,
             "plan_mode": self._plan_mode,
+            "screen_suggestions": suggestion_limiter.enabled,
             "artifact_diff_preview": settings.artifact_diff_preview,
             "tools": [t.name for t in available_tools()],
             "available_profiles": [p["id"] for p in self.server.gateway.list_profiles()],

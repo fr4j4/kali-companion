@@ -1,0 +1,192 @@
+[
+ {
+  "text": "mira este error",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "qué dice este mensaje",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "look at this",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "can you check this dialog",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "ayúdame con esto que me sale",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "what does this error mean? look",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "lee esto que tengo en pantalla",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "revisa esta ventana de aquí",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "is this right? take a look",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "qué significa este cuadro",
+  "expect": "region",
+  "group": "explicit"
+ },
+ {
+  "text": "mira mi pantalla",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "qué ves en mi pantalla",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "look at my screen",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "what's on my second monitor?",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "cómo se ve mi escritorio",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "revisa mi juego",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "check what I have open",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "qué tengo abierto ahora",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "mira el otro monitor",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "show me you can see my desktop",
+  "expect": "screen",
+  "group": "explicit"
+ },
+ {
+  "text": "me sale un error al compilar",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "it looks weird on my side",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "no sé qué hacer en esta pantalla",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "the installer shows something strange",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "mi juego se quedó pegado en una pantalla",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "I get a red message when I log in",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "no me carga la página y sale algo raro",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "something is off with the layout of my app",
+  "expect": "suggest",
+  "group": "strong-signal"
+ },
+ {
+  "text": "qué es una variable en rust",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "how do I write a for loop in python",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "cuéntame un chiste",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "explain what a screenshot is",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "¿cuál es la capital de Chile?",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "ayúdame con mi tarea de matemáticas",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "abre firefox",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "what's the weather",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "build de Pudge",
+  "expect": "none",
+  "group": "negative"
+ },
+ {
+  "text": "resume este texto: hola mundo",
+  "expect": "none",
+  "group": "negative"
+ }
+]

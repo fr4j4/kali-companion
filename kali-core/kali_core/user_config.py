@@ -67,6 +67,7 @@ class UserConfig:
     input_mode: str | None = None
     feedback_mode: str | None = None
     plan_mode: bool | None = None
+    screen_suggestions: bool | None = None
     voice_instructions: str | None = None
     voice_seed: int | None = None
 

@@ -36,6 +36,10 @@ AGENT_ACTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Tools the model sees under another name than the action the agent serves.
+AGENT_ALIASES: dict[str, str] = {"look_at_screen": "screenshot"}
+
+
 class Executor:
     """Executes tools with permission checks and consent."""
 
@@ -97,7 +101,8 @@ class Executor:
 
         # An agent that enforces consent on the user's machine shows the only card for the
         # actions it serves; asking here as well would make the user approve twice.
-        agent_action = tool_name if tool_name in AGENT_ACTIONS else None
+        agent_action = AGENT_ALIASES.get(tool_name, tool_name)
+        agent_action = agent_action if agent_action in AGENT_ACTIONS else None
         if (
             not decision.allow
             and decision.needs_consent
@@ -180,7 +185,7 @@ class Executor:
         )
 
         try:
-            if tool_name in AGENT_ACTIONS and tool_name != "screenshot" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name):
+            if tool_name in AGENT_ACTIONS and tool_name not in ("screenshot", "look_at_screen") and self.desktop_broker and self.desktop_broker.has_desktop(session_id, tool_name):
                 # Run on the user's machine; the agent resolves, asks the user and enforces.
                 agent_params = {k: params[k] for k in AGENT_ACTIONS[tool_name] if k in params}
                 result = ToolResult(output=await self.desktop_broker.request(session_id, tool_name, agent_params))

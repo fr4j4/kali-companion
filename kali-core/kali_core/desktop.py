@@ -83,6 +83,27 @@ class DesktopBroker:
         caps = getattr(conn, "desktop_capabilities", None) if conn is not None else None
         return caps is not None and "local_consent" in caps
 
+    def describe(self, session_id: str, server_screen: bool = True) -> str:
+        """One line for the model about what the user's desktop can do right now."""
+        names = {
+            "launch_app": "open apps", "find_apps": "search apps", "screenshot": "look at the screen",
+            "list_windows": "list windows", "focus_window": "focus windows",
+        }
+        conn = self.find(session_id)
+        if conn is None:
+            if server_screen:
+                return ""
+            return ("DESKTOP: no desktop agent is connected, so you cannot open apps, look at the screen or "
+                    "manage windows. Say so plainly if asked; do not call those tools.")
+        caps = getattr(conn, "desktop_capabilities", None)
+        caps = LEGACY_CAPABILITIES if caps is None else caps
+        can = [label for action, label in names.items() if action in caps]
+        cannot = [label for action, label in names.items() if action not in caps]
+        line = "DESKTOP: agent connected; you can " + (", ".join(can) or "do nothing on the desktop") + " (each action needs the user's approval)."
+        if cannot:
+            line += " Not supported here: " + ", ".join(cannot) + "."
+        return line
+
     def has_desktop(self, session_id: str, action: str | None = None) -> bool:
         return self.find(session_id, action) is not None
 
