@@ -7,6 +7,8 @@ import type { OutgoingEvent, EventName } from "./protocol";
 import { getApiToken, getDesktopConfig } from "./desktop";
 
 const DEFAULT_SEND_TIMEOUT_MS = 10_000;
+const HEARTBEAT_INTERVAL_MS = 25_000;
+const HEARTBEAT_TIMEOUT_MS = 10_000;
 
 type Listener = (payload: OutgoingEvent) => void;
 type IncomingEventName = EventName;
@@ -19,10 +21,29 @@ export class WSClient {
   private dynamicListeners: { prefix: string; fn: Listener }[] = [];
   private reconnectDelay = 1000;
   private shouldReconnect = true;
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
+  private pongDeadline: ReturnType<typeof setTimeout> | null = null;
 
   constructor(url: string, sessionId?: string) {
     this.url = url;
     this.sessionId = sessionId;
+  }
+
+  /** Detect half-open sockets (NAT/proxy idle cuts): ping, and force a reconnect if no pong arrives. */
+  private startHeartbeat(ws: WebSocket): void {
+    this.stopHeartbeat();
+    this.heartbeat = setInterval(() => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      this.send({ event: "ping", t: Date.now() });
+      this.pongDeadline = setTimeout(() => ws.close(), HEARTBEAT_TIMEOUT_MS);
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    if (this.pongDeadline) clearTimeout(this.pongDeadline);
+    this.heartbeat = null;
+    this.pongDeadline = null;
   }
 
   connect(): void {
@@ -30,13 +51,17 @@ export class WSClient {
     this.ws = new WebSocket(this.url);
     this.ws.binaryType = "arraybuffer";
 
+    const ws = this.ws;
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
+      this.startHeartbeat(ws);
       // With core-side auth enabled, the first message MUST be the auth
       // challenge. Token empty = server skips validation (dev default).
       const token = getApiToken();
       this.send({ event: "auth", token });
-      if (getDesktopConfig()?.capabilityToken && window.kaliDesktop && !window.location.hash.startsWith("#/desktop/artifact/")) {
+      // When the native agent is running it registers the native actions itself.
+      const desktop = getDesktopConfig();
+      if (desktop?.capabilityToken && !desktop.nativeAgent && window.kaliDesktop && !window.location.hash.startsWith("#/desktop/artifact/")) {
         this.send({ event: "desktop_register", token: getDesktopConfig()!.capabilityToken });
       }
       const hello: Record<string, unknown> = { event: "hello", client: "kali-web", version: "0.1.0" };
@@ -51,6 +76,11 @@ export class WSClient {
       try {
         const payload = JSON.parse(ev.data) as OutgoingEvent;
         const event = (payload.event as IncomingEventName) ?? "";
+        if ((event as string) === "pong") {
+          if (this.pongDeadline) clearTimeout(this.pongDeadline);
+          this.pongDeadline = null;
+          return;
+        }
         if (event === "auth_required") {
           // Server rejected our token (or none was sent) with auth enabled.
           // Surface the login gate; stop reconnecting until the user acts
@@ -74,9 +104,11 @@ export class WSClient {
 
     this.ws.onerror = () => this.dispatch("error", { event: "error", detail: "WS error" });
     this.ws.onclose = () => {
+      this.stopHeartbeat();
       this.dispatch("disconnected", { event: "disconnected" });
       if (this.shouldReconnect) {
-        setTimeout(() => this.connect(), this.reconnectDelay);
+        // Jitter avoids every client reconnecting in lockstep after a server restart.
+        setTimeout(() => this.connect(), this.reconnectDelay * (0.75 + Math.random() * 0.5));
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 10000);
       }
     };
@@ -84,6 +116,7 @@ export class WSClient {
 
   disconnect(): void {
     this.shouldReconnect = false;
+    this.stopHeartbeat();
     this.ws?.close();
   }
 

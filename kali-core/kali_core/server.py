@@ -70,7 +70,7 @@ from kali_core.claws.terminal_session import CreateTerminalSessionTool
 from kali_core.claws.tests import RunTestsTool
 from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
-from kali_core.desktop import DesktopBroker
+from kali_core.desktop import LEGACY_CAPABILITIES, DesktopBroker
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
@@ -386,6 +386,14 @@ def _build_tool_defs() -> list[ToolDef]:
     ]
 
 
+# Turn events mirrored (in compact form) to presence-mode connections.
+PRESENCE_EVENTS = frozenset({
+    "turn_start", "delta", "reasoning_delta", "turn_end", "message",
+    "stt_partial", "stt_final", "tts_audio", "tool_event", "consent_request",
+    "wake_word", "error",
+})
+
+
 class Server:
     """WebSocket server host."""
 
@@ -447,6 +455,7 @@ class Server:
         # Permissions + consent.
         self.gateway = PermissionGateway()
         self.desktop_broker = DesktopBroker()
+        self.last_active_session: str | None = None
         self.desktop_token = os.environ.get("KALI_DESKTOP_TOKEN", "").strip()
         self.consent = ConsentMgr(send_callback=self._send_consent)
         # Register tools + set up executor.
@@ -496,9 +505,34 @@ class Server:
 
     async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> None:
         for conn in list(self._connections):
-            if conn.session_id == session_id:
+            if conn.session_id == session_id and conn.mode != "presence":
                 try:
                     await conn.send(payload)
+                except Exception:
+                    pass
+
+    async def mirror_presence(self, session_id: str | None, payload: dict[str, Any]) -> None:
+        """Forward a compact copy of a turn event to presence-mode connections.
+
+        Presence connections (avatar agents) get no history replay and no heavy
+        payloads; they only need enough to derive the avatar state.
+        """
+        event = payload.get("event")
+        if event not in PRESENCE_EVENTS:
+            return
+        if session_id:
+            self.last_active_session = session_id
+        compact = payload
+        if event == "tts_audio":
+            compact = {k: v for k, v in payload.items() if k != "audio"}
+        elif event == "tool_event":
+            compact = {k: payload.get(k) for k in ("event", "session_id", "tool", "status", "call_id")}
+        if session_id and "session_id" not in compact:
+            compact = {**compact, "session_id": session_id}
+        for conn in list(self._connections):
+            if conn.mode == "presence" and conn.session_id in (None, "", session_id):
+                try:
+                    await conn.send(compact)
                 except Exception:
                     pass
 
@@ -1628,6 +1662,8 @@ class Connection:
         self.server = server
         self.session_id: str | None = None
         self.is_desktop = False
+        self.desktop_capabilities: frozenset[str] | None = None
+        self.mode = "client"  # "client" (full UI) or "presence" (avatar agent)
         self._current_task: asyncio.Task | None = None
         self._send_lock = asyncio.Lock()
         self._stt_session_active: bool = False
@@ -1714,11 +1750,41 @@ class Connection:
                 and isinstance(token, str)
                 and hmac.compare_digest(token.encode("utf-8"), self.server.desktop_token.encode("utf-8"))
             )
-            await self.send({"event": "desktop_registered", "ok": self.is_desktop})
+            if self.is_desktop:
+                caps = event.get("capabilities")
+                if isinstance(caps, list):
+                    self.desktop_capabilities = frozenset(c for c in caps if isinstance(c, str))
+                self.server.desktop_broker.register(self)
+            await self.send({
+                "event": "desktop_registered",
+                "ok": self.is_desktop,
+                "capabilities": sorted(self.desktop_capabilities) if self.desktop_capabilities is not None
+                else sorted(LEGACY_CAPABILITIES),
+            })
+            return
+        if kind == "ping":
+            await self.send({"event": "pong", "t": event.get("t")})
             return
         if kind == "desktop_action_result":
             if self.is_desktop:
                 self.server.desktop_broker.respond(self, event)
+            return
+
+        if kind == "hello" and event.get("mode") == "presence":
+            # Lightweight avatar agent: no history/artifact replay, no wake word.
+            self.mode = "presence"
+            requested_sid = event.get("session_id") or None
+            if requested_sid and not await self.server.session_store.session_exists(requested_sid):
+                requested_sid = None
+            self.session_id = requested_sid
+            follow = requested_sid or self.server.last_active_session
+            await self.send({
+                "event": "ready",
+                "session_id": follow or "",
+                "version": "0.1.0",
+                "mode": "presence",
+                "turn_active": bool(self._turn_active_for(follow)),
+            })
             return
 
         if kind == "hello":
@@ -3651,6 +3717,16 @@ class Connection:
                 await self.ws.send_json(payload)
             except Exception:
                 logger.exception("send failed")
+        if self.mode != "presence" and payload.get("event") in PRESENCE_EVENTS:
+            await self.server.mirror_presence(payload.get("session_id") or self.session_id, payload)
+
+    def _turn_active_for(self, session_id: str | None) -> bool:
+        if not session_id:
+            return False
+        return any(
+            c.session_id == session_id and c._current_task is not None and not c._current_task.done()
+            for c in self.server._connections
+        )
 
 
 def create_app() -> FastAPI:

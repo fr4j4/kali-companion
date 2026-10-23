@@ -475,6 +475,9 @@ export function useChat(sessionOverride?: string): ChatState {
       });
 
       client.on("status", (p) => {
+        const st = p as StatusEvent & { wake_word_enabled?: boolean; input_mode?: string };
+        // Voice input needs this window's audio pipeline, so keep the shell resident while it is on.
+        if (!sessionOverride) void window.kaliDesktop?.setKeepAlive?.(!!st.wake_word_enabled || st.input_mode === "continuous");
         setSystemStatus(prev => ({ ...prev, ...(p as StatusEvent) }));
       });
 

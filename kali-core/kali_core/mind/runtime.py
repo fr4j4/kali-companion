@@ -174,11 +174,22 @@ class AgentRuntime:
         self._tools = tools
 
     def set_emit_callback(self, callback: Any) -> None:
-        self._emit_event_ctx.set(callback)
+        self._emit_ctx().set(callback)
 
     @property
     def _emit_event(self) -> Any:
-        return self._emit_event_ctx.get()
+        return self._emit_ctx().get()
+
+    @_emit_event.setter
+    def _emit_event(self, callback: Any) -> None:
+        self._emit_ctx().set(callback)
+
+    def _emit_ctx(self) -> contextvars.ContextVar[Any]:
+        # Lazy so instances built without __init__ (tests, subclasses) still work.
+        ctx = self.__dict__.get("_emit_event_ctx")
+        if ctx is None:
+            ctx = self._emit_event_ctx = contextvars.ContextVar("runtime_emit", default=None)
+        return ctx
 
     def set_session_store(self, store: Any) -> None:
         """Wire the session store so streamed artifacts are persisted on close."""

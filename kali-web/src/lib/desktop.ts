@@ -4,14 +4,22 @@ export interface DesktopConnectionConfig {
   capabilityToken: string;
   showAvatar: boolean;
   avatarSize: number;
+  /** "local": the shell supervises a loopback kali-core; "remote": connect to backendUrl. */
+  mode: "local" | "remote";
+  /** True when the native avatar agent is running and owns the avatar, tray and native actions. */
+  nativeAgent: boolean;
 }
 
 export interface DesktopBridge {
   getConfig(): Promise<DesktopConnectionConfig>;
-  saveConfig(config: { backendUrl: string; token: string; capabilityToken: string }): Promise<boolean>;
+  saveConfig(config: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }): Promise<boolean>;
+  /** Ask the shell to stay resident after its windows close (voice/wake word active). */
+  setKeepAlive(value: boolean): Promise<void>;
   openMain(hash?: string): Promise<void>;
   showAvatar(visible: boolean): Promise<void>;
   setAvatarSize(size: number): Promise<void>;
+  /** Screen corner the native avatar anchors to (layer-shell / X11). */
+  setAvatarCorner(corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"): Promise<void>;
   openArtifact(sessionId: string, artifactId: string): Promise<void>;
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
   setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;

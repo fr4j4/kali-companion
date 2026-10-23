@@ -2,9 +2,11 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("kaliDesktop", {
   getConfig: () => ipcRenderer.invoke("desktop:get-config"),
-  saveConfig: (config: { backendUrl: string; token: string; capabilityToken: string }) => ipcRenderer.invoke("desktop:save-config", config),
+  saveConfig: (config: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }) => ipcRenderer.invoke("desktop:save-config", config),
+  setKeepAlive: (value: boolean) => ipcRenderer.invoke("desktop:keep-alive", value),
   openMain: (hash?: string) => ipcRenderer.invoke("desktop:open-main", hash),
   showAvatar: (visible: boolean) => ipcRenderer.invoke("desktop:show-avatar", visible),
+  setAvatarCorner: (corner: string) => ipcRenderer.invoke("desktop:set-avatar-corner", corner),
   setAvatarSize: (size: number) => ipcRenderer.invoke("desktop:set-avatar-size", size),
   openArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:open-artifact", sessionId, artifactId),
   performAction: (action: string, params: Record<string, unknown>) => ipcRenderer.invoke("desktop:action", action, params),

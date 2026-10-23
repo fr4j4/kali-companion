@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import uuid
 from typing import Any
@@ -130,6 +131,9 @@ class Executor:
         gaze = getattr(self, "gaze_client", None)
         if self.desktop_broker and self.desktop_broker.has_desktop(session_id):
             gaze = RemoteGazeClient(self.desktop_broker, session_id)
+        elif os.environ.get("KALI_ALLOW_SERVER_SCREEN", "1").strip().lower() in ("0", "false", "no"):
+            # Remote deployments: never fall back to the server's own screen.
+            gaze = None
         llm = getattr(self, "llm_provider", None)
         ctx = ToolContext(
             session_id=session_id,
@@ -146,8 +150,7 @@ class Executor:
         )
 
         try:
-            if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id):
-                from kali_core.claws.base import ToolResult
+            if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "launch_app"):
                 result = ToolResult(output=await self.desktop_broker.request(session_id, "launch_app", {"name": params.get("name", "")}))
             else:
                 result = await tool.run(params, ctx)

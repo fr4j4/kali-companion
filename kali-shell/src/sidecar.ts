@@ -41,13 +41,14 @@ function pythonBin(): string {
  * priority stays below the foreground app (e.g. Dota 2), same as the
  * original Rust sidecar. On other platforms we skip `nice`.
  */
-export function spawnSidecar(port: number): ChildProcess {
+export function spawnSidecar(port: number, extraEnv: Record<string, string> = {}): ChildProcess {
   const py = pythonBin();
   const isLinux = process.platform === "linux";
 
   const env: Record<string, string> = { ...process.env } as Record<string, string>;
   env.KALI_WS_PORT = String(port);
   env.KALI_HOME_MODE = "electron";
+  Object.assign(env, extraEnv);
 
   // Forward display-server vars so the sidecar's capture backend can
   // reach Hyprland/mss. If a var is unset we skip it (mss will report
@@ -88,7 +89,7 @@ export function spawnSidecar(port: number): ChildProcess {
  * Supervise the sidecar: spawn, restart on exit with 1s backoff.
  * Returns the current child so callers can kill it on shutdown.
  */
-export function superviseSidecar(port: number): {
+export function superviseSidecar(port: number, extraEnv: Record<string, string> = {}): {
   child: () => ChildProcess | null;
   stop: () => void;
 } {
@@ -98,7 +99,7 @@ export function superviseSidecar(port: number): {
 
   const launch = () => {
     if (stopped) return;
-    current = spawnSidecar(port);
+    current = spawnSidecar(port, extraEnv);
     current.on("exit", (code, signal) => {
       console.log(`[kali-shell] sidecar exited (code=${code} signal=${signal})`);
       if (stopped) return;

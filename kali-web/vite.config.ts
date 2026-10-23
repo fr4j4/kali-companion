@@ -136,6 +136,8 @@ export default defineConfig({
     target: "es2020",
     chunkSizeWarningLimit: 800,
     rollupOptions: {
+      // Two entries: the full app and the minimal native-avatar page (avatar.html).
+      input: { main: resolve(__dirname, "index.html"), avatar: resolve(__dirname, "avatar.html") },
       output: {
         manualChunks: {
           "react-vendor": ["react", "react-dom", "react-router-dom"],

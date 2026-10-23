@@ -4,51 +4,90 @@ import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { randomBytes } from "node:crypto";
+import { AVATAR_SIZES, defaultConfig, loadSharedConfig, nativeAgentRunning, saveSharedConfig, type SharedConfig } from "./config.js";
+import { sidecarPort, superviseSidecar, waitForPort } from "./sidecar.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ORIGIN = "kali://app";
 protocol.registerSchemesAsPrivileged([{ scheme: "kali", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
-interface DesktopConfig {
+// Connection + avatar preferences live in the shared config file (see config.ts) so the
+// native avatar agent and this Electron shell agree on one source of truth.
+let config: SharedConfig = defaultConfig();
+let mainWindow: BrowserWindow | null = null;
+let avatarWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let quitting = false;
+let keepAlive = false;
+let sidecar: ReturnType<typeof superviseSidecar> | null = null;
+const execFileAsync = promisify(execFile);
+const artifactWindows = new Map<string, BrowserWindow>();
+
+interface RendererConfig {
   backendUrl: string;
   token: string;
   capabilityToken: string;
   showAvatar: boolean;
   avatarSize: number;
+  mode: "local" | "remote";
+  /** True when kali-avatar is running and owns the avatar, tray and native actions. */
+  nativeAgent: boolean;
 }
 
-let config: DesktopConfig = { backendUrl: "", token: "", capabilityToken: "", showAvatar: true, avatarSize: 220 };
-let mainWindow: BrowserWindow | null = null;
-let avatarWindow: BrowserWindow | null = null;
-let tray: Tray | null = null;
-let quitting = false;
-const execFileAsync = promisify(execFile);
-const artifactWindows = new Map<string, BrowserWindow>();
+function rendererConfig(): RendererConfig {
+  return {
+    backendUrl: config.backendUrl, token: config.token, capabilityToken: config.capabilityToken,
+    showAvatar: config.avatar.visible, avatarSize: config.avatar.size, mode: config.mode, nativeAgent: nativeAgentRunning(),
+  };
+}
 
-function configPath(): string { return join(app.getPath("userData"), "desktop.json"); }
+function legacyConfigPath(): string { return join(app.getPath("userData"), "desktop.json"); }
+
+/** One-time import of the pre-shared-config desktop.json (tokens encrypted with safeStorage). */
+function migrateLegacyConfig(): SharedConfig | null {
+  try {
+    const saved = JSON.parse(readFileSync(legacyConfigPath(), "utf8")) as Record<string, unknown>;
+    const next = defaultConfig();
+    next.backendUrl = typeof saved.backendUrl === "string" ? saved.backendUrl : "";
+    next.avatar.visible = saved.showAvatar !== false;
+    next.avatar.size = AVATAR_SIZES.includes(saved.avatarSize as number) ? (saved.avatarSize as number) : 220;
+    const canDecrypt = safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend() !== "basic_text";
+    if (canDecrypt && typeof saved.encryptedToken === "string" && saved.encryptedToken)
+      next.token = safeStorage.decryptString(Buffer.from(saved.encryptedToken, "base64"));
+    if (canDecrypt && typeof saved.encryptedCapabilityToken === "string" && saved.encryptedCapabilityToken)
+      next.capabilityToken = safeStorage.decryptString(Buffer.from(saved.encryptedCapabilityToken, "base64"));
+    return next;
+  } catch { return null; }
+}
 
 function loadConfig(): void {
-  try {
-    const saved = JSON.parse(readFileSync(configPath(), "utf8")) as Partial<DesktopConfig> & { encryptedToken?: string; encryptedCapabilityToken?: string };
-    config.backendUrl = saved.backendUrl || "";
-    config.showAvatar = saved.showAvatar !== false;
-    config.avatarSize = [160, 220, 300].includes(saved.avatarSize || 0) ? saved.avatarSize! : 220;
-    if (saved.encryptedToken && safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend() !== "basic_text") {
-      config.token = safeStorage.decryptString(Buffer.from(saved.encryptedToken, "base64"));
-    }
-    if (saved.encryptedCapabilityToken && safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend() !== "basic_text") {
-      config.capabilityToken = safeStorage.decryptString(Buffer.from(saved.encryptedCapabilityToken, "base64"));
-    }
-  } catch { /* first launch or inaccessible secret store */ }
+  const shared = loadSharedConfig();
+  if (shared) { config = shared; return; }
+  const migrated = migrateLegacyConfig();
+  if (migrated) { config = migrated; saveConfig(); }
 }
 
-function saveConfig(): void {
-  mkdirSync(dirname(configPath()), { recursive: true });
-  const encryptedToken = config.token && safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend() !== "basic_text"
-    ? safeStorage.encryptString(config.token).toString("base64") : "";
-  const encryptedCapabilityToken = config.capabilityToken && safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend() !== "basic_text"
-    ? safeStorage.encryptString(config.capabilityToken).toString("base64") : "";
-  writeFileSync(configPath(), JSON.stringify({ backendUrl: config.backendUrl, showAvatar: config.showAvatar, avatarSize: config.avatarSize, encryptedToken, encryptedCapabilityToken }, null, 2), { mode: 0o600 });
+function saveConfig(): void { saveSharedConfig(config); }
+
+/** Local mode: point at a loopback kali-core and make sure both tokens exist. */
+function prepareLocalMode(): void {
+  config.backendUrl = `http://127.0.0.1:${sidecarPort()}`;
+  if (!config.token) config.token = randomBytes(32).toString("hex");
+  if (!config.capabilityToken) config.capabilityToken = randomBytes(32).toString("hex");
+  saveConfig();
+}
+
+async function startLocalCore(): Promise<void> {
+  if (config.mode !== "local" || sidecar) return;
+  const port = sidecarPort();
+  if (await waitForPort(port, 300)) {
+    console.log(`[kali-shell] kali-core already listening on ${port}; not spawning a sidecar`);
+    return;
+  }
+  sidecar = superviseSidecar(port, {
+    KALI_HOST: "127.0.0.1", KALI_API_TOKEN: config.token, KALI_DESKTOP_TOKEN: config.capabilityToken,
+  });
 }
 
 function webRoot(): string {
@@ -82,26 +121,55 @@ async function handleAppRequest(request: Request): Promise<Response> {
   catch { return new Response("Frontend build missing", { status: 404 }); }
 }
 
-function openMain(hash = "/"): void {
+function openMain(hash = "/", show = true): void {
   if (!mainWindow) {
-    mainWindow = new BrowserWindow({ title: "Kali", width: 1280, height: 800, minWidth: 800, minHeight: 600,
+    mainWindow = new BrowserWindow({ title: "Kali", width: 1280, height: 800, minWidth: 800, minHeight: 600, show,
       webPreferences: { preload: join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     mainWindow.webContents.on("will-navigate", (event, url) => { if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault(); });
-    mainWindow.on("close", (event) => { if (!quitting) { event.preventDefault(); mainWindow?.hide(); } });
+    mainWindow.on("close", (event) => {
+      if (quitting) return;
+      // With the native agent keeping the avatar and tray, this process only lives while a
+      // window is open (lightweight); voice features can ask to stay resident via keepAlive.
+      if (nativeAgentRunning() && !keepAlive && artifactWindows.size === 0) { quitting = true; return; }
+      event.preventDefault(); mainWindow?.hide();
+    });
+    mainWindow.on("closed", () => { mainWindow = null; if (quitting) app.quit(); });
     mainWindow.loadURL(`${APP_ORIGIN}/#${hash}`);
-  } else {
+  } else if (show) {
     mainWindow.show(); mainWindow.focus();
     mainWindow.webContents.send("navigate", hash);
   }
 }
 
+/** Handle `--open=<target>` / `--avatar=<show|hide|toggle>` from the command line or a second instance. */
+function handleArgs(argv: string[]): boolean {
+  let handled = false;
+  for (const arg of argv) {
+    const open = /^--open=(.+)$/.exec(arg)?.[1];
+    if (open) {
+      handled = true;
+      const art = /^artifact:([\w-]{1,128}):([\w-]{1,128})$/.exec(open);
+      if (art) { try { openArtifact(art[1], art[2]); } catch (error) { console.warn(error); } }
+      else openMain(open === "artifacts" ? "/?panel=artifacts" : open === "settings" ? "/?panel=settings" : "/");
+    }
+    const avatar = /^--avatar=(show|hide|toggle)$/.exec(arg)?.[1];
+    if (avatar) {
+      handled = true;
+      setAvatarVisible(avatar === "toggle" ? !config.avatar.visible : avatar === "show");
+    }
+  }
+  return handled;
+}
+
 function setAvatarVisible(visible: boolean): void {
-  config.showAvatar = visible;
+  config.avatar.visible = visible;
   saveConfig();
+  // The native agent (watching the shared config) owns the avatar when it is running.
+  if (nativeAgentRunning()) { avatarWindow?.hide(); updateTray(); return; }
   if (!visible) { avatarWindow?.hide(); updateTray(); return; }
   if (!avatarWindow) {
-    avatarWindow = new BrowserWindow({ title: "Kali Avatar", width: config.avatarSize, height: config.avatarSize + 20, minWidth: 150, minHeight: 150,
+    avatarWindow = new BrowserWindow({ title: "Kali Avatar", width: config.avatar.size, height: config.avatar.size + 20, minWidth: 150, minHeight: 150,
       transparent: true, frame: false, resizable: true, skipTaskbar: true, alwaysOnTop: !process.env.WAYLAND_DISPLAY,
       webPreferences: { preload: join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     avatarWindow.on("close", (event) => { if (!quitting) { event.preventDefault(); setAvatarVisible(false); } });
@@ -125,10 +193,13 @@ function openArtifact(sessionId: string, artifactId: string): void {
   const key = `${sessionId}:${artifactId}`;
   const existing = artifactWindows.get(key);
   if (existing && !existing.isDestroyed()) { existing.show(); existing.focus(); return; }
-  const win = new BrowserWindow({ title: "Artefacto · Kali", width: 850, height: 650, minWidth: 400, minHeight: 300,
+  const win = new BrowserWindow({ title: `kali-artifact · ${artifactId}`, width: 850, height: 650, minWidth: 400, minHeight: 300,
     webPreferences: { preload: join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   artifactWindows.set(key, win);
-  win.on("closed", () => artifactWindows.delete(key));
+  win.on("closed", () => {
+    artifactWindows.delete(key);
+    if (nativeAgentRunning() && !keepAlive && artifactWindows.size === 0 && (!mainWindow || !mainWindow.isVisible())) { quitting = true; app.quit(); }
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.loadURL(`${APP_ORIGIN}/#/desktop/artifact/${encodeURIComponent(sessionId)}/${encodeURIComponent(artifactId)}`);
 }
@@ -178,7 +249,7 @@ function updateTray(): void {
     { label: "Mostrar Kali", click: () => openMain() },
     { label: "Abrir chat", click: () => openMain("/") },
     { label: "Artefactos", click: () => openMain("/?panel=artifacts") },
-    { label: config.showAvatar ? "Ocultar avatar" : "Mostrar avatar", click: () => setAvatarVisible(!config.showAvatar) },
+    { label: config.avatar.visible ? "Ocultar avatar" : "Mostrar avatar", click: () => setAvatarVisible(!config.avatar.visible) },
     { label: "Configuración", click: () => openMain("/?panel=settings") },
     { type: "separator" },
     { label: "Salir", click: () => { quitting = true; app.quit(); } },
@@ -186,6 +257,7 @@ function updateTray(): void {
 }
 
 function createTray(): void {
+  if (nativeAgentRunning()) return;
   const iconPath = join(__dirname, "../tray.png");
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
@@ -195,29 +267,45 @@ function createTray(): void {
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
-else app.on("second-instance", () => openMain());
+else app.on("second-instance", (_event, argv) => { if (!handleArgs(argv)) openMain(); });
 
 app.whenReady().then(() => {
   loadConfig();
+  if (config.mode === "local") { prepareLocalMode(); void startLocalCore(); }
   protocol.handle("kali", handleAppRequest);
-  ipcMain.handle("desktop:get-config", () => ({ backendUrl: config.backendUrl, token: config.token, capabilityToken: config.capabilityToken, showAvatar: config.showAvatar, avatarSize: config.avatarSize }));
-  ipcMain.handle("desktop:save-config", (_event, next: { backendUrl: string; token: string; capabilityToken: string }) => {
+  ipcMain.handle("desktop:get-config", () => rendererConfig());
+  ipcMain.handle("desktop:save-config", (_event, next: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }) => {
+    if (next.mode === "local") {
+      config.mode = "local";
+      prepareLocalMode();
+      saveConfig();
+      void startLocalCore();
+      return true;
+    }
     const url = new URL(next.backendUrl);
     if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname))) throw new Error("Use HTTPS for remote backends");
     if (url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("Use the backend origin without path or URL credentials");
     if (url.protocol === "https:" && !next.token?.trim()) throw new Error("An API token is required for remote backends");
+    config.mode = "remote";
     config.backendUrl = url.toString().replace(/\/$/, "");
     config.token = next.token.trim();
     config.capabilityToken = next.capabilityToken?.trim() || "";
+    sidecar?.stop(); sidecar = null;
     saveConfig();
     return true;
   });
+  ipcMain.handle("desktop:keep-alive", (_event, value: boolean) => { keepAlive = value === true; });
   ipcMain.handle("desktop:open-main", (_event, hash?: string) => openMain(hash));
   ipcMain.handle("desktop:show-avatar", (_event, visible: boolean) => setAvatarVisible(visible));
   ipcMain.handle("desktop:set-avatar-size", (_event, size: number) => {
-    if (![160, 220, 300].includes(size)) throw new Error("Invalid avatar size");
-    config.avatarSize = size;
+    if (!AVATAR_SIZES.includes(size)) throw new Error("Invalid avatar size");
+    config.avatar.size = size;
     avatarWindow?.setSize(size, size + 20);
+    saveConfig();
+  });
+  ipcMain.handle("desktop:set-avatar-corner", (_event, corner: string) => {
+    if (!["top-left", "top-right", "bottom-left", "bottom-right"].includes(corner)) throw new Error("Invalid corner");
+    config.avatar.corner = corner as SharedConfig["avatar"]["corner"];
     saveConfig();
   });
   ipcMain.handle("desktop:open-artifact", (_event, sid: string, id: string) => openArtifact(sid, id));
@@ -231,8 +319,9 @@ app.whenReady().then(() => {
   });
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(permission === "media" && wc.getURL().startsWith(`${APP_ORIGIN}/`)));
   createTray();
-  openMain();
-  if (config.backendUrl && config.showAvatar) setAvatarVisible(true);
+  const argv = process.argv.slice(1);
+  if (!handleArgs(argv)) openMain("/", !argv.includes("--background"));
+  if (config.backendUrl && config.avatar.visible && !nativeAgentRunning()) setAvatarVisible(true);
   if (process.env.KALI_DESKTOP_SMOKE === "1") {
     mainWindow?.webContents.once("did-finish-load", () => {
       setTimeout(() => {
@@ -245,4 +334,4 @@ app.whenReady().then(() => {
   }
 });
 
-app.on("before-quit", () => { quitting = true; });
+app.on("before-quit", () => { quitting = true; sidecar?.stop(); });
