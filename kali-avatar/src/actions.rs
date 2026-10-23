@@ -136,16 +136,21 @@ fn screenshot(params: &Value, monitors: &Monitors) -> Result<Value, String> {
     let tmp_str = tmp.to_string_lossy().to_string();
 
     let png = if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        if which("grim") {
-            let mut args: Vec<&str> = Vec::new();
-            if let Some(m) = &target {
-                args.extend(["-o", m.name.as_str()]);
+        // KWin does not implement wlr-screencopy, so grim fails there: prefer spectacle on KDE
+        // (full desktop, no portal prompt) and fall back to grim when it is missing or fails.
+        let mut grim_args: Vec<&str> = Vec::new();
+        if let Some(m) = &target {
+            grim_args.extend(["-o", m.name.as_str()]);
+        }
+        grim_args.push("-");
+        if desktop.contains("kde") && which("spectacle") {
+            match run("spectacle", &["-b", "-n", "-f", "-o", &tmp_str]).and_then(|_| read_and_remove(&tmp)) {
+                Ok(png) => png,
+                Err(e) if which("grim") => run("grim", &grim_args).map_err(|g| format!("{e}; {g}"))?,
+                Err(e) => return Err(e),
             }
-            args.push("-");
-            run("grim", &args)?
-        } else if desktop.contains("kde") && which("spectacle") {
-            run("spectacle", &["-b", "-n", "-f", "-o", &tmp_str])?;
-            read_and_remove(&tmp)?
+        } else if which("grim") {
+            run("grim", &grim_args)?
         } else if desktop.contains("gnome") && which("gnome-screenshot") {
             run("gnome-screenshot", &["-f", &tmp_str])?;
             read_and_remove(&tmp)?
@@ -187,6 +192,15 @@ fn read_and_remove(path: &std::path::Path) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Needs a live desktop session: `cargo test -- --ignored screenshot_live`.
+    #[test]
+    #[ignore]
+    fn screenshot_live() {
+        let m: Monitors = Default::default();
+        let v = perform("screenshot", &json!({}), &m).expect("capture");
+        assert!(v["png_base64"].as_str().unwrap().len() > 1000);
+    }
 
     #[test]
     fn validates_desktop_entries() {

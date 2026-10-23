@@ -121,6 +121,8 @@ fn io_err<E: std::fmt::Display>(e: E) -> LinkError {
 type Socket = WebSocket<MaybeTlsStream<TcpStream>>;
 
 fn connect(url: &str) -> Result<Socket, LinkError> {
+    // Idempotent: Err only means a provider is already installed.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let request = url.into_client_request().map_err(io_err)?;
     let uri = request.uri().clone();
     let host = uri.host().ok_or_else(|| io_err("missing host"))?.to_string();

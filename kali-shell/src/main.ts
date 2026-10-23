@@ -4,7 +4,8 @@ import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { randomBytes } from "node:crypto";
+import { randomBytes, X509Certificate } from "node:crypto";
+import { homedir } from "node:os";
 import { AVATAR_SIZES, defaultConfig, loadSharedConfig, nativeAgentRunning, saveSharedConfig, type SharedConfig } from "./config.js";
 import { sidecarPort, superviseSidecar, waitForPort } from "./sidecar.js";
 
@@ -119,6 +120,19 @@ async function handleAppRequest(request: Request): Promise<Response> {
   const path = requested.startsWith(root + "/") && existsSync(requested) ? requested : join(root, "index.html");
   try { return new Response(readFileSync(path), { headers: { "Content-Type": MIME[extname(path)] || "application/octet-stream" } }); }
   catch { return new Response("Frontend build missing", { status: 404 }); }
+}
+
+// Self-signed backends: trust only a certificate pinned in kali-ca.pem (KALI_CA_FILE overrides),
+// and only for the configured backend host. Everything else keeps Chromium's normal verification.
+function installPinnedCertVerifier(): void {
+  const caFile = process.env.KALI_CA_FILE || join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "kali", "kali-ca.pem");
+  session.defaultSession.setCertificateVerifyProc((req, callback) => {
+    try {
+      if (!config.backendUrl || !existsSync(caFile) || req.hostname !== new URL(config.backendUrl).hostname) return callback(-3);
+      const pinned = new X509Certificate(readFileSync(caFile));
+      return callback(pinned.fingerprint256 === new X509Certificate(req.certificate.data).fingerprint256 ? 0 : -3);
+    } catch { return callback(-3); }
+  });
 }
 
 function openMain(hash = "/", show = true): void {
@@ -273,6 +287,7 @@ app.whenReady().then(() => {
   loadConfig();
   if (config.mode === "local") { prepareLocalMode(); void startLocalCore(); }
   protocol.handle("kali", handleAppRequest);
+  installPinnedCertVerifier();
   ipcMain.handle("desktop:get-config", () => rendererConfig());
   ipcMain.handle("desktop:save-config", (_event, next: { mode?: "local" | "remote"; backendUrl: string; token: string; capabilityToken: string }) => {
     if (next.mode === "local") {
