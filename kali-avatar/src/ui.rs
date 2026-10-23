@@ -244,7 +244,10 @@ fn apply_prefs(state: &mut State) {
     state.surface.apply(&state.window, state.pos, monitor.as_ref());
     state.window.set_visible(prefs.visible);
     let _ = state.webview.evaluate_javascript(
-        &format!("window.kaliAvatar&&window.kaliAvatar.configure({{showText:{}}})", prefs.show_text),
+        &format!(
+            "window.kaliAvatar&&window.kaliAvatar.configure({{showText:{},captureThumbnail:{},captureSound:{}}})",
+            prefs.show_text, prefs.capture_thumbnail, prefs.capture_sound
+        ),
         None,
         None,
         None::<&gio::Cancellable>,
@@ -391,6 +394,13 @@ pub fn build(
                         }
                         st.last_mtime = Config::mtime();
                         apply_prefs(&mut st);
+                    }
+                    ToUi::Captured(thumb) => {
+                        let st = state.borrow();
+                        if st.ready {
+                            let arg = thumb.map(|t| serde_json::Value::String(t).to_string()).unwrap_or_else(|| "null".into());
+                            st.webview.evaluate_javascript(&format!("window.kaliAvatar&&window.kaliAvatar.captured({arg})"), None, None, None::<&gio::Cancellable>, |_| {});
+                        }
                     }
                     ToUi::Consent(request, reply) => crate::perms::card::show(&app, request, reply),
                     ToUi::Command(Cmd::Panic) => {

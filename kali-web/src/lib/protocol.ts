@@ -295,6 +295,11 @@ export interface ArtifactEvent {
   update: "create" | "update" | "close";
   phase?: "streaming" | "complete";
   language?: string;
+  /**
+   * The agent produced this as a side effect (a screen capture) and the user did not ask to see it:
+   * keep it in the library but do not open a window, in the canvas or natively.
+   */
+  silent?: boolean;
   /** Short text preview (HTML stripped). Present on metadata-only replays. */
   preview?: string;
 }

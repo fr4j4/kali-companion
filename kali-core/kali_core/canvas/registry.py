@@ -143,11 +143,14 @@ class ArtifactEnvelope:
     update: str = "create"  # "create" | "update" | "close"
     domain_type: str = ""  # domain hint for window_type resolution (widget only)
     language: str = ""  # programming language (e.g. "python", "java")
+    # Side-effect artifact (e.g. a screen capture): kept in the library, but the frontend must not
+    # open a window for it.
+    silent: bool = False
 
     def to_payload(self) -> dict[str, Any]:
         """Convert to the WS wire-format dict (``event: "artifact"``)."""
         wt = self.window_type or resolve_window_type(self.domain_type)
-        return {
+        payload = {
             "event": "artifact",
             "id": self.artifact_id,
             "type": self.type,
@@ -157,6 +160,9 @@ class ArtifactEnvelope:
             "update": self.update,
             "language": self.language,
         }
+        if self.silent:
+            payload["silent"] = True
+        return payload
 
 
 # ── Envelope builder helpers ───────────────────────────────────
@@ -200,6 +206,7 @@ def widget_artifact(
     artifact_id: str = "",
     update: str = "create",
     window_type: str = "",
+    silent: bool = False,
 ) -> ArtifactEnvelope:
     """Build a widget artifact envelope (activity cards).
 
@@ -226,6 +233,7 @@ def widget_artifact(
         window_type=window_type,
         artifact_id=artifact_id, update=update,
         domain_type=effective_domain,
+        silent=silent,
     )
 
 

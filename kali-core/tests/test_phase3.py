@@ -456,3 +456,22 @@ async def test_gateway_list_monitors_needs_consent():
     # 'general' whitelists list_monitors, so no consent needed.
     assert decision.allow
     assert not decision.needs_consent
+
+
+async def test_screenshot_artifact_is_silent_but_other_widgets_are_not():
+    """A capture is filed in the library without opening a window; normal widgets still open."""
+    from kali_core.canvas.registry import widget_artifact, html_artifact
+
+    tool = ScreenshotTool()
+    gaze_mock = AsyncMock()
+    gaze_mock.capture_full = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    with tempfile.TemporaryDirectory() as d, patch("kali_core.claws.screenshot.settings") as mock_settings:
+        mock_settings.snapshots_dir = d
+        ctx = ToolContext(session_id="s", working_dir=".", profile="dev", gaze_client=gaze_mock)
+        for params in ({"description": False}, {"description": False, "region": True}):
+            result = await tool.run(params, ctx)
+            assert result.artifact is not None and result.artifact["silent"] is True
+            assert result.artifact["windowType"] == "image"
+
+    assert "silent" not in widget_artifact("Card", "game_resource", {"type": "hero"}).to_payload()
+    assert "silent" not in html_artifact("Page", "<p>x</p>").to_payload()

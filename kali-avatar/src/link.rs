@@ -30,6 +30,8 @@ pub enum ToUi {
     Moved(i32, i32),
     /// A consent card to show; the answer goes back through the sender.
     Consent(crate::perms::ConsentRequest, std::sync::mpsc::Sender<crate::perms::Decision>),
+    /// A screen capture was just taken: thumbnail as a PNG data URL (`None` when turned off).
+    Captured(Option<String>),
     Command(Cmd),
 }
 
@@ -214,7 +216,7 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
                 match event["event"].as_str().unwrap_or_default() {
                     "pong" => pong_deadline = None,
                     "auth_required" => return Err(LinkError::AuthRequired),
-                    "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone()),
+                    "desktop_action" => spawn_action(event, monitors.clone(), services.clone(), reply_tx.clone(), ui.clone(), shared.clone()),
                     "ready" => {
                         let _ = ui.send_blocking(ToUi::Connected(true));
                         let _ = ui.send_blocking(ToUi::Presence(text.to_string()));
@@ -232,13 +234,18 @@ fn session(url: &str, cfg: &Config, shared: &SharedConfig, monitors: &Monitors, 
     }
 }
 
-fn spawn_action(event: Value, monitors: Monitors, services: Arc<dyn DesktopServices>, reply: Sender<String>) {
+fn spawn_action(event: Value, monitors: Monitors, services: Arc<dyn DesktopServices>, reply: Sender<String>, ui: async_channel::Sender<ToUi>, shared: SharedConfig) {
     thread::spawn(move || {
         let id = event["id"].clone();
         let action = event["action"].as_str().unwrap_or_default().to_string();
         let params = event.get("params").cloned().unwrap_or(Value::Null);
         let reason = event["reason"].as_str().unwrap_or_default().to_string();
         let result = authorized_perform(&action, &params, &reason, &monitors, services.as_ref());
+        if action == "screenshot" {
+            if let Ok(value) = &result {
+                announce_capture(value, &shared, &ui);
+            }
+        }
         let frame = match result {
             Ok(result) => json!({ "event": "desktop_action_result", "id": id, "ok": true, "result": result }),
             Err(error) => json!({ "event": "desktop_action_result", "id": id, "ok": false, "error": error }),
@@ -275,4 +282,23 @@ fn authorized_perform(action: &str, params: &Value, reason: &str, monitors: &Mon
     let outcome = actions::perform(action, &params, monitors, services);
     guard.finish(action, &params, &auth, &outcome);
     outcome
+}
+
+/// After an authorized capture: tell the avatar so it can show a thumbnail and click. Purely
+/// informational; it happens after the user already said yes on the consent card.
+fn announce_capture(result: &Value, shared: &SharedConfig, ui: &async_channel::Sender<ToUi>) {
+    let prefs = shared.lock().map(|c| c.avatar.clone()).unwrap_or_default();
+    if !prefs.capture_thumbnail && !prefs.capture_sound {
+        return;
+    }
+    let thumb = if prefs.capture_thumbnail {
+        use base64::Engine;
+        result["png_base64"]
+            .as_str()
+            .and_then(|b64| base64::engine::general_purpose::STANDARD.decode(b64).ok())
+            .and_then(|png| crate::thumb::data_url(&png, crate::thumb::MAX_SIDE))
+    } else {
+        None
+    };
+    let _ = ui.send_blocking(ToUi::Captured(thumb));
 }

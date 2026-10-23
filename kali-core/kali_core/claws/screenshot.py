@@ -151,6 +151,8 @@ class ScreenshotTool:
                     "title": f"Screenshot — {monitor_label}",
                 },
                 window_type="image",
+                # The capture is for Kali to look at; it goes to the library without popping up.
+                silent=True,
             ).to_payload()
 
         return ToolResult(

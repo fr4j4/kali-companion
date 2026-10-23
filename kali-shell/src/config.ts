@@ -17,6 +17,9 @@ export interface AvatarPrefs {
   corner: AvatarCorner;
   monitor: string;
   showText: boolean;
+  /** Thumbnail next to the avatar after a capture (informational; consent comes before the capture). */
+  captureThumbnail: boolean;
+  captureSound: boolean;
   /** Dragged position in monitor pixels; absent means "use the corner". */
   x?: number;
   y?: number;
@@ -43,7 +46,7 @@ export function defaultConfig(): SharedConfig {
     backendUrl: "",
     token: "",
     capabilityToken: "",
-    avatar: { visible: true, size: 220, corner: "bottom-right", monitor: "", showText: false },
+    avatar: { visible: true, size: 220, corner: "bottom-right", monitor: "", showText: false, captureThumbnail: true, captureSound: true },
     artifactsNative: false,
   };
 }
@@ -80,6 +83,8 @@ export function normalizeConfig(raw: unknown): SharedConfig {
       corner: corners.includes(av.corner as AvatarCorner) ? (av.corner as AvatarCorner) : base.avatar.corner,
       monitor: typeof av.monitor === "string" ? av.monitor : "",
       showText: av.showText === true,
+      captureThumbnail: av.captureThumbnail !== false,
+      captureSound: av.captureSound !== false,
       ...(Number.isFinite(av.x) && Number.isFinite(av.y) ? { x: Math.round(av.x as number), y: Math.round(av.y as number) } : {}),
     },
   };

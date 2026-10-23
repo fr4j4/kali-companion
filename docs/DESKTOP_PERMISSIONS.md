@@ -75,3 +75,11 @@ Solo `launch_app` la respeta. Vacía por defecto.
 - `list_windows` (clase `observe`) devuelve id, título, aplicación y foco. Los títulos son privados, por eso pide permiso. Hyprland (`hyprctl`), Sway (`swaymsg`) y X11 (`wmctrl`, `xprop`). GNOME y KDE en Wayland no ofrecen una API utilizable y devuelven el motivo.
 - `focus_window` (clase `window`) solo acepta ids de la lista actual del compositor; la tarjeta muestra el título y la aplicación que el agente leyó, no texto del core.
 - `screenshot` con `region: true`: el usuario arrastra un rectángulo (`slurp`+`grim`, `spectacle -r`, `gnome-screenshot -a` o `maim -s`) y solo esa región se captura. Cancelar la selección es un error, nunca una captura de pantalla completa. La geometría de `slurp` se valida antes de llegar a `grim`.
+
+## Capturas: sin ventana, con miniatura y obturador
+
+- Una captura (pantalla, monitor o región) se guarda como artefacto en la biblioteca pero **no abre ventana**, ni en el canvas ni como ventana nativa. El payload del artefacto lleva `silent: true`; el resto de artefactos se comporta igual que antes. Se puede abrir desde la biblioteca.
+- Tras una captura autorizada, el avatar (el nativo `kali-avatar` y el flotante de Electron) muestra una miniatura de 200 px durante 4 s y reproduce un obturador sintetizado con WebAudio. No toma foco ni eventos de puntero, no usa animaciones y no añade procesos.
+- Es solo un aviso de que ya se capturó; no sustituye ni concede consentimiento, que se pide antes en la tarjeta.
+- Ajustes (sección Escritorio): «Mostrar una miniatura junto al avatar» y «Reproducir un sonido de obturador», ambos activos por defecto. Se guardan en `avatar.captureThumbnail` y `avatar.captureSound` de `~/.config/kali/desktop.json`.
+- Una captura hecha por el propio core con `mss` (sin agente de escritorio) no muestra miniatura.
