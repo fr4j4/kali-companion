@@ -1,6 +1,8 @@
 // AppearanceSection — theme, UI scale, canvas auto-expand, language.
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FONT_CHOICES, loadFont, saveFont, type FontChoice } from "../../lib/appearancePrefs";
 import { Palette, RotateCcw } from "lucide-react";
 import { SelectField, SliderField, ToggleField } from "./fields";
 import { SectionHeader } from "./SectionHeader";
@@ -20,7 +22,7 @@ interface Props {
   onLanguageChange: (lang: string) => void;
 }
 
-const THEMES = ["amberwave", "foxglove", "vellum", "tidepool", "aether"];
+const THEMES = ["amberwave", "foxglove", "vellum", "tidepool", "aether", "contrast"];
 const PERFORMANCE_PROFILES: PerformanceProfile[] = ["balanced", "performance", "quality"];
 
 const THEME_SWATCHES: Record<string, string[]> = {
@@ -29,6 +31,7 @@ const THEME_SWATCHES: Record<string, string[]> = {
   vellum: ["#C24A2D", "#1F1B17", "#EFE6D3", "#8FAE6B"],
   tidepool: ["#E88AA8", "#0E1714", "#E4EDE8", "#6FBF8B"],
   aether: ["#6C6FF7", "#0A0C14", "#EDEDEF", "#34D399"],
+  contrast: ["#FFD400", "#000000", "#FFFFFF", "#4ADE80"],
 };
 const LANGS = [
   { id: "en", labelKey: "language.en" },
@@ -48,6 +51,7 @@ export function AppearanceSection({
   onLanguageChange,
 }: Props) {
   const { t } = useTranslation();
+  const [font, setFont] = useState<FontChoice>(loadFont);
 
   return (
     <div className="flex flex-col gap-4">
@@ -58,7 +62,7 @@ export function AppearanceSection({
       />
 
       <SettingsCard title={t("settings.appearance.theme_group")}>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {THEMES.map((tname) => {
             const swatches = THEME_SWATCHES[tname] || [];
             return (
@@ -96,6 +100,16 @@ export function AppearanceSection({
           value={currentLanguage}
           onChange={onLanguageChange}
           options={LANGS.map((l) => ({ value: l.id, label: t(l.labelKey) }))}
+        />
+      </SettingsCard>
+
+      <SettingsCard title={t("settings.font")}>
+        <SelectField
+          label={t("settings.font")}
+          value={font}
+          onChange={(value) => { setFont(value as FontChoice); saveFont(value as FontChoice); }}
+          helperText={t("settings.font_hint")}
+          options={FONT_CHOICES.map((f) => ({ value: f, label: t(`font.${f}`) }))}
         />
       </SettingsCard>
 

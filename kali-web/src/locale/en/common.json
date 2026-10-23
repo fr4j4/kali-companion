@@ -856,5 +856,11 @@
   "desktop.settings.saved": "Saved. Reloading connection…",
   "desktop.settings.save_error": "Couldn't save",
   "chat.copy_message": "Copy message",
-  "status.reconnecting": "Connection lost. Reconnecting…"
+  "status.reconnecting": "Connection lost. Reconnecting…",
+  "theme.contrast": "High contrast",
+  "settings.font": "Font",
+  "settings.font_hint": "System and monospace fonts load nothing extra.",
+  "font.default": "Kali (default)",
+  "font.system": "System",
+  "font.mono": "Monospace"
 }

@@ -40,6 +40,12 @@ export function ConversationModal({ open, onClose }: Props) {
         {messages.map((msg) => (
           <MessageRow key={msg.id} msg={msg} />
         ))}
+        {chat.isThinking && messages[messages.length - 1]?.streaming !== true && (
+          <div className="flex items-center gap-2 px-2 text-xs text-muted" role="status">
+            <span className="flex gap-1" aria-hidden="true"><span className="kali-typing-dot" /><span className="kali-typing-dot" /><span className="kali-typing-dot" /></span>
+            {t("stage.thinking")}
+          </div>
+        )}
       </div>
     </Overlay>
   );

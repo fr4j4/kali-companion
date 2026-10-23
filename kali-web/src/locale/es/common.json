@@ -856,5 +856,11 @@
   "desktop.settings.saved": "Guardado. Recargando conexión…",
   "desktop.settings.save_error": "Error al guardar",
   "chat.copy_message": "Copiar mensaje",
-  "status.reconnecting": "Conexión perdida. Reconectando…"
+  "status.reconnecting": "Conexión perdida. Reconectando…",
+  "theme.contrast": "Alto contraste",
+  "settings.font": "Fuente",
+  "settings.font_hint": "Las fuentes del sistema y monoespaciada no cargan nada extra.",
+  "font.default": "Kali (predeterminada)",
+  "font.system": "Sistema",
+  "font.mono": "Monoespaciada"
 }
