@@ -7,6 +7,8 @@
 
 import type { WindowData, WindowType, Position, CreateWindowOpts } from "./types";
 import { DEFAULT_SIZES, WINDOW_ICONS } from "./types";
+import type { ArtifactEvent } from "../lib/protocol";
+import { resolveWindowType } from "./resolveWindowType";
 
 let idCounter = 100;
 let zCounter = 100;
@@ -217,4 +219,19 @@ export function computeOrbitPositions(windows: WindowData[], _radius?: number): 
       },
     };
   });
+}
+/**
+ * Fill a placeholder window with freshly fetched artifact content.
+ * A window created by reopening a library entry has no metadata yet (type "widget",
+ * title "…"), so the real renderer type, title and icon come from the fetched event.
+ */
+export function applyLoadedArtifact(w: WindowData, ev: ArtifactEvent): WindowData {
+  const type = resolveWindowType(ev);
+  const placeholder = w.type === "widget" && !w.content;
+  return {
+    ...w,
+    content: ev,
+    ...(placeholder ? { type, icon: WINDOW_ICONS[type] ?? w.icon } : {}),
+    ...(w.title === "…" || !w.title ? { title: ev.title || w.title } : {}),
+  };
 }

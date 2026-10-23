@@ -20,6 +20,7 @@ import { useUndoRedo } from "./useUndoRedo";
 import { useMultiSelect } from "./useMultiSelect";
 import { usePersistence } from "./usePersistence";
 import {
+  applyLoadedArtifact,
   createWindowData,
   focusInArray,
   unfocusAllInArray,
@@ -103,7 +104,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
         };
         // Fill the window content (if still open/not closed meanwhile).
         setWindows((prev) => prev.map((w) =>
-          w.artifactId === artifactId ? { ...w, content: ev } : w
+          w.artifactId === artifactId ? applyLoadedArtifact(w, ev) : w
         ));
         onContentLoadedRef.current?.(artifactId, ev);
       })
