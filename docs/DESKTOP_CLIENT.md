@@ -1,5 +1,15 @@
 # Cliente de escritorio independiente
 
+> Actualización: el cliente se compone ahora de dos piezas. **`kali-avatar`** (Rust, residente y mínimo) gestiona el avatar flotante, la bandeja y las acciones nativas; **`kali-shell`** (Electron) se abre bajo demanda para el chat y las ventanas de artefactos. Si `kali-avatar` no está instalado, `kali-shell` funciona solo como antes (avatar y bandeja propios). Arquitectura: [DESKTOP_NATIVE_ARCHITECTURE.md](DESKTOP_NATIVE_ARCHITECTURE.md); agente nativo: [../kali-avatar/README.md](../kali-avatar/README.md).
+
+## Modos y configuración compartida
+
+- **Remoto**: el cliente se conecta a `backendUrl` (HTTPS/WSS) con los tokens API y de escritorio.
+- **Local**: `kali-shell` arranca `kali-core` en `127.0.0.1` (necesita `kali_core` instalado; `KALI_PYTHON` elige el intérprete), genera ambos tokens y los guarda. Si ya hay un core escuchando en el puerto, no lanza otro.
+- La configuración vive en `~/.config/kali/desktop.json` (modo `0600`, tokens en texto plano porque `kali-avatar` debe conectar sin Electron). Se importa automáticamente el antiguo `desktop.json` de Electron.
+- `kali-shell --open=chat|artifacts|settings|artifact:<sid>:<aid>` y `--avatar=show|hide|toggle` actúan sobre la instancia ya abierta; `--background` arranca sin mostrar ventana.
+- Con `kali-avatar` activo, cerrar la última ventana cierra Electron (salvo que el wake word o el modo continuo estén activos: la voz sigue en la UI web).
+
 El backend (`kali-core`) es el motor y conserva sesiones, mensajes, artefactos, permisos y herramientas. La web y el cliente Electron son presentaciones separadas. El cliente Electron incluye una copia compilada de `kali-web`, no instala Python ni arranca el backend. Se configura con la URL del backend y se conecta por HTTPS para recursos/API y WSS para eventos y audio. La instalación se puede copiar a otro computador.
 
 ## Arranque y distribución
@@ -29,6 +39,8 @@ Las herramientas de archivos, búsqueda, red, modelo, voz y otras funciones del 
 Electron no puede garantizar una capa sobre todas las ventanas ni posición absoluta en Wayland. El avatar no usa Layer Shell; Hyprland puede necesitar [reglas locales](https://wiki.hypr.land/configuring/core/rules/window-rules/) para fijar monitor y posición, mientras KDE/GNOME aplican sus propias políticas. La captura en escritorios distintos de Hyprland depende del portal/sistema y debe verificarse en el equipo del cliente. Las acciones nativas solo están disponibles mientras la ventana principal mantiene su WebSocket activo.
 
 ## Protocolo
+
+Novedades: `hello` admite `{"mode":"presence"}` (sin replay de historial ni wake word; el core reenvía una copia compacta de `turn_start`, `delta`, `turn_end`, `tts_audio` sin audio, `stt_*`, `tool_event`, etc.); `desktop_register` admite `capabilities` y `desktop_registered` las devuelve; `ping` recibe `pong`. Un agente registrado atiende acciones de cualquier turno de su sesión (o de todas si no se vinculó a una). Con `KALI_ALLOW_SERVER_SCREEN=0` el core nunca captura su propia pantalla cuando no hay agente.
 
 Tras `auth`, el cliente envía `desktop_register` con el token de capacidades y luego `hello`. El core responde `desktop_registered` y envía `desktop_action` con identificador, acción y parámetros solo a la conexión del turno. El cliente responde `desktop_action_result` con `ok`, `result` o `error`. La API/WS de artefactos sigue siendo la misma para web y escritorio. La URL y los tokens se pueden cambiar sin reinstalar el cliente.
 

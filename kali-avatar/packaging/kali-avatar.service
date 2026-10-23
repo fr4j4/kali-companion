@@ -1,0 +1,14 @@
+[Unit]
+Description=Kali native avatar agent
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/kali-avatar
+Restart=on-failure
+RestartSec=3
+# Lightweight background agent: stay out of the way of foreground apps.
+Nice=5
+
+[Install]
+WantedBy=graphical-session.target

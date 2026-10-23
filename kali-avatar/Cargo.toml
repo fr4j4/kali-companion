@@ -1,0 +1,25 @@
+[package]
+name = "kali-avatar"
+version = "0.1.0"
+edition = "2021"
+description = "Kali native desktop agent: floating avatar (layer-shell / X11), tray and native actions"
+license = "MIT"
+rust-version = "1.80"
+
+[dependencies]
+gtk4 = "0.10"
+gtk4-layer-shell = "0.7"
+webkit6 = "0.5"
+ksni = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tungstenite = { version = "0.26", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
+url = "2"
+base64 = "0.22"
+async-channel = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

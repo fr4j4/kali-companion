@@ -1,0 +1,15 @@
+[Unit]
+Description=Kali core (local backend)
+After=network.target
+
+[Service]
+# Create ~/.config/kali/core.env with KALI_API_TOKEN and KALI_DESKTOP_TOKEN (the same values
+# kali-shell/kali-avatar read from ~/.config/kali/desktop.json) before enabling this unit.
+EnvironmentFile=%h/.config/kali/core.env
+Environment=KALI_HOST=127.0.0.1
+ExecStart=%h/.local/bin/kali-core
+Restart=on-failure
+Nice=10
+
+[Install]
+WantedBy=default.target

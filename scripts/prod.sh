@@ -14,5 +14,10 @@ fi
 
 npm --prefix "$WEB_DIR" run build
 npm --prefix "$SHELL_DIR" run build
+# Optional native avatar: start it when built (scripts/build-avatar.sh) so it owns avatar and tray.
+if command -v kali-avatar >/dev/null 2>&1 && ! pgrep -x kali-avatar >/dev/null; then
+  (kali-avatar >/dev/null 2>&1 &)
+  sleep 1
+fi
 cd "$SHELL_DIR"
 exec ./node_modules/.bin/electron .

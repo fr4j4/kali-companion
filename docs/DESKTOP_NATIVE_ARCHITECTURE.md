@@ -1,6 +1,10 @@
 # Arquitectura: escritorio con avatar nativo (propuesta)
 
-Estado: propuesta de diseño sobre `feature/desktop-client-remote-core`. Las cifras de memoria son estimaciones a validar con mediciones (fase 1).
+Estado: **implementado en la rama de pruebas** (fases 1 a 3 y parte de la 4). Pendiente: voz fuera de Electron, render nativo del SVG y eliminar Electron (fase 5). Verificado en Xvfb/X11 y con un core real; layer-shell en Wayland y la bandeja en un panel real están **sin probar** (ver `kali-avatar/README.md`).
+
+Ajustes respecto a la propuesta inicial: la config compartida es **JSON** (`desktop.json`), no TOML; los tokens quedan en el archivo `0600` en vez de libsecret; Electron no permite `app_id` por ventana, por lo que las ventanas de artefacto llevan un título estable `kali-artifact · <id>` para reglas del compositor; `kali-avatar` es el único dueño del WebSocket del avatar y empuja los eventos al WebView con `window.kaliAvatar.push` (el WebView no abre su propia conexión).
+
+Medición real (build debug, Xvfb, WebKitGTK 2.52): proceso principal ~230 MB RSS y WebProcess ~170 MB RSS; los RSS incluyen librerías compartidas, así que son una cota alta. Para comparar con Electron hay que medir PSS en un escritorio real: la tabla de §7 sigue siendo una estimación.
 Contexto: ver `docs/DESKTOP_CLIENT.md` (estado actual) y la auditoría de la rama.
 
 ## 1. Objetivos y prioridades
