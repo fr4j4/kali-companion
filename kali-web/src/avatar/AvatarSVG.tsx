@@ -18,6 +18,7 @@
  * re-renders — the SVG markup never changes after initial mount.
  */
 
+import { speechEnvelope } from "./speechEnvelope";
 import { useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { AvatarState, AvatarEmotion, AvatarConfig } from "./avatarConfig";
@@ -223,9 +224,24 @@ export function AvatarSVG({ state, emotion, analyser, audioLevel, config, onClic
     if (!analyser) {
       // Fallback path: use the audioLevel prop (still no rAF here; the
       // parent is responsible for updating it — ideally at low freq).
-      if (audioLevel !== undefined) updateMouth(audioLevel);
-      else updateMouth(0.5);
-      return;
+      if (audioLevel !== undefined) {
+        updateMouth(audioLevel);
+        return;
+      }
+      // No audio to read (floating/native avatar: the speech plays in another
+      // process). Synthesize a syllable-like envelope so the mouth still moves;
+      // the loop only runs while speaking.
+      const tick = (now: number) => {
+        updateMouth(speechEnvelope(now));
+        mouthRafRef.current = requestAnimationFrame(tick);
+      };
+      mouthRafRef.current = requestAnimationFrame(tick);
+      return () => {
+        if (mouthRafRef.current) {
+          cancelAnimationFrame(mouthRafRef.current);
+          mouthRafRef.current = null;
+        }
+      };
     }
 
     // Primary path: self-driven rAF loop reading the analyser.

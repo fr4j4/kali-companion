@@ -25,6 +25,7 @@ import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { useAvatarMoodEngine } from "../avatar/AvatarMoodEngine";
 import { AvatarSVG } from "../avatar/AvatarSVG";
+import { publishAvatarConfig, subscribeAvatarConfig } from "../avatar/avatarSync";
 import { loadAvatarConfig, saveAvatarConfig, type AvatarConfig, type AvatarEmotion } from "../avatar/avatarConfig";
 import { useWorkspace } from "../workspace/useWorkspace";
 import type { SelectedArtifactRef } from "../lib/protocol";
@@ -102,6 +103,14 @@ export function NeuralCanvas({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSwitcherOpen, setMobileSwitcherOpen] = useState(false);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => loadAvatarConfig());
+  // Appearance changes made elsewhere (another window, the core) update the canvas avatar live.
+  useEffect(() => subscribeAvatarConfig(setAvatarConfig), []);
+  const publishTimerRef = useRef<number | undefined>(undefined);
+  const onCustomizerChange = useCallback((next: AvatarConfig) => {
+    setAvatarConfig(next);
+    window.clearTimeout(publishTimerRef.current);
+    publishTimerRef.current = window.setTimeout(() => { saveAvatarConfig(next); publishAvatarConfig(chat.wsClient, next); }, 300);
+  }, [chat.wsClient]);
   const reasoningWindowIdRef = useRef<number | null>(null);
   const terminalWindowIdRef = useRef<number | null>(null);
 
@@ -661,9 +670,9 @@ export function NeuralCanvas({
 
       <CustomizerDrawer
         open={customizerOpen}
-        onClose={() => { setCustomizerOpen(false); saveAvatarConfig(avatarConfig); }}
+        onClose={() => { setCustomizerOpen(false); window.clearTimeout(publishTimerRef.current); saveAvatarConfig(avatarConfig); publishAvatarConfig(chat.wsClient, avatarConfig); }}
         config={avatarConfig}
-        onChange={setAvatarConfig}
+        onChange={onCustomizerChange}
       />
 
       <SettingsModal

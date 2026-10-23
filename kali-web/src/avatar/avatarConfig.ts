@@ -64,17 +64,35 @@ export const DEFAULT_CONFIG: AvatarConfig = {
 
 const STORAGE_KEY = "kali.avatar_config";
 
+/** Merge a partial/untrusted config (storage or the core) over the defaults, one level deep for the color groups. */
+export function mergeAvatarConfig(raw: unknown): AvatarConfig {
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_CONFIG };
+  const parsed = raw as Partial<AvatarConfig>;
+  return {
+    ...DEFAULT_CONFIG,
+    ...parsed,
+    colors: { ...DEFAULT_CONFIG.colors, ...parsed.colors },
+    eyes: { ...DEFAULT_CONFIG.eyes, ...parsed.eyes },
+  };
+}
+
 /** Load config from localStorage, falling back to defaults. */
 export function loadAvatarConfig(): AvatarConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_CONFIG };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_CONFIG, ...parsed };
+    return raw ? mergeAvatarConfig(JSON.parse(raw)) : { ...DEFAULT_CONFIG };
   } catch {
     return { ...DEFAULT_CONFIG };
   }
 }
+
+/** True when the user has customized the avatar on this device (a config is stored). */
+export function hasStoredAvatarConfig(): boolean {
+  try { return localStorage.getItem(STORAGE_KEY) !== null; } catch { return false; }
+}
+
+/** localStorage key other windows watch (`storage` event) to follow appearance changes. */
+export const AVATAR_CONFIG_STORAGE_KEY = STORAGE_KEY;
 
 /** Save config to localStorage. */
 export function saveAvatarConfig(config: AvatarConfig): void {

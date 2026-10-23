@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import "./lib/i18n";
 import "./styles.css";
 import { AvatarStateTracker, type AvatarViewState, type PresenceEvent } from "./avatar/avatarState";
+import { DEFAULT_CONFIG, mergeAvatarConfig, type AvatarConfig } from "./avatar/avatarConfig";
 import { AvatarView } from "./desktop/AvatarView";
 
 interface AvatarHost {
@@ -30,6 +31,7 @@ function NativeAvatar() {
   const tracker = useRef(new AvatarStateTracker());
   const [view, setView] = useState<AvatarViewState>(() => tracker.current.view());
   const [showText, setShowText] = useState(false);
+  const [config, setConfig] = useState<AvatarConfig>(DEFAULT_CONFIG);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -42,6 +44,7 @@ function NativeAvatar() {
       push(raw) {
         try {
           const ev = typeof raw === "string" ? (JSON.parse(raw) as PresenceEvent) : raw;
+          if (ev.event === "avatar_config") { if (ev.config) setConfig(mergeAvatarConfig(ev.config)); return; }
           setView(tracker.current.apply(ev));
           schedule();
         } catch { /* ignore malformed frames */ }
@@ -53,7 +56,7 @@ function NativeAvatar() {
     return () => { window.clearTimeout(timer); delete window.kaliAvatar; };
   }, []);
 
-  return <AvatarView presence={view} showText={showText} onOpen={() => postToAgent({ type: "open", target: "chat" })} />;
+  return <AvatarView presence={view} config={config} showText={showText} onOpen={() => postToAgent({ type: "open", target: "chat" })} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><NativeAvatar /></React.StrictMode>);

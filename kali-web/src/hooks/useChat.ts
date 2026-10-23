@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WSClient } from "../lib/wsClient";
+import { handleRemoteAvatarConfig } from "../avatar/avatarSync";
 import { websocketUrl } from "../lib/desktop";
 import type {
   ArtifactEvent,
@@ -15,6 +16,7 @@ import type {
   DeltaEvent,
   MessageEvent,
   ReadyEvent,
+  AvatarConfigEvent,
   ReasoningDeltaEvent,
   SessionListEvent,
   StepStartEvent,
@@ -358,7 +360,9 @@ export function useChat(sessionOverride?: string): ChatState {
         setStatus("ready");
         setIsCreatingSession(false);
         client?.send({ event: "list_sessions" });
+        client?.send({ event: "avatar_config_get" });
       });
+      client.on("avatar_config", (p) => handleRemoteAvatarConfig((p as unknown as AvatarConfigEvent).config, client));
       client.on("connected", (p) => {
         const ev = p as ConnectedEvent;
         setError(null);

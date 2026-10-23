@@ -137,3 +137,13 @@ Cliente/servidor
 - **Mantenimiento**: añade Rust al repo (Python + TS + Rust). Mitigación: `kali-avatar` pequeño, con CI propio.
 - **GNOME Wayland**: sin overlay real; solo degradación.
 - **Conflictos de ramas**: la línea VR (`feature/ui3d-mvp`) también toca `kali-web`; conviene integrar el escritorio a `development` primero.
+
+## Avatar sync (canvas / Electron / native)
+
+One source of truth per concern:
+
+- **State (mood, emotion, speech):** the canvas derives it from chat state (`AvatarMoodEngine`); the Electron floating avatar receives it over IPC from the main window; the native agent derives it from the core's presence stream (`AvatarStateTracker`, `tts_audio` duration drives "hablando").
+- **Appearance:** the core stores one config (`avatar_config.json`, override with `KALI_AVATAR_CONFIG`). Clients publish with `avatar_config_set`; the core persists it and broadcasts `avatar_config` to every connection, and replays it on connect (presence `ready`, or `avatar_config_get`; `config: null` = none stored, a customized device then seeds it). The main window mirrors it to localStorage, which the Electron avatar window watches; the native agent feeds it to its WebView via `push`. No Rust change was needed: the link already forwards unknown events.
+- **Mouth:** with a TTS analyser (canvas) it follows the audio; without one (floating/native, audio plays elsewhere) it uses a synthetic syllable envelope, only while speaking.
+
+Known gaps: the floating/native avatars do not react to user-text emotion or typing/caret gaze (not in the presence stream), nor to click petting ("ronroneando"); the Electron avatar only updates appearance while the main window is alive.

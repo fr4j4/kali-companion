@@ -75,6 +75,7 @@ from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
 from kali_core.ear.providers import get_stt_provider
+from kali_core import avatar_config
 from kali_core.user_config import UserConfig, load_or_default as load_user_config, save as save_user_config
 from kali_core.game.gsi import gsi_state
 from kali_core.gaze import GazeClient
@@ -494,6 +495,7 @@ class Server:
         # the UI can show a banner about settings that couldn't be restored.
         self._config_warnings: dict[str, str] = {}
         self._apply_server_level_user_config()
+        self.avatar_config: dict[str, Any] | None = avatar_config.load()
         self._register_routes()
 
     async def broadcast(self, payload: dict[str, Any]) -> None:
@@ -510,6 +512,16 @@ class Server:
                     await conn.send(payload)
                 except Exception:
                     pass
+
+    async def set_avatar_config(self, config: Any) -> bool:
+        """Store a new avatar appearance and push it to every connection (canvas, Electron, native)."""
+        clean = avatar_config.sanitize(config)
+        if clean is None:
+            return False
+        self.avatar_config = clean
+        avatar_config.save(clean)
+        await self.broadcast({"event": "avatar_config", "config": clean})
+        return True
 
     async def mirror_presence(self, session_id: str | None, payload: dict[str, Any]) -> None:
         """Forward a compact copy of a turn event to presence-mode connections.
@@ -1791,6 +1803,15 @@ class Connection:
                 "mode": "presence",
                 "turn_active": bool(self._turn_active_for(follow)),
             })
+            await self._send_avatar_config()
+            return
+
+        if kind == "avatar_config_set":
+            await self.server.set_avatar_config(event.get("config"))
+            return
+
+        if kind == "avatar_config_get":
+            await self._send_avatar_config(always=True)
             return
 
         if kind == "hello":
@@ -3716,6 +3737,11 @@ class Connection:
             "stt_vad_rms_threshold": self._stt_vad_rms_threshold,
         })
         await self.send(payload)
+
+    async def _send_avatar_config(self, *, always: bool = False) -> None:
+        """Replay the shared avatar appearance; `always` also answers "none stored" (config: null)."""
+        if always or self.server.avatar_config is not None:
+            await self.send({"event": "avatar_config", "config": self.server.avatar_config})
 
     async def send(self, payload: dict[str, Any]) -> None:
         async with self._send_lock:

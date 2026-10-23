@@ -89,3 +89,4 @@ kali-core/kali_core/voice/qwen_cpp/
 # Rust (kali-avatar)
 # =============================================================================
 kali-avatar/target/
+avatar_config.json
