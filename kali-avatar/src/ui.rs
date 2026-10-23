@@ -1,41 +1,18 @@
 //! GTK window: layer-shell surface on Wayland compositors that support it, a plain undecorated
 //! window elsewhere (GNOME Wayland, X11), hosting a transparent WebView with the avatar bundle.
 
-use crate::actions::{Monitor, Monitors};
 use crate::config::{self, Config};
 use crate::link::{Cmd, SharedConfig, ToUi};
+use crate::platform::{position, Backend, DragMode, Monitor, Monitors, Surface};
 use gtk4::prelude::*;
 use gtk4::{gdk, gio, glib};
-use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use webkit6::prelude::*;
 use webkit6::{UserContentManager, WebContext, WebView};
 
-const MARGIN: i32 = 24;
 const HOST: &str = "kali://app";
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn prefs(corner: &str, x: Option<i32>, y: Option<i32>) -> config::AvatarPrefs {
-        config::AvatarPrefs { corner: corner.into(), size: 220, x, y, ..Default::default() }
-    }
-
-    #[test]
-    fn corner_positions() {
-        assert_eq!(position(&prefs("bottom-right", None, None), (1920, 1080)), (1920 - 220 - 24, 1080 - 240 - 24));
-        assert_eq!(position(&prefs("top-left", None, None), (1920, 1080)), (24, 24));
-    }
-
-    #[test]
-    fn dragged_position_is_clamped_to_the_monitor() {
-        assert_eq!(position(&prefs("top-left", Some(100), Some(200)), (1920, 1080)), (100, 200));
-        assert_eq!(position(&prefs("top-left", Some(5000), Some(-9)), (1920, 1080)), (1700, 0));
-    }
-}
 
 struct State {
     window: gtk4::ApplicationWindow,
@@ -44,6 +21,7 @@ struct State {
     ready: bool,
     pending: Vec<String>,
     layer: bool,
+    surface: Rc<dyn Surface>,
     last_mtime: Option<std::time::SystemTime>,
     /// Origin and size of the monitor the avatar lives on (logical px) and the avatar position inside it.
     monitor_origin: (i32, i32),
@@ -59,19 +37,6 @@ struct Drag {
 }
 
 const DRAG_THRESHOLD: f64 = 5.0;
-
-/// Avatar position inside a monitor of `size`: the dragged `x`/`y` (clamped to the monitor) or the
-/// configured corner.
-pub fn position(prefs: &config::AvatarPrefs, monitor: (i32, i32)) -> (i32, i32) {
-    let (w, h) = (prefs.size as i32, prefs.size as i32 + 20);
-    let (mw, mh) = monitor;
-    if let (Some(x), Some(y)) = (prefs.x, prefs.y) {
-        return (x.clamp(0, (mw - w).max(0)), y.clamp(0, (mh - h).max(0)));
-    }
-    let x = if prefs.corner.ends_with("left") { MARGIN } else { mw - w - MARGIN };
-    let y = if prefs.corner.starts_with("top") { MARGIN } else { mh - h - MARGIN };
-    (x.max(0), y.max(0))
-}
 
 pub fn web_root() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -192,7 +157,7 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>, tx:
                         (st.window.surface().and_downcast::<gdk::Toplevel>(), gesture.device(), gesture.start_point())
                     {
                         toplevel.begin_move(&device, 1, sx, sy, gesture.current_event_time());
-                        remember_x11_position(st.monitor_origin, tx.clone());
+                        st.surface.remember_moved(st.monitor_origin, tx.clone());
                     }
                 }
                 return;
@@ -205,8 +170,7 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>, tx:
             let max_x = (st.monitor_size.0 - size).max(0);
             let max_y = (st.monitor_size.1 - size - 20).max(0);
             st.pos = ((st.pos.0 + dx.round() as i32).clamp(0, max_x), (st.pos.1 + dy.round() as i32).clamp(0, max_y));
-            st.window.set_margin(Edge::Left, st.pos.0);
-            st.window.set_margin(Edge::Top, st.pos.1);
+            st.surface.move_to(&st.window, st.pos);
         });
     }
     gesture.connect_drag_end(move |_, _, _| {
@@ -230,39 +194,6 @@ fn install_drag(window: &gtk4::ApplicationWindow, state: Rc<RefCell<State>>, tx:
     window.add_controller(gesture);
 }
 
-/// The window manager runs the move on X11, so GTK never sees where the window ends up: poll
-/// wmctrl until the geometry settles and store it relative to the monitor.
-fn remember_x11_position(origin: (i32, i32), tx: async_channel::Sender<ToUi>) {
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        return;
-    }
-    std::thread::spawn(move || {
-        let read = || -> Option<(i32, i32)> {
-            let out = std::process::Command::new("wmctrl").arg("-lG").output().ok()?;
-            let text = String::from_utf8_lossy(&out.stdout).into_owned();
-            let line = text.lines().find(|l| l.ends_with("Kali Avatar"))?;
-            let f: Vec<&str> = line.split_whitespace().collect();
-            Some((f.get(2)?.parse().ok()?, f.get(3)?.parse().ok()?))
-        };
-        let (mut last, mut stable) = (None, 0);
-        for _ in 0..200 {
-            std::thread::sleep(std::time::Duration::from_millis(300));
-            let now = read();
-            if let Some((x, y)) = now {
-                let _ = tx.send_blocking(ToUi::Moved(x, y));
-            }
-            if now.is_some() && now == last { stable += 1 } else { stable = 0 }
-            last = now;
-            if stable >= 3 {
-                break;
-            }
-        }
-        if let Some((x, y)) = last {
-            let _ = config::save_position(Some(((x - origin.0).max(0), (y - origin.1).max(0))));
-        }
-    });
-}
-
 fn monitor_list(display: &gdk::Display) -> Vec<gdk::Monitor> {
     let model = display.monitors();
     (0..model.n_items()).filter_map(|i| model.item(i).and_downcast::<gdk::Monitor>()).collect()
@@ -284,6 +215,7 @@ fn refresh_monitors(display: &gdk::Display, shared: &Monitors) {
                 width: g.width(),
                 height: g.height(),
                 primary: i == 0,
+                ..Default::default()
             }
         })
         .collect();
@@ -309,15 +241,7 @@ fn apply_prefs(state: &mut State) {
         state.monitor_size = (g.width(), g.height());
     }
     state.pos = position(&prefs, state.monitor_size);
-    if state.layer {
-        // Always anchor top-left and place with margins: that makes the dragged position exact.
-        for edge in [Edge::Top, Edge::Bottom, Edge::Left, Edge::Right] {
-            state.window.set_anchor(edge, edge == Edge::Top || edge == Edge::Left);
-        }
-        state.window.set_margin(Edge::Left, state.pos.0);
-        state.window.set_margin(Edge::Top, state.pos.1);
-        state.window.set_monitor(monitor.as_ref());
-    }
+    state.surface.apply(&state.window, state.pos, monitor.as_ref());
     state.window.set_visible(prefs.visible);
     let _ = state.webview.evaluate_javascript(
         &format!("window.kaliAvatar&&window.kaliAvatar.configure({{showText:{}}})", prefs.show_text),
@@ -339,31 +263,6 @@ fn push(state: &mut State, json: &str) {
     state.webview.evaluate_javascript(&format!("window.kaliAvatar&&window.kaliAvatar.push({literal})"), None, None, None::<&gio::Cancellable>, |_| {});
 }
 
-/// X11 has no layer-shell and GTK4 cannot move toplevels: ask the window manager through wmctrl
-/// (when installed) to keep the avatar above other windows and in its corner. Best effort.
-fn x11_place(prefs: &config::AvatarPrefs, monitors: &Monitors) {
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var_os("DISPLAY").is_none() {
-        return;
-    }
-    let target = monitors.lock().ok().and_then(|list| {
-        list.iter().find(|m| !prefs.monitor.is_empty() && m.name == prefs.monitor).or(list.first()).cloned()
-    });
-    let Some(m) = target else { return };
-    let (px, py) = position(prefs, (m.width, m.height));
-    let (x, y) = (m.x + px, m.y + py);
-    let (w, h) = (prefs.size as i32, prefs.size as i32 + 20);
-    std::thread::spawn(move || {
-        // The window must be mapped before the window manager accepts the request.
-        std::thread::sleep(std::time::Duration::from_millis(600));
-        let run = |args: &[&str]| std::process::Command::new("wmctrl").args(args).status();
-        if run(&["-r", "Kali Avatar", "-b", "add,above,sticky,skip_taskbar,skip_pager"]).is_err() {
-            eprintln!("[kali-avatar] wmctrl not found: install it to keep the avatar on top under X11");
-            return;
-        }
-        let _ = run(&["-r", "Kali Avatar", "-e", &format!("0,{x},{y},{w},{h}")]);
-    });
-}
-
 pub fn build(
     app: &gtk4::Application,
     initial: Config,
@@ -371,6 +270,7 @@ pub fn build(
     monitors: Monitors,
     rx: async_channel::Receiver<ToUi>,
     tx: async_channel::Sender<ToUi>,
+    backend: Backend,
 ) {
     let Some(root) = web_root() else {
         eprintln!("[kali-avatar] avatar.html not found; set KALI_AVATAR_WEB or build kali-web (npm run build)");
@@ -410,16 +310,9 @@ pub fn build(
     webview.set_focusable(false);
     window.set_child(Some(&webview));
 
-    let want_layer = std::env::var_os("KALI_AVATAR_NO_LAYER").is_none();
-    let layer = want_layer && gtk4_layer_shell::is_supported();
-    if layer {
-        window.init_layer_shell();
-        window.set_layer(Layer::Top);
-        window.set_namespace(Some("kali-avatar"));
-        window.set_keyboard_mode(KeyboardMode::None);
-    } else {
-        eprintln!("[kali-avatar] layer-shell unavailable: using a regular window (compositor decides stacking/position)");
-    }
+    let surface = backend.surface.clone();
+    surface.init(&window);
+    let layer = surface.drag_mode() == DragMode::Margins;
 
     let state = Rc::new(RefCell::new(State {
         window: window.clone(),
@@ -428,6 +321,7 @@ pub fn build(
         ready: false,
         pending: Vec::new(),
         layer,
+        surface: surface.clone(),
         last_mtime: Config::mtime(),
         monitor_origin: (0, 0),
         monitor_size: (1920, 1080),
@@ -435,9 +329,7 @@ pub fn build(
         drag: None,
     }));
     apply_prefs(&mut state.borrow_mut());
-    if !layer {
-        x11_place(&state.borrow().config.avatar, &monitors);
-    }
+    surface.place_initial(&state.borrow().config.avatar, &monitors);
 
     // Messages from the page: "ready" flushes the queue, "open" starts kali-shell.
     {

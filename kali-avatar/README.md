@@ -51,6 +51,14 @@ and tray.
 Screenshots shell out to `grim` / `spectacle` / `gnome-screenshot` (Wayland) or `maim` / `scrot` (X11).
 If `libgtk4-layer-shell` must be loaded before libwayland, start with `LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so`.
 
+## Platform layer
+
+All environment-specific code lives in `src/platform/`. `Backend::detect()` picks the session once
+(Wayland or X11, plus Hyprland / Sway / KDE / GNOME) and returns two trait objects: `Surface` (the
+avatar window: layer-shell, X11 + `wmctrl`, or a plain window) and `DesktopServices` (global cursor,
+monitors, screenshots). The rest of the agent never reads `WAYLAND_DISPLAY`, `HYPRLAND_*` or `XDG_*`.
+Force a session with `KALI_AVATAR_BACKEND=x11|wayland`; `GDK_BACKEND=x11` also selects X11 (XWayland).
+
 ## Development
 
 ```bash
@@ -58,4 +66,13 @@ cargo test
 # headless smoke test on X11 (no compositor needed):
 KALI_AVATAR_WEB=../kali-web/dist KALI_AVATAR_DEBUG=1 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 \
   xvfb-run -a cargo run
+```
+
+Wayland layer-shell smoke test with a headless compositor (no GPU needed):
+
+```bash
+export XDG_RUNTIME_DIR=$(mktemp -d); chmod 700 $XDG_RUNTIME_DIR
+WLR_BACKENDS=headless WLR_RENDERER=pixman sway &   # then, with WAYLAND_DISPLAY / SWAYSOCK pointing at it:
+KALI_AVATAR_WEB=../kali-web/dist KALI_AVATAR_DEBUG=1 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 \
+  LD_PRELOAD=/path/to/libgtk4-layer-shell.so cargo run   # logs "surface=wayland-layer-shell"
 ```
