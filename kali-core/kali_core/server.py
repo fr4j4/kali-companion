@@ -1755,7 +1755,8 @@ class Connection:
                 if isinstance(caps, list):
                     self.desktop_capabilities = frozenset(c for c in caps if isinstance(c, str))
                 self.server.desktop_broker.register(self)
-            logger.info(
+            # uvicorn.error: visible in `docker logs` even when the app logger is unconfigured.
+            logging.getLogger("uvicorn.error").info(
                 "desktop_register ok=%s capabilities=%s",
                 self.is_desktop,
                 sorted(self.desktop_capabilities) if self.desktop_capabilities is not None else "legacy",
