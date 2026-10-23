@@ -14,12 +14,25 @@ from pathlib import Path
 
 from .base import ToolContext, ToolResult
 
-# Common XDG application directories.
-_DESKTOP_DIRS = [
-    Path.home() / ".local" / "share" / "applications",
-    Path("/usr/share/applications"),
-    Path("/usr/local/share/applications"),
-]
+def _desktop_dirs() -> list[Path]:
+    """XDG application directories, including Flatpak and Snap exports."""
+    dirs = [Path.home() / ".local" / "share" / "applications"]
+    for base in os.environ.get("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":"):
+        if base:
+            dirs.append(Path(base) / "applications")
+    dirs += [
+        Path.home() / ".local" / "share" / "flatpak" / "exports" / "share" / "applications",
+        Path("/var/lib/flatpak/exports/share/applications"),
+        Path("/var/lib/snapd/desktop/applications"),
+    ]
+    seen: list[Path] = []
+    for d in dirs:
+        if d not in seen:
+            seen.append(d)
+    return seen
+
+
+_DESKTOP_DIRS = _desktop_dirs()
 
 
 def _parse_desktop_file(path: Path) -> dict | None:
@@ -47,6 +60,9 @@ def _parse_desktop_file(path: Path) -> dict | None:
         "icon": entry.get("Icon", ""),
         "terminal": entry.get("Terminal", "false").lower() == "true",
         "categories": entry.get("Categories", ""),
+        "generic": entry.get("GenericName", ""),
+        "keywords": entry.get("Keywords", ""),
+        "hidden": entry.get("NoDisplay", "false").lower() == "true" or entry.get("Hidden", "false").lower() == "true",
     }
 
 
@@ -64,11 +80,89 @@ def _find_desktop_file(name: str) -> Path | None:
     return None
 
 
+def _installed_apps() -> list[dict]:
+    """Visible applications found in the desktop directories (fallback without a desktop agent)."""
+    apps: dict[str, dict] = {}
+    for d in _DESKTOP_DIRS:
+        if not d.exists():
+            continue
+        for path in sorted(d.glob("*.desktop")):
+            if path.stem in apps:
+                continue
+            entry = _parse_desktop_file(path)
+            if entry is None or not entry["exec"] or entry["hidden"]:
+                continue
+            apps[path.stem] = {**entry, "id": path.stem}
+    return list(apps.values())
+
+
+def rank_apps(apps: list[dict], query: str, limit: int = 5) -> list[dict]:
+    """Rank apps for a free-text query; every word must match something."""
+    words = query.lower().split()
+    if not words:
+        return []
+    scored: list[tuple[int, dict]] = []
+    for app in apps:
+        total = 0
+        for w in words:
+            ident, name = app["id"].lower(), app["name"].lower()
+            if ident == w or name == w:
+                score = 100
+            elif ident.rsplit(".", 1)[-1] == w:
+                score = 90
+            elif name.startswith(w):
+                score = 80
+            elif w in name:
+                score = 60
+            elif w in app["generic"].lower() or w in app["keywords"].lower():
+                score = 50
+            elif w in ident:
+                score = 45
+            elif w in app["categories"].lower():
+                score = 20
+            else:
+                score = 0
+            if score == 0:
+                total = 0
+                break
+            total += score
+        if total:
+            scored.append((total // len(words), app))
+    scored.sort(key=lambda item: (-item[0], item[1]["name"]))
+    return [
+        {"id": a["id"], "name": a["name"], "description": a["generic"], "score": s}
+        for s, a in scored[:limit]
+    ]
+
+
+class FindAppsTool:
+    name = "find_apps"
+    description = (
+        "Search the installed applications by name, purpose or keyword (e.g. 'browser', "
+        "'file manager', 'photo editor'). Returns up to 5 candidates with the exact id to pass "
+        "to launch_app. Use it when you do not know the exact desktop entry name."
+    )
+    schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "What the user wants to open."}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+    risk_level = "safe"
+
+    async def run(self, params: dict, ctx: ToolContext) -> ToolResult:
+        query = str(params.get("query", "")).strip()
+        if not query or len(query) > 100:
+            return ToolResult(error="Missing or too long 'query' parameter.")
+        return ToolResult(output={"apps": rank_apps(_installed_apps(), query)})
+
+
 class LaunchAppTool:
     name = "launch_app"
     description = (
-        "Launch an application by its desktop entry name (e.g. 'firefox', "
-        "'code', 'steam'). Uses XDG .desktop files on Linux."
+        "Launch an application by its exact desktop entry id (e.g. 'org.mozilla.firefox', "
+        "'steam'). If you are not sure of the id, call find_apps first. The user is always "
+        "asked before an application is opened."
     )
     schema = {
         "type": "object",

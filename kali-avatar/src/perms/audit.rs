@@ -32,9 +32,13 @@ impl Entry {
     }
 }
 
+/// Rotate when the log passes this size; the chain continues across the rotation.
+const MAX_BYTES: u64 = 10 * 1024 * 1024;
+
 pub struct Audit {
     path: PathBuf,
-    lock: Mutex<()>,
+    /// Hash of the last line written (loaded lazily), so appends do not re-read the file.
+    last: Mutex<Option<String>>,
 }
 
 pub fn default_path() -> PathBuf {
@@ -52,7 +56,7 @@ fn digest(line: &str) -> String {
 
 impl Audit {
     pub fn new(path: PathBuf) -> Audit {
-        Audit { path, lock: Mutex::new(()) }
+        Audit { path, last: Mutex::new(None) }
     }
 
     #[allow(dead_code)]
@@ -63,11 +67,19 @@ impl Audit {
     /// Best effort: failing to write must not turn a denied action into an allowed one, nor crash.
     pub fn append(&self, entry: Entry) {
         use std::os::unix::fs::OpenOptionsExt;
-        let _guard = self.lock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut last = self.last.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(dir) = self.path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        let prev = std::fs::read_to_string(&self.path).ok().and_then(|s| s.lines().last().map(digest)).unwrap_or_default();
+        let prev = match last.clone() {
+            Some(hash) => hash,
+            None => std::fs::read_to_string(&self.path).ok().and_then(|s| s.lines().last().map(digest)).unwrap_or_default(),
+        };
+        if std::fs::metadata(&self.path).is_ok_and(|m| m.len() > MAX_BYTES) {
+            let mut old = self.path.clone().into_os_string();
+            old.push(".1");
+            let _ = std::fs::rename(&self.path, old);
+        }
         let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         let line = json!({
             "ts": ts, "action": entry.action, "class": entry.class, "target": entry.target, "grant": entry.grant,
@@ -75,18 +87,24 @@ impl Audit {
         })
         .to_string();
         if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&self.path) {
-            let _ = writeln!(file, "{line}");
+            if writeln!(file, "{line}").is_ok() {
+                *last = Some(digest(&line));
+            }
         }
     }
 }
 
 /// Check the hash chain. Returns the number of entries, or the 1-based line that does not match.
+/// The first line's `prev` is the anchor (it points into the rotated file, if there is one).
 pub fn verify(path: &Path) -> Result<usize, usize> {
     let text = std::fs::read_to_string(path).map_err(|_| 0usize)?;
     let mut prev = String::new();
     let mut count = 0;
     for (i, line) in text.lines().enumerate() {
         let value: Value = serde_json::from_str(line).map_err(|_| i + 1)?;
+        if i == 0 {
+            prev = value["prev"].as_str().unwrap_or_default().to_string();
+        }
         if value["prev"].as_str() != Some(prev.as_str()) {
             return Err(i + 1);
         }
@@ -117,6 +135,23 @@ mod tests {
         let text = std::fs::read_to_string(&path).unwrap().replace("allow-once", "allow-task");
         std::fs::write(&path, text).unwrap();
         assert!(verify(&path).is_err());
+    }
+
+    #[test]
+    fn chain_survives_rotation_and_does_not_reread_the_file() {
+        let path = tmp("rotate");
+        let audit = Audit::new(path.clone());
+        audit.append(Entry::new("a", "observe", None, None, "allow", "click", "ok"));
+        // Simulate a rotation: the old file moves away, the next line still chains to it.
+        let mut old = path.clone().into_os_string();
+        old.push(".1");
+        std::fs::rename(&path, &old).unwrap();
+        audit.append(Entry::new("b", "observe", None, None, "allow", "click", "ok"));
+        let first_old = std::fs::read_to_string(&old).unwrap();
+        let new_line: Value = serde_json::from_str(std::fs::read_to_string(&path).unwrap().lines().next().unwrap()).unwrap();
+        assert_eq!(new_line["prev"].as_str().unwrap(), digest(first_old.lines().last().unwrap()));
+        assert_eq!(verify(&path), Ok(1));
+        let _ = std::fs::remove_file(old);
     }
 
     #[test]

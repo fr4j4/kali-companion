@@ -5,6 +5,7 @@
 //! (kali-shell / Electron) is started on demand.
 
 mod actions;
+mod apps;
 mod config;
 mod link;
 mod perms;
@@ -75,7 +76,7 @@ fn main() -> glib_exit::ExitCode {
         let (tx, rx) = async_channel::unbounded();
         let backend = platform::Backend::detect();
         perms::install(Arc::new(perms::Guard::new(
-            Arc::new(perms::card::CardDecider { ui: tx.clone() }),
+            Arc::new(perms::card::CardDecider::new(tx.clone())),
             perms::audit::Audit::new(perms::audit::default_path()),
             perms::Policy { launch_allowlist: initial.permissions.launch_allowlist.clone() },
         )));

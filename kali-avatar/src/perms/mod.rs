@@ -69,7 +69,7 @@ impl ActionClass {
 /// Class of a native action. Unknown actions have none and are always rejected.
 pub fn classify(action: &str) -> Option<ActionClass> {
     match action {
-        "list_monitors" => Some(ActionClass::Info),
+        "list_monitors" | "find_apps" => Some(ActionClass::Info),
         "screenshot" => Some(ActionClass::Observe),
         "launch_app" => Some(ActionClass::Launch),
         _ => None,
@@ -104,6 +104,8 @@ pub struct ConsentRequest {
     pub action: String,
     pub class: ActionClass,
     pub target: Option<String>,
+    /// Human-readable name of the target (the app's display name), for the card.
+    pub label: Option<String>,
     /// Why the agent wants it, as stated by the core (untrusted text, shown as a quote).
     pub reason: String,
     pub allow_task: bool,
@@ -130,6 +132,9 @@ pub struct Authorization {
 }
 
 /// The process-wide guard, set once at startup (the link, the tray and signal handlers share it).
+const DENIAL_WINDOW: Duration = Duration::from_secs(60);
+const MAX_DENIALS: usize = 3;
+
 static GUARD: OnceLock<Arc<Guard>> = OnceLock::new();
 
 pub fn install(guard: Arc<Guard>) {
@@ -142,6 +147,8 @@ pub fn global() -> Option<&'static Arc<Guard>> {
 
 pub struct Guard {
     grants: Mutex<Grants>,
+    /// Recent denials, to stop an agent that keeps asking after being told no.
+    denials: Mutex<Vec<Instant>>,
     audit: Audit,
     decider: Arc<dyn Decider>,
     policy: Mutex<Policy>,
@@ -155,6 +162,7 @@ impl Guard {
     pub fn new(decider: Arc<dyn Decider>, audit: Audit, policy: Policy) -> Guard {
         Guard {
             grants: Mutex::new(Grants::default()),
+            denials: Mutex::new(Vec::new()),
             audit,
             decider,
             policy: Mutex::new(policy),
@@ -175,6 +183,10 @@ impl Guard {
             return Ok(Authorization { grant_id: None, decided_by: "info" });
         }
         let now = Instant::now();
+        if self.cooling_down(now) {
+            self.log(action, class, &target, None, "deny", "rate-limit", "denied");
+            return Err("Too many requests were denied; wait a minute before asking again".into());
+        }
         let generation = self.generation.load(Ordering::SeqCst);
 
         if class == ActionClass::Launch {
@@ -193,6 +205,7 @@ impl Guard {
             action: action.to_string(),
             class,
             target: target.clone(),
+            label: params.get("label").and_then(Value::as_str).map(|l| l.chars().take(80).collect()),
             reason: reason.chars().take(300).collect(),
             allow_task: class.allows_task_grant(),
             task_ttl: class.max_ttl(),
@@ -215,15 +228,28 @@ impl Guard {
                 Ok(Authorization { grant_id: Some(id), decided_by: "click" })
             }
             Decision::Task | Decision::Deny => {
+                self.note_denial(now);
                 self.log(action, class, &target, None, "deny", "click", "denied");
                 Err("Denied by the user".into())
             }
             Decision::DenyAndStop => {
+                self.note_denial(now);
                 self.panic("deny-and-stop");
                 self.log(action, class, &target, None, "deny-stop", "click", "denied");
                 Err("Denied by the user, permissions revoked".into())
             }
         }
+    }
+
+    fn note_denial(&self, now: Instant) {
+        self.denials.lock().unwrap().push(now);
+    }
+
+    /// Three denials within a minute pause new requests for the rest of that minute.
+    fn cooling_down(&self, now: Instant) -> bool {
+        let mut denials = self.denials.lock().unwrap();
+        denials.retain(|t| now.duration_since(*t) < DENIAL_WINDOW);
+        denials.len() >= MAX_DENIALS
     }
 
     /// Record how an authorized action ended.
@@ -404,6 +430,20 @@ mod tests {
         g.finish("launch_app", &json!({ "name": "firefox" }), &auth, &Ok(json!({})));
         let _ = g.authorize("rm_rf", &json!({}), "");
         assert_eq!(audit::verify(&path), Ok(2));
+    }
+
+    #[test]
+    fn three_denials_pause_new_requests_without_showing_a_card() {
+        let (g, d, _) = guard(Decision::Deny);
+        for _ in 0..3 {
+            assert!(g.authorize("screenshot", &json!({}), "").is_err());
+        }
+        assert_eq!(d.1.load(Ordering::SeqCst), 3);
+        let err = g.authorize("screenshot", &json!({}), "").unwrap_err();
+        assert!(err.contains("Too many"));
+        assert_eq!(d.1.load(Ordering::SeqCst), 3, "no fourth card");
+        // Read-only info is unaffected.
+        assert!(g.authorize("list_monitors", &json!({}), "").is_ok());
     }
 
     #[test]

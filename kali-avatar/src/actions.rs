@@ -6,16 +6,18 @@
 use crate::platform::{self, DesktopServices};
 use base64::Engine;
 use serde_json::{json, Value};
-use std::process::Command;
 
 pub use crate::platform::{Monitor, Monitors};
 
-pub const CAPABILITIES: [&str; 3] = ["launch_app", "list_monitors", "screenshot"];
+/// `local_consent` is not an action: it tells the core that this agent asks the user itself, so the
+/// core must not show a second card for the same request.
+pub const CAPABILITIES: [&str; 5] = ["launch_app", "find_apps", "list_monitors", "screenshot", "local_consent"];
 const MAX_PNG_BYTES: usize = 12 * 1024 * 1024;
 
 pub fn perform(action: &str, params: &Value, monitors: &Monitors, services: &dyn DesktopServices) -> Result<Value, String> {
     match action {
         "launch_app" => launch_app(params),
+        "find_apps" => crate::apps::find(params),
         "list_monitors" => Ok(json!({ "monitors": platform::monitors_json(&services.monitors(monitors)?) })),
         "screenshot" => screenshot(params, monitors, services),
         _ => Err("Unsupported desktop action".into()),
@@ -31,11 +33,7 @@ fn launch_app(params: &Value) -> Result<Value, String> {
     if !valid_desktop_entry(name) {
         return Err("Invalid desktop entry".into());
     }
-    let status = Command::new("gtk-launch").arg(name).status().map_err(|e| format!("gtk-launch unavailable: {e}"))?;
-    if !status.success() {
-        return Err(format!("Could not launch {name}"));
-    }
-    Ok(json!({ "name": name, "message": format!("Launched {name}") }))
+    crate::apps::launch(name)
 }
 
 /// Resolve the `output` parameter ("primary", "secondary" or a monitor name) to a monitor.

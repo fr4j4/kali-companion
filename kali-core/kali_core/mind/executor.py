@@ -19,7 +19,7 @@ from typing import Any
 from kali_core.canvas import is_game_resource, resolve_window_type
 from kali_core.claws.base import ToolContext, ToolResult, get
 from kali_core.collar.consent import ConsentManager
-from kali_core.collar.gateway import PermissionGateway
+from kali_core.collar.gateway import PermissionDecision, PermissionGateway
 from kali_core.desktop import DesktopBroker, RemoteGazeClient
 
 logger = logging.getLogger("kali_core.mind.executor")
@@ -77,6 +77,19 @@ class Executor:
 
         # Check permissions.
         decision = self.gateway.check(tool_name, tool.risk_level, params, self.profile)
+
+        # An agent that enforces consent on the user's machine shows the only card for the
+        # actions it serves; asking here as well would make the user approve twice.
+        agent_action = {"screenshot": "screenshot", "launch_app": "launch_app"}.get(tool_name)
+        if (
+            not decision.allow
+            and decision.needs_consent
+            and agent_action
+            and self.desktop_broker
+            and self.desktop_broker.enforces_consent(session_id, agent_action)
+        ):
+            logger.info("[consent] '%s' is confirmed by the desktop agent", tool_name)
+            decision = PermissionDecision(allow=True)
 
         if not decision.allow and decision.needs_consent:
             # If the user already granted permission for this session, allow.
@@ -152,6 +165,8 @@ class Executor:
         try:
             if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "launch_app"):
                 result = ToolResult(output=await self.desktop_broker.request(session_id, "launch_app", {"name": params.get("name", "")}))
+            elif tool_name == "find_apps" and self.desktop_broker and self.desktop_broker.has_desktop(session_id, "find_apps"):
+                result = ToolResult(output=await self.desktop_broker.request(session_id, "find_apps", {"query": params.get("query", "")}))
             else:
                 result = await tool.run(params, ctx)
         except Exception as e:

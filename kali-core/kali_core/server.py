@@ -54,7 +54,7 @@ from kali_core.claws.game.dota_live import DotaLiveStateTool
 from kali_core.claws.game.fetch_resource import FetchGameResourceTool
 from kali_core.claws.game.image_cache import download_game_images_handler
 from kali_core.claws.git import GitDiffTool, GitWorktreeTool
-from kali_core.claws.launcher import LaunchAppTool
+from kali_core.claws.launcher import FindAppsTool, LaunchAppTool
 from kali_core.claws.list_monitors import ListMonitorsTool
 from kali_core.claws.manage_artifacts import (
     GetArtifactConsoleTool,
@@ -353,6 +353,7 @@ def _register_tools() -> None:
     register(GitWorktreeTool())
     register(GitDiffTool())
     register(LaunchAppTool())
+    register(FindAppsTool())
     register(OrganizeFolderTool())
     # Phase 3 tools.
     register(ListMonitorsTool())

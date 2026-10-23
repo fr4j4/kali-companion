@@ -1,7 +1,7 @@
 """List monitors tool — enumerate available screens via kali-gaze.
 
-Goes through kali-collar for consent (sensitive: reading the monitor
-layout is a privacy-relevant action). Returns a compact description of
+Read-only (safe): it only reports the monitor layout and captures nothing.
+Returns a compact description of
 each output so the agent can ask the user which one is
 primary/secondary before capturing.
 """

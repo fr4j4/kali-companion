@@ -72,6 +72,17 @@ class DesktopBroker:
                 return agent
         return None
 
+    def enforces_consent(self, session_id: str, action: str) -> bool:
+        """True when the agent that would run ``action`` asks the user itself.
+
+        Such an agent shows its own card and refuses without an answer, so the core must not
+        stack a second card on top of it. Legacy agents (no explicit capability list) never
+        claim it.
+        """
+        conn = self.find(session_id, action)
+        caps = getattr(conn, "desktop_capabilities", None) if conn is not None else None
+        return caps is not None and "local_consent" in caps
+
     def has_desktop(self, session_id: str, action: str | None = None) -> bool:
         return self.find(session_id, action) is not None
 

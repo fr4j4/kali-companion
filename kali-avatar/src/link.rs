@@ -252,8 +252,21 @@ fn authorized_perform(action: &str, params: &Value, reason: &str, monitors: &Mon
     let Some(guard) = crate::perms::global() else {
         return Err("Permission layer unavailable".into());
     };
-    let auth = guard.authorize(action, params, reason)?;
-    let outcome = actions::perform(action, params, monitors, services);
-    guard.finish(action, params, &auth, &outcome);
+    // The card names what the agent itself resolved, never a label or id the core supplied.
+    let mut params = params.clone();
+    if let Some(map) = params.as_object_mut() {
+        map.remove("label");
+    }
+    if action == "launch_app" {
+        let name = params["name"].as_str().ok_or("Invalid desktop entry")?;
+        if name.is_empty() || name.len() > 100 {
+            return Err("Invalid desktop entry".into());
+        }
+        let (id, label) = crate::apps::resolve_for_launch(name)?;
+        params = json!({ "name": id, "label": label });
+    }
+    let auth = guard.authorize(action, &params, reason)?;
+    let outcome = actions::perform(action, &params, monitors, services);
+    guard.finish(action, &params, &auth, &outcome);
     outcome
 }

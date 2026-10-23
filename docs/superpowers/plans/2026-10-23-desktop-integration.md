@@ -31,7 +31,7 @@ Nota: esto corrige dos puntos del informe, que se basaba en `master`: la captura
 
 ## 3. Fase 0: permisos en el ejecutor y base (P0)
 
-**Estado (primer PR de implementación):** hechas 0.1 (`Caps` + `--doctor`, sin integrar aún en `CAPABILITIES`), 0.2 y 0.3 (clases y grants), 0.4 (tarjeta GTK sencilla, aún no layer-shell), 0.5 (enforcement en el agente; `reason` y timeout en el core), 0.6 (auditoría con cadena de hashes, sin visor ni rotación), 0.7 parcial (pánico por bandeja y `--panic`; sin badge) y 0.8 parcial (`list_monitors` pasa a `safe`). Pendiente: doble tarjeta (core y agente) por unificar, filtro anti auto-aprobación, `ClipboardRead`/`Input` aún sin acciones, visor «Actividad», decisiones de perfil en el gateway.
+**Estado (primer PR de implementación):** hechas 0.1 (`Caps` + `--doctor`, sin integrar aún en `CAPABILITIES`), 0.2 y 0.3 (clases y grants), 0.4 (tarjeta GTK sencilla, aún no layer-shell), 0.5 (enforcement en el agente; `reason` y timeout en el core), 0.6 (auditoría con cadena de hashes, sin visor ni rotación), 0.7 parcial (pánico por bandeja y `--panic`; sin badge) y 0.8 parcial (`list_monitors` pasa a `safe`). Hecho después: una sola tarjeta (`local_consent`), tarjeta en layer-shell, botones desarmados 0,7 s, pausa tras 3 denegaciones, rotación de auditoría, y de la fase 1 `find_apps` y `launch_app` con GIO (1.1 a 1.3). Pendiente: filtro anti auto-aprobación contra entrada sintética, `ClipboardRead`/`Input` aún sin acciones, visor «Actividad», decisiones de perfil en el gateway.
 Decisiones del usuario: modo remoto es un caso real de hoy; escritorios objetivo Hyprland y KDE; lista de apps solo para lanzar; extensión de GNOME solo preliminar.
 
 
