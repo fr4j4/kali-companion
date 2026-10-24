@@ -167,7 +167,7 @@ export function SettingsModal({
           </div>
         ) : (
           <div className="flex flex-1 min-h-0 overflow-hidden">
-            <aside className="w-52 border-r border-border p-3 shrink-0 overflow-y-auto scrollbar-thin">
+            <aside className="w-56 border-r border-border p-3 shrink-0 overflow-y-auto scrollbar-thin">
               <div className="flex flex-col gap-1">
                 {search}
                 {visible.map((s) => {
@@ -177,7 +177,7 @@ export function SettingsModal({
                     <button
                       key={s.id}
                       onClick={() => setActive(s.id)}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left whitespace-nowrap ${
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors text-left whitespace-nowrap ${
                         isActive
                           ? isAISection(s.id)
                             ? "bg-ai-signal/10 text-ai-signal"
@@ -193,7 +193,7 @@ export function SettingsModal({
                 {visible.length === 0 && <StateMessage kind="empty" title={t("settings.search_empty") as string} className="p-3" />}
               </div>
             </aside>
-            <div className="flex-1 min-h-0 overflow-y-auto stage-scroll p-5">{renderSection()}</div>
+            <div className="flex-1 min-h-0 overflow-y-auto stage-scroll px-7 py-6"><div className="max-w-[720px]">{renderSection()}</div></div>
           </div>
         )}
       </div>

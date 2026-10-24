@@ -1,0 +1,231 @@
+/**
+ * workspace/groups.ts — Pure model of window groups ("one task, one group").
+ *
+ * Every open window belongs to exactly one group: what comes from the same task lives together,
+ * remembers its mode (split, focus, mosaic, fullscreen) and its mosaic, and can be moved, renamed,
+ * pinned or put away as a whole. The canvas shows one active group at a time; the rest live in the
+ * tray. All functions here return new state and never mutate; the hook in stage/v2 wires them to
+ * the workspace windows and persists them per session.
+ */
+
+import type { ArtifactMode, MosaicPreset, MosaicRatios } from "./layout";
+
+/** Colour slot of a group; maps to a theme token so every theme stays legible. */
+export const GROUP_COLORS = ["accent", "accent2", "ok", "warn", "err", "muted"] as const;
+export type GroupColor = (typeof GROUP_COLORS)[number];
+
+export interface Group {
+  id: string;
+  title: string;
+  color: GroupColor;
+  /** Windows in the group, in tab order. */
+  windowIds: number[];
+  mode: ArtifactMode;
+  mosaic: { preset: MosaicPreset | null; ratios: MosaicRatios; panelIds: number[] };
+  /** Tab shown in focus/fullscreen. */
+  activeId: number | null;
+  /** Pinned windows stay open when the group is put away. */
+  pinnedIds: number[];
+  createdAt: number;
+  lastUsed: number;
+}
+
+export interface ClosedEntry {
+  windowId: number;
+  artifactId?: string;
+  title: string;
+  type: string;
+  groupId: string | null;
+  groupTitle: string;
+  closedAt: number;
+  /** Put away on purpose ("Guardar") rather than closed. */
+  saved: boolean;
+}
+
+export interface GroupsState {
+  groups: Group[];
+  activeGroupId: string | null;
+  closed: ClosedEntry[];
+}
+
+export const EMPTY_GROUPS: GroupsState = { groups: [], activeGroupId: null, closed: [] };
+/** Recently closed entries kept for "Reopen" (and undo). */
+export const MAX_CLOSED = 30;
+/** Full windows a group shows at once in split mode; the rest wait in the tray. */
+export const MAX_VISIBLE = 3;
+
+let seq = 0;
+export function newGroupId(): string {
+  seq += 1;
+  return `g${Date.now().toString(36)}${seq.toString(36)}`;
+}
+
+function nextColor(state: GroupsState): GroupColor {
+  const used = new Set(state.groups.map((g) => g.color));
+  return GROUP_COLORS.find((c) => !used.has(c)) ?? GROUP_COLORS[state.groups.length % GROUP_COLORS.length];
+}
+
+export function makeGroup(state: GroupsState, title: string, opts: Partial<Group> = {}, now = Date.now()): Group {
+  return {
+    id: opts.id ?? newGroupId(),
+    title: title.trim() || "…",
+    color: opts.color ?? nextColor(state),
+    windowIds: opts.windowIds ?? [],
+    mode: opts.mode ?? "split",
+    mosaic: opts.mosaic ?? { preset: null, ratios: { a: 0.5, b: 0.5 }, panelIds: [] },
+    activeId: opts.activeId ?? opts.windowIds?.[0] ?? null,
+    pinnedIds: opts.pinnedIds ?? [],
+    createdAt: now,
+    lastUsed: now,
+  };
+}
+
+const mapGroup = (state: GroupsState, id: string, fn: (g: Group) => Group): GroupsState => ({
+  ...state,
+  groups: state.groups.map((g) => (g.id === id ? fn(g) : g)),
+});
+
+export function groupOf(state: GroupsState, windowId: number): Group | undefined {
+  return state.groups.find((g) => g.windowIds.includes(windowId));
+}
+
+export function activeGroup(state: GroupsState): Group | undefined {
+  return state.groups.find((g) => g.id === state.activeGroupId);
+}
+
+/** Drop a window from whatever group holds it (empty groups go away). */
+export function detach(state: GroupsState, windowId: number): GroupsState {
+  const groups = state.groups
+    .map((g) => {
+      if (!g.windowIds.includes(windowId)) return g;
+      const windowIds = g.windowIds.filter((id) => id !== windowId);
+      return {
+        ...g,
+        windowIds,
+        pinnedIds: g.pinnedIds.filter((id) => id !== windowId),
+        mosaic: { ...g.mosaic, panelIds: g.mosaic.panelIds.filter((id) => id !== windowId) },
+        activeId: g.activeId === windowId ? (windowIds[windowIds.length - 1] ?? null) : g.activeId,
+      };
+    })
+    .filter((g) => g.windowIds.length > 0);
+  const activeGroupId = groups.some((g) => g.id === state.activeGroupId) ? state.activeGroupId : (groups[groups.length - 1]?.id ?? null);
+  return { ...state, groups, activeGroupId };
+}
+
+/** Put a window in a group (moving it out of its previous one) and make it the group's tab. */
+export function assign(state: GroupsState, windowId: number, groupId: string, now = Date.now()): GroupsState {
+  const without = detach(state, windowId);
+  // The target may have been removed by detach if it only held this window.
+  const exists = without.groups.some((g) => g.id === groupId);
+  const base = exists ? without : { ...without, groups: [...without.groups, { ...state.groups.find((g) => g.id === groupId)!, windowIds: [] }] };
+  return mapGroup(base, groupId, (g) => ({ ...g, windowIds: [...g.windowIds, windowId], activeId: windowId, lastUsed: now }));
+}
+
+/** New group holding `windowIds` (taken from their groups). */
+export function createGroup(state: GroupsState, title: string, windowIds: number[] = [], opts: Partial<Group> = {}, now = Date.now()): { state: GroupsState; id: string } {
+  let next = state;
+  for (const id of windowIds) next = detach(next, id);
+  const group = makeGroup(next, title, { ...opts, windowIds: [...windowIds] }, now);
+  return { state: { ...next, groups: [...next.groups, group] }, id: group.id };
+}
+
+export function activate(state: GroupsState, groupId: string | null, now = Date.now()): GroupsState {
+  if (groupId === null) return { ...state, activeGroupId: null };
+  if (!state.groups.some((g) => g.id === groupId)) return state;
+  return mapGroup({ ...state, activeGroupId: groupId }, groupId, (g) => ({ ...g, lastUsed: now }));
+}
+
+export function setMode(state: GroupsState, groupId: string, mode: ArtifactMode): GroupsState {
+  return mapGroup(state, groupId, (g) => ({ ...g, mode }));
+}
+
+export function setActiveTab(state: GroupsState, windowId: number, now = Date.now()): GroupsState {
+  const g = groupOf(state, windowId);
+  if (!g) return state;
+  return mapGroup({ ...state, activeGroupId: g.id }, g.id, (x) => ({ ...x, activeId: windowId, lastUsed: now }));
+}
+
+export function rename(state: GroupsState, groupId: string, title: string): GroupsState {
+  const clean = title.trim();
+  if (!clean) return state;
+  return mapGroup(state, groupId, (g) => ({ ...g, title: clean }));
+}
+
+export function togglePin(state: GroupsState, windowId: number): GroupsState {
+  const g = groupOf(state, windowId);
+  if (!g) return state;
+  return mapGroup(state, g.id, (x) => ({
+    ...x,
+    pinnedIds: x.pinnedIds.includes(windowId) ? x.pinnedIds.filter((id) => id !== windowId) : [...x.pinnedIds, windowId],
+  }));
+}
+
+export function setMosaic(state: GroupsState, groupId: string, patch: Partial<Group["mosaic"]>): GroupsState {
+  return mapGroup(state, groupId, (g) => ({ ...g, mosaic: { ...g.mosaic, ...patch, ratios: { ...g.mosaic.ratios, ...(patch.ratios ?? {}) } } }));
+}
+
+/** Move a tab within its group (drag to reorder). */
+export function reorder(state: GroupsState, windowId: number, toIndex: number): GroupsState {
+  const g = groupOf(state, windowId);
+  if (!g) return state;
+  const ids = g.windowIds.filter((id) => id !== windowId);
+  ids.splice(Math.max(0, Math.min(ids.length, toIndex)), 0, windowId);
+  return mapGroup(state, g.id, (x) => ({ ...x, windowIds: ids }));
+}
+
+/** Record a window as closed (or saved) for "Recently closed" and undo. */
+export function recordClosed(state: GroupsState, entry: Omit<ClosedEntry, "groupId" | "groupTitle"> & { groupId?: string | null }): GroupsState {
+  const g = entry.groupId !== undefined ? state.groups.find((x) => x.id === entry.groupId) : groupOf(state, entry.windowId);
+  const closed: ClosedEntry = { ...entry, groupId: g?.id ?? entry.groupId ?? null, groupTitle: g?.title ?? "" };
+  const rest = state.closed.filter((c) => c.windowId !== entry.windowId);
+  return { ...state, closed: [closed, ...rest].slice(0, MAX_CLOSED) };
+}
+
+export function forgetClosed(state: GroupsState, windowId: number): GroupsState {
+  return { ...state, closed: state.closed.filter((c) => c.windowId !== windowId) };
+}
+
+/**
+ * Windows of a group shown in split mode: the most recently used first, at most three; the rest
+ * go to the tray. Pinned windows win over unpinned ones.
+ */
+export function overflowing(group: Group, isVisible: (id: number) => boolean, lastUsed: (id: number) => number): number[] {
+  const visible = group.windowIds.filter(isVisible);
+  if (visible.length <= MAX_VISIBLE) return [];
+  const ranked = [...visible].sort((a, b) => {
+    const pa = group.pinnedIds.includes(a) ? 1 : 0;
+    const pb = group.pinnedIds.includes(b) ? 1 : 0;
+    if (pa !== pb) return pb - pa;
+    return lastUsed(b) - lastUsed(a);
+  });
+  return ranked.slice(MAX_VISIBLE);
+}
+
+/** Drop windows that no longer exist (closed elsewhere, session reset). */
+export function prune(state: GroupsState, alive: Set<number>): GroupsState {
+  let next = state;
+  for (const g of state.groups) for (const id of g.windowIds) if (!alive.has(id)) next = detach(next, id);
+  return next;
+}
+
+/** Serializable shape per session: windows are referred to by artifact id. */
+export interface PersistedGroups {
+  active: string | null;
+  groups: { id: string; title: string; color: GroupColor; mode: ArtifactMode; preset: MosaicPreset | null; ratios: MosaicRatios; artifacts: string[]; pinned: string[] }[];
+}
+
+export function toPersisted(state: GroupsState, artifactOf: (windowId: number) => string | undefined): PersistedGroups {
+  return {
+    active: state.activeGroupId,
+    groups: state.groups.map((g) => ({
+      id: g.id,
+      title: g.title,
+      color: g.color,
+      mode: g.mode,
+      preset: g.mosaic.preset,
+      ratios: g.mosaic.ratios,
+      artifacts: g.windowIds.map(artifactOf).filter((a): a is string => !!a),
+      pinned: g.pinnedIds.map(artifactOf).filter((a): a is string => !!a),
+    })),
+  };
+}

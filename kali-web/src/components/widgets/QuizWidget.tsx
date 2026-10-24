@@ -1,113 +1,141 @@
+/**
+ * QuizWidget — one question at a time, in serif, with lettered options.
+ *
+ * After you answer, your choice and the right one are marked in words and with an icon (never by
+ * colour alone), and the "why" appears under the options. Dots at the top show each question's
+ * result; the footer counts right, wrong and pending.
+ */
+
 import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, X, RotateCcw } from "lucide-react";
 import { BaseWidget } from "./base/BaseWidget";
 import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 import { QUIZ_QUESTIONS } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
+import { WidgetFooter, WidgetToolbar } from "./base/WidgetChrome";
+import { useShellSample, useShellSubtitle } from "../../stage/v2/shell";
 
 interface Props {
   content?: unknown;
 }
 
+const LETTERS = "ABCDEFGH";
+
 export function QuizWidget({ content }: Props) {
   const { t } = useTranslation();
-  const { data } = useMemo(() => parseContent(content), [content]);
+  const { data, isReal } = useMemo(() => parseContent(content), [content]);
   const d = (data ?? {}) as Record<string, unknown>;
-  const questions = useMemo(() => {
-    if (d.questions && Array.isArray(d.questions)) return d.questions;
-    return QUIZ_QUESTIONS;
-  }, [d]) as typeof QUIZ_QUESTIONS;
+  const real = Array.isArray(d.questions) && d.questions.length > 0;
+  const questions = useMemo(() => (real ? d.questions : QUIZ_QUESTIONS), [d, real]) as typeof QUIZ_QUESTIONS;
+  const source = typeof d.source === "string" ? d.source : "";
 
   const [qIdx, setQIdx] = useState(0);
-  const [score, setScore] = useState(0);
-  const [answered, setAnswered] = useState(false);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [answers, setAnswers] = useState<(number | null)[]>(() => questions.map(() => null));
 
-  const question = questions[qIdx];
   const total = questions.length;
   const done = qIdx >= total;
+  const question = questions[Math.min(qIdx, total - 1)];
+  const selected = answers[qIdx] ?? null;
+  const answered = selected !== null;
+  const right = answers.filter((a, i) => a !== null && a === questions[i]?.correct).length;
+  const wrong = answers.filter((a, i) => a !== null && a !== questions[i]?.correct).length;
+  const pending = total - right - wrong;
 
   const select = useCallback((idx: number) => {
     if (answered) return;
-    setSelected(idx);
-    setAnswered(true);
-    if (idx === question.correct) setScore((s) => s + 1);
-  }, [answered, question]);
+    setAnswers((a) => a.map((v, i) => (i === qIdx ? idx : v)));
+  }, [answered, qIdx]);
 
-  const next = useCallback(() => {
-    setQIdx((i) => i + 1);
-    setAnswered(false);
-    setSelected(null);
-  }, []);
+  const restart = useCallback(() => { setAnswers(questions.map(() => null)); setQIdx(0); }, [questions]);
 
-  if (done) {
-    return (
-      <BaseWidget>
-        <div className="p-4 text-center space-y-3">
-          <div className="text-2xl">{score === total ? '\u{1F3C6}' : '\u2705'}</div>
-          <div className="text-sm text-fg">{t("widget.quiz.score", { score, total })}</div>
-          <div className="flex items-center justify-center gap-1">
-            {questions.map((_, i) => (
-              <span key={i} className={`quiz-score-dot w-2 h-2 rounded-full ${i < score ? "bg-ok" : "bg-fg/10"}`} />
-            ))}
-          </div>
-        </div>
-      </BaseWidget>
-    );
-  }
+  useShellSubtitle(typeof d.topic === "string" ? d.topic : null);
+  useShellSample(!isReal || !real);
+
+  const onKey = (e: React.KeyboardEvent) => {
+    const i = LETTERS.indexOf(e.key.toUpperCase());
+    if (!answered && i >= 0 && i < question.options.length) { e.preventDefault(); select(i); }
+    else if (answered && e.key === "Enter") { e.preventDefault(); setQIdx((q) => q + 1); }
+  };
 
   return (
     <BaseWidget>
+      <WidgetToolbar>
+        <button type="button" className="tooltip w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-accent transition flex items-center justify-center" data-tip={t("v2.quiz.restart")} aria-label={t("v2.quiz.restart") as string} onClick={restart}>
+          <RotateCcw size={14} />
+        </button>
+      </WidgetToolbar>
       {isStreamingContent(content) ? (
         <StreamingSpinner content={content} windowType="quiz" />
       ) : (
-        <div className="p-3 space-y-3">
-          {/* Progress dots */}
-          <div className="flex items-center gap-1">
-            {questions.map((_, i) => (
-              <div key={i} className={`flex-1 h-1 rounded-full ${i <= qIdx ? "bg-accent" : "bg-fg/10"}`} />
-            ))}
-          </div>
-
-          {/* Question */}
-          <div className="text-sm text-fg font-medium">{question.question}</div>
-
-          {/* Options */}
-          <div className="space-y-1">
-            {question.options.map((opt, i) => (
-              <div
-              key={i}
-              onClick={() => select(i)}
-              className={`quiz-option px-3 py-2 rounded-lg border text-xs ${
-                answered
-                  ? i === question.correct
-                    ? "correct border-ok/40 bg-ok/10"
-                    : i === selected
-                      ? "wrong border-err/40 bg-err/10"
-                      : "border-fg/5 bg-fg/[0.02]"
-                  : "border-fg/5 bg-fg/[0.02] hover:bg-fg/[0.06]"
-              }`}
-            >
-              {opt}
+        <div className="kw-quiz scrollbar-thin" tabIndex={0} onKeyDown={onKey}>
+          <div className="kw-quiz-inner">
+            <div className="kw-quiz-progress">
+              <div className="kw-quiz-dots" aria-hidden="true">
+                {questions.map((q, i) => {
+                  const a = answers[i];
+                  const cls = i === qIdx && !done ? "is-current" : a === null ? "" : a === q.correct ? "is-ok" : "is-err";
+                  return <span key={i} className={`kw-quiz-dot ${cls}`} />;
+                })}
+              </div>
+              <span>{done ? t("v2.quiz.finished") : t("v2.quiz.question_of", { n: qIdx + 1, total })}</span>
             </div>
-          ))}
-        </div>
 
-        {/* Explanation */}
-        {answered && (
-          <div className="text-xs text-muted bg-accent/5 border border-accent/20 rounded-lg p-2">
-            {question.explanation}
+            {done ? (
+              <div className="kw-quiz-result">
+                <h3>{t("widget.quiz.score", { score: right, total })}</h3>
+                <p>{right === total ? t("v2.quiz.perfect") : t("v2.quiz.review_hint")}</p>
+                <div className="flex gap-2">
+                  <button type="button" className="v2-btn" onClick={() => setQIdx(0)}>{t("v2.quiz.review")}</button>
+                  <button type="button" className="v2-btn is-primary" onClick={restart}>{t("v2.quiz.restart")}</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h3 className="kw-quiz-question">{question.question}</h3>
+                <div className="kw-quiz-options" role="radiogroup" aria-label={question.question}>
+                  {question.options.map((opt, i) => {
+                    const isRight = answered && i === question.correct;
+                    const isMine = answered && i === selected && i !== question.correct;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected === i}
+                        disabled={answered && !isRight && !isMine}
+                        className={`kw-quiz-option ${isRight ? "is-ok" : ""} ${isMine ? "is-err" : ""}`}
+                        onClick={() => select(i)}
+                      >
+                        <span className="kw-quiz-letter">{LETTERS[i]}</span>
+                        <span className="flex-1 text-left">{opt}</span>
+                        {isMine && <span className="kw-quiz-tag is-err"><X size={14} aria-hidden="true" />{t("v2.quiz.yours")}</span>}
+                        {isRight && <span className="kw-quiz-tag is-ok"><Check size={14} aria-hidden="true" />{t("v2.quiz.correct")}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {answered && question.explanation && (
+                  <div className="kw-quiz-why"><strong>{t("v2.quiz.why")}</strong> {question.explanation}</div>
+                )}
+                {answered && (
+                  <div className="kw-quiz-next">
+                    <button type="button" className="v2-btn is-primary" onClick={() => setQIdx((q) => q + 1)} autoFocus>
+                      {qIdx < total - 1 ? t("v2.quiz.next") : t("widget.quiz.result")}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        )}
-
-        {/* Next button */}
-        {answered && (
-          <button onClick={next} className="w-full py-1.5 rounded-lg bg-accent text-on-accent text-xs font-medium hover:brightness-110 transition">
-            {qIdx < total - 1 ? t("widget.quiz.next") : t("widget.quiz.result")}
-          </button>
-        )}
         </div>
       )}
+      <WidgetFooter>
+        <span className="v2-foot-item">{t("v2.quiz.right", { count: right })}</span>
+        <span className="v2-foot-item">{t("v2.quiz.wrong", { count: wrong })}</span>
+        <span className="v2-foot-item">{t("v2.quiz.pending", { count: pending })}</span>
+        {source && <span className="v2-foot-item">{t("v2.quiz.from", { source })}</span>}
+      </WidgetFooter>
     </BaseWidget>
   );
 }

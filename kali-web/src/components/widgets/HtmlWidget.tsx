@@ -11,9 +11,14 @@ import type { ArtifactEvent } from "../../lib/protocol";
 
 import { useSidePanel } from "../../stage/SidePanelContext";
 import { HtmlConsolePanel, type ConsoleEntry } from "./HtmlConsolePanel";
-import { Terminal } from "lucide-react";
+import { Terminal, Code2, Eye, Smartphone, Tablet, Monitor, Link2, RotateCw } from "lucide-react";
+import { WidgetFooter, WidgetToolbar } from "./base/WidgetChrome";
+import { useShellSubtitle } from "../../stage/v2/shell";
 
 const AUTO_SWITCH_DELAY_MS = 400;
+
+type Viewport = "mobile" | "tablet" | "desktop";
+const VIEWPORTS: Record<Exclude<Viewport, "desktop">, number> = { mobile: 390, tablet: 768 };
 const MAX_CONSOLE_LOGS = 500;
 
 interface Props {
@@ -152,77 +157,88 @@ export function HtmlWidget({ content }: Props) {
     [html, renderKey]
   );
 
+  const [viewport, setViewport] = useState<Viewport>("desktop");
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [frameW, setFrameW] = useState(0);
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setFrameW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tab]);
+  const vpWidth = viewport === "desktop" ? null : VIEWPORTS[viewport];
+  const shownWidth = vpWidth ?? frameW;
+  const sections = useMemo(() => (html.match(/<section\b/gi) ?? []).length, [html]);
+  const address = typeof data === "object" && data && typeof (data as Record<string, unknown>).url === "string"
+    ? String((data as Record<string, unknown>).url)
+    : `${(event?.title || "artifact").toLowerCase().replace(/[^\w\-]+/g, "-")}.html`;
+
+  useShellSubtitle(tab === "preview" ? t(`v2.web.${viewport}`, { width: Math.round(shownWidth) }) : t("widget.html.tab_code"));
+
   return (
     <BaseWidget>
+      <WidgetToolbar>
+        <button
+          type="button"
+          className="tooltip w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-accent transition flex items-center justify-center"
+          data-tip={tab === "preview" ? t("widget.html.tab_code") : t("widget.html.tab_preview")}
+          aria-label={(tab === "preview" ? t("widget.html.tab_code") : t("widget.html.tab_preview")) as string}
+          onClick={() => handleTabClick(tab === "preview" ? "html" : "preview")}
+        >
+          {tab === "preview" ? <Code2 size={14} /> : <Eye size={14} />}
+        </button>
+        {headerActions}
+      </WidgetToolbar>
       <div className="flex flex-1 flex-col min-h-0">
-        <div className="flex items-center gap-0 border-b border-fg/[0.08] bg-fg/[0.02] shrink-0">
-          <TabButton active={tab === "html"} onClick={() => handleTabClick("html")}>
-            {"</>"} {t("widget.html.tab_code")}
-          </TabButton>
-          <TabButton active={tab === "preview"} onClick={() => handleTabClick("preview")}>
-            {"\u{1F441}"} {t("widget.html.tab_preview")}
-          </TabButton>
-          <div className="ml-auto flex items-center gap-0.5 px-2 py-1">
-            <button
-              onClick={handleRefresh}
-              className="w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-fg transition flex items-center justify-center"
-              aria-label={t("widget.html.refresh") ?? "Refresh"}
-              title={t("widget.html.refresh") ?? "Refresh"}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 4v6h-6M1 20v-6h6" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-            </button>
-            {headerActions}
+        <div className="kw-web-bar">
+          <div className="kw-seg" role="group" aria-label={t("v2.web.viewport") as string}>
+            {(["mobile", "tablet", "desktop"] as Viewport[]).map((v) => {
+              const Icon = v === "mobile" ? Smartphone : v === "tablet" ? Tablet : Monitor;
+              return (
+                <button key={v} type="button" aria-pressed={viewport === v} title={t(`v2.web.${v}_short`) as string} aria-label={t(`v2.web.${v}_short`) as string} onClick={() => { setViewport(v); if (tab !== "preview") handleTabClick("preview"); }}>
+                  <Icon size={14} aria-hidden="true" />
+                </button>
+              );
+            })}
           </div>
+          <div className="kw-address"><Link2 size={13} aria-hidden="true" /><span className="truncate">{address}</span></div>
+          <button type="button" className="v2-icon-btn sm" onClick={handleRefresh} aria-label={t("widget.html.refresh") as string} title={t("widget.html.refresh") as string}>
+            <RotateCw size={14} aria-hidden="true" />
+          </button>
         </div>
 
         {tab === "html" ? (
           <div ref={codeRef} className="flex-1 overflow-y-auto scrollbar-thin min-h-0">
             <CodeViewer code={html} language="html" isStreaming={isStreaming} />
           </div>
-        ) : isStreaming ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-white">
-            <div className="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-            <span className="text-xs text-gray-500">{t("window.streaming.html")}</span>
-          </div>
         ) : (
-          <div className="flex-1 flex flex-col min-h-0 relative">
-            <iframe
-              key={renderKey}
-              ref={iframeRef}
-              srcDoc={srcDoc}
-              sandbox="allow-scripts allow-popups allow-forms allow-modals"
-              className="w-full border-none bg-white flex-1 min-h-0"
-              title={t("widget.html.title")}
-            />
+          <div ref={frameRef} className="kw-web-stage">
+            <div className="kw-web-frame" style={vpWidth ? { width: Math.min(vpWidth, frameW || vpWidth) } : undefined}>
+              {isStreaming ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                  <div className="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                  <span className="text-xs text-gray-500">{t("window.streaming.html")}</span>
+                </div>
+              ) : (
+                <iframe
+                  key={renderKey}
+                  ref={iframeRef}
+                  srcDoc={srcDoc}
+                  sandbox="allow-scripts allow-popups allow-forms allow-modals"
+                  className="w-full border-none bg-white flex-1 min-h-0"
+                  title={t("widget.html.title")}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>
+      <WidgetFooter>
+        <span className="v2-foot-item">{isStreaming ? t("v2.web.updating") : t("v2.web.ready")}</span>
+        {sections > 0 && <span className="v2-foot-item">{t("v2.web.sections", { count: sections })}</span>}
+        {errorCount > 0 && <span className="v2-foot-item is-warn">{t("v2.web.console", { count: errorCount })}</span>}
+      </WidgetFooter>
     </BaseWidget>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 ${
-        active
-          ? "border-accent text-fg bg-fg/[0.04]"
-          : "border-transparent text-muted hover:text-fg hover:bg-fg/[0.02]"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

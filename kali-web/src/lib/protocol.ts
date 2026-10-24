@@ -115,6 +115,14 @@ export interface ConsoleResponseEvent {
   logs: ConsoleLogEntry[] | null;
 }
 
+/** Frontend → backend: you accepted or discarded one suggestion Kali made in a document. */
+export interface ArtifactSuggestionEvent {
+  event: "artifact_suggestion";
+  artifact_id: string;
+  suggestion_id: string;
+  decision: "accept" | "discard";
+}
+
 export interface ListJobsEvent {
   event: "list_jobs";
 }
@@ -303,6 +311,12 @@ export interface ArtifactEvent {
   silent?: boolean;
   /** Short text preview (HTML stripped). Present on metadata-only replays. */
   preview?: string;
+  /** Real progress of the work on this artifact (0–1), when the core knows it. */
+  progress?: number;
+  /** Task the artifact belongs to; artifacts of one task open together as a group. */
+  group?: string;
+  /** Human name of the group, when the model gave one. */
+  group_title?: string;
 }
 
 export interface TurnStartEvent {
@@ -323,6 +337,19 @@ export interface ToolEvent {
   status: "running" | "success" | "error" | "cancelled";
   params: Record<string, unknown>;
   output: unknown;
+  /** Set by the client when the event arrives (ms since epoch). */
+  receivedAt?: number;
+}
+
+/** Kali used its memory: recalled context from other conversations, or saved something for later. */
+export interface MemoryEvent {
+  event: "memory_event";
+  session_id?: string;
+  action: "recall" | "save";
+  /** Short human text of what was recalled or saved. */
+  text?: string;
+  /** Recall of a conversation: how many of its messages came back into context. */
+  count?: number;
 }
 
 export interface ConsentRequestEvent {
@@ -336,6 +363,10 @@ export interface ConsentRequestEvent {
   summary_key: string;
   /** The desktop agent shows this question itself; chat UIs must not draw it. */
   handled_by_agent?: boolean;
+  /** Artifact whose work needs the permission, so the question shows inside it. */
+  artifact_id?: string;
+  /** Terminal session the command would run in. */
+  terminal_session_id?: string;
 }
 
 /** Kali offers to look at the screen. It never captures: the user picks and the agent asks for consent. */
@@ -930,7 +961,8 @@ export type IncomingEvent =
   | GameSessionListEvent
   | GameSessionLoadEvent
   | GameSessionDeleteEvent
-  | GetTerminalSessionEvent;
+  | GetTerminalSessionEvent
+  | ArtifactSuggestionEvent;
 
 export type OutgoingEvent =
   | ReadyEvent
@@ -948,6 +980,7 @@ export type OutgoingEvent =
   | ArtifactEvent
   | TurnStartEvent
   | ToolEvent
+  | MemoryEvent
   | ConsentRequestEvent
   | ConsoleRequestEvent
   | SessionListEvent

@@ -1,170 +1,121 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+/**
+ * TerminalWidget — what Kali runs on your machine, one block per command.
+ *
+ * Sessions are tabs ("dev", "pruebas"). Each command is a block with its state (done, failed,
+ * running, waiting for permission), its duration and a short output: a finished command shows
+ * its last lines and folds the rest; a failure shows the first useful error line. When Kali asks
+ * permission to run a command, the question appears inside the terminal, under the command it
+ * would run.
+ */
+
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, CheckCircle2, XCircle, Clock, Ban, Terminal as TerminalIcon } from "lucide-react";
+import i18n from "i18next";
+import { Loader2, Check, X, Clock, Ban, Terminal as TerminalIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { useStage } from "../../stage/StageProvider";
 import type { TerminalSessionData, TerminalCommandEntry } from "../../hooks/useChat";
 import { ansiToHtml } from "./utils/ansi";
 import { ScrollableWidget } from "./base/ScrollableWidget";
+import { WidgetFooter } from "./base/WidgetChrome";
+import { useShellSubtitle } from "../../stage/v2/shell";
+import { ConsentCard } from "../../stage/v2/KaliZone";
+import { consentTexts } from "../../lib/consentText";
 
 const MAX_VISIBLE_LINES = 500;
-const DEFAULT_SIDEBAR_WIDTH = 210;
-const MIN_SIDEBAR_WIDTH = 160;
-const MAX_SIDEBAR_WIDTH = 360;
-const SIDEBAR_WIDTH_KEY = "terminalSidebarWidth";
+/** Lines a finished command shows before "… N more lines". */
+const FOLDED_LINES = 6;
 
 interface Props {
   content?: unknown;
 }
 
-function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toLocaleString(i18n.language, { maximumFractionDigits: 1 })} s`;
+  const m = Math.floor(s / 60);
+  return `${m} min ${Math.round(s - m * 60)} s`;
 }
 
-function StatusIcon({ status, size = 12 }: { status: string; size?: number }) {
+function StatusIcon({ status, size = 15 }: { status: string; size?: number }) {
   switch (status) {
-    case "running":
-      return <Loader2 size={size} className="animate-spin text-accent" />;
-    case "done":
-      return <CheckCircle2 size={size} className="text-ok" />;
-    case "error":
-      return <XCircle size={size} className="text-err" />;
-    case "timeout":
-      return <Clock size={size} className="text-warn" />;
-    case "cancelled":
-      return <Ban size={size} className="text-muted" />;
-    default:
-      return null;
+    case "running": return <Loader2 size={size} className="animate-spin text-accent" aria-hidden="true" />;
+    case "done": return <Check size={size} className="text-ok" aria-hidden="true" />;
+    case "error": return <X size={size} className="text-err" aria-hidden="true" />;
+    case "timeout": return <Clock size={size} className="text-warn" aria-hidden="true" />;
+    case "cancelled": return <Ban size={size} className="text-muted" aria-hidden="true" />;
+    default: return null;
   }
 }
 
-function SessionListItem({
-  session,
-  isSelected,
-  onClick,
-  t,
-}: {
-  session: TerminalSessionData;
-  isSelected: boolean;
-  onClick: () => void;
-  t: (k: string, opts?: Record<string, unknown>) => string;
-}) {
-  const isActive = session.status === "active";
-  const cmdCount = session.commandOrder.length;
-  const isAuto = session.display_name === "Session";
-
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-3 py-2.5 rounded-lg transition border ${
-        isSelected
-          ? "bg-accent/10 border-accent/30"
-          : "bg-fg/[0.02] border-transparent hover:bg-fg/[0.05]"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className={`w-2 h-2 rounded-full shrink-0 ${
-            isActive ? "bg-accent animate-pulse" : "bg-ok"
-          }`}
-        />
-        <span className={`text-sm truncate flex-1 ${isAuto ? "text-muted" : "text-fg"}`}>
-          {session.display_name}
-        </span>
-      </div>
-      <div className="text-xs text-muted mt-1 pl-4 flex items-center gap-1.5">
-        <span>{t("terminal.command_count", { count: cmdCount })}</span>
-        <span className="text-muted/40">·</span>
-        <span>{formatTime(session.created)}</span>
-        <span className="text-muted/40">·</span>
-        <span>{isActive ? t("terminal.session.active") : t("terminal.session.completed")}</span>
-      </div>
-    </button>
-  );
+/** The first line that looks like the reason of a failure. */
+function usefulErrorIndex(lines: { text: string; stream: string }[]): number {
+  const re = /(error|fail|falla|fallo|exception|traceback|not found|denied|✗|×)/i;
+  const i = lines.findIndex((l) => l.stream === "stderr" || re.test(l.text));
+  return i;
 }
 
-function CommandBlock({
-  cmd,
-  t,
-}: {
-  cmd: TerminalCommandEntry;
-  t: (k: string, opts?: Record<string, unknown>) => string;
-}) {
+function CommandBlock({ cmd }: { cmd: TerminalCommandEntry }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const visibleLines = useMemo(() => {
-    const lines = cmd.lines;
-    if (lines.length <= MAX_VISIBLE_LINES) return lines;
-    const head = lines.slice(0, 200);
-    const tail = lines.slice(-200);
-    return [...head, { stream: "stdout" as const, text: `[... truncated ${lines.length - 400} lines ...]`, seq: -1 }, ...tail];
+  const running = cmd.status === "running";
+
+  const lines = useMemo(() => {
+    const all = cmd.lines;
+    if (all.length <= MAX_VISIBLE_LINES) return all;
+    return [...all.slice(0, 200), { stream: "stdout" as const, text: `[… ${all.length - 400} …]`, seq: -1 }, ...all.slice(-200)];
   }, [cmd.lines]);
 
-  useEffect(() => {
-    if (cmd.status === "running" && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  // A finished command shows a short window of its output: the error first, else the end.
+  const folded = useMemo(() => {
+    if (running || open || lines.length <= FOLDED_LINES) return { shown: lines, hidden: 0 };
+    if (cmd.status === "error" || cmd.status === "timeout") {
+      const at = Math.max(0, usefulErrorIndex(lines));
+      const start = Math.max(0, Math.min(at - 1, lines.length - FOLDED_LINES));
+      return { shown: lines.slice(start, start + FOLDED_LINES), hidden: lines.length - FOLDED_LINES };
     }
-  }, [visibleLines, cmd.status]);
+    return { shown: lines.slice(-FOLDED_LINES), hidden: lines.length - FOLDED_LINES };
+  }, [lines, running, open, cmd.status]);
+
+  useEffect(() => {
+    if (running && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [lines, running]);
+
+  const duration = cmd.finished ? formatDuration(new Date(cmd.finished).getTime() - new Date(cmd.started).getTime()) : null;
 
   return (
-    <div className="border-b border-fg/5 last:border-0 pb-3 mb-3">
-      {/* Command header */}
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <div className="min-w-0 flex-1">
-          <code className="text-sm text-fg font-mono break-all">
-            <span className="text-accent">$</span> {cmd.command}
-          </code>
-          {cmd.cwd && (
-            <div className="text-xs text-muted mt-0.5 font-mono truncate">{cmd.cwd}</div>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-          <StatusIcon status={cmd.status} />
-          <span className={`text-xs font-mono ${
-            cmd.status === "running" ? "text-accent" :
-            cmd.status === "done" ? "text-ok" :
-            cmd.status === "error" ? "text-err" :
-            cmd.status === "timeout" ? "text-warn" : "text-muted"
-          }`}>
-            {t(`terminal.command.${cmd.status}`)}
-          </span>
-          <span className="text-xs text-muted/50">{formatTime(cmd.started)}</span>
-        </div>
+    <section className="kw-term-block" aria-label={cmd.command}>
+      <div className="kw-term-head">
+        <span className="kw-term-icon"><StatusIcon status={cmd.status} /></span>
+        <code className="kw-term-cmd">{cmd.command}</code>
+        <span className={`kw-term-meta is-${cmd.status}`}>
+          {running ? t("terminal.command.running") : duration ?? t(`terminal.command.${cmd.status}`)}
+        </span>
       </div>
-
-      {/* Output */}
-      <div ref={scrollRef} className="font-mono text-xs space-y-0.5 max-h-[300px] overflow-y-auto scrollbar-thin bg-black/20 rounded-md p-2">
-        {visibleLines.length === 0 && cmd.status === "running" && (
-          <div className="text-muted italic">waiting for output...</div>
-        )}
-        {visibleLines.map((line, i) => (
-          <div
-            key={i}
-            className={`whitespace-pre-wrap break-all px-1.5 ${
-              line.stream === "stderr"
-                ? "border-l-2 border-err/40 text-err/80"
-                : "text-fg/75"
-            }`}
-            dangerouslySetInnerHTML={{ __html: ansiToHtml(line.text) }}
-          />
-        ))}
-        {cmd.status === "running" && (
-          <div className="text-accent animate-pulse px-1.5">▊</div>
-        )}
-      </div>
-
-      {/* Exit code */}
-      {cmd.exit_code !== null && cmd.status !== "running" && (
-        <div className={`text-xs mt-1.5 font-mono ${
-          cmd.exit_code === 0 ? "text-ok/60" : "text-err/60"
-        }`}>
-          {t("terminal.exit_code", { code: cmd.exit_code })}
+      {(folded.shown.length > 0 || running) && (
+        <div ref={scrollRef} className={`kw-term-out ${running ? "is-live" : ""}`}>
+          {folded.shown.length === 0 && running && <div className="kw-term-line is-dim">{t("v2.terminal.waiting_output")}</div>}
+          {folded.shown.map((line, i) => (
+            <div
+              key={i}
+              className={`kw-term-line ${line.stream === "stderr" ? "is-err" : ""}`}
+              dangerouslySetInnerHTML={{ __html: ansiToHtml(line.text) }}
+            />
+          ))}
+          {running && <span className="kw-term-caret" aria-hidden="true" />}
         </div>
       )}
-    </div>
+      {(folded.hidden > 0 || open) && !running && (
+        <button type="button" className="kw-term-more" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          {open ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+          {open ? t("v2.terminal.fold") : t("v2.terminal.more_lines", { count: folded.hidden })}
+        </button>
+      )}
+      {cmd.exit_code !== null && cmd.exit_code !== 0 && !running && (
+        <div className="kw-term-exit">{t("terminal.exit_code", { code: cmd.exit_code })}</div>
+      )}
+    </section>
   );
 }
 
@@ -173,74 +124,43 @@ export function TerminalWidget(_props: Props) {
   const { chat } = useStage();
   const sessions = chat.terminalSessions;
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    try {
-      const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-      const parsed = saved ? parseInt(saved, 10) : DEFAULT_SIDEBAR_WIDTH;
-      return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, parsed || DEFAULT_SIDEBAR_WIDTH));
-    } catch {
-      return DEFAULT_SIDEBAR_WIDTH;
-    }
-  });
-  const draggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (sessions.size === 0) {
-      setSelectedId(null);
-      return;
-    }
+    if (sessions.size === 0) { setSelectedId(null); return; }
     if (selectedId && sessions.has(selectedId)) return;
     const active = Array.from(sessions.values()).find((s) => s.status === "active");
     setSelectedId(active?.id ?? Array.from(sessions.keys())[0]);
   }, [sessions, selectedId]);
 
-  const selectedSession = selectedId ? sessions.get(selectedId) : null;
+  const selected = selectedId ? sessions.get(selectedId) : null;
   useEffect(() => {
-    if (selectedSession && !selectedSession.detailLoaded && selectedSession.commandOrder.length === 0) {
-      chat.getTerminalSessionDetail(selectedSession.id);
-    }
-  }, [selectedSession, chat]);
+    if (selected && !selected.detailLoaded && selected.commandOrder.length === 0) chat.getTerminalSessionDetail(selected.id);
+  }, [selected, chat]);
 
-  const sortedSessions = useMemo(() => {
-    return Array.from(sessions.values()).sort((a, b) => {
-      if (a.status === "active" && b.status !== "active") return -1;
-      if (a.status !== "active" && b.status === "active") return 1;
-      return b.created.localeCompare(a.created);
-    });
+  const ordered = useMemo(() => Array.from(sessions.values()).sort((a, b) => a.created.localeCompare(b.created)), [sessions]);
+  const commands = useMemo(() => (selected ? selected.commandOrder.map((id) => selected.commands.get(id)).filter(Boolean) as TerminalCommandEntry[] : []), [selected]);
+  const last = commands[commands.length - 1];
+  const runningCount = useMemo(() => {
+    let n = 0;
+    for (const s of sessions.values()) for (const c of s.commands.values()) if (c.status === "running") n++;
+    return n;
   }, [sessions]);
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = true;
-    startXRef.current = e.clientX;
-    startWidthRef.current = sidebarWidth;
-    const target = e.currentTarget as HTMLElement;
-    target.setPointerCapture(e.pointerId);
-    target.classList.add("bg-accent/50");
-  }, [sidebarWidth]);
+  // The permission question for a command shows here, under the commands of its session.
+  const consent = chat.consentRequest && !chat.consentRequest.handled_by_agent && (chat.consentRequest.tool === "run_command" || chat.consentRequest.tool === "run_tests")
+    && (!chat.consentRequest.terminal_session_id || chat.consentRequest.terminal_session_id === selectedId)
+    ? chat.consentRequest : null;
+  const pendingCommand = consent ? consentTexts(consent, t as never).command || consent.tool : "";
 
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
-    const delta = startXRef.current - e.clientX;
-    const next = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, startWidthRef.current + delta));
-    setSidebarWidth(next);
-  }, []);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el && (consent || last?.status === "running")) el.scrollTop = el.scrollHeight;
+  }, [consent, last?.status, last?.lines.length]);
 
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = false;
-    const target = e.currentTarget as HTMLElement;
-    target.releasePointerCapture(e.pointerId);
-    target.classList.remove("bg-accent/50");
-    try {
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
-    } catch {
-      // ignore
-    }
-  }, [sidebarWidth]);
+  useShellSubtitle(last?.cwd || selected?.display_name || null);
 
-  if (sessions.size === 0) {
+  if (sessions.size === 0 && !consent) {
     return (
       <ScrollableWidget searchable={false}>
         <div className="flex-1 flex flex-col items-center justify-center p-8 gap-2">
@@ -252,90 +172,47 @@ export function TerminalWidget(_props: Props) {
   }
 
   return (
-    <ScrollableWidget searchable={false}>
-      <div className="flex h-full min-h-0">
-        {/* Main panel */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          {selectedSession && (
-            <>
-              <div className="flex items-center justify-between px-3 py-2 border-b border-fg/5 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      selectedSession.status === "active" ? "bg-accent animate-pulse" : "bg-ok"
-                    }`}
-                  />
-                  <span className={`text-sm font-medium truncate ${
-                    selectedSession.display_name === "Session" ? "text-muted" : "text-fg"
-                  }`}>
-                    {selectedSession.display_name}
-                  </span>
-                  <span className="text-xs text-muted/50">{formatTime(selectedSession.created)}</span>
-                </div>
-                <button
-                  onClick={() => setAutoScroll((v) => !v)}
-                  className="text-xs text-muted hover:text-fg transition shrink-0 px-2 py-0.5 rounded hover:bg-fg/5"
-                >
-                  {autoScroll ? t("terminal.autoscroll.on") : t("terminal.autoscroll.off")}
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-2">
-                {selectedSession.commandOrder.length === 0 && !selectedSession.detailLoaded ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 size={16} className="animate-spin text-accent/50" />
-                  </div>
-                ) : selectedSession.commandOrder.length === 0 ? (
-                  <p className="text-sm text-muted text-center py-4">{t("terminal.no_sessions")}</p>
-                ) : (
-                  selectedSession.commandOrder.map((callId) => (
-                    <CommandBlock
-                      key={callId}
-                      cmd={selectedSession.commands.get(callId)!}
-                      t={t}
-                    />
-                  ))
-                )}
-              </div>
-            </>
-          )}
+    <div className="kw-term">
+      {ordered.length > 0 && (
+        <div className="kw-tabs" role="tablist" aria-label={t("terminal.sessions.title") as string}>
+          {ordered.map((s: TerminalSessionData) => (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={s.id === selectedId}
+              className="kw-tab"
+              onClick={() => setSelectedId(s.id)}
+              title={s.status === "active" ? t("terminal.session.active") as string : t("terminal.session.completed") as string}
+            >
+              {s.status === "active" && <span className="kw-dot is-live" aria-hidden="true" />}
+              {s.display_name === "Session" ? t("terminal.title") : s.display_name}
+            </button>
+          ))}
         </div>
-
-        {/* Draggable sidebar divider */}
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={t("terminal.resize_sidebar")}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
-          className="w-1.5 shrink-0 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors border-l border-fg/5"
-          style={{ touchAction: "none" }}
-        />
-
-        {/* Sidebar — session history */}
-        <div
-          className="shrink-0 border-l border-fg/5 flex flex-col"
-          style={{ width: sidebarWidth }}
-        >
-          <div className="px-3 py-2 border-b border-fg/5 shrink-0">
-            <span className="text-xs font-medium text-muted uppercase tracking-wider">
-              {t("terminal.sessions.title")}
-            </span>
-          </div>
-          <div className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-1">
-            {sortedSessions.map((sess) => (
-              <SessionListItem
-                key={sess.id}
-                session={sess}
-                isSelected={sess.id === selectedId}
-                onClick={() => setSelectedId(sess.id)}
-                t={t}
-              />
-            ))}
-          </div>
-        </div>
+      )}
+      <div ref={bodyRef} className="kw-term-body scrollbar-thin" role="log" aria-live="polite">
+        {selected && commands.length === 0 && !selected.detailLoaded && (
+          <div className="flex items-center justify-center py-8"><Loader2 size={16} className="animate-spin text-accent/50" /></div>
+        )}
+        {commands.map((cmd) => <CommandBlock key={cmd.call_id} cmd={cmd} />)}
+        {consent && (
+          <section className="kw-term-block is-pending" aria-label={pendingCommand}>
+            <div className="kw-term-head">
+              <span className="kw-term-icon"><Loader2 size={15} className="animate-spin text-accent" aria-hidden="true" /></span>
+              <code className="kw-term-cmd">{pendingCommand}</code>
+              <span className="kw-term-meta is-running">{t("v2.terminal.waiting_permission")}</span>
+            </div>
+            <div className="kw-term-consent">
+              <ConsentCard request={consent} onRespond={chat.respondConsent} />
+            </div>
+          </section>
+        )}
       </div>
-    </ScrollableWidget>
+      <WidgetFooter>
+        {last?.cwd && <span className="v2-foot-item kw-mono">{last.cwd}</span>}
+        <span className="v2-foot-item">{t("v2.terminal.processes", { count: runningCount })}</span>
+      </WidgetFooter>
+    </div>
   );
 }

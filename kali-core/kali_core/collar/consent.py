@@ -95,8 +95,14 @@ class ConsentManager:
         reason_params: dict,
         summary_key: str = "",
         risk: str = "dangerous",
+        artifact_id: str = "",
+        terminal_session_id: str = "",
     ) -> str:
-        """Request consent from the user. Returns allow/allow_session/deny."""
+        """Request consent from the user. Returns allow/allow_session/deny.
+
+        ``artifact_id`` / ``terminal_session_id`` name the window whose work needs
+        the permission, so the canvas can ask inside it instead of apart.
+        """
         request_id = f"consent_{uuid.uuid4().hex[:8]}"
         summary = summary_key or f"consent.summary.{tool}"
         req = ConsentRequest(request_id, session_id, tool, reason_key, reason_params, summary)
@@ -114,6 +120,10 @@ class ConsentManager:
                 "reason_params": reason_params,
                 "summary_key": summary_key or f"consent.summary.{tool}",
             }
+            if artifact_id:
+                payload["artifact_id"] = artifact_id
+            if terminal_session_id:
+                payload["terminal_session_id"] = terminal_session_id
             try:
                 await self._send_callback(payload)
             except Exception:

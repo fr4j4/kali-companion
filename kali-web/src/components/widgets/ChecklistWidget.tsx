@@ -1,13 +1,22 @@
-import { useState, useMemo, useCallback } from "react";
+/**
+ * ChecklistWidget — steps to tick off: progress in words and a thin bar, round checks, done steps
+ * fade and strike through, and a field at the end to add one more.
+ */
+
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, Plus } from "lucide-react";
 import { BaseWidget } from "./base/BaseWidget";
 import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
 import { CHECKLIST_ITEMS } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
+import { WidgetFooter } from "./base/WidgetChrome";
+import { useShellSample, useShellSubtitle } from "../../stage/v2/shell";
 
 interface Item {
   text: string;
   done: boolean;
+  note?: string;
 }
 
 interface Props {
@@ -16,18 +25,17 @@ interface Props {
 
 export function ChecklistWidget({ content }: Props) {
   const { t } = useTranslation();
-  const { data } = useMemo(() => parseContent(content), [content]);
+  const { data, isReal } = useMemo(() => parseContent(content), [content]);
   const d = (data ?? {}) as Record<string, unknown>;
-  const initial = useMemo(() => {
-    if (d.items && Array.isArray(d.items)) return d.items as Item[];
-    return CHECKLIST_ITEMS;
-  }, [d]) as Item[];
+  const real = Array.isArray(d.items);
+  const initial = useMemo(() => (real ? (d.items as Item[]) : CHECKLIST_ITEMS), [d, real]) as Item[];
 
   const [items, setItems] = useState<Item[]>(initial);
+  useEffect(() => setItems(initial), [initial]);
   const [newText, setNewText] = useState("");
 
   const toggle = useCallback((idx: number) => {
-    setItems((prev) => prev.map((item, i) => i === idx ? { ...item, done: !item.done } : item));
+    setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, done: !item.done } : item)));
   }, []);
 
   const addItem = useCallback(() => {
@@ -39,54 +47,44 @@ export function ChecklistWidget({ content }: Props) {
 
   const doneCount = items.filter((i) => i.done).length;
   const progress = items.length > 0 ? (doneCount / items.length) * 100 : 0;
+  const label = t("widget.checklist.completed", { done: doneCount, total: items.length });
+
+  useShellSubtitle(label);
+  useShellSample(!isReal || !real);
 
   return (
     <BaseWidget>
       {isStreamingContent(content) ? (
         <StreamingSpinner content={content} windowType="checklist" />
       ) : (
-        <div className="p-3 space-y-2">
-          {/* Progress bar */}
-          <div className="h-1.5 bg-fg/10 rounded-full overflow-hidden">
-            <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="kw-check scrollbar-thin">
+          <div className="kw-check-progress">
+            <div className="kw-break-track" role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+              <div style={{ width: `${progress}%` }} />
+            </div>
           </div>
-          <div className="text-xs text-muted">{t("widget.checklist.completed", { done: doneCount, total: items.length })}</div>
-
-          {/* Items */}
-          <div className="space-y-0.5 max-h-48 overflow-y-auto scrollbar-thin">
+          <ul className="kw-check-list">
             {items.map((item, i) => (
-              <div
-                key={i}
-                onClick={() => toggle(i)}
-                className={`check-item flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-fg/[0.03] ${item.done ? "done" : ""}`}
-              >
-                <div className={`check-box w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${item.done ? "bg-accent border-accent" : "border-fg/20"}`}>
-                  {item.done && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>}
-                </div>
-                <span className="check-label text-xs text-fg">{item.text}</span>
-              </div>
+              <li key={i}>
+                <button type="button" role="checkbox" aria-checked={item.done} className={`kw-check-item ${item.done ? "is-done" : ""}`} onClick={() => toggle(i)}>
+                  <span className="kw-check-box">{item.done && <Check size={12} strokeWidth={3} aria-hidden="true" />}</span>
+                  <span className="kw-check-text">
+                    {item.text}
+                    {item.note && <span className="kw-check-note">{item.note}</span>}
+                  </span>
+                </button>
+              </li>
             ))}
-          </div>
-
-          {/* New item input */}
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newText}
-              onChange={(e) => setNewText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addItem()}
-              placeholder={t("widget.checklist.new_task")}
-              className="flex-1 bg-fg/[0.04] border border-fg/10 rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-muted outline-none focus:border-accent/40 transition"
-            />
-            <button
-              onClick={addItem}
-              className="px-2.5 py-1.5 rounded-lg bg-accent text-on-accent text-xs hover:brightness-110 transition"
-            >
-              +
-            </button>
-          </div>
+          </ul>
+          <form className="kw-check-add" onSubmit={(e) => { e.preventDefault(); addItem(); }}>
+            <Plus size={14} aria-hidden="true" />
+            <input type="text" value={newText} onChange={(e) => setNewText(e.target.value)} placeholder={t("widget.checklist.new_task") as string} aria-label={t("widget.checklist.new_task") as string} />
+          </form>
         </div>
       )}
+      <WidgetFooter>
+        <span className="v2-foot-item">{label}</span>
+      </WidgetFooter>
     </BaseWidget>
   );
 }

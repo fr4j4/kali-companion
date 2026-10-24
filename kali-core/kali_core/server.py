@@ -881,12 +881,13 @@ class Server:
             if not wt:
                 from kali_core.canvas.registry import resolve_window_type as _rwt
                 wt = _rwt(art.get("type", ""))
+            from kali_core.canvas import suggestions as _sug
             return {
                 "id": art["id"],
                 "type": art["type"],
                 "windowType": wt,
                 "title": art["title"],
-                "content": art["content"],
+                "content": _sug.wire_content(art["content"], _sug.load(art.get("suggestions"))),
                 "language": art.get("language", ""),
             }
 
@@ -1971,6 +1972,8 @@ class Connection:
                             "role": msg["role"],
                             "text": msg["content"],
                         })
+                    if load_history and msgs:
+                        await self._send_memory_recall(requested_sid, len(msgs))
                     artifacts = await self.server.session_store.get_artifacts(requested_sid)
                     for art in artifacts:
                         await self.send({
@@ -2040,6 +2043,8 @@ class Connection:
                         "role": msg["role"],
                         "text": msg["content"],
                     })
+                if load_history and msgs:
+                    await self._send_memory_recall(sid, len(msgs))
                 artifacts = await self.server.session_store.get_artifacts(sid)
                 for art in artifacts:
                     await self.send({
@@ -2221,6 +2226,9 @@ class Connection:
                     self.session_id or self.server.last_active_session or "",
                     {"event": "consent_response", "approved": decision != "deny"},
                 )
+
+        elif kind == "artifact_suggestion":
+            await self._handle_artifact_suggestion(event)
 
         elif kind == "console_response":
             # Resolve a pending console-log request from the agent.
@@ -3289,6 +3297,44 @@ class Connection:
         """Stop the wake word detector."""
         if self._wake_word is not None:
             self._wake_word.stop()
+
+    async def _send_memory_recall(self, session_id: str, count: int) -> None:
+        """Tell the canvas Kali took this conversation back into her context (the Memory node)."""
+        await self.send({"event": "memory_event", "session_id": session_id, "action": "recall", "count": count})
+
+    async def _handle_artifact_suggestion(self, event: dict[str, Any]) -> None:
+        """The user accepted or discarded a change Kali suggested in a document."""
+        from kali_core.canvas import suggestions as sug
+
+        artifact_id = str(event.get("artifact_id", ""))
+        suggestion_id = str(event.get("suggestion_id", ""))
+        decision = event.get("decision")
+        session = self.session_id or ""
+        if not (artifact_id and suggestion_id and session) or decision not in ("accept", "discard"):
+            return
+        store = self.server.session_store
+        art = await store.get_artifact(session, artifact_id)
+        if art is None:
+            return
+        content = art.get("content", "") or ""
+        new_content, pending, found = sug.decide(content, sug.load(art.get("suggestions")), suggestion_id, decision)
+        if found is None:
+            return
+        if new_content != content:
+            await store.update_artifact_content(session, artifact_id, new_content)
+        await store.set_artifact_suggestions(session, artifact_id, sug.dump(pending))
+        logger.info("[suggestion] %s %s on %s (%s)", decision, suggestion_id, artifact_id, session[:8])
+        await self.server.broadcast_session(session, {
+            "event": "artifact",
+            "session_id": session,
+            "id": artifact_id,
+            "type": art.get("type", ""),
+            "windowType": art.get("window_type", ""),
+            "title": art.get("title", ""),
+            "content": sug.wire_content(new_content, pending),
+            "language": art.get("language", ""),
+            "update": "update",
+        })
 
     async def _handle_user_capture(self, event: dict[str, Any]) -> None:
         """A capture the user sent from the avatar's preview: hold it for their next message."""
