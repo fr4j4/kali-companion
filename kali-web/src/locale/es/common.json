@@ -954,5 +954,6 @@
   "hud.map": "Mapa neuronal",
   "hud.overview": "Vista general",
   "hud.view": "Vista",
-  "hud.working": "Trabajando"
+  "hud.working": "Trabajando",
+  "activity.label": "Actividad"
 }

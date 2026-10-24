@@ -50,6 +50,7 @@ import { SessionDrawer } from "./SessionDrawer";
 import { ArtifactModal } from "./ArtifactModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { ConfigWarningsBanner } from "../components/ConfigWarningsBanner";
+import { ActivityPanel } from "./ActivityPanel";
 import { ConsentModal } from "../components/ConsentModal";
 import { AttachedCapture } from "../components/AttachedCapture";
 import { SuggestionChips } from "../components/SuggestionChips";
@@ -443,6 +444,8 @@ export function NeuralCanvas({
           hidden={customizerOpen}
         />
       )}
+
+      {!isMobile && <ActivityPanel />}
 
       {/* Tether layer — SVG paths avatar→windows */}
       <TetherLayer windows={api.windows} />
