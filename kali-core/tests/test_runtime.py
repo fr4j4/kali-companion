@@ -250,3 +250,32 @@ async def test_emotion_tag_text_that_is_not_a_tag_survives() -> None:
     events = [e async for e in agent.respond("x", "sess-emo2", language="es")]
     assert "".join(e.text for e in events if e.kind == "delta") == "Usa lista[0] y [EMAIL] ok"
     assert not [e for e in events if e.kind == "emotion"]
+
+
+@pytest.mark.asyncio
+async def test_emotions_keep_their_place_between_the_text_stretches() -> None:
+    chunks = ["[EMOTION: alegre] ¡Lo logré! [EMOTION: preocupado] Pero falló el último test.", " Revisaré."]
+    agent = AgentRuntime(TaggedLLM(chunks))
+    order = []
+    async for e in agent.respond("hola", "sess-order", language="es"):
+        if e.kind == "emotion":
+            order.append(("emotion", e.emotion))
+        elif e.kind == "delta":
+            order.append(("text", e.text))
+    kinds = [k if k == "emotion" else "text" for k, _ in order]
+    assert [v for k, v in order if k == "emotion"] == ["alegre", "preocupado"]
+    first_worried = next(i for i, (k, v) in enumerate(order) if v == "preocupado")
+    before = "".join(v for k, v in order[:first_worried] if k == "text")
+    after = "".join(v for k, v in order[first_worried:] if k == "text")
+    assert before.strip() == "¡Lo logré!" and after.strip().startswith("Pero falló")
+    assert kinds[0] == "emotion"
+
+
+def test_release_chat_keeps_only_a_real_marker_prefix():
+    from kali_core.mind.artifact_stream import ArtifactStreamProcessor
+    proc = ArtifactStreamProcessor()
+    out = proc.feed("Hola amigo ").chat_text
+    assert (out + proc.release_chat()) == "Hola amigo "
+    proc = ArtifactStreamProcessor()
+    out = proc.feed("Mira [BEGIN_").chat_text
+    assert out + proc.release_chat() == "Mira "

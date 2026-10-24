@@ -291,6 +291,26 @@ class ArtifactStreamProcessor:
             artifact_events=events,
         )
 
+    def release_chat(self) -> str:
+        """Release the chat text held back for marker detection, except a real marker prefix.
+
+        Used at an emotion tag, so the text before it is delivered before the emotion is.
+        """
+        if self._active is not None or self._buf.find(_BEGIN_MARKER, self._chat_emitted) != -1:
+            return ""
+        tail = self._buf[self._chat_yielded:]
+        keep = 0
+        for k in range(min(len(tail), len(_BEGIN_MARKER) - 1), 0, -1):
+            if tail.endswith(_BEGIN_MARKER[:k]):
+                keep = k
+                break
+        end = len(self._buf) - keep
+        if end <= self._chat_yielded:
+            return ""
+        text = self._buf[self._chat_yielded:end]
+        self._chat_yielded = self._chat_emitted = end
+        return text
+
     def flush(self) -> FeedResult:
         """Close any open artifact at stream end and return final events.
 

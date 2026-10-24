@@ -409,6 +409,36 @@ PRESENCE_EVENTS = frozenset({
 })
 
 
+
+_MIN_BLOCK_CHARS = 20
+_MAX_BLOCKS = 8
+
+
+def merge_emotion_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fold blocks too short to be worth their own audio into the next one (the next emotion wins).
+
+    Keeps the number of TTS calls and audible cuts low when the model tags every sentence.
+    """
+    merged: list[dict[str, Any]] = []
+    carry: dict[str, Any] | None = None
+    for block in blocks:
+        cur = dict(block)
+        if carry is not None:
+            cur["text"] = carry["text"] + cur["text"]
+            if not cur["emotion"]:
+                cur.update(emotion=carry["emotion"], intensity=carry["intensity"], sent=carry["sent"])
+            carry = None
+        if len(cur["text"].strip()) < _MIN_BLOCK_CHARS and block is not blocks[-1]:
+            carry = cur
+            continue
+        merged.append(cur)
+    if carry is not None:
+        merged.append(carry)
+    while len(merged) > _MAX_BLOCKS:
+        last = merged.pop()
+        merged[-1]["text"] += last["text"]
+    return merged
+
 class Server:
     """WebSocket server host."""
 
@@ -3403,11 +3433,15 @@ class Connection:
             first_token_ts: float | None = None
             tool_call_count = 0
             usage_stats: dict | None = None
+            # The reply split at its emotion tags: each block is spoken (and shown) with its own emotion.
+            blocks: list[dict[str, Any]] = [{"emotion": None, "intensity": None, "text": "", "sent": False}]
+            speaks = self.server.tts_pipeline.auto_tts
             async for event in self.server.agent.respond(agent_message, session_id, language=self._ui_language):
                 if event.kind == "delta" and event.text:
                     if first_token_ts is None:
                         first_token_ts = time.monotonic()
                     accumulated += event.text
+                    blocks[-1]["text"] += event.text
                     await self.send(
                         {"event": "delta", "session_id": session_id, "text": event.text}
                     )
@@ -3428,10 +3462,17 @@ class Connection:
                         "reasoning_tokens": event.reasoning_tokens,
                     }
                 elif event.kind == "emotion":
-                    await self.send({
-                        "event": "emotion_event", "session_id": session_id,
-                        "id": event.emotion, "intensity": event.intensity,
-                    })
+                    if blocks[-1]["text"].strip():
+                        blocks.append({"emotion": None, "intensity": None, "text": "", "sent": False})
+                    blocks[-1].update(emotion=event.emotion, intensity=event.intensity)
+                    # With voice, only the opening emotion shows while the text streams; the rest
+                    # ride on the audio of their own block and appear when it starts to sound.
+                    if not speaks or not any(b["sent"] for b in blocks):
+                        blocks[-1]["sent"] = True
+                        await self.send({
+                            "event": "emotion_event", "session_id": session_id,
+                            "id": event.emotion, "intensity": event.intensity,
+                        })
                 elif event.kind == "done":
                     break
         except asyncio.CancelledError:
@@ -3475,7 +3516,7 @@ class Connection:
 
         # Synthesize TTS from the accumulated response.
         if accumulated and self.server.tts_pipeline.auto_tts:
-            await self._synthesize_tts(accumulated, session_id)
+            await self._synthesize_tts(accumulated, session_id, blocks)
 
         # Persist the user message and assistant reply to the session store.
         session_store = self.server.session_store
@@ -3510,7 +3551,7 @@ class Connection:
 
         await self.send({"event": "turn_end", "session_id": session_id})
 
-    async def _synthesize_tts(self, raw_text: str, session_id: str) -> None:
+    async def _synthesize_tts(self, raw_text: str, session_id: str, blocks: list[dict[str, Any]] | None = None) -> None:
         """Filter, segment, and stream TTS audio events to the frontend."""
         pipeline = self.server.tts_pipeline
         logger.info(
@@ -3532,18 +3573,30 @@ class Connection:
             )
 
         try:
-            async for result in pipeline.synthesize_stream(raw_text):
-                audio_b64 = base64.b64encode(result.audio).decode("ascii")
-                await self.send(
-                    {
+            emotional = [b for b in merge_emotion_blocks(blocks) if b["text"].strip()] if blocks else []
+            if not any(b["emotion"] for b in emotional):
+                emotional = [{"emotion": None, "intensity": None, "text": raw_text, "sent": True}]
+            segment_no = 0
+            for block in emotional:
+                spoken = False
+                async for result in pipeline.synthesize_stream(block["text"]):
+                    payload = {
                         "event": "tts_audio",
-                        "audio": audio_b64,
-                        "segment": result.segment,
+                        "audio": base64.b64encode(result.audio).decode("ascii"),
+                        "segment": segment_no,
                         "total_segments": -1,
                         "text": "",
                         "duration": result.duration,
                     }
-                )
+                    # The emotion starts with the first audio of its block.
+                    if block["emotion"] and not spoken:
+                        payload["emotion"] = {"id": block["emotion"], "intensity": block["intensity"]}
+                    spoken = True
+                    segment_no += 1
+                    await self.send(payload)
+                if block["emotion"] and not spoken and not block["sent"]:
+                    # Nothing was synthesized for this block: show its emotion anyway.
+                    await self.send({"event": "emotion_event", "session_id": session_id, "id": block["emotion"], "intensity": block["intensity"]})
         except Exception as exc:
             logger.exception("TTS pipeline error")
             await self.send({"event": "error", "detail": f"TTS failed: {exc}"})

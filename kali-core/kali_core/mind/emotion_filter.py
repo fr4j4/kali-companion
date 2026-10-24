@@ -36,7 +36,7 @@ class EmotionStreamFilter:
 
     def reset(self) -> None:
         self._buf = ""
-        self._events: list[tuple[str, float | None]] = []
+        self._events: list[tuple[str, float | None, int]] = []  # (emotion, intensity, offset in the text feed() returned)
         self._last = ""  # last character emitted ("" = nothing yet)
         self._strip_next = False  # a tag was just removed between spaces: drop the space after it
 
@@ -62,7 +62,7 @@ class EmotionStreamFilter:
             emotion = self.canonical(match.group(1))
             if emotion:
                 intensity = float(match.group(2)) if match.group(2) else None
-                self._events.append((emotion, None if intensity is None else min(1.0, intensity)))
+                self._events.append((emotion, None if intensity is None else min(1.0, intensity), sum(len(piece) for piece in out)))
             self._buf = self._buf[match.end():]
             # A tag between spaces (or at the very start) must not leave a double/leading space.
             self._strip_next = not self._last or self._last.isspace()
@@ -97,6 +97,15 @@ class EmotionStreamFilter:
 
     def drain(self) -> list[tuple[str, float | None]]:
         """Tags completed since the last call, as (emotion id, intensity or None)."""
+        events, self._events = self._events, []
+        return [(emotion, intensity) for emotion, intensity, _ in events]
+
+    def drain_marks(self) -> list[tuple[str, float | None, int]]:
+        """Like :meth:`drain`, plus the offset in the text the last ``feed`` returned where each tag stood.
+
+        Lets the caller emit the text before a tag, then the emotion, then the text after it, so
+        the emotion keeps its place in the reply (the TTS speaks each stretch with its own emotion).
+        """
         events, self._events = self._events, []
         return events
 

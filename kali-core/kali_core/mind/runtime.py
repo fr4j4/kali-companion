@@ -151,6 +151,19 @@ def _gen_tool_call_id() -> str:
     return f"prompt_tc_{uuid.uuid4().hex[:8]}"
 
 
+
+def _split_by_marks(text: str, marks: list[tuple[str, float | None, int]]):
+    """Yield ("text", chunk, None) and ("emotion", id, intensity) in reply order."""
+    pos = 0
+    for emotion, intensity, offset in marks:
+        offset = max(pos, min(offset, len(text)))
+        if offset > pos:
+            yield "text", text[pos:offset], None
+            pos = offset
+        yield "emotion", emotion, intensity
+    if pos < len(text):
+        yield "text", text[pos:], None
+
 class AgentRuntime:
     """Receives a message and produces a streaming response."""
 
@@ -323,16 +336,20 @@ class AgentRuntime:
                         continue
                     # Then the emotion filter: tags leave the text and become emotion events.
                     safe_text = emotion_filter.feed(safe_from_tc)
-                    for emo, intensity in emotion_filter.drain():
-                        yield StreamEvent(kind="emotion", emotion=emo, intensity=intensity)
-                    if not safe_text:
-                        continue
-                    # Then through artifact stream processor.
-                    result = artifact_processor.feed(safe_text)
-                    if result.chat_text:
-                        yield StreamEvent(kind="delta", text=result.chat_text)
-                    for art_evt in result.artifact_events:
-                        await self._emit_artifact_event(art_evt, session_id)
+                    # Text and emotions stay in order: the text before a tag, the tag, the text after.
+                    for kind, value, intensity in _split_by_marks(safe_text, emotion_filter.drain_marks()):
+                        if kind == "emotion":
+                            held = artifact_processor.release_chat()
+                            if held:
+                                yield StreamEvent(kind="delta", text=held)
+                            yield StreamEvent(kind="emotion", emotion=value, intensity=intensity)
+                            continue
+                        # Then through artifact stream processor.
+                        result = artifact_processor.feed(value)
+                        if result.chat_text:
+                            yield StreamEvent(kind="delta", text=result.chat_text)
+                        for art_evt in result.artifact_events:
+                            await self._emit_artifact_event(art_evt, session_id)
                 elif event.kind == "reasoning":
                     # Filter reasoning the same way as delta: hold back
                     # [TOOL_CALL: ...] blocks so the reasoning panel does
@@ -400,11 +417,16 @@ class AgentRuntime:
             # split across the last chunks would leak as visible text.
             tail = delta_filter.flush()
             tail_text = emotion_filter.feed(tail) if tail else ""
+            tail_marks = emotion_filter.drain_marks()
             tail_text += emotion_filter.flush()
-            for emo, intensity in emotion_filter.drain():
-                yield StreamEvent(kind="emotion", emotion=emo, intensity=intensity)
-            if tail_text:
-                art_result = artifact_processor.feed(tail_text)
+            for kind, value, intensity in _split_by_marks(tail_text, tail_marks):
+                if kind == "emotion":
+                    held = artifact_processor.release_chat()
+                    if held:
+                        yield StreamEvent(kind="delta", text=held)
+                    yield StreamEvent(kind="emotion", emotion=value, intensity=intensity)
+                    continue
+                art_result = artifact_processor.feed(value)
                 if art_result.chat_text:
                     yield StreamEvent(kind="delta", text=art_result.chat_text)
                 for art_evt in art_result.artifact_events:

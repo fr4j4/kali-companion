@@ -198,7 +198,8 @@
   "idleGestures": ["mirar_alrededor", "sacudir_oreja", "ladear"],
 
   "prompt": {
-    "intro": "Opcional: puedes empezar tu respuesta con [EMOTION: id] o [EMOTION: id 0.0-1.0] (intensidad) para que tu avatar refleje cómo te sientes. Puedes cambiarla a mitad de respuesta con otra etiqueta. No la menciones ni la expliques. Usa solo estos ids:",
-    "examples": ["[EMOTION: alegre 0.8] ¡Listo! Ya está creado el archivo.", "[EMOTION: confundido] Mmm, no estoy seguro de haber entendido."]
+    "intro": "Opcional: puedes empezar tu respuesta con [EMOTION: id] o [EMOTION: id 0.0-1.0] (intensidad) para que tu avatar refleje cómo te sientes. Si tu ánimo cambia, pon otra etiqueta justo al inicio de la frase donde cambia (nunca a mitad de una frase); la voz y la cara se sincronizan por bloques, así que no abuses: como mucho una por párrafo. No la menciones ni la expliques. Usa solo estos ids:",
+    "examples": ["[EMOTION: alegre 0.8] ¡Listo! Ya está creado el archivo.", "[EMOTION: confundido] Mmm, no estoy seguro de haber entendido.",
+    "[EMOTION: alegre 0.8] ¡Funcionó! [EMOTION: preocupado 0.5] Eso sí, falló un test que no es mío."]
   }
 }
