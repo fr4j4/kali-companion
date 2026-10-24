@@ -20,11 +20,11 @@ const clampWidth = (w: number) => Math.min(CHAT_DOCK_MAX, Math.max(CHAT_DOCK_MIN
 /**
  * State of the docked chat panel: open/closed (remembered), width (remembered, resizable) and the
  * `--chat-dock-w` CSS variable the stage, HUD, dock and window placement use to leave room for it.
- * It is open by default on wide screens and never docks on narrow ones.
+ * It is closed by default (the dock input carries the conversation) and never docks on narrow screens.
  */
 export function useChatDock() {
   const [wide, setWide] = useState(() => window.innerWidth >= CHAT_DOCK_MIN_VIEWPORT);
-  const [pref, setPref] = useState<boolean>(() => read(OPEN_KEY) !== "closed");
+  const [pref, setPref] = useState<boolean>(() => read(OPEN_KEY) === "open");
   const [width, setWidthState] = useState(() => clampWidth(Number(read(WIDTH_KEY)) || DEFAULT_WIDTH));
 
   useEffect(() => {

@@ -20,6 +20,7 @@ interface TetherState {
   path: string;
   color: string;
   pulsing: boolean;
+  focused: boolean;
 }
 
 export function TetherLayer({ windows }: Props) {
@@ -47,7 +48,7 @@ export function TetherLayer({ windows }: Props) {
         const el = document.querySelector(`[data-window-id="${w.id}"]`) as HTMLElement | null;
         if (!el) continue;
         // Build a signature of position+size to detect real changes.
-        const sig = `${w.position.x},${w.position.y},${w.size.width},${w.size.height ?? 0}`;
+        const sig = `${w.position.x},${w.position.y},${w.size.width},${w.size.height ?? 0},${w.focused ? 1 : 0}`;
         const prev = lastPositionsRef.current.get(w.id);
         if (prev === sig) {
           // Position unchanged — reuse existing tether if present.
@@ -61,7 +62,7 @@ export function TetherLayer({ windows }: Props) {
         lastPositionsRef.current.set(w.id, sig);
         const path = computeTetherPath(el);
         const color = TETHER_COLORS[w.type] || "#22d3ee";
-        next.push({ id: w.id, path, color, pulsing: false });
+        next.push({ id: w.id, path, color, pulsing: false, focused: w.focused });
       }
       // Clean up stale entries from lastPositionsRef.
       const visibleIds = new Set(visibleWindows.map((w) => w.id));
@@ -107,12 +108,12 @@ export function TetherLayer({ windows }: Props) {
           key={t.id}
           d={t.path}
           fill="none"
-          stroke={t.color}
-          strokeWidth={t.pulsing ? 5 : 2.5}
-          strokeDasharray="8 6"
+          stroke="var(--accent)"
+          strokeWidth={t.pulsing ? 3 : 1.5}
+          strokeDasharray={t.focused ? "6 10" : "2 8"}
           strokeLinecap="round"
-          opacity={t.pulsing ? 1 : 0.45}
-          className={dashStatic ? "tether-static" : "tether-flow"}
+          opacity={t.pulsing ? 0.9 : t.focused ? 0.55 : 0.25}
+          className={t.focused && !dashStatic ? "tether-flow" : "tether-static"}
         />
       ))}
     </svg>

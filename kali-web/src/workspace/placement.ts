@@ -71,8 +71,8 @@ export function measureStage(windows: WindowData[]): { area: Rect; obstacles: Re
   const bottom = dock ? Math.min(window.innerHeight - 24, dock.getBoundingClientRect().top - 12) : window.innerHeight - 110 * density;
   const area: Rect = { x: left, y: top, w: Math.max(0, right - left), h: Math.max(0, bottom - top) };
   const obstacles: Rect[] = [];
-  for (const id of ["avatar-container", "stage-transcript"]) {
-    const el = document.getElementById(id);
+  const fixed = [document.getElementById("avatar-container"), document.getElementById("stage-transcript"), ...Array.from(document.querySelectorAll("[data-neural-node]"))];
+  for (const el of fixed) {
     if (!el) continue;
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) obstacles.push({ x: r.left, y: r.top, w: r.width, h: r.height });

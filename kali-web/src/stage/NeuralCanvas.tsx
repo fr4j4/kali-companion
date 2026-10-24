@@ -33,6 +33,7 @@ import type { SelectedArtifactRef } from "../lib/protocol";
 import { HUD } from "./HUD";
 import { PresenceLayer } from "./PresenceLayer";
 import { NeuralDock } from "./NeuralDock";
+import { StageDock } from "./StageDock";
 import { TetherLayer } from "./TetherLayer";
 import { WindowCanvas } from "./WindowCanvas";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -41,6 +42,7 @@ import { VoiceBar } from "./VoiceBar";
 import { TranscriptionBar } from "./TranscriptionBar";
 import { ConversationModal } from "./ConversationModal";
 import { ChatDock } from "./ChatDock";
+import { NeuralMap } from "./NeuralMap";
 import { useChatDock } from "./useChatDock";
 import { CustomizerDrawer } from "./CustomizerDrawer";
 import { MinimizeDock } from "./MinimizeDock";
@@ -125,6 +127,7 @@ export function NeuralCanvas({
   // Scale
   const avScale = uiScale.global * uiScale.avatar;
   const winScale = uiScale.global * uiScale.window;
+  const winDensity = uiScale.global * uiScale.density;
   const avPx = (isMobile ? (customizerOpen ? 360 : 200) : (customizerOpen ? 580 : 280)) * avScale;
   const ring1Px = (isMobile ? (customizerOpen ? 280 : 160) : (customizerOpen ? 460 : 200)) * avScale;
   const ring2Px = (isMobile ? (customizerOpen ? 230 : 130) : (customizerOpen ? 390 : 170)) * avScale;
@@ -157,8 +160,8 @@ export function NeuralCanvas({
   // Captures the first character in a ref so SpotlightInput can inject it.
   // Suppressed when a game window has focus (games own their keyboard).
   const firstCharRef = useRef("");
-  const chatDockedRef = useRef(chatDocked);
-  chatDockedRef.current = chatDocked;
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
   const apiRef = useRef(api);
   useEffect(() => { apiRef.current = api; }, [api]);
   useEffect(() => {
@@ -171,7 +174,7 @@ export function NeuralCanvas({
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // With the chat docked, typing anywhere lands in its composer; the key itself types there.
-        if (chatDockedRef.current) { window.dispatchEvent(new CustomEvent("kali:chat-focus")); return; }
+        if (!isMobileRef.current) { window.dispatchEvent(new CustomEvent("kali:chat-focus")); return; }
         firstCharRef.current = e.key;
         setTyping(true);
       }
@@ -387,25 +390,23 @@ export function NeuralCanvas({
           <div className="relative flex items-center justify-center" style={{
             width: avPx,
             height: avPx,
-            transform: typing ? "translateY(-35vh)" : customizerOpen ? "translateY(-4vh)" : "translateY(-18vh)",
+            transform: isMobile ? "translateY(-18vh)" : customizerOpen ? "translateY(-4vh)" : "translateY(-6vh)",
             transition: "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
           }}>
-          <div className="absolute rounded-full border border-accent/10 transition-all duration-500" style={{
+          <div className="stage-ring stage-ring-1 absolute rounded-full border border-accent/15 transition-all duration-500" style={{
             width: ring1Px,
             height: ring1Px,
-            animation: "spin 10s linear infinite",
           }} />
-          <div className="absolute rounded-full border border-accent2/20 transition-all duration-500" style={{
+          <div className="stage-ring stage-ring-2 absolute rounded-full border border-accent2/25 transition-all duration-500" style={{
             width: ring2Px,
             height: ring2Px,
-            animation: "spin 15s linear infinite reverse",
           }} />
           {/* Avatar — pointer-events-auto so clicks work */}
           <div className="relative pointer-events-auto transition-all duration-500" id="avatar-container" style={{
             zIndex: customizerOpen ? 61 : 20,
             width: innerPx,
             height: innerPx,
-            filter: customizerOpen || typing ? "drop-shadow(0 0 40px rgba(124,92,255,0.35))" : undefined,
+            filter: customizerOpen ? "drop-shadow(0 0 40px var(--presence-glow))" : undefined,
           }}>
             <AvatarSVG
               presence={presence}
@@ -424,15 +425,24 @@ export function NeuralCanvas({
         style={{
           zIndex: customizerOpen ? 60 : 10,
           paddingRight: `calc(${customizerOpen && !isMobile ? "360px * var(--mul-density)" : "0px"} + var(--chat-dock-w, 0px))`,
-          bottom: "25%",
+          top: "71%",
           opacity: customizerOpen ? 0 : 1,
           pointerEvents: customizerOpen ? "none" : "auto",
           transition: "opacity 0.3s ease, padding-right 0.5s ease",
         }}
       >
         <WelcomeText messages={chat.messages} />
-        {!chatDocked && <FloatingTranscript messages={chat.messages} />}
+        {!(chatDocked && dock.open) && <FloatingTranscript messages={chat.messages} />}
       </div>
+
+      {/* Neural map — activity nodes around the avatar (desktop only; windows cover the stage on phones and tablets) */}
+      {!isMobile && (
+        <NeuralMap
+          padRight={(customizerOpen ? 360 * winDensity : 0) + (chatDocked && dock.open ? dock.width : 0)}
+          coreRadius={ring1Px / 2 + 6}
+          hidden={customizerOpen}
+        />
+      )}
 
       {/* Tether layer — SVG paths avatar→windows */}
       <TetherLayer windows={api.windows} />
@@ -476,7 +486,7 @@ export function NeuralCanvas({
         }
       }} />
 
-      {/* Spotlight input overlay */}
+      {/* Spotlight input overlay (phones and tablets; desktop types into the dock) */}
       <SpotlightInput open={typing} onClose={() => setTyping(false)} firstCharRef={firstCharRef} />
 
       {/* Voice bar — TTS playback indicator */}
@@ -493,15 +503,19 @@ export function NeuralCanvas({
       {/* Minimize dock — minimized windows */}
       <MinimizeDock windows={api.windows} onRestore={api.toggleMinimize} />
 
-      {/* Dock — bottom input + workspace controls */}
-      <NeuralDock
-        api={api}
-        onToggleDebug={() => setDebugOpen((d) => !d)}
-        onOpenTextInput={() => (chatDocked ? window.dispatchEvent(new CustomEvent("kali:chat-focus")) : setTyping(true))}
-        onOpenWindowSwitcher={openMobileSwitcher}
-        onReturnHome={minimizeFocusedWindow}
-        isMobile={isMobile}
-      />
+      {/* Dock — bottom pill (desktop) or compact bar (phones and tablets) */}
+      {isMobile ? (
+        <NeuralDock
+          api={api}
+          onToggleDebug={() => setDebugOpen((d) => !d)}
+          onOpenTextInput={() => setTyping(true)}
+          onOpenWindowSwitcher={openMobileSwitcher}
+          onReturnHome={minimizeFocusedWindow}
+          isMobile={isMobile}
+        />
+      ) : (
+        <StageDock api={api} onToggleDebug={() => setDebugOpen((d) => !d)} yieldTyping={chatDocked && dock.open} onTypingChange={setComposerTyping} />
+      )}
 
       {/* Reconnection banner: the WS client retries with backoff on its own. */}
       {chat.status === "disconnected" && (
@@ -752,7 +766,7 @@ function WelcomeText({ messages }: { messages: import("../hooks/useChat").ChatMe
   if (hasAssistantText) return null;
   const ready = !chat.isTurnActive && messages.length === 0;
   return (
-    <div className="mt-6 flex max-w-xl flex-col items-center gap-4 px-4 text-center pointer-events-auto">
+    <div className="flex max-w-2xl flex-col items-center gap-3 px-4 text-center pointer-events-auto">
       <div>
         <h1 className="text-xl font-semibold text-fg">{t("welcome.title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("stage.empty_state")}</p>
@@ -867,7 +881,7 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     <AnimatePresence>
       <motion.div
         id="stage-transcript"
-        className="w-full max-w-lg pointer-events-none mt-6"
+        className="w-full max-w-[640px] px-4 pointer-events-none"
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
@@ -875,21 +889,13 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
       >
         <div
           ref={scrollRef}
-          className="projection-scroll max-h-[30vh] border-l-2 border-accent/30 pl-4 pointer-events-auto"
+          className="projection-scroll stage-voice pointer-events-auto"
           onScroll={handleScroll}
           aria-live="polite"
           aria-atomic="true"
         >
-          {html && (
-            <div
-              className="leading-relaxed text-sm whitespace-pre-wrap"
-              style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          )}
-          {isStreaming && (
-            <span className="inline-block w-0.5 h-[1em] bg-accent ml-0.5 align-text-bottom" style={{ animation: "blink 1.1s steps(2,start) infinite" }} />
-          )}
+          {html && <div className="stage-voice-text" dangerouslySetInnerHTML={{ __html: html }} />}
+          {isStreaming && <span className="stage-cursor" />}
         </div>
       </motion.div>
     </AnimatePresence>
