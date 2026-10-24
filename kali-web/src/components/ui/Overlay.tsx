@@ -22,7 +22,7 @@ interface Props {
 }
 
 const BACKDROP = "fixed inset-0 z-50";
-const BACKDROP_BG = "bg-black/55";
+const BACKDROP_BG = "bg-[var(--scrim)]";
 
 const sizeMap: Record<string, string> = {
   sm: "w-[min(384px,80vw)]",
@@ -115,14 +115,14 @@ export function Overlay({
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
   const modalPanelClasses = compact
-    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
-    : `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`;
+    ? `bg-elevated border border-border rounded-2xl shadow-2xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
+    : `bg-elevated border border-border rounded-2xl shadow-2xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`;
 
   const panelClasses = isModal
     ? modalPanelClasses
     : effectiveVariant === "sheet-bottom"
       ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] h-auto overflow-auto scrollbar-thin"
-      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-auto max-h-[85vh] overflow-auto scrollbar-thin ${
+      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-full overflow-auto scrollbar-thin shadow-2xl ${
           effectiveVariant === "sheet-left" ? "border-r" : "border-l"
         } ${panelClassName ?? ""}`;
 

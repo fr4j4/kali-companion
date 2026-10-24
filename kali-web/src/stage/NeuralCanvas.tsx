@@ -40,6 +40,8 @@ import { SpotlightInput } from "./SpotlightInput";
 import { VoiceBar } from "./VoiceBar";
 import { TranscriptionBar } from "./TranscriptionBar";
 import { ConversationModal } from "./ConversationModal";
+import { ChatDock } from "./ChatDock";
+import { useChatDock } from "./useChatDock";
 import { CustomizerDrawer } from "./CustomizerDrawer";
 import { MinimizeDock } from "./MinimizeDock";
 import { SessionDrawer } from "./SessionDrawer";
@@ -87,6 +89,9 @@ export function NeuralCanvas({
   });
   const perfMetrics = usePerfMetrics(api.windows, performanceProfile);
   const [typing, setTyping] = useState(false);
+  const [composerTyping, setComposerTyping] = useState(false);
+  const dock = useChatDock();
+  const chatDocked = dock.docked && !isMobile;
   const [settingsOpen, setSettingsOpen] = useState(() => window.location.hash.includes("panel=settings"));
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -129,7 +134,7 @@ export function NeuralCanvas({
   const presence = usePresence();
   const sendSignal = chat.sendPresenceSignal;
 
-  useEffect(() => { sendSignal({ kind: typing ? "typing_start" : "typing_stop" }); }, [typing, sendSignal]);
+  useEffect(() => { sendSignal({ kind: typing || composerTyping ? "typing_start" : "typing_stop" }); }, [typing, composerTyping, sendSignal]);
 
   useEffect(() => {
     if (!window.kaliDesktop) return;
@@ -152,6 +157,8 @@ export function NeuralCanvas({
   // Captures the first character in a ref so SpotlightInput can inject it.
   // Suppressed when a game window has focus (games own their keyboard).
   const firstCharRef = useRef("");
+  const chatDockedRef = useRef(chatDocked);
+  chatDockedRef.current = chatDocked;
   const apiRef = useRef(api);
   useEffect(() => { apiRef.current = api; }, [api]);
   useEffect(() => {
@@ -163,6 +170,8 @@ export function NeuralCanvas({
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // With the chat docked, typing anywhere lands in its composer; the key itself types there.
+        if (chatDockedRef.current) { window.dispatchEvent(new CustomEvent("kali:chat-focus")); return; }
         firstCharRef.current = e.key;
         setTyping(true);
       }
@@ -371,14 +380,14 @@ export function NeuralCanvas({
         className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500"
         style={{
           zIndex: customizerOpen || typing ? 60 : 10,
-          paddingRight: customizerOpen && !isMobile ? "calc(360px * var(--mul-density))" : "0",
+          paddingRight: `calc(${customizerOpen && !isMobile ? "360px * var(--mul-density)" : "0px"} + var(--chat-dock-w, 0px))`,
         }}
       >
           {/* Avatar & Rings container */}
           <div className="relative flex items-center justify-center" style={{
             width: avPx,
             height: avPx,
-            transform: typing ? "translateY(-35vh)" : "translateY(-18vh)",
+            transform: typing ? "translateY(-35vh)" : customizerOpen ? "translateY(-4vh)" : "translateY(-18vh)",
             transition: "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
           }}>
           <div className="absolute rounded-full border border-accent/10 transition-all duration-500" style={{
@@ -414,7 +423,7 @@ export function NeuralCanvas({
         className="absolute inset-x-0 flex flex-col items-center pointer-events-none"
         style={{
           zIndex: customizerOpen ? 60 : 10,
-          paddingRight: customizerOpen && !isMobile ? "calc(360px * var(--mul-density))" : "0",
+          paddingRight: `calc(${customizerOpen && !isMobile ? "360px * var(--mul-density)" : "0px"} + var(--chat-dock-w, 0px))`,
           bottom: "25%",
           opacity: customizerOpen ? 0 : 1,
           pointerEvents: customizerOpen ? "none" : "auto",
@@ -422,7 +431,7 @@ export function NeuralCanvas({
         }}
       >
         <WelcomeText messages={chat.messages} />
-        <FloatingTranscript messages={chat.messages} />
+        {!chatDocked && <FloatingTranscript messages={chat.messages} />}
       </div>
 
       {/* Tether layer — SVG paths avatar→windows */}
@@ -441,7 +450,8 @@ export function NeuralCanvas({
         onOpenHistory={() => setHistoryOpen(true)}
         onOpenCustomizer={() => setCustomizerOpen(true)}
         onOpenArtifacts={() => setArtifactsOpen(true)}
-        onOpenConversation={() => setConversationOpen(true)}
+        onOpenConversation={() => (dock.wide && !isMobile ? dock.toggle() : setConversationOpen(true))}
+        conversationDocked={chatDocked}
         onNewSession={newSession}
         onOpenWindowSwitcher={openMobileSwitcher}
         onOpenMobileMenu={openMobileMenu}
@@ -475,6 +485,11 @@ export function NeuralCanvas({
       {/* Transcription bar — live STT text */}
       <TranscriptionBar />
 
+      {/* Docked conversation — wide screens */}
+      {chatDocked && dock.open && (
+        <ChatDock width={dock.width} onWidthChange={dock.setWidth} onClose={() => dock.setOpen(false)} onTypingChange={setComposerTyping} />
+      )}
+
       {/* Minimize dock — minimized windows */}
       <MinimizeDock windows={api.windows} onRestore={api.toggleMinimize} />
 
@@ -482,7 +497,7 @@ export function NeuralCanvas({
       <NeuralDock
         api={api}
         onToggleDebug={() => setDebugOpen((d) => !d)}
-        onOpenTextInput={() => setTyping(true)}
+        onOpenTextInput={() => (chatDocked ? window.dispatchEvent(new CustomEvent("kali:chat-focus")) : setTyping(true))}
         onOpenWindowSwitcher={openMobileSwitcher}
         onReturnHome={minimizeFocusedWindow}
         isMobile={isMobile}
@@ -727,15 +742,37 @@ export function NeuralCanvas({
   );
 }
 
-/** Ambient welcome text — shown below avatar when no assistant messages. */
+const WELCOME_PROMPTS = ["welcome.prompt_explain", "welcome.prompt_code", "welcome.prompt_plan", "welcome.prompt_play"] as const;
+
+/** Empty-session welcome: a greeting and a few starting points; replaced by the transcript once Kali answers. */
 function WelcomeText({ messages }: { messages: import("../hooks/useChat").ChatMessage[] }) {
   const { t } = useTranslation();
+  const { chat } = useStage();
   const hasAssistantText = messages.some((m) => m.role === "assistant" && m.content);
   if (hasAssistantText) return null;
+  const ready = !chat.isTurnActive && messages.length === 0;
   return (
-    <p className="mt-6 text-center text-muted/50 transition-opacity duration-300 pointer-events-auto" style={{ fontFamily: "Fraunces, serif", fontSize: "calc(1rem * var(--mul-text))", lineHeight: 1.5 }}>
-      {t("stage.empty_state")}
-    </p>
+    <div className="mt-6 flex max-w-xl flex-col items-center gap-4 px-4 text-center pointer-events-auto">
+      <div>
+        <h1 className="text-xl font-semibold text-fg">{t("welcome.title")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("stage.empty_state")}</p>
+      </div>
+      {ready && (
+        <ul className="flex flex-wrap justify-center gap-2" aria-label={t("welcome.suggestions") as string}>
+          {WELCOME_PROMPTS.map((key) => (
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => chat.send(t(key) as string)}
+                className="rounded-full border border-border bg-elevated/70 px-3.5 py-1.5 text-xs text-fg transition-colors hover:border-accent/60 hover:bg-accent/10"
+              >
+                {t(key)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -829,6 +866,7 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
   return (
     <AnimatePresence>
       <motion.div
+        id="stage-transcript"
         className="w-full max-w-lg pointer-events-none mt-6"
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}

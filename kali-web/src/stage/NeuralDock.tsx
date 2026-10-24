@@ -67,7 +67,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
   }, [overflowOpen]);
 
   return (
-    <footer className={`fixed left-1/2 -translate-x-1/2 z-40 ${isMobile ? "bottom-[max(10px,env(safe-area-inset-bottom))] w-[calc(100vw-12px)] max-w-[560px]" : "bottom-5"}`}>
+    <footer className={`neural-dock fixed left-1/2 -translate-x-1/2 z-40 ${isMobile ? "bottom-[max(10px,env(safe-area-inset-bottom))] w-[calc(100vw-12px)] max-w-[560px]" : "bottom-5"}`} style={isMobile ? undefined : { left: "calc((100vw - var(--chat-dock-w, 0px)) / 2)" }}>
       <div className={`glass-strong rounded-2xl shadow-2xl border border-fg/10 ${isMobile ? "px-2 py-2 flex items-center justify-between gap-1 overflow-x-auto" : "px-3 py-2.5 flex items-center gap-2"}`}>
         {isMobile ? (
           <>

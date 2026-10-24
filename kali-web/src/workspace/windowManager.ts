@@ -8,7 +8,9 @@
 import type { WindowData, WindowType, Position, CreateWindowOpts } from "./types";
 import { DEFAULT_SIZES, WINDOW_ICONS } from "./types";
 import type { ArtifactEvent } from "../lib/protocol";
+import i18n from "../lib/i18n";
 import { resolveWindowType } from "./resolveWindowType";
+import { AUTO_HEIGHT_GUESS, findFreeSlot, measureStage } from "./placement";
 
 let idCounter = 100;
 let zCounter = 100;
@@ -44,11 +46,17 @@ export function getNextPosition(width: number, height: number): Position {
 }
 
 /** Create a new WindowData from opts. */
-export function createWindowData(opts: Partial<CreateWindowOpts> & { type: WindowType }): WindowData {
+export function createWindowData(opts: Partial<CreateWindowOpts> & { type: WindowType }, existing?: WindowData[]): WindowData {
   const defaults = DEFAULT_SIZES[opts.type] ?? { width: 340, height: null };
   const width = opts.width ?? defaults.width;
   const height = opts.height ?? defaults.height ?? undefined;
-  const pos = getNextPosition(width, height || 300);
+  const winScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mul-window")) || 1;
+  const pos = existing
+    ? (() => {
+        const { area, obstacles } = measureStage(existing);
+        return findFreeSlot({ w: width * winScale, h: (height ?? AUTO_HEIGHT_GUESS) * winScale }, area, obstacles);
+      })()
+    : getNextPosition(width, height || 300);
   return {
     id: nextId(),
     artifactId: opts.artifactId,
@@ -97,7 +105,7 @@ export function duplicateInArray(windows: WindowData[], id: number): { windows: 
   const copy: WindowData = {
     ...original,
     id: newId,
-    title: original.title + " (copia)",
+    title: `${original.title} (${i18n.t("window.copy_suffix")})`,
     position: { x: original.position.x + 40, y: original.position.y + 40 },
     zIndex: z,
     focused: true,

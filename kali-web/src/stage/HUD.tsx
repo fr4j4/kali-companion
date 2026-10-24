@@ -20,6 +20,8 @@ interface Props {
   onOpenCustomizer: () => void;
   onOpenArtifacts: () => void;
   onOpenConversation: () => void;
+  /** The conversation is shown as a docked panel (so the button toggles it). */
+  conversationDocked?: boolean;
   onNewSession: () => void;
   onOpenWindowSwitcher?: () => void;
   onOpenMobileMenu?: () => void;
@@ -37,6 +39,7 @@ export function HUD({
   onOpenCustomizer,
   onOpenArtifacts,
   onOpenConversation,
+  conversationDocked,
   onNewSession,
   onOpenWindowSwitcher,
   onOpenMobileMenu,
@@ -136,7 +139,7 @@ export function HUD({
                 <IconButton size="sm" onClick={onOpenCustomizer} aria-label={t("dock.customizer")} title={t("dock.customizer")}>
                   <Palette size={15} />
                 </IconButton>
-                <IconButton size="sm" onClick={onOpenConversation} aria-label={t("dock.conversation")} title={t("dock.conversation")}>
+                <IconButton size="sm" onClick={onOpenConversation} aria-label={t("dock.conversation")} title={t("dock.conversation")} active={conversationDocked}>
                   <MessageSquare size={15} />
                 </IconButton>
               </div>
@@ -151,7 +154,7 @@ export function HUD({
           </div>
 
           {/* Top-right: status·model pill + new chat + settings */}
-          <div className="hud-corner absolute top-4 right-5 z-20 flex items-center gap-2" style={{ opacity: 1 }}>
+          <div className="hud-corner absolute top-4 z-20 flex items-center gap-2" style={{ opacity: 1, right: "calc(var(--chat-dock-w, 0px) + 20px)" }}>
             <IconButton size="sm" onClick={onNewSession} aria-label={t("stage.new_chat")} title={t("stage.new_chat")}>
               <Plus size={16} />
             </IconButton>
@@ -193,7 +196,7 @@ export function HUD({
           </div>
 
           {/* Bottom-right: jobs */}
-          <div className="hud-corner absolute bottom-4 right-5 z-20">
+          <div className="hud-corner absolute bottom-4 z-20" style={{ right: "calc(var(--chat-dock-w, 0px) + 20px)" }}>
             <IconButton size="sm" onClick={onOpenJobs} aria-label={t("stage.jobs")} title={t("stage.jobs")} active={runningJobs > 0}>
               <Cpu size={16} />
               {runningJobs > 0 && (
@@ -235,17 +238,16 @@ function ArtifactsBeacon({
       onClick={onClick}
       aria-label={t("dock.artifacts_hint") as string}
       title={t("dock.artifacts_hint") as string}
-      className={`artifacts-beacon group inline-flex items-center gap-2 rounded-full bg-accent text-on-accent border border-accent cursor-pointer transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
-        compact ? "px-2.5 py-2 min-w-11 justify-center" : "px-3 py-1.5"
+      className={`artifacts-beacon group inline-flex items-center gap-2 rounded-full border border-border bg-elevated/80 text-fg cursor-pointer transition-[border-color,transform] hover:border-accent/60 active:scale-[0.98] ${
+        compact ? "px-2.5 py-2 min-w-11 justify-center" : "py-1.5 pl-3 pr-2"
       }`}
     >
-      <Library size={14} className="shrink-0" />
-      {!compact && <span className="badge text-on-accent/90">{t("dock.artifacts")}</span>}
+      <Library size={14} className="shrink-0 text-accent" />
+      {!compact && <span className="text-xs font-medium">{t("dock.artifacts")}</span>}
       {hasArtifacts && (
-        <span className="flex items-center gap-1 tabular-nums text-[11px] font-mono leading-none">
-          <span className="text-on-accent">{openCount}</span>
-          <span className="text-on-accent/40">·</span>
-          <span className="text-on-accent/60">{closedCount}</span>
+        <span className="flex items-center gap-1 tabular-nums text-[11px] font-medium leading-none">
+          <span className="rounded-full bg-accent px-1.5 py-1 text-on-accent" title={t("stage.open_windows") as string}>{openCount}</span>
+          {closedCount > 0 && <span className="px-1 text-muted" title={t("stage.closed_windows", { defaultValue: "Closed" }) as string}>{closedCount}</span>}
         </span>
       )}
     </button>

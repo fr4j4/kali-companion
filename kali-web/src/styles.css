@@ -173,30 +173,30 @@
 
   /* ── Vellum Night — illuminated manuscript ───────────── */
   :root[data-theme="vellum"] {
-    --scrollbar-thumb: rgba(194, 74, 45, 0.25);
-    --scrollbar-thumb-hover: rgba(194, 74, 45, 0.45);
+    --scrollbar-thumb: rgba(222, 96, 64, 0.25);
+    --scrollbar-thumb-hover: rgba(222, 96, 64, 0.45);
     --bg: #1F1B17;
     --bg-elev: #2A241D;
     --bg-elev-rgb: 42, 36, 29;
     --fg: #EFE6D3;
     --fg-rgb: 239, 230, 211;
     --muted: #9E8F7A;
-    --accent: #C24A2D;
-    --accent-rgb: 194, 74, 45;
+    --accent: #DE6040;
+    --accent-rgb: 222, 96, 64;
     --accent-dim: #7A2E1A;
-    --on-accent: #FFFFFF;
+    --on-accent: #1F1B17;
     --accent2: #3F7E8C;
     --ok: #8FAE6B;
     --err: #B8453A;
     --warn: #F59E0B;
     --user-bubble: #33291E;
     --assistant-bubble: #251F19;
-    --border: rgba(194, 74, 45, 0.12);
+    --border: rgba(222, 96, 64, 0.12);
     --cloud-fill: #F5EDD8;
     --cloud-fill-soft: rgba(245, 237, 216, 0.96);
     --cloud-text: #33291E;
     --cloud-text-muted: #7A6A52;
-    --cloud-border: rgba(194, 74, 45, 0.32);
+    --cloud-border: rgba(222, 96, 64, 0.32);
     --ai-bg: #1A1612;
     --ai-panel: #241E16;
     --ai-rail: #3A2E20;
@@ -256,7 +256,7 @@
     --accent: #6C6FF7;
     --accent-rgb: 108, 111, 247;
     --accent-dim: #4A4DB8;
-    --on-accent: #FFFFFF;
+    --on-accent: #0A0C14;
     --accent2: #22D3BB;
     --ok: #34D399;
     --err: #F87171;
@@ -398,8 +398,8 @@
     --presence-glow: rgba(199, 125, 255, 0.22);
   }
   :root[data-theme="vellum"] {
-    --stage-grad-1: rgba(194, 74, 45, 0.08);
-    --presence-glow: rgba(194, 74, 45, 0.18);
+    --stage-grad-1: rgba(222, 96, 64, 0.08);
+    --presence-glow: rgba(222, 96, 64, 0.18);
   }
   :root[data-theme="tidepool"] {
     --stage-grad-1: rgba(232, 138, 168, 0.08);
@@ -1361,7 +1361,7 @@
 .kw {
   position: relative; display: flex; flex-direction: column;
   background: rgba(var(--bg-elev-rgb), 0.92); backdrop-filter: blur(var(--fx-blur-strong)); -webkit-backdrop-filter: blur(var(--fx-blur-strong));
-  border: 1px solid var(--border); border-radius: calc(16px * var(--mul-window));
+  border: 1px solid var(--border); border-radius: calc(14px * var(--mul-window));
   box-shadow: var(--fx-shadow-window);
   transition: box-shadow 0.3s, border-color 0.3s, opacity 0.3s, transform 0.3s, filter 0.3s;
   overflow: clip;
@@ -1376,7 +1376,7 @@ html.kali-perf-low .kw {
 .kw.focused { border-color: rgba(var(--accent-rgb), 0.4); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15), var(--fx-shadow-window), 0 0 calc(40px * var(--fx-glow-scale)) rgba(var(--accent-rgb), 0.12); }
 .kw.dimmed { opacity: 0.72; filter: saturate(0.6); }
 .kw.selected { border-color: rgba(var(--accent-rgb), 0.5); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2), var(--fx-shadow-window); }
-.kw.minimized { height: calc(36px * var(--mul-window)) !important; overflow: hidden; }
+.kw.minimized { height: calc(44px * var(--mul-window)) !important; overflow: hidden; }
 .kw.minimized .kw-body { display: none; }
 /* Skip layout/paint for offscreen widget bodies (perf, see
    docs/PERFORMANCE.md §3.4). contain-intrinsic-size avoids scrollbar
@@ -1405,7 +1405,13 @@ html.kali-perf-low .kw {
 @keyframes awEnter { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 @keyframes awLeave { to { opacity: 0; transform: scale(0.85); } }
 
-.kw-header { cursor: grab; user-select: none; position: relative; background: rgba(var(--accent-rgb), 0.04); border-bottom: 1px solid var(--border); }
+.kw-header { cursor: grab; user-select: none; position: relative; min-height: calc(44px * var(--mul-window)); padding: 0 calc(8px * var(--mul-window)) 0 calc(14px * var(--mul-window)); background: color-mix(in srgb, var(--fg) 3%, transparent); border-bottom: 1px solid var(--border); }
+.kw-header-icon { display: inline-flex; flex-shrink: 0; transition: color 0.2s; }
+.kw-title { font-family: var(--font-ui); font-size: calc(13px * var(--mul-text)); font-weight: 600; letter-spacing: 0; color: var(--muted); transition: color 0.2s; }
+.kw.focused .kw-title { color: var(--fg); }
+.kw-ctl { display: inline-flex; align-items: center; justify-content: center; width: calc(28px * var(--mul-window)); height: calc(28px * var(--mul-window)); border-radius: 8px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.kw-ctl:hover { background: color-mix(in srgb, var(--fg) 9%, transparent); color: var(--fg); }
+.kw-ctl-close:hover { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
 .kw-header:active { cursor: grabbing; }
 
 /* Resize handles — 8 directional handles */
@@ -1567,7 +1573,7 @@ html.kali-mobile-stage .mobile-sheet-panel {
 :root[data-perf-profile="performance"] .kali-typing-dot { animation: none; opacity: 0.7; }
 
 /* Badge utility (used by workspace) */
-.badge { font-family: 'JetBrains Mono', monospace; font-size: calc(9px * var(--mul-text)); letter-spacing: 0.08em; text-transform: uppercase; }
+.badge { font-family: 'JetBrains Mono', monospace; font-size: calc(11px * var(--mul-text)); letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* Game cards (ToysLaunchpad) — themed via accent */
 .game-card { background: rgba(var(--accent-rgb), 0.05); border: 1px solid transparent; transition: background 0.2s, border-color 0.2s; }
@@ -1927,8 +1933,10 @@ html.kali-mobile-stage .mobile-sheet-panel {
 }
 
 /* Scale overrides for arbitrary Tailwind text sizes */
-.text-\[9px\] { font-size: calc(9px * var(--mul-text)); }
-.text-\[10px\] { font-size: calc(10px * var(--mul-text)); }
+/* Floor: nothing below 11px (text) / 10px (numeric counters) so labels stay legible on dense screens. */
+.text-\[8px\] { font-size: calc(10px * var(--mul-text)); }
+.text-\[9px\] { font-size: calc(11px * var(--mul-text)); }
+.text-\[10px\] { font-size: calc(11px * var(--mul-text)); }
 .text-\[11px\] { font-size: calc(11px * var(--mul-text)); }
 
 /* Reduced motion — disable non-essential animations */
@@ -1979,3 +1987,40 @@ html.kali-mobile-stage .mobile-sheet-panel {
 :root[data-theme="daylight"] .hljs-title, :root[data-theme="daylight"] .hljs-function, :root[data-theme="daylight"] .hljs-section { color: var(--accent2); }
 :root[data-theme="daylight"] .hljs-variable, :root[data-theme="daylight"] .hljs-name, :root[data-theme="daylight"] .hljs-type { color: var(--accent); }
 :root[data-theme="daylight"] .hljs-deletion { color: var(--err); }
+
+/* ── Docked chat panel ───────────────────────────────── */
+.chat-dock {
+  background: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+  border-left: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(var(--fx-blur-panel));
+  backdrop-filter: blur(var(--fx-blur-panel));
+  animation: chatDockIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes chatDockIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.chat-dock-grip {
+  position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; z-index: 2; cursor: col-resize;
+  touch-action: none;
+}
+.chat-dock-grip::after { content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background 0.15s; }
+.chat-dock-grip:hover::after, .chat-dock-grip:focus-visible::after { background: var(--accent); }
+.chat-composer { transition: border-color 0.15s, box-shadow 0.15s; }
+.chat-composer:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.chat-send { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; transition: filter 0.15s, opacity 0.15s, transform 0.1s; }
+.chat-send:hover:not(:disabled) { filter: brightness(1.08); }
+.chat-send:active:not(:disabled) { transform: scale(0.94); }
+.chat-send:disabled { opacity: 0.35; cursor: not-allowed; }
+/* Chat messages read in the UI face; documents keep the serif prose. */
+.chat-md .prose-md { font-family: var(--font-ui); font-size: calc(0.9rem * var(--mul-text)); line-height: 1.6; }
+.chat-md .prose-md > :first-child { margin-top: 0; }
+.chat-md .prose-md > :last-child { margin-bottom: 0; }
+:root[data-perf-profile="performance"] .chat-dock { animation: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); }
+@media (prefers-reduced-motion: reduce) { .chat-dock { animation: none; } }
+
+/* Phones and tablets: windows scroll in a column between the top bar and the dock instead of running off-screen. */
+.kw-mobile-feed {
+  position: absolute; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: calc(64px + env(safe-area-inset-top, 0px)) 6px calc(104px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.kw-mobile-feed > .kw-wrapper { flex: none; width: 100%; }

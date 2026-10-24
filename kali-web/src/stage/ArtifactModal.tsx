@@ -1,9 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStage } from "./StageProvider";
 import { Overlay } from "../components/ui/Overlay";
+import { StateMessage } from "../components/ui/StateMessage";
 import { WINDOW_ICONS } from "../workspace/types";
-import type { WorkspaceAPI } from "../workspace/types";
+import type { WindowType, WorkspaceAPI } from "../workspace/types";
+import { WindowTypeIcon } from "./windowIcons";
 
 interface Props {
   open: boolean;
@@ -31,6 +34,18 @@ export function ArtifactModal({ open, onClose, api }: Props) {
     onClose();
   };
 
+  const [query, setQuery] = useState("");
+  const previewOf = (art: (typeof artifactList)[number]) => {
+    const raw = art.preview ?? (art.content ? art.content.replace(/<[^>]+>/g, "") : "");
+    return raw.replace(/[#*>`_]+/g, "").replace(/\s+/g, " ").trim().slice(0, 140);
+  };
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return artifactList;
+    return artifactList.filter((a) => `${a.title} ${a.windowType} ${previewOf(a)}`.toLowerCase().includes(q));
+    // previewOf is a pure helper over `a`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artifactList, query]);
   const count = artifactList.length;
 
   return (
@@ -39,62 +54,60 @@ export function ArtifactModal({ open, onClose, api }: Props) {
       onClose={onClose}
       variant="modal"
       size="xl"
-      title={t("artifact.title")}
+      title={count > 0 ? `${t("artifact.title")} · ${count}` : t("artifact.title")}
     >
-      <div className="flex items-baseline gap-2 mb-4">
-        {count > 0 && (
-          <span className="badge text-muted">{count}</span>
+      <div className="-mx-5 -mb-5 flex min-h-0 flex-1 flex-col">
+        {count > 4 && (
+          <div className="px-5 pb-3">
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-surface/50 px-3 py-2 focus-within:border-accent/60">
+              <Search size={14} className="text-muted" aria-hidden="true" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("artifact.search") as string}
+                aria-label={t("artifact.search") as string}
+                className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-muted"
+              />
+            </div>
+          </div>
         )}
-      </div>
-      <div className="flex-1 overflow-y-auto scrollbar-thin -mx-5 -mb-5 p-4 space-y-2">
-        {artifactList.length === 0 && (
-          <p className="text-muted text-sm text-center py-8">
-            {t("artifact.empty")}
-          </p>
-        )}
-        {artifactList.map((art) => {
-          const icon = WINDOW_ICONS[art.windowType as keyof typeof WINDOW_ICONS] || "📦";
-          const win = api.windows.find((w) => w.artifactId === art.id);
-          const isOpen = win != null && !win.closed;
-          const preview =
-            art.preview ??
-            (art.content ? art.content.replace(/<[^>]+>/g, "").slice(0, 120) : "");
-          return (
-            <button
-              key={art.id}
-              onClick={() => handleFocus(art.id)}
-              className="w-full text-left flex items-start gap-3 p-3 rounded-xl bg-fg/[0.02] border border-border/50 hover:bg-fg/[0.06] hover:border-accent/30 transition group cursor-pointer"
-            >
-              <span className="text-xl mt-0.5 shrink-0">{icon}</span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1">
+        <div className="grid flex-1 content-start gap-3 overflow-y-auto scrollbar-thin p-5 pt-2 md:grid-cols-2">
+          {count === 0 && (
+            <StateMessage kind="empty" title={t("artifact.empty") as string} className="py-10 md:col-span-2" />
+          )}
+          {count > 0 && filtered.length === 0 && (
+            <StateMessage kind="empty" title={t("artifact.no_matches") as string} className="py-10 md:col-span-2" />
+          )}
+          {filtered.map((art) => {
+            const win = api.windows.find((w) => w.artifactId === art.id);
+            const isOpen = win != null && !win.closed;
+            const preview = previewOf(art);
+            return (
+              <button
+                key={art.id}
+                onClick={() => handleFocus(art.id)}
+                className="group flex min-h-[92px] w-full cursor-pointer flex-col gap-2 rounded-xl border border-border bg-fg/[0.02] p-3.5 text-left transition hover:border-accent/50 hover:bg-fg/[0.05]"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <WindowTypeIcon type={(art.windowType as WindowType) in WINDOW_ICONS ? (art.windowType as WindowType) : "widget"} size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-fg">{art.title || t("artifact.untitled")}</span>
+                    <span className="block text-[11px] capitalize text-muted">{art.windowType}</span>
+                  </span>
                   <span
-                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-ok" : "bg-muted/50"}`}
-                    title={isOpen ? (t("artifact.open") as string) : (t("artifact.closed") as string)}
-                  />
-                  <span className="text-sm font-medium text-fg truncate">
-                    {art.title || t("artifact.untitled")}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${isOpen ? "bg-ok/15 text-ok" : "bg-fg/5 text-muted"}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-ok" : "bg-muted/60"}`} />
+                    {isOpen ? t("artifact.open") : t("artifact.closed")}
                   </span>
-                  <span className="badge text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent uppercase shrink-0">
-                    {art.windowType}
-                  </span>
-                </div>
-                {preview && (
-                  <p className="text-xs text-muted/70 line-clamp-2 leading-relaxed">
-                    {preview}
-                  </p>
-                )}
-              </div>
-              <span className="text-muted/40 group-hover:text-fg/60 transition shrink-0 mt-1">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-              </span>
-            </button>
-          );
-        })}
+                </span>
+                {preview && <span className="line-clamp-2 text-xs leading-relaxed text-muted">{preview}</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </Overlay>
   );
