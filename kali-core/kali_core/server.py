@@ -81,7 +81,8 @@ from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
 from kali_core.ear.providers import get_stt_provider
 from kali_core import avatar_config
-from kali_core.presence import tts_duration
+from kali_core.presence import tts_duration, tts_envelope
+from kali_core.presence_engine import PRESENCE_VERSION, PresenceEngine
 from kali_core.user_config import UserConfig, load_or_default as load_user_config, save as save_user_config
 from kali_core.game.gsi import gsi_state
 from kali_core.gaze import GazeClient
@@ -404,7 +405,7 @@ def _build_tool_defs() -> list[ToolDef]:
 PRESENCE_EVENTS = frozenset({
     "turn_start", "delta", "reasoning_delta", "turn_end", "message",
     "stt_partial", "stt_final", "tts_audio", "tool_event", "consent_request",
-    "wake_word", "error", "suggestion",
+    "wake_word", "error", "suggestion", "emotion_event",
 })
 
 
@@ -470,6 +471,10 @@ class Server:
         self.gateway = PermissionGateway()
         self.desktop_broker = DesktopBroker()
         self.last_active_session: str | None = None
+        # The avatar's single brain: every view renders the frames it publishes.
+        self.presence = PresenceEngine()
+        self._presence_task: asyncio.Task[None] | None = None
+        self._presence_wake: asyncio.Event | None = None
         self.capture_inbox = capture_store.CaptureInbox()
         self.desktop_token = os.environ.get("KALI_DESKTOP_TOKEN", "").strip()
         self.consent = ConsentMgr(send_callback=self._send_consent)
@@ -543,30 +548,82 @@ class Server:
         return True
 
     async def mirror_presence(self, session_id: str | None, payload: dict[str, Any]) -> None:
-        """Forward a compact copy of a turn event to presence-mode connections.
+        """Feed the avatar brain and forward a compact copy of a turn event to presence connections.
 
-        Presence connections (avatar agents) get no history replay and no heavy
-        payloads; they only need enough to derive the avatar state.
+        Presence connections (avatar agents) get no history replay and no heavy payloads. They
+        receive the raw compact events (bubble text, native consent cards) and, above all, the
+        `presence_state` frames the reducer derives from them.
         """
         event = payload.get("event")
         if event not in PRESENCE_EVENTS:
             return
         if session_id:
             self.last_active_session = session_id
+        sid = session_id or self.last_active_session or ""
         compact = payload
         if event == "tts_audio":
             compact = {k: v for k, v in payload.items() if k != "audio"}
-            compact["duration"] = tts_duration(payload)
+            compact["duration"] = await asyncio.to_thread(tts_duration, payload)
+            compact["env"] = await asyncio.to_thread(tts_envelope, payload, self.presence.cfg["envHz"])
         elif event == "tool_event":
             compact = {k: payload.get(k) for k in ("event", "session_id", "tool", "status", "call_id")}
         if session_id and "session_id" not in compact:
             compact = {**compact, "session_id": session_id}
+        await self.presence_apply(sid, compact)
         for conn in list(self._connections):
             if conn.mode == "presence" and conn.session_id in (None, "", session_id):
                 try:
                     await conn.send(compact)
                 except Exception:
                     pass
+
+    # ── avatar brain plumbing ─────────────────────────────────────────────────────────────
+    def _ensure_presence_loop(self) -> None:
+        if self._presence_task is None or self._presence_task.done():
+            self._presence_wake = asyncio.Event()
+            self._presence_task = asyncio.create_task(self._presence_loop())
+
+    async def presence_apply(self, sid: str, event: dict[str, Any]) -> None:
+        self._ensure_presence_loop()
+        if self.presence.apply(sid, event):
+            await self.publish_presence(sid)
+        if self._presence_wake is not None:
+            self._presence_wake.set()
+
+    async def presence_signal(self, sid: str, signal: dict[str, Any]) -> None:
+        self._ensure_presence_loop()
+        if self.presence.signal(sid, signal):
+            await self.publish_presence(sid)
+        if self._presence_wake is not None:
+            self._presence_wake.set()
+
+    async def publish_presence(self, sid: str) -> None:
+        frame = self.presence.frame(sid)
+        followed = self.last_active_session or sid
+        for conn in list(self._connections):
+            follows = conn.session_id == sid or (conn.mode == "presence" and conn.session_id in (None, "") and sid == followed)
+            if follows:
+                try:
+                    await conn.send(frame)
+                except Exception:
+                    pass
+
+    async def _presence_loop(self) -> None:
+        """Wake at the engine's next deadline (decay, speech end, sleep…) and publish what changed."""
+        while True:
+            assert self._presence_wake is not None
+            deadline = self.presence.next_deadline()
+            timeout = None if deadline is None else max(0.02, (deadline - self.presence.clock()) / 1000.0)
+            try:
+                await asyncio.wait_for(self._presence_wake.wait(), timeout)
+            except asyncio.TimeoutError:
+                pass
+            self._presence_wake.clear()
+            try:
+                for sid in self.presence.tick():
+                    await self.publish_presence(sid)
+            except Exception:
+                logger.exception("presence loop")
 
     async def _send_consent(self, payload: dict[str, Any]) -> None:
         """Ask the user. A desktop agent that can show cards gets the question on the desktop (so it
@@ -1842,8 +1899,10 @@ class Connection:
                 "session_id": follow or "",
                 "version": "0.1.0",
                 "mode": "presence",
+                "presence_v": PRESENCE_VERSION,
                 "turn_active": bool(self._turn_active_for(follow)),
             })
+            await self._send_presence_snapshot(follow)
             await self._send_avatar_config()
             return
 
@@ -1863,8 +1922,9 @@ class Connection:
                     self.session_id = requested_sid
                     load_history = self.server.agent and not self.server.agent._get_history(requested_sid)
                     await self.send(
-                        {"event": "ready", "session_id": requested_sid, "version": "0.1.0"}
+                        {"event": "ready", "session_id": requested_sid, "version": "0.1.0", "presence_v": PRESENCE_VERSION}
                     )
+                    await self._send_presence_snapshot(requested_sid)
                     await self._emit_status()
                     await self._replay_attached_capture(requested_sid)
                     if self._wake_word_enabled:
@@ -1896,8 +1956,9 @@ class Connection:
                         })
                     return
             await self.send(
-                {"event": "ready", "session_id": "", "version": "0.1.0"}
+                {"event": "ready", "session_id": "", "version": "0.1.0", "presence_v": PRESENCE_VERSION}
             )
+            await self._send_presence_snapshot(self.server.last_active_session)
             await self._emit_status()
             if self._wake_word_enabled:
                 await self._start_wake_word()
@@ -1933,6 +1994,7 @@ class Connection:
                 self.session_id = sid
                 load_history = self.server.agent and not self.server.agent._get_history(sid)
                 await self.send({"event": "connected", "session_id": sid})
+                await self._send_presence_snapshot(sid)
                 await self._emit_status()
                 if self._wake_word_enabled:
                     await self._start_wake_word()
@@ -2105,10 +2167,16 @@ class Connection:
             await self.server.broadcast_status()
 
         elif kind == "audio_start":
+            await self.server.presence_apply(self.session_id or self.server.last_active_session or "", {"event": "stt_partial"})
             await self._handle_audio_start(event)
 
         elif kind == "audio_end":
+            await self.server.presence_apply(self.session_id or self.server.last_active_session or "", {"event": "stt_final"})
             await self._handle_audio_end()
+
+        elif kind == "presence_signal":
+            sid = event.get("session_id") or self.session_id or self.server.last_active_session or ""
+            await self.server.presence_signal(sid, event)
 
         elif kind == "consent_response":
             # Resolve a pending consent request.
@@ -2119,6 +2187,10 @@ class Connection:
             if self.server.consent.respond(request_id, decision):
                 # Whoever answered first wins: close the question everywhere else.
                 await self.server.broadcast({"event": "consent_resolved", "id": request_id})
+                await self.server.presence_apply(
+                    self.session_id or self.server.last_active_session or "",
+                    {"event": "consent_response", "approved": decision != "deny"},
+                )
 
         elif kind == "console_response":
             # Resolve a pending console-log request from the agent.
@@ -3228,6 +3300,7 @@ class Connection:
                 "detail": "Hay un turno en progreso. Espera a que termine o cancélalo con el botón de stop.",
             })
             return
+        await self.server.presence_apply(session_id, {"event": "user_message", "text": content})
         self._current_task = asyncio.create_task(
             self._run_turn(content, session_id, selected_artifacts=selected_artifacts)
         )
@@ -3354,6 +3427,11 @@ class Connection:
                         "completion_tokens": event.completion_tokens,
                         "reasoning_tokens": event.reasoning_tokens,
                     }
+                elif event.kind == "emotion":
+                    await self.send({
+                        "event": "emotion_event", "session_id": session_id,
+                        "id": event.emotion, "intensity": event.intensity,
+                    })
                 elif event.kind == "done":
                     break
         except asyncio.CancelledError:
@@ -3376,6 +3454,8 @@ class Connection:
         except Exception as exc:
             logger.exception("agent turn error")
             await self.send({"event": "error", "detail": str(exc)})
+            # Close the turn too, or every view stays on "thinking" forever.
+            await self.send({"event": "turn_end", "session_id": session_id})
             return
 
         elapsed = time.monotonic() - turn_start_ts
@@ -3846,6 +3926,13 @@ class Connection:
             "stt_vad_rms_threshold": self._stt_vad_rms_threshold,
         })
         await self.send(payload)
+
+    async def _send_presence_snapshot(self, sid: str | None) -> None:
+        """Replay the avatar's current frame, so a (re)connecting view is correct mid-turn."""
+        try:
+            await self.send(self.server.presence.frame(sid or self.server.last_active_session or ""))
+        except Exception:
+            logger.exception("presence snapshot")
 
     async def _send_avatar_config(self, *, always: bool = False) -> None:
         """Replay the shared avatar appearance; `always` also answers "none stored" (config: null)."""

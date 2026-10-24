@@ -31,6 +31,7 @@ from kali_core.lang_map import normalize
 from .llm.provider import LLMProvider, StreamEvent
 from .marker_suppressor import MarkerSuppressor
 from .artifact_stream import ArtifactStreamProcessor, ArtifactStreamEvent
+from .emotion_filter import EmotionStreamFilter, strip_tags
 
 logger = logging.getLogger("kali_core.mind.runtime")
 
@@ -311,6 +312,8 @@ class AgentRuntime:
             # flows through to delta as normal; artifact content goes to
             # the artifact window via _emit_artifact_event.
             artifact_processor = ArtifactStreamProcessor()
+            # Emotion tags ([EMOTION: id 0.7]) are stripped from the text and reported at once.
+            emotion_filter = EmotionStreamFilter()
 
             async for event in self.llm.stream(history, tools=self._tools):
                 if event.kind == "delta" and event.text:
@@ -318,8 +321,14 @@ class AgentRuntime:
                     safe_from_tc = delta_filter.feed(event.text)
                     if not safe_from_tc:
                         continue
+                    # Then the emotion filter: tags leave the text and become emotion events.
+                    safe_text = emotion_filter.feed(safe_from_tc)
+                    for emo, intensity in emotion_filter.drain():
+                        yield StreamEvent(kind="emotion", emotion=emo, intensity=intensity)
+                    if not safe_text:
+                        continue
                     # Then through artifact stream processor.
-                    result = artifact_processor.feed(safe_from_tc)
+                    result = artifact_processor.feed(safe_text)
                     if result.chat_text:
                         yield StreamEvent(kind="delta", text=result.chat_text)
                     for art_evt in result.artifact_events:
@@ -386,9 +395,16 @@ class AgentRuntime:
 
             # Flush any held-back text (kept in case a marker spanned the
             # chunk boundary). Suppressed tool-call blocks are not flushed.
+            # The flush goes through the SAME chain as the stream (marker
+            # suppressor -> emotion filter -> artifact processor), otherwise a tag
+            # split across the last chunks would leak as visible text.
             tail = delta_filter.flush()
-            if tail:
-                art_result = artifact_processor.feed(tail)
+            tail_text = emotion_filter.feed(tail) if tail else ""
+            tail_text += emotion_filter.flush()
+            for emo, intensity in emotion_filter.drain():
+                yield StreamEvent(kind="emotion", emotion=emo, intensity=intensity)
+            if tail_text:
+                art_result = artifact_processor.feed(tail_text)
                 if art_result.chat_text:
                     yield StreamEvent(kind="delta", text=art_result.chat_text)
                 for art_evt in art_result.artifact_events:
@@ -406,7 +422,8 @@ class AgentRuntime:
 
             # The full buffers (with markers) are what we parse for tool
             # calls after the stream completes.
-            accumulated = delta_filter.buffer
+            # Tags are removed from what is saved to the history and sent to TTS.
+            accumulated = strip_tags(delta_filter.buffer)
             accumulated_reasoning = reasoning_filter.buffer
 
             # If no native tool call was made, check for prompt-based
