@@ -4,6 +4,7 @@ import { ArrowDown, Brain, Check, Copy } from "lucide-react";
 import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { StateMessage } from "../components/ui/StateMessage";
+import { toolIcon, toolLabel } from "../lib/toolLabels";
 import type { ChatMessage } from "../hooks/useChat";
 
 /** Scrollable message log, shared by the docked chat panel and the conversation modal. */
@@ -83,17 +84,21 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
   if (msg.toolEvent && !msg.content) {
     const { tool, status, params, output } = msg.toolEvent;
     const command = params?.command as string | undefined;
+    // Human name and icon, never the internal tool name.
+    const label = toolLabel(t as never, tool);
+    const Icon = toolIcon(tool, params);
+    const head = (
+      <span className="flex items-center gap-2 min-w-0">
+        <Icon size={14} aria-hidden="true" className={status === "error" ? "text-err shrink-0" : "text-accent shrink-0"} />
+        <span className="text-muted truncate">{t(`tool.${status}`, { tool: label, defaultValue: label })}</span>
+      </span>
+    );
 
     if (status === "running" && command) {
       return (
         <div className="flex flex-col gap-1 py-1 px-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="badge px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-              {tool}
-            </span>
-            <span className="text-muted/60">{t("tool.running")}</span>
-          </div>
-          <code className="text-muted/80 bg-muted/10 px-2 py-1 rounded max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+          {head}
+          <code className="text-muted/80 bg-muted/10 px-2 py-1 rounded-lg max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
             {command}
           </code>
         </div>
@@ -107,18 +112,15 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
       return (
         <div className="flex flex-col gap-1 py-1 px-2 text-xs">
           <div className="flex items-center gap-2">
-            <span className="badge px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-              {tool}
-            </span>
-            <span className="text-muted/60">{t(`tool.${status}`)}</span>
+            {head}
             {command && (
-              <span className="text-muted/40 truncate max-w-[200px]" title={command}>
+              <span className="text-muted/60 truncate max-w-[200px] font-mono" title={command}>
                 {command}
               </span>
             )}
           </div>
           {displayOutput && (
-            <pre className="text-muted/70 bg-muted/10 px-2 py-1.5 rounded overflow-x-auto scrollbar-thin max-h-32 whitespace-pre-wrap break-all">
+            <pre className="text-muted/70 bg-muted/10 px-2 py-1.5 rounded-lg overflow-x-auto scrollbar-thin max-h-32 whitespace-pre-wrap break-all">
               {displayOutput.slice(0, 2000)}
             </pre>
           )}
@@ -126,16 +128,7 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
       );
     }
 
-    return (
-      <div className="flex items-center gap-2 text-xs text-muted py-1 px-2">
-        <span className="badge px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-          {tool}
-        </span>
-        <span className="text-muted/60">
-          {t(`tool.${status}`) || status}
-        </span>
-      </div>
-    );
+    return <div className="flex items-center gap-2 text-xs py-1 px-2">{head}</div>;
   }
 
   return (

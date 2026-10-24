@@ -88,7 +88,7 @@ export function VoicePreviewButton({
     <button
       type="button"
       onClick={play}
-      className={`text-xs px-2 py-1 rounded border transition-colors ${
+      className={`text-xs px-2 py-1 rounded-lg border transition-colors ${
         playing
           ? "border-err text-err hover:bg-err/10"
           : "border-border text-muted hover:border-accent hover:text-accent"

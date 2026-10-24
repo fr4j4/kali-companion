@@ -62,7 +62,7 @@ function Recents({ closed, onReopen, max = 6 }: { closed: ClosedEntry[]; onReope
       <div className="v2-recent">
         {closed.slice(0, max).map((c) => (
           <div key={`${c.windowId}-${c.closedAt}`} className="v2-recent-item">
-            <WindowTypeIcon type={c.type as WindowType} size={15} />
+            <WindowTypeIcon type={c.type as WindowType} size={16} />
             <span className="min-w-0">
               <strong className="truncate">{c.title}</strong>
               <small>{c.groupTitle ? `${c.groupTitle} · ` : ""}{t(c.saved ? "v2.tray.saved_ago" : "v2.tray.closed_ago", { when: formatAgo(Date.now() - c.closedAt) })}</small>
@@ -191,7 +191,7 @@ export function Overview({ canvas, windows, rect, onClose, onLibrary }: { canvas
                 <div className="v2-tiles" style={{ marginTop: 4 }}>
                   {ws.slice(0, 6).map((w) => (
                     <button key={w.id} type="button" className="v2-tile" title={w.title} aria-label={w.title} onClick={() => { canvas.openGroup(g.id); canvas.focusWindow(w.id); }}>
-                      <WindowTypeIcon type={w.type} size={15} />
+                      <WindowTypeIcon type={w.type} size={16} />
                     </button>
                   ))}
                 </div>

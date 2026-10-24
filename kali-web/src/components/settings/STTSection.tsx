@@ -337,7 +337,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
               <button
                 key={p}
                 onClick={() => { setTab(p); setSubTab("installed"); }}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                   tab === p
                     ? "bg-accent/15 text-accent border border-accent/40"
                     : "text-muted hover:text-foreground border border-transparent"
@@ -346,7 +346,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                 <Mic size={13} />
                 {t(`stt.provider.${p}`)}
                 {activeProvider === p && (
-                  <span className="text-[9px] font-mono bg-ok/20 text-ok rounded px-1 py-0.5">
+                  <span className="text-[9px] font-mono bg-ok/20 text-ok rounded-full px-1 py-0.5">
                     {t("settings.stt_active")}
                   </span>
                 )}
@@ -488,7 +488,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
               <div className="flex gap-2">
                 <input
                   type="text"
-                  className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                  className="flex-1 bg-elevated text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
                   placeholder={t("models.search_placeholder")}
                   value={catalogSearch}
                   onChange={(e) => setCatalogSearch(e.target.value)}
@@ -501,12 +501,12 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                       { value: "", label: t("models.filter_all") },
                       ...catalogLanguages.map((l) => ({ value: l, label: l })),
                     ]}
-                    buttonClassName="bg-elevated border-border rounded-md px-2 py-1.5 text-xs"
+                    buttonClassName="bg-elevated border-border rounded-lg px-2 py-1.5 text-xs"
                   />
                 )}
               </div>
             )}
-            <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
+            <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-lg border border-border">
               {loadingCatalog && (
                 <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                   <Loader2 size={12} className="animate-spin" />
@@ -539,7 +539,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                       ) : (
                         <button
                           onClick={() => downloadSttModel(m.id, tab === "qwen3" ? STT_PROVIDERS.QWEN3 : STT_PROVIDERS.VOSK)}
-                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
+                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
                         >
                           <Download size={10} />
                           {t("models.download")}
@@ -572,7 +572,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
               <div className="flex gap-2">
                 <input
                   type="text"
-                  className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                  className="flex-1 bg-elevated text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
                   value={modelsDir}
                   onChange={(e) => handleModelsDirChange(e.target.value)}
                   placeholder={t("stt.models_dir_placeholder")}
@@ -580,7 +580,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
                 <button
                   onClick={handleApplyModelsDir}
                   disabled={modelsDir === savedModelsDir}
-                  className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 text-xs px-3 py-2 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t("common.apply")}
                 </button>
@@ -638,7 +638,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
           <button
             onClick={ptt.calibrate}
             disabled={ptt.calibrating || !sttEnabled}
-            className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
               (ptt.calibrating || !sttEnabled)
                 ? "border-border opacity-50 cursor-not-allowed"
                 : "border-accent/40 text-accent hover:bg-accent/10"
@@ -659,7 +659,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
               <button
                 key={i}
                 onClick={() => navigator.clipboard.writeText(line.trim())}
-                className="block w-full text-left bg-black/80 dark:bg-black/90 rounded px-3 py-2 mt-1 font-mono text-[11px] text-green-400 border border-fg/10 cursor-pointer hover:bg-black/90 transition-colors"
+                className="block w-full text-left bg-black/80 dark:bg-black/90 rounded-lg px-3 py-2 mt-1 font-mono text-[11px] text-green-400 border border-fg/10 cursor-pointer hover:bg-black/90 transition-colors"
                 title={t("common.click_to_copy")}
               >
                 <span className="select-all">{line.trim()}</span>

@@ -58,7 +58,7 @@ export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
   if (activeProvider === TTS_PROVIDERS.UNAVAILABLE) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="text-xs text-err bg-err/10 rounded-md p-2">
+        <div className="text-xs text-err bg-err/10 rounded-lg p-2">
           {systemStatus?.tts_error ?? t("settings.tts_unavailable")}
         </div>
         <ToggleField
@@ -73,7 +73,7 @@ export function VoiceControls({ systemStatus, voices, tab, onUpdate }: Props) {
   if (isQwenNoModel) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="text-xs text-muted bg-surface-secondary rounded-md p-3">
+        <div className="text-xs text-muted bg-surface-secondary rounded-lg p-3">
           {t("settings.tts_qwen_no_model")}
         </div>
         <ToggleField

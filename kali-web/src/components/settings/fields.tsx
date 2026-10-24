@@ -102,7 +102,7 @@ export function TextField({
       <label className="text-xs text-muted">{label}</label>
       <input
         type={type}
-        className={`bg-surface text-foreground border rounded-md px-2.5 py-2 text-sm outline-none transition-colors ${
+        className={`bg-surface text-foreground border rounded-lg px-2.5 py-2 text-sm outline-none transition-colors ${
           error
             ? "border-err focus:border-err"
             : "border-border focus:border-accent-dim"

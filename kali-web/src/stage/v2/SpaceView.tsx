@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, Check, FolderPlus, Pin, RotateCcw, Search, X } from "lucide-react";
+import { Archive, ArrowUpRight, Check, FolderPlus, Pin, RotateCcw, Search, X } from "lucide-react";
 import type { WindowData, WindowType } from "../../workspace/types";
 import type { ClosedEntry, Group } from "../../workspace/groups";
 import { WindowTypeIcon } from "../windowIcons";
@@ -173,7 +173,7 @@ export function SpaceView({ canvas, windows, onClose }: { canvas: CanvasStateApi
           ))}
         </div>
         <label className="v2-search" style={{ height: 36, flex: "0 1 320px" }}>
-          <Search size={15} aria-hidden="true" style={{ color: "var(--muted)" }} />
+          <Search size={16} aria-hidden="true" style={{ color: "var(--muted)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("v2.overview.search") as string} aria-label={t("v2.overview.search") as string} />
         </label>
         <span className="flex-1" />
@@ -202,7 +202,7 @@ export function SpaceView({ canvas, windows, onClose }: { canvas: CanvasStateApi
                 <span className="v2-kbd">{ws.length}</span>
                 <span className="flex-1" />
                 {active && <span className="v2-chip">{t("v2.tray.on_screen")}</span>}
-                <button type="button" className="v2-icon-btn sm" onClick={() => { canvas.openGroup(g.id); onClose(); }} title={t("v2.tray.open_group") as string} aria-label={t("v2.tray.open_group") as string}>↗</button>
+                <button type="button" className="v2-icon-btn sm" onClick={() => { canvas.openGroup(g.id); onClose(); }} title={t("v2.tray.open_group") as string} aria-label={t("v2.tray.open_group") as string}><ArrowUpRight size={16} aria-hidden="true" /></button>
               </div>
               <div className="v2-col-list">
                 {ws.length === 0 && <p className="v2-space-hint">{t("v2.space.empty_col")}</p>}
@@ -213,7 +213,7 @@ export function SpaceView({ canvas, windows, onClose }: { canvas: CanvasStateApi
         })}
         {(filter === "all" || filter === "saved") && (
           <section className="v2-col" aria-label={t("v2.space.f_saved") as string}>
-            <div className="v2-col-head"><Archive size={15} aria-hidden="true" style={{ color: "var(--muted)" }} /><h3>{t("v2.space.f_saved")}</h3><span className="v2-kbd">{saved.length}</span></div>
+            <div className="v2-col-head"><Archive size={16} aria-hidden="true" style={{ color: "var(--muted)" }} /><h3>{t("v2.space.f_saved")}</h3><span className="v2-kbd">{saved.length}</span></div>
             <div className="v2-col-list">
               {saved.length === 0 && <p className="v2-space-hint">{t("v2.space.no_saved")}</p>}
               {saved.map(savedCard)}
@@ -239,7 +239,7 @@ export function SpaceView({ canvas, windows, onClose }: { canvas: CanvasStateApi
           </select>
           <button type="button" className="v2-btn" onClick={() => putAway(selected, "save")}><Archive size={14} aria-hidden="true" />{t("v2.tray.save")}</button>
           <button type="button" className="v2-btn is-danger" onClick={() => putAway(selected, "close")}>{t("common.close")}</button>
-          <button type="button" className="v2-icon-btn" onClick={() => setSelected([])} aria-label={t("v2.space.deselect") as string}><X size={15} /></button>
+          <button type="button" className="v2-icon-btn" onClick={() => setSelected([])} aria-label={t("v2.space.deselect") as string}><X size={16} /></button>
         </div>
       )}
       {undo && (

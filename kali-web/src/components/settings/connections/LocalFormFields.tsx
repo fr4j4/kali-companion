@@ -109,7 +109,7 @@ export function TestResultBlock({
       <button
         onClick={onTest}
         disabled={state.running}
-        className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 text-accent text-xs font-medium hover:bg-accent/10 transition-colors disabled:opacity-50"
+        className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/40 text-accent text-xs font-medium hover:bg-accent/10 transition-colors disabled:opacity-50"
       >
         {state.running ? t("connections.testing") : t("connections.test")}
       </button>

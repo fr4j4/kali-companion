@@ -19,7 +19,6 @@ import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type Rea
 import { useTranslation } from "react-i18next";
 import { Minus, X } from "lucide-react";
 import type { WindowData } from "../../workspace/types";
-import type { ArtifactEvent } from "../../lib/protocol";
 import type { Rect } from "../../workspace/layout";
 import { flip } from "../../lib/motion";
 import { WindowTypeIcon } from "../windowIcons";
@@ -63,21 +62,20 @@ const STATUS_KEY: Record<string, string> = {
   error: "v2.status.error",
 };
 
-/** Default subtitle from the content when the widget gives none. */
+/** Default subtitle when the widget gives none: the type. Facts (lines, words) go in the footer. */
 function defaultSubtitle(w: WindowData, t: (k: string, o?: Record<string, unknown>) => string): string {
-  const ev = w.content as ArtifactEvent | null;
-  const typeLabel = t(`v2.type.${w.type}`, { defaultValue: w.type });
-  if (!ev || typeof ev !== "object" || !("content" in ev)) return typeLabel;
-  const text = typeof ev.content === "string" ? ev.content : "";
-  if (w.type === "code" && text) {
-    const lines = text.split("\n").length;
-    return [ev.language, t("v2.subtitle.lines", { count: lines })].filter(Boolean).join(" · ");
-  }
-  if (w.type === "document" && text) {
-    const words = text.replace(/[#*>`_-]+/g, " ").split(/\s+/).filter(Boolean).length;
-    return t("v2.subtitle.words", { count: words });
-  }
-  return typeLabel;
+  return t(`v2.type.${w.type}`, { defaultValue: w.type });
+}
+
+/**
+ * Kit rule: the subtitle is context, never a repeat. Parts equal to the title go ("styles.css ·
+ * css" under "styles.css" becomes "css"), and nothing is left when it only said the title again.
+ */
+export function cleanSubtitle(sub: string | null | undefined, title: string): string | null {
+  if (!sub) return null;
+  const norm = (x: string) => x.trim().toLowerCase();
+  const parts = sub.split(" · ").filter((part) => part.trim() && norm(part) !== norm(title));
+  return parts.length ? parts.join(" · ") : null;
 }
 
 function ArtifactShellImpl({
@@ -135,7 +133,7 @@ function ArtifactShellImpl({
   const effProgress = ownProgress ?? progress ?? null;
   const working = effStatus?.kind === "writing" || effStatus?.kind === "updating" || effStatus?.kind === "running";
   const updated = useRelativeTime(updatedAt);
-  const sub = subtitle ?? defaultSubtitle(w, t as never);
+  const sub = cleanSubtitle(subtitle ?? defaultSubtitle(w, t as never), w.title);
 
   const onHeaderDouble = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;

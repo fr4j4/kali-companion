@@ -2085,10 +2085,14 @@ html.kali-mobile-stage .mobile-sheet-panel {
 .sd-input { flex: 1; min-width: 0; align-self: center; resize: none; background: transparent; border: 0; outline: none; color: var(--fg); font: inherit; font-size: calc(14px * var(--mul-text)); line-height: 1.4; padding: 9px 6px; max-height: 132px; }
 .sd-input::placeholder { color: var(--muted); }
 .sd-send { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 9999px; background: var(--accent); color: var(--on-accent); transition: filter 0.15s, opacity 0.15s, transform 0.1s; }
+/* Kit: one icon weight. Lucide draws 2 by default; icons that ask for another stroke keep it. */
+svg.lucide[stroke-width="2"] { stroke-width: 1.75; }
 .sd-send:hover:not(:disabled) { filter: brightness(1.08); }
 .sd-send:active:not(:disabled) { transform: scale(0.94); }
-.sd-send:disabled { opacity: 0.3; cursor: not-allowed; }
-.sd-send.is-stop { background: var(--err); color: #fff; }
+/* Kit: off = a quiet circle (fg 8 %, muted arrow), on = accent; stop is the same accent circle
+ * with a square inside, never a second colour. */
+.sd-send:disabled { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--muted); cursor: not-allowed; }
+.sd-send.is-stop { background: var(--accent); color: var(--on-accent); }
 :root[data-perf-profile="performance"] .stage-dock-pill { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); }
 @media (prefers-reduced-motion: reduce) { .sd-btn.is-rec { animation: none; } }
 

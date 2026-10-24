@@ -117,7 +117,7 @@ export function Inspector({ statuses, picked, onDetail, style }: {
       <span className="v2-inspector-tile"><Icon size={18} aria-hidden="true" /></span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="v2-inspector-title">{t(`v2.node.${st.id}`)} · <span className="v2-word">{stateWord(t as never, st)}</span></span>
-        <span className="v2-inspector-motive" title={motive}>{motive}</span>
+        {motive && <span className="v2-inspector-motive" title={motive}>{motive}</span>}
       </span>
       <button type="button" className="v2-btn" onClick={() => onDetail(st)}>{t("v2.inspector.detail")}</button>
     </div>

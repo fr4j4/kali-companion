@@ -14,6 +14,7 @@ import type { CanvasLayout, Rect } from "../../workspace/layout";
 import { flip } from "../../lib/motion";
 import { linkPath, placeNodes, rings, starDots, type NodeId, type NodeStatus } from "./mapModel";
 import { NODE_ICONS } from "./nodeIcons";
+import { toolLabel } from "../../lib/toolLabels";
 
 interface Props {
   layout: CanvasLayout;
@@ -28,6 +29,8 @@ interface Props {
   bubbleCount?: number;
   onBubble?: () => void;
   bubbleLabel?: string;
+  /** State ring around the avatar: listening (accent2) or working (accent). */
+  avatarTone?: "listening" | "working" | null;
 }
 
 const STATE_VAR: Record<string, string> = {
@@ -47,10 +50,15 @@ export function stateWord(t: (k: string, o?: Record<string, unknown>) => string,
 
 export function motiveText(t: (k: string, o?: Record<string, unknown>) => string, st: NodeStatus | undefined): string {
   if (!st?.motive) return "";
-  return t(`v2.motive.${st.motive.key}`, { ...(st.motive.params ?? {}), defaultValue: "" });
+  const params: Record<string, unknown> = { ...(st.motive.params ?? {}) };
+  // A motive whose every value is empty would print only its quotes («»): say nothing instead.
+  const values = Object.values(params);
+  if (values.length && values.every((v) => v === "" || v == null)) return "";
+  if (st.motive.key === "generic" && typeof params.tool === "string") params.tool = toolLabel(t, params.tool);
+  return t(`v2.motive.${st.motive.key}`, { ...params, defaultValue: "" }).trim();
 }
 
-function NeuralMapV2Impl({ layout, nodes, statuses, picked, onPick, avatar, bubbleTone, bubbleCount, onBubble, bubbleLabel }: Props) {
+function NeuralMapV2Impl({ layout, nodes, statuses, picked, onPick, avatar, bubbleTone, bubbleCount, onBubble, bubbleLabel, avatarTone }: Props) {
   const { t } = useTranslation();
   const avatarRef = useRef<HTMLDivElement>(null);
   const prevBox = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -124,12 +132,13 @@ function NeuralMapV2Impl({ layout, nodes, statuses, picked, onPick, avatar, bubb
             const word = stateWord(t as never, st);
             const motive = motiveText(t as never, st);
             const card: Rect = { ...p.card, x: p.card.x - ox, y: p.card.y - oy };
-            if (density === "mini") {
+            if (p.resting) {
               return (
                 <button
                   key={p.id}
                   type="button"
-                  className={`v2-node-label is-${state} side-${p.side}`}
+                  data-node={p.id}
+                  className={`v2-node-label is-${state} side-${p.side} ${density !== "mini" ? "is-resting" : ""}`}
                   style={{ left: card.x, top: card.y, width: card.w, ["--c" as string]: STATE_VAR[state] }}
                   onClick={() => onPick(p.id)}
                   aria-label={`${name}, ${word}`}
@@ -162,9 +171,11 @@ function NeuralMapV2Impl({ layout, nodes, statuses, picked, onPick, avatar, bubb
         <div
           ref={avatarRef}
           id="avatar-container"
-          className={`v2-avatar ${bubble ? `is-bubble ${bubbleTone ? `tone-${bubbleTone}` : ""}` : ""}`}
+          className={`v2-avatar ${bubble ? `is-bubble ${bubbleTone ? `tone-${bubbleTone}` : ""}` : `is-${density}`} ${!bubble && avatarTone ? `ring-${avatarTone}` : ""}`}
           style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
         >
+          {!bubble && <span className="v2-avatar-halo" aria-hidden="true" />}
+          {!bubble && avatarTone && <span className="v2-avatar-ring" aria-hidden="true" />}
           {avatar}
           {bubble && (
             <button type="button" className="v2-bubble-hit" onClick={onBubble} aria-label={bubbleLabel}>

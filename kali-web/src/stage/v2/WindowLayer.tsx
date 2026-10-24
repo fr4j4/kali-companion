@@ -63,7 +63,7 @@ export function WindowLayer({ api, canvas, layout, status }: Props) {
   const detach = (artifactId?: string) => window.kaliDesktop && artifactId ? (
     <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
       onClick={(e) => { e.stopPropagation(); const sid = localStorage.getItem("kali.sessionId"); if (sid) void window.kaliDesktop?.openArtifact(sid, artifactId); }}>
-      <ExternalLink size={15} aria-hidden="true" />
+      <ExternalLink size={16} aria-hidden="true" />
     </button>
   ) : undefined;
 

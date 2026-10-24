@@ -115,9 +115,6 @@ export function SettingsModal({
     </label>
   );
 
-  // Teal AI accent applies to the unified AI engine section.
-  const isAISection = (id: SectionId) => id === "ai";
-
   const rail = (
     <nav className="flex gap-1" role="tablist">
       {visible.map((s) => {
@@ -131,10 +128,8 @@ export function SettingsModal({
             onClick={() => setActive(s.id)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
               isActive
-                ? isAISection(s.id)
-                  ? "bg-ai-signal/10 text-ai-signal border border-ai-signal/30"
-                  : "bg-accent/15 text-accent border border-accent/30"
-                  : "text-fg hover:bg-fg/5 border border-transparent"
+                ? "bg-accent/15 text-accent border border-accent/30"
+                : "text-fg hover:bg-fg/5 border border-transparent"
             }`}
           >
             <Icon size={14} />
@@ -178,11 +173,7 @@ export function SettingsModal({
                       key={s.id}
                       onClick={() => setActive(s.id)}
                       className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors text-left whitespace-nowrap ${
-                        isActive
-                          ? isAISection(s.id)
-                            ? "bg-ai-signal/10 text-ai-signal"
-                            : "bg-accent/15 text-accent"
-                          : "text-fg hover:bg-fg/5"
+                        isActive ? "bg-accent/15 text-accent" : "text-fg hover:bg-fg/5"
                       }`}
                     >
                       <Icon size={16} />

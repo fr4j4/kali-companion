@@ -39,6 +39,9 @@ export function GroupRail({ canvas, rect, windows, onSpace, style }: {
 }) {
   const { t } = useTranslation();
   const open = (g: Group) => g.windowIds.filter((id) => windows.some((w) => w.id === id && !w.closed)).length;
+  // Kit: a group is a dot of its task's colour; the initial shows on hover, or always when two
+  // groups share a colour and the dot alone would not tell them apart.
+  const sharedColors = new Set(canvas.groups.groups.map((g) => g.color).filter((c, i, all) => all.indexOf(c) !== i));
   return (
     <nav className="v2-rail" style={{ ...(rect ? boxStyle(rect) : {}), ...style }} aria-label={t("v2.rail.label") as string}>
       {canvas.groups.groups.map((g) => {
@@ -48,7 +51,7 @@ export function GroupRail({ canvas, rect, windows, onSpace, style }: {
           <button
             key={g.id}
             type="button"
-            className={`v2-rail-btn ${active ? "is-active" : ""}`}
+            className={`v2-rail-btn is-group ${active ? "is-active" : ""} ${sharedColors.has(g.color) ? "show-initial" : ""}`}
             style={{ ["--gc" as string]: groupVar(g) }}
             onClick={() => canvas.openGroup(g.id, canvas.mode === "split" ? undefined : canvas.mode)}
             aria-current={active || undefined}
@@ -56,7 +59,8 @@ export function GroupRail({ canvas, rect, windows, onSpace, style }: {
             title={g.title}
           >
             <span className="v2-rail-bar" aria-hidden="true" />
-            {initial(g.title)}
+            <span className="v2-rail-dot" aria-hidden="true" />
+            <span className="v2-rail-initial" aria-hidden="true">{initial(g.title)}</span>
             {n > 1 && <span className="v2-rail-badge" aria-hidden="true">{n}</span>}
           </button>
         );
@@ -66,10 +70,10 @@ export function GroupRail({ canvas, rect, windows, onSpace, style }: {
       </button>
       <span className="flex-1" />
       <button type="button" className="v2-icon-btn" onClick={onSpace} aria-label={t("v2.menu.space") as string} title={t("v2.menu.space") as string}>
-        <Layers size={17} aria-hidden="true" />
+        <Layers size={16} aria-hidden="true" />
       </button>
       <button type="button" className="v2-icon-btn" onClick={() => canvas.setMode("split")} aria-label={t("v2.mode.split") as string} title={t("v2.mode.split") as string}>
-        <Columns2 size={17} aria-hidden="true" />
+        <Columns2 size={16} aria-hidden="true" />
       </button>
     </nav>
   );
@@ -341,7 +345,7 @@ export function FullscreenChrome({ canvas, windows, status, layout, onOverview, 
       >
         <TabBar canvas={canvas} windows={windows} status={status} rect={null} mode="fullscreen" onOverview={onOverview} style={{ position: "static", flex: 1, minWidth: 0, height: "100%" }} />
         <button type="button" className="v2-btn" onClick={() => canvas.setMode("split")} title={t("v2.fs.exit") as string}>
-          <Minimize2 size={15} aria-hidden="true" />{t("v2.fs.exit")}<span className="v2-kbd">Esc</span>
+          <Minimize2 size={16} aria-hidden="true" />{t("v2.fs.exit")}<span className="v2-kbd">Esc</span>
         </button>
       </div>
       <div className="v2-fs-rail" data-shown={rail.shown} onPointerEnter={rail.show} onPointerLeave={rail.hideSoon} onFocus={rail.show} onBlur={rail.hideSoon}>

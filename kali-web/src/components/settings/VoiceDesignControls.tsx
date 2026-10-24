@@ -252,7 +252,7 @@ export function VoiceDesignControls({
             </label>
             <textarea
               id="voice-instructions"
-              className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim resize-none"
+              className="bg-surface text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim resize-none"
               rows={3}
               value={instructions}
               onChange={(e) => onInstructionsChange(e.target.value)}
@@ -267,7 +267,7 @@ export function VoiceDesignControls({
               <input
                 id="voice-seed"
                 type="number"
-                className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim w-32"
+                className="bg-surface text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim w-32"
                 value={seed >= 0 ? seed : ""}
                 onChange={(e) => onSeedChange(e.target.value ? parseInt(e.target.value) : -1)}
                 placeholder={t("voice_design.seed_placeholder")}
@@ -275,7 +275,7 @@ export function VoiceDesignControls({
               <button
                 type="button"
                 onClick={handleRandomSeed}
-                className="text-xs px-3 py-2 rounded border border-border text-muted hover:border-accent hover:text-accent transition-colors"
+                className="text-xs px-3 py-2 rounded-lg border border-border text-muted hover:border-accent hover:text-accent transition-colors"
               >
                 {t("voice_design.seed_random")}
               </button>
@@ -287,7 +287,7 @@ export function VoiceDesignControls({
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <input
                 type="text"
-                className="bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                className="bg-surface text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
                 value={voiceName}
                 onChange={(e) => setVoiceName(e.target.value)}
                 placeholder={t("voice_design.voice_name_placeholder")}
@@ -298,7 +298,7 @@ export function VoiceDesignControls({
               type="button"
               onClick={handleSaveVoice}
               disabled={!canSave}
-              className="text-xs px-3 py-2 rounded border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="text-xs px-3 py-2 rounded-lg border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               {saving ? t("voice_design.saving") : t("voice_design.save")}
             </button>
@@ -311,7 +311,7 @@ export function VoiceDesignControls({
         type="button"
         onClick={handlePreview}
         disabled={!canPreview}
-        className={`text-xs px-3 py-2 rounded border transition-colors ${
+        className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
           playing
             ? "border-err text-err hover:bg-err/10"
             : "border-border text-muted hover:border-accent hover:text-accent"
@@ -326,13 +326,13 @@ export function VoiceDesignControls({
           <label className="text-xs text-muted">{t("voice_design.my_custom_voices")}</label>
           <div className="flex flex-col gap-1.5">
             {customVoices.map((cv) => (
-              <div key={cv.id} className="flex items-center gap-2 bg-surface border border-border rounded-md px-2.5 py-2">
+              <div key={cv.id} className="flex items-center gap-2 bg-surface border border-border rounded-lg px-2.5 py-2">
                 <span className="text-sm text-foreground flex-1 truncate">{cv.name}</span>
                 <button
                   type="button"
                   onClick={() => handlePreviewCustom(cv)}
                   disabled={previewLoading}
-                  className="text-[11px] px-2 py-1 rounded border border-border text-muted hover:border-accent hover:text-accent transition-colors disabled:opacity-50"
+                  className="text-[11px] px-2 py-1 rounded-lg border border-border text-muted hover:border-accent hover:text-accent transition-colors disabled:opacity-50"
                 >
                   {t("voice_design.preview_custom")}
                 </button>
@@ -340,7 +340,7 @@ export function VoiceDesignControls({
                   type="button"
                   onClick={() => handleDeleteVoice(cv.id)}
                   disabled={deletingId === cv.id}
-                  className="text-[11px] px-2 py-1 rounded border border-border text-muted hover:border-err hover:text-err transition-colors disabled:opacity-50"
+                  className="text-[11px] px-2 py-1 rounded-lg border border-border text-muted hover:border-err hover:text-err transition-colors disabled:opacity-50"
                 >
                   {deletingId === cv.id ? t("voice_design.deleting") : t("voice_design.delete")}
                 </button>

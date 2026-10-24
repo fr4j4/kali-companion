@@ -95,6 +95,8 @@ const centerOf = (rect: Rect): Point => ({ x: rect.x + rect.w / 2, y: rect.y + r
 /** Width of Kali's column in Focus and Mosaic (design units). */
 export const COLUMN_W = 300;
 export const RAIL_W = 56;
+/** Avatar on the stage map (design units): the centre of the screen, with its halo. */
+export const STAGE_AVATAR = 160;
 const MINIMAP_H = 180;
 
 export function computeLayout(input: LayoutInput): CanvasLayout {
@@ -113,7 +115,7 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
 
   const out: CanvasLayout = {
     k, mode, compact, wide,
-    artifact: null, kali: null, map: null, mapCenter: null, mapDensity: "stage", avatar: 132,
+    artifact: null, kali: null, map: null, mapCenter: null, mapDensity: "stage", avatar: STAGE_AVATAR,
     inspector: null, voice: null, dock: null, rail: null, tabs: null, column: null, bubble: null,
     statusPill: null, windowsPill: null, noticesPill: null, layoutButton: null,
   };
@@ -133,7 +135,7 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
     out.map = input.kaliView === "conversation" ? r(kali.x, kali.y, kali.w, MINIMAP_H) : kali;
     out.mapCenter = centerOf(out.map);
     out.mapDensity = input.kaliView === "conversation" ? "mini" : "stage";
-    out.avatar = input.kaliView === "conversation" ? 76 : 132;
+    out.avatar = input.kaliView === "conversation" ? 76 : STAGE_AVATAR;
     out.voice = r((W - 640) / 2, kali.y + kali.h + 8, 640, dockY - 8 - (kali.y + kali.h + 8));
     out.dock = dock;
     pills();

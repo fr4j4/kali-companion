@@ -70,9 +70,6 @@ export function StatusPill({ style, inline = false }: { style?: CSSProperties; i
         <span className="v2-pill-sep" aria-hidden="true">·</span>
         <span className="v2-pill-model">{model}</span>
       </button>
-      {ptt.wakeWordActive && !inline && (
-        <span className="v2-chip mt-2" title={t("wake_word.listening") as string}>{t("wake_word.listening")}</span>
-      )}
       {open && s && (
         <ModelStatsPanel
           className="absolute left-0 top-full mt-2"
@@ -94,7 +91,7 @@ export function WindowsPill({ count, open, onToggle, style }: { count: number; o
   const { t } = useTranslation();
   return (
     <button type="button" className="v2-pill" style={style} onClick={onToggle} aria-expanded={open} title={t("v2.hud.windows_hint") as string}>
-      <Layers size={15} aria-hidden="true" />
+      <Layers size={16} aria-hidden="true" />
       {t("v2.hud.windows", { count })}
     </button>
   );
@@ -142,7 +139,7 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style }: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        {notices.length ? <span className={`v2-dot ${notices.some((n) => n.kind === "error") ? "is-error" : "is-working"}`} aria-hidden="true" /> : <Bell size={15} aria-hidden="true" />}
+        {notices.length ? <span className={`v2-dot ${notices.some((n) => n.kind === "error") ? "is-error" : "is-working"}`} aria-hidden="true" /> : <Bell size={16} aria-hidden="true" />}
         {flash ? <span className="v2-flash-text" role="alert">{flash.text}</span> : t("v2.notices.count", { count: notices.length })}
       </button>
     </div>
@@ -206,30 +203,31 @@ export function LayoutButton({ style, ...p }: LayoutMenuProps & { style?: CSSPro
     <div ref={ref} className="absolute z-40" style={style}>
       {open && (
         <div className="v2-pop" style={{ bottom: "calc(100% + 8px)", right: 0 }} role="menu" aria-label={t("v2.menu.label") as string}>
+          {/* Two groups (kit): how the artifacts are laid out, and everything else. The rest of
+              the old list also lives in Ctrl+K. */}
           <div className="v2-pop-title">{t("v2.menu.layout")}</div>
           {MODES.map((m, i) => {
             const Icon = MODE_ICONS[m];
-            return <MenuItem onClose={close} key={m} icon={<Icon size={15} />} label={t(`v2.mode.${m}`)} kbd={`Ctrl ${i + 1}`} onClick={() => p.onMode(m)} checked={p.hasWindows && p.mode === m} disabled={!p.hasWindows} />;
+            return <MenuItem onClose={close} key={m} icon={<Icon size={16} />} label={t(`v2.mode.${m}`)} kbd={`Ctrl ${i + 1}`} onClick={() => p.onMode(m)} checked={p.hasWindows && p.mode === m} disabled={!p.hasWindows} />;
           })}
-          <MenuItem onClose={close} icon={<LayoutGrid size={15} />} label={t("v2.menu.overview")} onClick={p.onOverview} />
-          <MenuItem onClose={close} icon={<Layers size={15} />} label={t("v2.menu.space")} kbd="Ctrl ⇧ E" onClick={p.onSpace} />
-          <MenuItem onClose={close} icon={<Library size={15} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
+          <MenuItem onClose={close} icon={<LayoutGrid size={16} />} label={t("v2.menu.overview")} onClick={p.onOverview} />
+          <MenuItem onClose={close} icon={<Layers size={16} />} label={t("v2.menu.space")} kbd="Ctrl ⇧ E" onClick={p.onSpace} />
+          <MenuItem onClose={close} icon={<Library size={16} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
           <div className="v2-menu-sep" />
-          <div className="v2-pop-title">{t("v2.menu.kali_zone")}</div>
-          <MenuItem onClose={close} icon={<Network size={15} />} label={t("v2.view.map")} onClick={() => p.onKaliView("map")} checked={p.kaliView === "map"} />
-          <MenuItem onClose={close} icon={<MessageSquare size={15} />} label={t("v2.view.conversation")} onClick={() => p.onKaliView("conversation")} checked={p.kaliView === "conversation"} />
-          <div className="v2-menu-sep" />
-          <MenuItem onClose={close} icon={<History size={15} />} label={t("stage.history")} onClick={p.onHistory} />
-          <MenuItem onClose={close} icon={<Palette size={15} />} label={t("dock.customizer")} onClick={p.onCustomize} />
-          <MenuItem onClose={close} icon={<Cpu size={15} />} label={p.runningJobs ? `${t("stage.jobs")} · ${p.runningJobs}` : t("stage.jobs")} onClick={p.onJobs} />
-          <MenuItem onClose={close} icon={<Gamepad2 size={15} />} label={t("dock.toys")} onClick={p.onGames} />
-          <MenuItem onClose={close} icon={<Volume2 size={15} />} label={t("dock.audio")} onClick={p.onAudio} />
-          <MenuItem onClose={close} icon={<Undo2 size={15} />} label={t("dock.undo")} onClick={p.onUndo} />
-          <div className="v2-menu-sep" />
-          <MenuItem onClose={close} icon={<Plus size={15} />} label={t("stage.new_chat")} onClick={p.onNewChat} />
-          <MenuItem onClose={close} icon={<Settings size={15} />} label={t("stage.settings")} onClick={p.onSettings} />
-          <MenuItem onClose={close} icon={<Search size={15} />} label={t("v2.menu.palette")} kbd="Ctrl K" onClick={p.onPalette} />
-          {p.onDebug && <MenuItem onClose={close} icon={<Bug size={15} />} label={t("dock.debug")} onClick={p.onDebug} />}
+          <div className="v2-pop-title">{t("v2.menu.more")}</div>
+          {p.kaliView === "map"
+            ? <MenuItem onClose={close} icon={<MessageSquare size={16} />} label={t("v2.view.conversation")} onClick={() => p.onKaliView("conversation")} />
+            : <MenuItem onClose={close} icon={<Network size={16} />} label={t("v2.view.map")} onClick={() => p.onKaliView("map")} />}
+          <MenuItem onClose={close} icon={<History size={16} />} label={t("stage.history")} onClick={p.onHistory} />
+          <MenuItem onClose={close} icon={<Palette size={16} />} label={t("dock.customizer")} onClick={p.onCustomize} />
+          <MenuItem onClose={close} icon={<Cpu size={16} />} label={p.runningJobs ? `${t("stage.jobs")} · ${p.runningJobs}` : t("stage.jobs")} onClick={p.onJobs} />
+          <MenuItem onClose={close} icon={<Gamepad2 size={16} />} label={t("dock.toys")} onClick={p.onGames} />
+          <MenuItem onClose={close} icon={<Volume2 size={16} />} label={t("dock.audio")} onClick={p.onAudio} />
+          <MenuItem onClose={close} icon={<Undo2 size={16} />} label={t("dock.undo")} onClick={p.onUndo} />
+          <MenuItem onClose={close} icon={<Plus size={16} />} label={t("stage.new_chat")} onClick={p.onNewChat} />
+          <MenuItem onClose={close} icon={<Settings size={16} />} label={t("stage.settings")} onClick={p.onSettings} />
+          <MenuItem onClose={close} icon={<Search size={16} />} label={t("v2.menu.palette")} kbd="Ctrl K" onClick={p.onPalette} />
+          {p.onDebug && <MenuItem onClose={close} icon={<Bug size={16} />} label={t("dock.debug")} onClick={p.onDebug} />}
         </div>
       )}
       <button type="button" className="v2-square-btn" style={{ position: "relative" }} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu" aria-label={t("v2.menu.label") as string} title={t("v2.menu.label") as string}>

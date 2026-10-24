@@ -121,12 +121,12 @@ function Group({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wide">
+        <h3 className="text-[11px] font-semibold text-muted">
           {title} <span className="text-muted/60">({count})</span>
         </h3>
         <button
           onClick={onAdd}
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-accent hover:bg-accent/10 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-accent hover:bg-accent/10 transition-colors"
         >
           <Plus size={12} />
           {addLabel}

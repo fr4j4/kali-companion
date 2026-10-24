@@ -16,7 +16,7 @@ import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { SAMPLE_DOCUMENT, SAMPLE_LONGTEXT } from "./utils/sampleData";
 import { parseContent } from "./base/DataWidget";
 import { WidgetFooter, WidgetToolbar } from "./base/WidgetChrome";
-import { useShell, useShellSample, useShellSubtitle } from "../../stage/v2/shell";
+import { useShell, useShellSample } from "../../stage/v2/shell";
 import { useStage } from "../../stage/StageProvider";
 import type { ArtifactEvent } from "../../lib/protocol";
 
@@ -112,7 +112,6 @@ export function DocumentWidget({ content, variant = "markdown" }: Props) {
   ], [rawText, t, event?.title]);
   const { rendered: headerActions } = useHeaderActions(actions);
 
-  useShellSubtitle(variant === "markdown" ? t("v2.subtitle.words", { count: words }) : null);
   useShellSample(sample);
 
   const decide = useCallback((s: DocSuggestion, decision: "accept" | "discard") => {

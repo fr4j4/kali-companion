@@ -17,7 +17,7 @@
 import "./canvas-v2.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus, RectangleHorizontal, Settings } from "lucide-react";
+import { Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus, RectangleHorizontal, Settings, Undo2, Volume2 } from "lucide-react";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { computeLayout, type ArtifactMode, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { useStage } from "../StageProvider";
@@ -61,7 +61,7 @@ const box = (r: Rect): CSSProperties => ({ left: r.x, top: r.y, width: r.w, heig
 export function CanvasV2(p: Props) {
   const { api } = p;
   const { t } = useTranslation();
-  const { chat } = useStage();
+  const { chat, ptt } = useStage();
   const rootRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 1440, h: 900 });
   useLayoutEffect(() => {
@@ -211,7 +211,7 @@ export function CanvasV2(p: Props) {
       for (const id of g.windowIds) {
         const w = api.windows.find((x) => x.id === id);
         if (!w || w.closed) continue;
-        out.push({ id: `w${id}`, section: sWin, label: w.title, keywords: `${g.title} ${w.type}`, icon: <WindowTypeIcon type={w.type} size={15} />, run: () => { if (g.id !== canvas.groups.activeGroupId) canvas.openGroup(g.id); canvas.focusWindow(id); } });
+        out.push({ id: `w${id}`, section: sWin, label: w.title, keywords: `${g.title} ${w.type}`, icon: <WindowTypeIcon type={w.type} size={16} />, run: () => { if (g.id !== canvas.groups.activeGroupId) canvas.openGroup(g.id); canvas.focusWindow(id); } });
       }
     }
     const sGroups = t("v2.palette.groups");
@@ -219,22 +219,25 @@ export function CanvasV2(p: Props) {
     const sMode = t("v2.menu.layout");
     if (active) {
       const icons = { split: Columns2, focus: RectangleHorizontal, mosaic: Grid2x2, fullscreen: Maximize };
-      (["split", "focus", "mosaic", "fullscreen"] as ArtifactMode[]).forEach((m, i) => { const I = icons[m]; out.push({ id: `m${m}`, section: sMode, label: t(`v2.mode.${m}`), kbd: `Ctrl ${i + 1}`, icon: <I size={15} />, run: () => setMode(m) }); });
+      (["split", "focus", "mosaic", "fullscreen"] as ArtifactMode[]).forEach((m, i) => { const I = icons[m]; out.push({ id: `m${m}`, section: sMode, label: t(`v2.mode.${m}`), kbd: `Ctrl ${i + 1}`, icon: <I size={16} />, run: () => setMode(m) }); });
     }
     const sAct = t("v2.palette.actions");
     out.push(
-      { id: "overview", section: sAct, label: t("v2.menu.overview"), icon: <LayoutGrid size={15} />, run: () => canvas.setPanel("overview") },
-      { id: "tray", section: sAct, label: t("v2.tray.title"), icon: <LayoutGrid size={15} />, run: () => canvas.setPanel("tray") },
-      { id: "space", section: sAct, label: t("v2.menu.space"), kbd: "Ctrl ⇧ E", icon: <Layers size={15} />, run: () => canvas.setSpace(true) },
-      { id: "view", section: sAct, label: kaliView === "map" ? t("v2.view.conversation") : t("v2.view.map"), icon: kaliView === "map" ? <MessageSquare size={15} /> : <Network size={15} />, run: () => canvas.setKaliView(kaliView === "map" ? "conversation" : "map") },
-      { id: "history", section: sAct, label: t("stage.history"), icon: <History size={15} />, run: p.onOpenHistory },
-      { id: "library", section: sAct, label: t("v2.overview.library"), icon: <LayoutGrid size={15} />, run: p.onOpenLibrary },
-      { id: "customize", section: sAct, label: t("dock.customizer"), icon: <Palette size={15} />, run: p.onOpenCustomizer },
-      { id: "jobs", section: sAct, label: t("stage.jobs"), icon: <Cpu size={15} />, run: p.onOpenJobs },
-      { id: "games", section: sAct, label: t("dock.toys"), icon: <Gamepad2 size={15} />, run: openToys },
-      { id: "new", section: sAct, label: t("stage.new_chat"), icon: <Plus size={15} />, run: p.onNewSession },
-      { id: "settings", section: sAct, label: t("stage.settings"), icon: <Settings size={15} />, run: p.onOpenSettings },
+      { id: "overview", section: sAct, label: t("v2.menu.overview"), icon: <LayoutGrid size={16} />, run: () => canvas.setPanel("overview") },
+      { id: "tray", section: sAct, label: t("v2.tray.title"), icon: <LayoutGrid size={16} />, run: () => canvas.setPanel("tray") },
+      { id: "space", section: sAct, label: t("v2.menu.space"), kbd: "Ctrl ⇧ E", icon: <Layers size={16} />, run: () => canvas.setSpace(true) },
+      { id: "view", section: sAct, label: kaliView === "map" ? t("v2.view.conversation") : t("v2.view.map"), icon: kaliView === "map" ? <MessageSquare size={16} /> : <Network size={16} />, run: () => canvas.setKaliView(kaliView === "map" ? "conversation" : "map") },
+      { id: "history", section: sAct, label: t("stage.history"), icon: <History size={16} />, run: p.onOpenHistory },
+      { id: "library", section: sAct, label: t("v2.overview.library"), icon: <LayoutGrid size={16} />, run: p.onOpenLibrary },
+      { id: "customize", section: sAct, label: t("dock.customizer"), icon: <Palette size={16} />, run: p.onOpenCustomizer },
+      { id: "jobs", section: sAct, label: t("stage.jobs"), icon: <Cpu size={16} />, run: p.onOpenJobs },
+      { id: "games", section: sAct, label: t("dock.toys"), icon: <Gamepad2 size={16} />, run: openToys },
+      { id: "audio", section: sAct, label: t("dock.audio"), icon: <Volume2 size={16} />, run: api.toggleAudio },
+      { id: "undo", section: sAct, label: t("dock.undo"), icon: <Undo2 size={16} />, run: api.undo },
+      { id: "new", section: sAct, label: t("stage.new_chat"), icon: <Plus size={16} />, run: p.onNewSession },
+      { id: "settings", section: sAct, label: t("stage.settings"), icon: <Settings size={16} />, run: p.onOpenSettings },
     );
+    if (import.meta.env.DEV && p.onToggleDebug) out.push({ id: "debug", section: sAct, label: t("dock.debug"), icon: <Bug size={16} />, run: p.onToggleDebug });
     return out;
   }, [canvas, api.windows, active, kaliView, t, setMode, openToys, p]);
 
@@ -245,6 +248,7 @@ export function CanvasV2(p: Props) {
   const mapBusy = Object.values(statuses).some((s) => s.state === "working" || s.state === "recalling");
   const bubbleTone = consent ? "permission" : chat.isTurnActive || mapBusy ? "working" : Object.values(statuses).some((s) => s.state === "done") ? "done" : null;
   const attention = Object.values(statuses).filter((s) => s.state === "permission" || s.state === "failed").length;
+  const avatarTone = ptt.state === "recording" || ptt.wakeWordActive ? "listening" : chat.isTurnActive ? "working" : null;
 
   const map = (
     <NeuralMapV2
@@ -258,6 +262,7 @@ export function CanvasV2(p: Props) {
       bubbleCount={attention}
       onBubble={() => setBubbleOpen((v) => !v)}
       bubbleLabel={t("v2.bubble.label") as string}
+      avatarTone={avatarTone}
     />
   );
 
@@ -318,12 +323,6 @@ export function CanvasV2(p: Props) {
       {map}
 
       {/* Kali's zone extras: view switch, conversation, inspector, voice */}
-      {kaliZone && (
-        <div className="v2-seg absolute" style={{ zIndex: 32, right: stage.w - (kaliZone.x + kaliZone.w) + 8, top: kaliZone.y + 8 }} role="group" aria-label={t("v2.menu.kali_zone") as string}>
-          <button type="button" aria-pressed={kaliView === "map"} onClick={() => canvas.setKaliView("map")}><Network size={13} aria-hidden="true" />{t("v2.view.map")}</button>
-          <button type="button" aria-pressed={kaliView === "conversation"} onClick={() => canvas.setKaliView("conversation")}><MessageSquare size={13} aria-hidden="true" />{t("v2.view.conversation")}</button>
-        </div>
-      )}
       {kaliZone && kaliView === "conversation" && layout.map && (
         <ConversationPanel style={{ left: kaliZone.x, top: layout.map.y + layout.map.h, width: kaliZone.w, height: kaliZone.y + kaliZone.h - (layout.map.y + layout.map.h) }} />
       )}

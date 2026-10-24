@@ -355,6 +355,25 @@ export interface PlacedNode {
   /** Side of the card the port sits on. */
   side: CardSide;
   points: Point[];
+  /** At rest: drawn as its port (a dot) and its name, not as a card. */
+  resting: boolean;
+}
+
+/**
+ * Kit rule for orbs: a capability at rest is a dot with its name; it grows into a card only while
+ * it does something (working, recalling, asking, failed). Artifact nodes are always cards, and the
+ * mini map only has labels.
+ */
+export function isResting(id: NodeId, state: NodeState | undefined, density: MapDensity): boolean {
+  if (density === "mini") return true;
+  if (!BASE_NODES.includes(id)) return false;
+  return state !== "working" && state !== "recalling" && state !== "permission" && state !== "failed";
+}
+
+/** Size of a resting node's name label (px). */
+export function restingSize(density: MapDensity, k: number): { w: number; h: number } {
+  if (density === "mini") return cardSize("mini", k);
+  return { w: (density === "stage" ? 96 : 80) * k, h: 20 * k };
 }
 
 /** Card size per density (px). */
@@ -381,22 +400,27 @@ export function placeNodes(
   ids: NodeId[], statuses: Record<string, NodeStatus>, map: Rect, center: Point, density: MapDensity, k: number,
 ): PlacedNode[] {
   const ring = rings(density, map, k);
-  const size = cardSize(density, k);
+  const cardBox = cardSize(density, k);
   const n = Math.max(1, ids.length);
   const placed = ids.map((id, i) => {
     const angle = -90 + (360 / n) * i;
     const a = (angle * Math.PI) / 180;
     const cos = Math.cos(a);
     const sin = Math.sin(a);
-    const rad = portRadius(statuses[id]?.state ?? "idle", ring, density);
+    const state = statuses[id]?.state ?? "idle";
+    const resting = isResting(id, state, density);
+    const size = resting ? restingSize(density, k) : cardBox;
+    const rad = portRadius(state, ring, density);
     const port = { x: center.x + cos * rad, y: center.y + sin * rad * ring.sy };
     let side: CardSide;
     let cx: number;
     let cy: number;
-    if (cos > 0.38) { side = "left"; cx = port.x + 6 * k; cy = port.y - size.h / 2; }
-    else if (cos < -0.38) { side = "right"; cx = port.x - 6 * k - size.w; cy = port.y - size.h / 2; }
-    else if (sin < 0) { side = "bottom"; cx = port.x - size.w / 2; cy = port.y - 6 * k - size.h; }
-    else { side = "top"; cx = port.x - size.w / 2; cy = port.y + 6 * k; }
+    // A resting name sits a little further from its dot than a card from its port.
+    const gap = (resting && density !== "mini" ? 12 : 6) * k;
+    if (cos > 0.38) { side = "left"; cx = port.x + gap; cy = port.y - size.h / 2; }
+    else if (cos < -0.38) { side = "right"; cx = port.x - gap - size.w; cy = port.y - size.h / 2; }
+    else if (sin < 0) { side = "bottom"; cx = port.x - size.w / 2; cy = port.y - gap - size.h; }
+    else { side = "top"; cx = port.x - size.w / 2; cy = port.y + gap; }
     // Keep the card inside the map; mini labels go inward so they never cut at the edge.
     const pad = 4 * k;
     cx = Math.min(Math.max(cx, map.x + pad), map.x + map.w - size.w - pad);
@@ -408,7 +432,7 @@ export function placeNodes(
       const ang = a + spread + (side === "left" || side === "right" ? -0.9 * Math.sign(cos) : 0);
       return { x: port.x + Math.cos(ang) * d, y: port.y + Math.sin(ang) * d * (side === "top" || side === "bottom" ? 1 : 0.8) - (side === "left" || side === "right" ? 12 * k : 0) };
     });
-    return { id, angle, port, card: { x: cx, y: cy, w: size.w, h: size.h }, side, points };
+    return { id, angle, port, card: { x: cx, y: cy, w: size.w, h: size.h }, side, points, resting };
   });
   separateCards(placed, map, 6 * k);
   return placed;

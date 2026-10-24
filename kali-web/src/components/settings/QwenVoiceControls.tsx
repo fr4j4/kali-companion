@@ -43,7 +43,7 @@ export function QwenVoiceControls({ systemStatus, voices, variant, onUpdate }: P
   if (isNoModel) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="text-xs text-muted bg-surface-secondary rounded-md p-3">
+        <div className="text-xs text-muted bg-surface-secondary rounded-lg p-3">
           {t("settings.tts_qwen_no_model")}
         </div>
       </div>

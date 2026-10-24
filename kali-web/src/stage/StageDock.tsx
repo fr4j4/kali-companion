@@ -147,7 +147,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange, min
         </div>}
         {busy ? (
           <button type="button" className="sd-send is-stop" onClick={chat.stop} aria-label={t("chat.stop") as string} title={t("chat.stop") as string}>
-            <Square size={14} fill="currentColor" aria-hidden="true" />
+            <Square size={12} fill="currentColor" aria-hidden="true" />
           </button>
         ) : (
           <button type="button" className="sd-send" onClick={submit} disabled={!value.trim()} aria-label={t("chat.send") as string} title={t("chat.send") as string}>

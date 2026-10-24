@@ -99,7 +99,8 @@ export function CodeWidget({ content }: Props) {
   ], [file.code, t]);
   const { rendered: headerActions } = useHeaderActions(actions);
 
-  useShellSubtitle([multi ? file.path : file.path !== "code" ? file.path : "", lang].filter(Boolean).join(" · ") || null);
+  // The language and line count are in the footer; the subtitle only names the file when it adds something.
+  useShellSubtitle(multi ? file.path : file.path !== "code" ? file.path : null);
   useShellSample(sample);
 
   useEffect(() => {
