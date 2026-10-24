@@ -23,15 +23,16 @@ interface Props {
   onLanguageChange: (lang: string) => void;
 }
 
-const THEMES = ["amberwave", "foxglove", "vellum", "tidepool", "aether", "contrast"];
+const THEMES = ["amberwave", "foxglove", "vellum", "tidepool", "aether", "daylight", "contrast"];
 const PERFORMANCE_PROFILES: PerformanceProfile[] = ["balanced", "performance", "quality"];
 
 const THEME_SWATCHES: Record<string, string[]> = {
   amberwave: ["#E8A24C", "#100E14", "#F2EBE0", "#7DD692"],
   foxglove: ["#C77DFF", "#1A1620", "#EDE7F0", "#8FD694"],
-  vellum: ["#C24A2D", "#1F1B17", "#EFE6D3", "#8FAE6B"],
+  vellum: ["#DE6040", "#1F1B17", "#EFE6D3", "#8FAE6B"],
   tidepool: ["#E88AA8", "#0E1714", "#E4EDE8", "#6FBF8B"],
   aether: ["#6C6FF7", "#0A0C14", "#EDEDEF", "#34D399"],
+  daylight: ["#A8540A", "#F5F1EA", "#231C14", "#17703A"],
   contrast: ["#FFD400", "#000000", "#FFFFFF", "#4ADE80"],
 };
 const LANGS = [
@@ -64,7 +65,7 @@ export function AppearanceSection({
       />
 
       <SettingsCard title={t("settings.appearance.theme_group")}>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {THEMES.map((tname) => {
             const swatches = THEME_SWATCHES[tname] || [];
             return (
@@ -82,7 +83,7 @@ export function AppearanceSection({
                   {swatches.map((c, i) => (
                     <span
                       key={i}
-                      className="w-3 h-3 rounded-full border border-white/10"
+                      className="w-3 h-3 rounded-full border border-fg/10"
                       style={{ backgroundColor: c }}
                     />
                   ))}

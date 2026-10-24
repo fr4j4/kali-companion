@@ -44,14 +44,14 @@ export function CodeWidget({ content }: Props) {
   return (
     <BaseWidget content={content} className="overflow-hidden">
       {headerActions.length > 0 && (
-        <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-white/5 shrink-0">
+        <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-fg/5 shrink-0">
           {headerActions}
         </div>
       )}
       <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin min-h-0">
         <CodeViewer code={code} language={lang} isStreaming={isStreaming} />
       </div>
-      <div className="shrink-0 px-3 py-1.5 border-t border-white/5 flex items-center gap-3 text-[10px] text-muted/60">
+      <div className="shrink-0 px-3 py-1.5 border-t border-fg/5 flex items-center gap-3 text-[10px] text-muted/60">
         <span className="badge">{lang || "code"}</span>
         <span>{t("widget.code.lines", { count: lines.length })}</span>
       </div>

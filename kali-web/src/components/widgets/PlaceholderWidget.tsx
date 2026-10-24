@@ -27,7 +27,7 @@ export function PlaceholderWidget({ content }: Props) {
         <p className="text-xs text-muted">
           {t("widget.placeholder.description")}
         </p>
-        <pre className="mt-2 p-2 rounded-lg bg-black/20 border border-white/5 text-[10px] text-muted/60 overflow-auto max-h-48 scrollbar-thin">
+        <pre className="mt-2 p-2 rounded-lg bg-black/20 border border-fg/5 text-[10px] text-muted/60 overflow-auto max-h-48 scrollbar-thin">
           {json}
         </pre>
       </div>

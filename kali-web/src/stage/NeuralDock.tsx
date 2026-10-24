@@ -67,8 +67,8 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
   }, [overflowOpen]);
 
   return (
-    <footer className={`fixed left-1/2 -translate-x-1/2 z-40 ${isMobile ? "bottom-[max(10px,env(safe-area-inset-bottom))] w-[calc(100vw-12px)] max-w-[560px]" : "bottom-5"}`}>
-      <div className={`glass-strong rounded-2xl shadow-2xl border border-white/10 ${isMobile ? "px-2 py-2 flex items-center justify-between gap-1 overflow-x-auto" : "px-3 py-2.5 flex items-center gap-2"}`}>
+    <footer className={`neural-dock fixed left-1/2 -translate-x-1/2 z-40 ${isMobile ? "bottom-[max(10px,env(safe-area-inset-bottom))] w-[calc(100vw-12px)] max-w-[560px]" : "bottom-5"}`} style={isMobile ? undefined : { left: "calc((100vw - var(--chat-dock-w, 0px)) / 2)" }}>
+      <div className={`glass-strong rounded-2xl shadow-2xl border border-fg/10 ${isMobile ? "px-2 py-2 flex items-center justify-between gap-1 overflow-x-auto" : "px-3 py-2.5 flex items-center gap-2"}`}>
         {isMobile ? (
           <>
             <button
@@ -77,7 +77,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
               className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
                 isChatActive || isRecording
                   ? "opacity-30 cursor-not-allowed"
-                  : "hover:bg-white/8 text-muted hover:text-fg"
+                  : "hover:bg-fg/[0.08] text-muted hover:text-fg"
               }`}
               title={t("stage.windows")}
               aria-label={t("stage.windows")}
@@ -91,7 +91,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
               className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
                 isChatActive || isRecording
                   ? "opacity-30 cursor-not-allowed"
-                  : "hover:bg-white/8 text-muted hover:text-fg"
+                  : "hover:bg-fg/[0.08] text-muted hover:text-fg"
               }`}
               title={t("stage.return_home")}
               aria-label={t("stage.return_home")}
@@ -113,7 +113,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
               <MessageSquare size={16} />
             </button>
 
-            <div className="w-px h-5 bg-white/10 mx-0.5" />
+            <div className="w-px h-5 bg-fg/10 mx-0.5" />
 
             {/* ── Central record button ─────────────────────────── */}
             <button
@@ -121,12 +121,12 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
               disabled={!sttEnabled}
               className={`flex items-center justify-center h-12 w-12 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 ${
                 !sttEnabled
-                  ? "bg-white/10 text-muted cursor-not-allowed opacity-40"
+                  ? "bg-fg/10 text-muted cursor-not-allowed opacity-40"
                   : isRecording
                     ? isSpeaking
                       ? "bg-red-500 text-white shadow-red-500/25 animate-rec-pulse"
                       : "bg-red-500 text-white hover:bg-red-600 shadow-red-500/25"
-                    : "bg-accent text-white hover:bg-accent/90 shadow-accent/25"
+                    : "bg-accent text-on-accent hover:bg-accent/90 shadow-accent/25"
               }`}
               aria-label={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
               title={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
@@ -183,8 +183,8 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
                 onClick={() => setOverflowOpen((v) => !v)}
                 className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
                   overflowOpen
-                    ? "bg-white/10 text-fg"
-                    : "hover:bg-white/8 text-muted hover:text-fg"
+                    ? "bg-fg/10 text-fg"
+                    : "hover:bg-fg/[0.08] text-muted hover:text-fg"
                 }`}
                 title={t("dock.overflow")}
                 aria-label={t("dock.overflow")}
@@ -274,7 +274,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
           className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
             isChatActive || isRecording
               ? "opacity-30 cursor-not-allowed"
-              : "hover:bg-white/8 text-muted hover:text-fg"
+              : "hover:bg-fg/[0.08] text-muted hover:text-fg"
           }`}
           title={t("dock.grid")}
           aria-label={t("dock.grid")}
@@ -293,7 +293,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
           className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
             isChatActive || isRecording
               ? "opacity-30 cursor-not-allowed"
-              : "hover:bg-white/8 text-muted hover:text-fg"
+              : "hover:bg-fg/[0.08] text-muted hover:text-fg"
           }`}
           title={t("dock.focus")}
           aria-label={t("dock.focus")}
@@ -353,7 +353,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
           <MessageSquare size={16} />
         </button>
 
-        <div className="w-px h-5 bg-white/10 mx-0.5" />
+        <div className="w-px h-5 bg-fg/10 mx-0.5" />
 
         {/* ── Central record button ─────────────────────────── */}
         <button
@@ -361,12 +361,12 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
           disabled={!sttEnabled}
           className={`flex items-center justify-center h-14 w-14 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 ${
             !sttEnabled
-              ? "bg-white/10 text-muted cursor-not-allowed opacity-40"
+              ? "bg-fg/10 text-muted cursor-not-allowed opacity-40"
               : isRecording
                 ? isSpeaking
                   ? "bg-red-500 text-white shadow-red-500/25 animate-rec-pulse"
                   : "bg-red-500 text-white hover:bg-red-600 shadow-red-500/25"
-                : "bg-accent text-white hover:bg-accent/90 shadow-accent/25"
+                : "bg-accent text-on-accent hover:bg-accent/90 shadow-accent/25"
           }`}
           aria-label={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
           title={sttEnabled ? (isRecording ? t("dock.mic_stop") : t("dock.mic_label")) : t("dock.mic_disabled")}
@@ -374,7 +374,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
           {isRecording ? (isSpeaking ? <div className="w-5 h-5 rounded-full bg-current" /> : <Send size={24} />) : <Mic size={24} />}
         </button>
 
-        <div className="w-px h-5 bg-white/10 mx-0.5" />
+        <div className="w-px h-5 bg-fg/10 mx-0.5" />
 
         {/* ── Control button (right side): cancel recording or stop AI ───────────────── */}
         <button
@@ -422,7 +422,7 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
           <Gamepad2 size={16} />
         </button>
 
-        <div className="w-px h-5 bg-white/10 mx-0.5" />
+        <div className="w-px h-5 bg-fg/10 mx-0.5" />
 
         {/* ── Overflow menu ───────────────────────────────── */}
         <div className="relative" ref={overflowRef}>
@@ -430,8 +430,8 @@ export function NeuralDock({ api, onToggleDebug, onOpenTextInput, onOpenWindowSw
             onClick={() => setOverflowOpen((v) => !v)}
             className={`h-9 w-9 rounded-xl transition flex items-center justify-center badge ${
               overflowOpen
-                ? "bg-white/10 text-fg"
-                : "hover:bg-white/8 text-muted hover:text-fg"
+                ? "bg-fg/10 text-fg"
+                : "hover:bg-fg/[0.08] text-muted hover:text-fg"
             }`}
             title={t("dock.overflow")}
             aria-label={t("dock.overflow")}

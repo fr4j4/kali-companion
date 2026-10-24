@@ -155,7 +155,7 @@ export function HtmlWidget({ content }: Props) {
   return (
     <BaseWidget>
       <div className="flex flex-1 flex-col min-h-0">
-        <div className="flex items-center gap-0 border-b border-white/8 bg-white/[0.02] shrink-0">
+        <div className="flex items-center gap-0 border-b border-fg/[0.08] bg-fg/[0.02] shrink-0">
           <TabButton active={tab === "html"} onClick={() => handleTabClick("html")}>
             {"</>"} {t("widget.html.tab_code")}
           </TabButton>
@@ -165,7 +165,7 @@ export function HtmlWidget({ content }: Props) {
           <div className="ml-auto flex items-center gap-0.5 px-2 py-1">
             <button
               onClick={handleRefresh}
-              className="w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center"
+              className="w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-fg transition flex items-center justify-center"
               aria-label={t("widget.html.refresh") ?? "Refresh"}
               title={t("widget.html.refresh") ?? "Refresh"}
             >
@@ -218,8 +218,8 @@ function TabButton({
       onClick={onClick}
       className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 ${
         active
-          ? "border-accent text-fg bg-white/[0.04]"
-          : "border-transparent text-muted hover:text-fg hover:bg-white/[0.02]"
+          ? "border-accent text-fg bg-fg/[0.04]"
+          : "border-transparent text-muted hover:text-fg hover:bg-fg/[0.02]"
       }`}
     >
       {children}

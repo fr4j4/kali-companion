@@ -48,7 +48,7 @@ export function QuizWidget({ content }: Props) {
           <div className="text-sm text-fg">{t("widget.quiz.score", { score, total })}</div>
           <div className="flex items-center justify-center gap-1">
             {questions.map((_, i) => (
-              <span key={i} className={`quiz-score-dot w-2 h-2 rounded-full ${i < score ? "bg-ok" : "bg-white/10"}`} />
+              <span key={i} className={`quiz-score-dot w-2 h-2 rounded-full ${i < score ? "bg-ok" : "bg-fg/10"}`} />
             ))}
           </div>
         </div>
@@ -65,7 +65,7 @@ export function QuizWidget({ content }: Props) {
           {/* Progress dots */}
           <div className="flex items-center gap-1">
             {questions.map((_, i) => (
-              <div key={i} className={`flex-1 h-1 rounded-full ${i <= qIdx ? "bg-accent" : "bg-white/10"}`} />
+              <div key={i} className={`flex-1 h-1 rounded-full ${i <= qIdx ? "bg-accent" : "bg-fg/10"}`} />
             ))}
           </div>
 
@@ -84,8 +84,8 @@ export function QuizWidget({ content }: Props) {
                     ? "correct border-ok/40 bg-ok/10"
                     : i === selected
                       ? "wrong border-err/40 bg-err/10"
-                      : "border-white/5 bg-white/[0.02]"
-                  : "border-white/5 bg-white/[0.02] hover:bg-white/[0.06]"
+                      : "border-fg/5 bg-fg/[0.02]"
+                  : "border-fg/5 bg-fg/[0.02] hover:bg-fg/[0.06]"
               }`}
             >
               {opt}
@@ -102,7 +102,7 @@ export function QuizWidget({ content }: Props) {
 
         {/* Next button */}
         {answered && (
-          <button onClick={next} className="w-full py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:brightness-110 transition">
+          <button onClick={next} className="w-full py-1.5 rounded-lg bg-accent text-on-accent text-xs font-medium hover:brightness-110 transition">
             {qIdx < total - 1 ? t("widget.quiz.next") : t("widget.quiz.result")}
           </button>
         )}

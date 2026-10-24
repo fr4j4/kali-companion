@@ -16,10 +16,10 @@ function Section({ title, children, defaultOpen = true, forceOpen }: SectionProp
   const [open, setOpen] = useState(defaultOpen);
   const isOpen = forceOpen !== undefined ? forceOpen : open;
   return (
-    <div className="border border-white/10 rounded-lg overflow-hidden">
+    <div className="border border-fg/10 rounded-lg overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2 flex items-center gap-2 bg-white/5 hover:bg-white/10 transition text-sm font-medium text-fg/80"
+        className="w-full px-3 py-2 flex items-center gap-2 bg-fg/5 hover:bg-fg/10 transition text-sm font-medium text-fg/80"
       >
         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         {title}
@@ -38,7 +38,7 @@ interface ButtonProps {
 function Button({ onClick, children, variant = "default" }: ButtonProps) {
   const base = "px-2 py-1 text-xs rounded-md transition hover:brightness-110 disabled:opacity-50";
   const colors = {
-    default: "bg-white/10 hover:bg-white/15 text-fg/80",
+    default: "bg-fg/10 hover:bg-fg/15 text-fg/80",
     accent: "bg-accent/20 hover:bg-accent/30 text-accent",
     success: "bg-green-500/20 hover:bg-green-500/30 text-green-400",
     error: "bg-red-500/20 hover:bg-red-500/30 text-red-400",
@@ -135,7 +135,7 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
         <div
           ref={headerRef}
           onPointerDown={handleDragStart}
-          className="px-3 py-2 flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-yellow-500/10 to-transparent shrink-0 cursor-grab active:cursor-grabbing"
+          className="px-3 py-2 flex items-center justify-between border-b border-fg/10 bg-gradient-to-r from-yellow-500/10 to-transparent shrink-0 cursor-grab active:cursor-grabbing"
         >
           <div className="flex items-center gap-2">
             <GripVertical size={14} className="text-yellow-500/60" />
@@ -145,14 +145,14 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
           <div className="flex items-center gap-1">
             <button
               onClick={expandAll}
-              className="p-1 rounded hover:bg-white/10 transition text-muted hover:text-fg"
+              className="p-1 rounded hover:bg-fg/10 transition text-muted hover:text-fg"
               title="Expand all"
             >
               <ChevronDown size={14} />
             </button>
             <button
               onClick={collapseAll}
-              className="p-1 rounded hover:bg-white/10 transition text-muted hover:text-fg"
+              className="p-1 rounded hover:bg-fg/10 transition text-muted hover:text-fg"
               title="Collapse all"
             >
               <ChevronUp size={14} />
@@ -172,23 +172,23 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
             {perfMetrics && (
               <Section title="Performance" defaultOpen>
                 <div className="grid grid-cols-2 gap-2 w-full text-xs text-fg/80">
-                  <div className="rounded-md bg-white/5 p-2">
+                  <div className="rounded-md bg-fg/5 p-2">
                     <div className="text-muted/70">FPS</div>
                     <div className="font-mono text-accent">{perfMetrics.fps}</div>
                   </div>
-                  <div className="rounded-md bg-white/5 p-2">
+                  <div className="rounded-md bg-fg/5 p-2">
                     <div className="text-muted/70">Worst frame</div>
                     <div className="font-mono text-accent">{perfMetrics.worstFrameMs}ms</div>
                   </div>
-                  <div className="rounded-md bg-white/5 p-2">
+                  <div className="rounded-md bg-fg/5 p-2">
                     <div className="text-muted/70">Memory</div>
                     <div className="font-mono text-accent">{perfMetrics.memoryMB === null ? "n/a" : `${perfMetrics.memoryMB}MB`}</div>
                   </div>
-                  <div className="rounded-md bg-white/5 p-2">
+                  <div className="rounded-md bg-fg/5 p-2">
                     <div className="text-muted/70">Windows</div>
                     <div className="font-mono text-accent">{perfMetrics.windows} / games {perfMetrics.gameWindows}</div>
                   </div>
-                  <div className="rounded-md bg-white/5 p-2 col-span-2">
+                  <div className="rounded-md bg-fg/5 p-2 col-span-2">
                     <div className="text-muted/70">Profile</div>
                     <div className="font-mono text-accent">{perfMetrics.profile}</div>
                   </div>
@@ -274,7 +274,7 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
                   value={ttsText}
                   onChange={(e) => setTtsText(e.target.value)}
                   placeholder="Texto para el asistente..."
-                  className="flex-1 px-2 py-1 text-xs rounded-md bg-white/5 border border-white/10 text-fg placeholder:text-muted/50 focus:outline-none focus:border-yellow-500/50"
+                  className="flex-1 px-2 py-1 text-xs rounded-md bg-fg/5 border border-fg/10 text-fg placeholder:text-muted/50 focus:outline-none focus:border-yellow-500/50"
                 />
                 <Button variant="accent" onClick={() => { if (ttsText) { debug.speakText(ttsText); setTtsText(""); } }}>
                   <Play size={12} />

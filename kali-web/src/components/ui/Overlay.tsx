@@ -22,7 +22,7 @@ interface Props {
 }
 
 const BACKDROP = "fixed inset-0 z-50";
-const BACKDROP_BG = "bg-black/55";
+const BACKDROP_BG = "bg-[var(--scrim)]";
 
 const sizeMap: Record<string, string> = {
   sm: "w-[min(384px,80vw)]",
@@ -115,14 +115,14 @@ export function Overlay({
   const isModal = effectiveVariant === "modal" || effectiveVariant === "drawer";
 
   const modalPanelClasses = compact
-    ? `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
-    : `bg-elevated border-border rounded-xl shadow-xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`;
+    ? `bg-elevated border border-border rounded-2xl shadow-2xl ${sizeMap[size]} max-h-[85vh] h-auto overflow-hidden flex flex-col ${panelClassName ?? ""}`
+    : `bg-elevated border border-border rounded-2xl shadow-2xl ${sizeMap[size]} max-h-[85vh] h-full overflow-hidden flex flex-col ${panelClassName ?? ""}`;
 
   const panelClasses = isModal
     ? modalPanelClasses
     : effectiveVariant === "sheet-bottom"
       ? "bg-elevated border-t border-border rounded-t-sheet max-h-[85vh] h-auto overflow-auto scrollbar-thin"
-      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-auto max-h-[85vh] overflow-auto scrollbar-thin ${
+      : `bg-elevated border-border w-[80vw] ${size === 'lg' ? 'max-w-sidebar-wide' : 'max-w-sidebar'} h-full overflow-auto scrollbar-thin shadow-2xl ${
           effectiveVariant === "sheet-left" ? "border-r" : "border-l"
         } ${panelClassName ?? ""}`;
 
@@ -179,7 +179,7 @@ export function Overlay({
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
                   <h2 className="text-sm font-semibold text-foreground m-0">{title}</h2>
                   <button
-                    className="flex items-center justify-center w-7 h-7 bg-transparent border-none text-muted cursor-pointer hover:text-foreground hover:bg-white/5 transition-colors rounded-md focus-visible:ring-2 focus-visible:ring-accent outline-none"
+                    className="flex items-center justify-center w-7 h-7 bg-transparent border-none text-muted cursor-pointer hover:text-foreground hover:bg-fg/5 transition-colors rounded-md focus-visible:ring-2 focus-visible:ring-accent outline-none"
                     onClick={onClose}
                     aria-label={closeLabel}
                   >

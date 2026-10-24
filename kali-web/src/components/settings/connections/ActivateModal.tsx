@@ -229,7 +229,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/30 shrink-0">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           >
             {t("connections.cancel")}
           </button>

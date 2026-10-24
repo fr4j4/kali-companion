@@ -21,12 +21,12 @@ export function TranscriptionBar() {
           exit={{ opacity: 0, y: 12 }}
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="glass-strong rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-2xl border border-white/10">
+          <div className="glass-strong rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-2xl border border-fg/10">
             <Mic size={14} className="text-accent shrink-0" />
             <span className="text-xs text-foreground/80 leading-relaxed line-clamp-2 break-words flex-1">
               {text}
             </span>
-            <span className="text-[10px] font-mono text-muted/50 bg-white/5 rounded px-1.5 py-0.5 shrink-0">
+            <span className="text-[10px] font-mono text-muted/50 bg-fg/5 rounded px-1.5 py-0.5 shrink-0">
               {provider}
             </span>
           </div>

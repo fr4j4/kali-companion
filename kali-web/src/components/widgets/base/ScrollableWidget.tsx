@@ -43,7 +43,7 @@ export function ScrollableWidget({ content, onToast, onBeep, searchable, onSearc
             value={query}
             onChange={onSearchChange}
             placeholder={t("widget.scrollable.search")}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-fg placeholder:text-muted outline-none focus:border-accent/40 transition"
+            className="w-full bg-fg/[0.04] border border-fg/10 rounded-lg px-3 py-1.5 text-xs text-fg placeholder:text-muted outline-none focus:border-accent/40 transition"
           />
         </div>
       )}

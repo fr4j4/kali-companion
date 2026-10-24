@@ -659,7 +659,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
               <button
                 key={i}
                 onClick={() => navigator.clipboard.writeText(line.trim())}
-                className="block w-full text-left bg-black/80 dark:bg-black/90 rounded px-3 py-2 mt-1 font-mono text-[11px] text-green-400 border border-white/10 cursor-pointer hover:bg-black/90 transition-colors"
+                className="block w-full text-left bg-black/80 dark:bg-black/90 rounded px-3 py-2 mt-1 font-mono text-[11px] text-green-400 border border-fg/10 cursor-pointer hover:bg-black/90 transition-colors"
                 title={t("common.click_to_copy")}
               >
                 <span className="select-all">{line.trim()}</span>

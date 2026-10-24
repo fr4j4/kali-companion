@@ -91,7 +91,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
       <div className="flex items-center gap-1 shrink-0 mt-0.5">
         <button
           onClick={() => onEdit(conn.id)}
-          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           title={t("connections.edit")}
           aria-label={t("connections.edit")}
         >
@@ -99,7 +99,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
         </button>
         <button
           onClick={() => onModels(conn.id)}
-          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           title={t("connections.models")}
           aria-label={t("connections.models")}
         >

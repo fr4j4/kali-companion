@@ -106,7 +106,7 @@ export function ScanPanel({ onPick }: Props) {
             ) : (
               <button
                 onClick={handleCancel}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-muted text-xs font-medium hover:bg-white/5 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-muted text-xs font-medium hover:bg-fg/5 transition-colors"
               >
                 <X size={12} />
                 {t("provider.scan_cancel")}

@@ -199,7 +199,7 @@ export function ConnectionForm({ mode, kind, existing, cloudProviders, onSaved, 
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+          className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
         >
           {t("connections.cancel")}
         </button>

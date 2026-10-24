@@ -25,7 +25,7 @@ export function VoiceBar() {
           exit={{ opacity: 0, y: 12 }}
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="glass-strong rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-2xl border border-white/10">
+          <div className="glass-strong rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-2xl border border-fg/10">
             <AudioVisualizer analyser={tts.analyser} active={tts.playing} />
             <span className="text-xs text-muted badge">
               {t("stage.speaking") as string}
@@ -35,7 +35,7 @@ export function VoiceBar() {
             </span>
             <button
               onClick={tts.stop}
-              className="w-8 h-8 rounded-lg hover:bg-white/10 text-muted hover:text-fg transition flex items-center justify-center shrink-0"
+              className="w-8 h-8 rounded-lg hover:bg-fg/10 text-muted hover:text-fg transition flex items-center justify-center shrink-0"
               aria-label={t("chat.mute_tts") as string}
               title={t("chat.mute_tts") as string}
             >

@@ -62,7 +62,7 @@ export function TableWidget({ content }: Props) {
   return (
     <BaseWidget>
       {headerActions.length > 0 && (
-        <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-white/5 shrink-0">
+        <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-fg/5 shrink-0">
           {headerActions}
         </div>
       )}
@@ -72,7 +72,7 @@ export function TableWidget({ content }: Props) {
         <div className="p-0 overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-fg/5">
                 {columns.map((col) => (
                   <th
                     key={col}
@@ -86,7 +86,7 @@ export function TableWidget({ content }: Props) {
             </thead>
             <tbody>
               {sorted.map((row, i) => (
-                <tr key={i} className="border-b border-white/5 last:border-none hover:bg-white/[0.02]">
+                <tr key={i} className="border-b border-fg/5 last:border-none hover:bg-fg/[0.02]">
                   {columns.map((col) => (
                     <td key={col} className="px-3 py-1.5 text-fg whitespace-nowrap">
                       {String(row[col] ?? "")}

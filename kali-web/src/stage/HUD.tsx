@@ -1,16 +1,15 @@
-// HUD — corner widgets overlay on the Stage.
+// HUD — floating glass pills over the stage.
 //
-//   top-left    : clock / date + panel buttons (history, customizer, library, conversation)
-//   top-right   : status·model pill (consolidated) + new chat + settings
-//   bottom-right: jobs (mini progress)
+//   top-left   : connection state · model (opens the model stats)
+//   top-centre : map / overview switch
+//   top-right  : conversation, history, avatar, jobs, new chat, settings
 //
-// Everything is low-opacity at rest and brightens on hover.
+// Phones and tablets get the compact corner layout instead.
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Settings, Plus, History, Radio, Cpu, Palette, Library, MessageSquare, X, Zap, Mic, LayoutGrid, Menu, Volume2, Gamepad2 } from "lucide-react";
+import { Settings, Plus, History, Radio, Cpu, Palette, Library, MessageSquare, X, Zap, Mic, LayoutGrid, Menu, Network, Volume2, Gamepad2 } from "lucide-react";
 import { useStage } from "./StageProvider";
-import { IconButton } from "../components/ui/IconButton";
 import type { StatusEvent, TurnStatsEvent } from "../lib/protocol";
 
 interface Props {
@@ -20,6 +19,8 @@ interface Props {
   onOpenCustomizer: () => void;
   onOpenArtifacts: () => void;
   onOpenConversation: () => void;
+  /** The conversation is shown as a docked panel (so the button toggles it). */
+  conversationDocked?: boolean;
   onNewSession: () => void;
   onOpenWindowSwitcher?: () => void;
   onOpenMobileMenu?: () => void;
@@ -37,6 +38,7 @@ export function HUD({
   onOpenCustomizer,
   onOpenArtifacts,
   onOpenConversation,
+  conversationDocked,
   onNewSession,
   onOpenWindowSwitcher,
   onOpenMobileMenu,
@@ -106,7 +108,7 @@ export function HUD({
             <MobileIconButton onClick={onOpenArtifacts} label={t("dock.artifacts_hint") as string}>
               <Library size={15} />
               {totalArtifacts > 0 && (
-                <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-1 bg-accent text-on-accent text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
                   {totalArtifacts}
                 </span>
               )}
@@ -121,60 +123,31 @@ export function HUD({
         </div>
       ) : (
         <>
-          {/* Top-left: clock + panel buttons + artifacts beacon */}
-          <div className="pointer-events-auto absolute top-4 left-5 z-20 flex flex-col gap-2">
-            <div className="hud-corner flex items-center gap-3" style={{ opacity: 1 }}>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-foreground text-lg font-prose leading-none tabular-nums">{timeStr}</span>
-                <span className="text-muted text-[11px] leading-none capitalize">{dateStr}</span>
-              </div>
-              <div className="w-px h-7 bg-border/40" />
-              <div className="flex items-center gap-0.5">
-                <IconButton size="sm" onClick={onOpenHistory} aria-label={t("stage.history")} title={t("stage.history")}>
-                  <History size={15} />
-                </IconButton>
-                <IconButton size="sm" onClick={onOpenCustomizer} aria-label={t("dock.customizer")} title={t("dock.customizer")}>
-                  <Palette size={15} />
-                </IconButton>
-                <IconButton size="sm" onClick={onOpenConversation} aria-label={t("dock.conversation")} title={t("dock.conversation")}>
-                  <MessageSquare size={15} />
-                </IconButton>
-              </div>
-            </div>
-
-            <ArtifactsBeacon
-              count={totalArtifacts}
-              openCount={openArtifacts}
-              closedCount={closedArtifacts}
-              onClick={onOpenArtifacts}
-            />
-          </div>
-
-          {/* Top-right: status·model pill + new chat + settings */}
-          <div className="hud-corner absolute top-4 right-5 z-20 flex items-center gap-2" style={{ opacity: 1 }}>
-            <IconButton size="sm" onClick={onNewSession} aria-label={t("stage.new_chat")} title={t("stage.new_chat")}>
-              <Plus size={16} />
-            </IconButton>
-            {ptt.wakeWordActive && (
-              <span className="hud-pill" title={t("wake_word.listening")}>
-                <Radio size={11} className="text-accent" />
-                {t("wake_word.listening")}
-              </span>
-            )}
-            {chat.systemStatus && (
+          {/* Top-left: connection state + model */}
+          <div className="absolute left-8 top-7 z-20">
+            {chat.systemStatus ? (
               <div className="relative">
                 <button
                   onClick={() => setStatsOpen((v) => !v)}
-                  className="hud-pill cursor-pointer"
+                  className="hud-glass hud-status"
                   title={`${t(statusKey)} · LLM: ${llmLabel}  STT: ${sttProvider}  TTS: ${ttsProvider}`}
+                  aria-expanded={statsOpen}
                 >
-                  <span className="flex items-center gap-[2px]">
-                    <span className={`w-[5px] h-[5px] rounded-full ${statusDotClass}`} />
-                    <span className={`w-[5px] h-[5px] rounded-full ${sttDotClass}`} />
-                    <span className={`w-[5px] h-[5px] rounded-full ${ttsDotClass}`} />
+                  <span className="flex items-center gap-[3px]" aria-hidden="true">
+                    <span className={`h-2 w-2 rounded-full ${statusDotClass}`} />
+                    <span className={`h-[7px] w-[7px] rounded-full ${sttDotClass}`} />
+                    <span className={`h-[7px] w-[7px] rounded-full ${ttsDotClass}`} />
                   </span>
-                  {llmLabel} · {sttProvider} · {ttsProvider}
+                  <span className="text-[13px] text-fg">{chat.isTurnActive ? t("hud.working") : t(statusKey)}</span>
+                  <span className="text-[13px] text-muted" aria-hidden="true">·</span>
+                  <span className="max-w-[160px] truncate font-mono text-xs text-muted">{llmLabel}</span>
                 </button>
+                {ptt.wakeWordActive && (
+                  <span className="hud-glass mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted" title={t("wake_word.listening") as string}>
+                    <Radio size={12} className="text-accent" aria-hidden="true" />
+                    {t("wake_word.listening")}
+                  </span>
+                )}
                 {statsOpen && (
                   <ModelStatsPanel
                     systemStatus={chat.systemStatus}
@@ -186,22 +159,31 @@ export function HUD({
                   />
                 )}
               </div>
-            )}
-            <IconButton size="sm" onClick={onOpenSettings} aria-label={t("stage.settings")} title={t("stage.settings")}>
-              <Settings size={16} />
-            </IconButton>
+            ) : null}
           </div>
 
-          {/* Bottom-right: jobs */}
-          <div className="hud-corner absolute bottom-4 right-5 z-20">
-            <IconButton size="sm" onClick={onOpenJobs} aria-label={t("stage.jobs")} title={t("stage.jobs")} active={runningJobs > 0}>
-              <Cpu size={16} />
-              {runningJobs > 0 && (
-                <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
-                  {runningJobs}
-                </span>
-              )}
-            </IconButton>
+          {/* Top-centre: map / overview */}
+          <div className="hud-glass absolute left-1/2 top-7 z-20 flex -translate-x-1/2 items-center gap-1 p-1" style={{ marginLeft: "calc(var(--chat-dock-w, 0px) / -2)" }} role="group" aria-label={t("hud.view") as string}>
+            <span className="hud-seg is-active" aria-current="true"><Network size={15} aria-hidden="true" />{t("hud.map")}</span>
+            <button className="hud-seg" onClick={onOpenArtifacts}>
+              <LayoutGrid size={15} aria-hidden="true" />
+              {t("hud.overview")}
+              {totalArtifacts > 0 && <span className="hud-count">{totalArtifacts}</span>}
+            </button>
+          </div>
+
+          {/* Top-right: actions */}
+          <div className="hud-glass absolute top-7 z-20 flex items-center gap-0.5 p-1" style={{ right: "calc(var(--chat-dock-w, 0px) + 32px)" }}>
+            <HudButton onClick={onOpenConversation} label={t("dock.conversation") as string} active={conversationDocked}><MessageSquare size={18} /></HudButton>
+            <HudButton onClick={onOpenHistory} label={t("stage.history") as string}><History size={18} /></HudButton>
+            <HudButton onClick={onOpenCustomizer} label={t("dock.customizer") as string}><Palette size={18} /></HudButton>
+            <HudButton onClick={onOpenJobs} label={t("stage.jobs") as string} active={runningJobs > 0}>
+              <Cpu size={18} />
+              {runningJobs > 0 && <span className="hud-count absolute -right-0.5 -top-0.5">{runningJobs}</span>}
+            </HudButton>
+            <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+            <HudButton onClick={onNewSession} label={t("stage.new_chat") as string}><Plus size={18} /></HudButton>
+            <HudButton onClick={onOpenSettings} label={t("stage.settings") as string}><Settings size={18} /></HudButton>
           </div>
         </>
       )}
@@ -209,45 +191,10 @@ export function HUD({
   );
 }
 
-/**
- * Artifacts beacon — a prominent pill button for the "Artefactos" library.
- * Lives on its own row below the dim HUD cluster, at full opacity with an
- * accent fill. The counter is a two-segment readout: open · closed, so you
- * see the session's state at a glance without a word.
- */
-function ArtifactsBeacon({
-  count,
-  openCount,
-  closedCount,
-  onClick,
-  compact = false,
-}: {
-  count: number;
-  openCount: number;
-  closedCount: number;
-  onClick: () => void;
-  compact?: boolean;
-}) {
-  const { t } = useTranslation();
-  const hasArtifacts = count > 0;
+function HudButton({ onClick, label, active, children }: { onClick: () => void; label: string; active?: boolean; children: ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      aria-label={t("dock.artifacts_hint") as string}
-      title={t("dock.artifacts_hint") as string}
-      className={`artifacts-beacon group inline-flex items-center gap-2 rounded-full bg-accent text-white border border-accent cursor-pointer transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
-        compact ? "px-2.5 py-2 min-w-11 justify-center" : "px-3 py-1.5"
-      }`}
-    >
-      <Library size={14} className="shrink-0" />
-      {!compact && <span className="badge text-white/90">{t("dock.artifacts")}</span>}
-      {hasArtifacts && (
-        <span className="flex items-center gap-1 tabular-nums text-[11px] font-mono leading-none">
-          <span className="text-white">{openCount}</span>
-          <span className="text-white/40">·</span>
-          <span className="text-white/60">{closedCount}</span>
-        </span>
-      )}
+    <button type="button" onClick={onClick} aria-label={label} title={label} aria-pressed={active === undefined ? undefined : active} className={`hud-btn ${active ? "is-active" : ""}`}>
+      {children}
     </button>
   );
 }
@@ -267,7 +214,7 @@ function MobileIconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="relative h-9 w-9 rounded-xl border border-white/10 bg-[color-mix(in_srgb,var(--bg-elev)_88%,transparent)] text-fg flex items-center justify-center shadow-lg backdrop-blur-md transition active:scale-95"
+      className="relative h-9 w-9 rounded-xl border border-fg/10 bg-[color-mix(in_srgb,var(--bg-elev)_88%,transparent)] text-fg flex items-center justify-center shadow-lg backdrop-blur-md transition active:scale-95"
     >
       {children}
     </button>

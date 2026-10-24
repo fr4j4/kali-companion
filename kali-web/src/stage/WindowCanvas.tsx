@@ -6,6 +6,7 @@ import { WindowContentRouter } from "./WindowContentRouter";
 import { widgetRegistry } from "../components/widgets/widgetRegistry";
 import type { Position, Size } from "../workspace/types";
 import type { GameContent } from "../components/widgets/GameWidget";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 
 interface Props {
   api: WorkspaceAPI;
@@ -14,6 +15,7 @@ interface Props {
 
 export function WindowCanvas({ api, winScale = 1 }: Props) {
   const { t } = useTranslation();
+  const { isMobile } = useBreakpoint();
   const { windows, gridMode, selectedIds, focusWindow, closeWindow, moveWindow, resizeWindow, toggleMinimize, toggleMaximize, persistWindow } = api;
 
   const handleMoveEnd = useCallback((id: number, _prevPos: Position) => {
@@ -35,9 +37,9 @@ export function WindowCanvas({ api, winScale = 1 }: Props) {
   };
 
   const detachAction = (artifactId?: string) => window.kaliDesktop && artifactId ? (
-    <button className="rounded px-2 py-1 text-xs text-muted hover:text-fg" title="Abrir en ventana independiente"
+    <button className="rounded px-2 py-1 text-xs text-muted hover:text-fg" title={t("window.detach_hint") as string}
       onClick={(event) => { event.stopPropagation(); const sid = localStorage.getItem("kali.sessionId"); if (sid) void window.kaliDesktop?.openArtifact(sid, artifactId); }}>
-      Desprender
+      {t("window.detach")}
     </button>
   ) : undefined;
 
@@ -74,7 +76,7 @@ export function WindowCanvas({ api, winScale = 1 }: Props) {
   }
 
   return (
-    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 30 }} aria-label={t("canvas.aria_label")}>
+    <div className={isMobile ? "kw-mobile-feed" : "absolute inset-0 pointer-events-none"} style={isMobile ? undefined : { zIndex: 30 }} aria-label={t("canvas.aria_label")}>
       {windows.filter((w) => !w.closed).map((w) => {
         const entry = widgetRegistry[w.type];
         const bodyAspectRatio = w.type === "game" ? getGameBodyAspectRatio(w) : entry?.aspectRatio;

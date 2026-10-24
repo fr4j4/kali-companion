@@ -64,7 +64,7 @@ export function ToggleField({
           onClick={() => !disabled && onChange(!checked)}
           disabled={disabled}
           className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
-            checked ? "bg-accent" : "bg-white/10"
+            checked ? "bg-accent" : "bg-fg/10"
           } ${disabled ? "cursor-not-allowed" : ""}`}
         >
           <span

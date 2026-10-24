@@ -234,7 +234,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                       className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition ${
                         species === sp 
                           ? "bg-accent/10 border-accent text-accent shadow-lg shadow-accent/5" 
-                          : "bg-white/5 border-transparent text-muted hover:bg-white/10"
+                          : "bg-fg/5 border-transparent text-muted hover:bg-fg/10"
                       }`}
                       onClick={() => selectSpecies(sp)}
                     >
@@ -259,8 +259,8 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                       key={bKey}
                       className={`px-4 py-3 rounded-xl border transition text-sm font-medium ${
                         selectedBreed === bKey 
-                          ? "bg-accent border-accent text-white shadow-md shadow-accent/20" 
-                          : "bg-white/5 border-white/10 text-muted hover:bg-white/10 hover:text-fg"
+                          ? "bg-accent border-accent text-on-accent shadow-md shadow-accent/20" 
+                          : "bg-fg/5 border-fg/10 text-muted hover:bg-fg/10 hover:text-fg"
                       }`}
                       onClick={() => selectBreed(bKey)}
                     >
@@ -284,8 +284,8 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                           key={et}
                           className={`py-3 rounded-xl border transition text-[10px] font-bold uppercase tracking-tight ${
                             config.ears === et 
-                              ? "bg-accent border-accent text-white" 
-                              : "bg-white/5 border-white/10 text-muted hover:bg-white/10 hover:text-fg"
+                              ? "bg-accent border-accent text-on-accent" 
+                              : "bg-fg/5 border-fg/10 text-muted hover:bg-fg/10 hover:text-fg"
                           }`}
                           onClick={() => setEars(et)}
                         >
@@ -306,8 +306,8 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                           key={pid}
                           className={`px-2 py-2 rounded-lg border transition text-[9px] font-bold truncate ${
                             config.pattern === pid 
-                              ? "bg-accent border-accent text-white" 
-                              : "bg-white/5 border-white/10 text-muted hover:bg-white/10 hover:text-fg"
+                              ? "bg-accent border-accent text-on-accent" 
+                              : "bg-fg/5 border-fg/10 text-muted hover:bg-fg/10 hover:text-fg"
                           }`}
                           onClick={() => setPattern(pid)}
                           title={pid}
@@ -337,8 +337,8 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                         key={idx}
                         className={`px-4 py-2.5 rounded-xl border transition text-xs font-bold ${
                           selectedVariation === idx 
-                            ? "bg-accent border-accent text-white shadow-md shadow-accent/20" 
-                            : "bg-white/5 border-white/10 text-muted hover:bg-white/10 hover:text-fg"
+                            ? "bg-accent border-accent text-on-accent shadow-md shadow-accent/20" 
+                            : "bg-fg/5 border-fg/10 text-muted hover:bg-fg/10 hover:text-fg"
                         }`}
                         onClick={() => applyVariation(currentBreed, idx)}
                       >
@@ -358,7 +358,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                     {!isCustom && <span className="ml-2 text-[10px] font-normal text-muted uppercase tracking-widest">{t("customizer.auto")}</span>}
                   </h3>
                 </div>
-                <div className="grid grid-cols-2 gap-6 bg-white/5 p-5 rounded-2xl border border-white/5">
+                <div className="grid grid-cols-2 gap-6 bg-fg/5 p-5 rounded-2xl border border-fg/5">
                   {(isCustom || currentVariation?.activePickers.includes("base")) && (
                     <ColorSwatchPicker label={t(currentVariation?.labels.base ? `customizer.label.${currentVariation.labels.base}` : "customizer.color.base")} value={config.colors.base} onChange={(v) => handleColorChange("base", v)} />
                   )}
@@ -384,7 +384,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                   <h3 className="text-sm font-bold m-0">{t("customizer.section.eyes")}</h3>
                 </div>
                 
-                <div className="bg-white/5 p-5 rounded-2xl border border-white/5 space-y-6">
+                <div className="bg-fg/5 p-5 rounded-2xl border border-fg/5 space-y-6">
                   <div>
                     <span className="text-[10px] font-bold text-muted uppercase tracking-widest mb-3 block">{t("customizer.presets")}</span>
                     <div className="flex flex-wrap gap-3">
@@ -392,7 +392,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                         <button
                           key={i}
                           className={`w-10 h-10 rounded-full border-2 transition-transform hover:scale-110 active:scale-95 ${
-                            config.eyes.main === preset.main ? "border-accent ring-4 ring-accent/20" : "border-white/20"
+                            config.eyes.main === preset.main ? "border-accent ring-4 ring-accent/20" : "border-fg/20"
                           }`}
                           style={{ background: `radial-gradient(circle at 30% 30%, ${preset.light}, ${preset.main} 60%, ${preset.dark})` }}
                           onClick={() => setEyeColor(preset.light, preset.main, preset.dark, preset.pupil)}
@@ -402,7 +402,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 pt-4 border-t border-white/10">
+                  <div className="grid grid-cols-1 gap-4 pt-4 border-t border-fg/10">
                     <ColorSwatchPicker label={t("customizer.eye.iris")} value={config.eyes.main} onChange={(v) => setEyeColor(config.eyes.light, v, config.eyes.dark, config.eyes.pupil)} />
                     <ColorSwatchPicker label={t("customizer.eye.border")} value={config.eyes.dark} onChange={(v) => setEyeColor(config.eyes.light, config.eyes.main, v, config.eyes.pupil)} />
                     <ColorSwatchPicker label={t("customizer.eye.pupil")} value={config.eyes.pupil} onChange={(v) => setEyeColor(config.eyes.light, config.eyes.main, config.eyes.dark, v)} />
@@ -421,7 +421,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                   <h3 className="text-sm font-bold m-0">{t("customizer.section.neck")}</h3>
                 </div>
                 
-                <div className="bg-white/5 p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="bg-fg/5 p-5 rounded-2xl border border-fg/5 space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted uppercase tracking-widest">{t("customizer.neck.accessory")}</label>
                     <Select
@@ -437,7 +437,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                         { value: "bufanda", label: t("customizer.neck.scarf") },
                         { value: "ninguno", label: t("customizer.neck.none") },
                       ]}
-                      buttonClassName="bg-white/5 border-white/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
+                      buttonClassName="bg-fg/5 border-fg/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
                     />
                   </div>
 
@@ -448,13 +448,13 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                         {COLLAR_PRESETS.map((c) => (
                           <button 
                             key={c} 
-                            className={`w-8 h-8 rounded-full border-2 transition ${config.collar === c ? "border-accent scale-110" : "border-white/10"}`} 
+                            className={`w-8 h-8 rounded-full border-2 transition ${config.collar === c ? "border-accent scale-110" : "border-fg/10"}`} 
                             style={{ background: c }} 
                             onClick={() => setCollarColor(c)} 
                           />
                         ))}
                       </div>
-                      <div className="w-px h-6 bg-white/10" />
+                      <div className="w-px h-6 bg-fg/10" />
                       <ColorSwatchPicker label={t("customizer.custom_color")} value={config.collar} onChange={setCollarColor} />
                     </div>
                   </div>
@@ -468,7 +468,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                   <h3 className="text-sm font-bold m-0">{t("customizer.section.hats")}</h3>
                 </div>
 
-                <div className="bg-white/5 p-5 rounded-2xl border border-white/5 space-y-6">
+                <div className="bg-fg/5 p-5 rounded-2xl border border-fg/5 space-y-6">
                   <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-muted uppercase tracking-widest">{t("customizer.hats.glasses")}</label>
@@ -481,13 +481,13 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                             { value: "round", label: t("customizer.hats.round") },
                             { value: "square", label: t("customizer.hats.square") },
                           ]}
-                          buttonClassName="bg-white/5 border-white/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
+                          buttonClassName="bg-fg/5 border-fg/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
                         />
                         <ColorSwatchPicker label={t("customizer.glasses_color")} value={config.glassesColor} onChange={(v) => onChange({ ...config, glassesColor: v })} />
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-white/10">
+                    <div className="space-y-1.5 pt-2 border-t border-fg/10">
                       <label className="text-[10px] font-bold text-muted uppercase tracking-widest">{t("customizer.hats.hat")}</label>
                       <div className="flex gap-2">
                         <Select
@@ -499,7 +499,7 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
                             { value: "copa", label: t("customizer.hats.top_hat") },
                             { value: "fiesta", label: t("customizer.hats.party") },
                           ]}
-                          buttonClassName="bg-white/5 border-white/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
+                          buttonClassName="bg-fg/5 border-fg/10 rounded-xl px-4 py-3 text-sm text-fg focus:border-accent focus:ring-1 focus:ring-accent"
                         />
                         <ColorSwatchPicker label={t("customizer.hat_color")} value={config.hatColor} onChange={(v) => onChange({ ...config, hatColor: v })} />
                       </div>
@@ -515,19 +515,19 @@ export function CustomizerDrawer({ open, onClose, config, onChange }: Props) {
         <div className="p-5 border-t border-border bg-elevated/80 backdrop-blur-md flex gap-3">
           <button 
             onClick={handleReset} 
-            className="px-6 py-4 rounded-2xl bg-white/5 text-muted text-sm font-bold hover:bg-white/10 hover:text-fg transition-all active:scale-95"
+            className="px-6 py-4 rounded-2xl bg-fg/5 text-muted text-sm font-bold hover:bg-fg/10 hover:text-fg transition-all active:scale-95"
           >
             {t("customizer.reset")}
           </button>
           <button
             onClick={handleRandom}
-            className="px-4 py-4 rounded-2xl bg-white/5 text-muted text-sm font-bold hover:bg-white/10 hover:text-fg transition-all active:scale-95"
+            className="px-4 py-4 rounded-2xl bg-fg/5 text-muted text-sm font-bold hover:bg-fg/10 hover:text-fg transition-all active:scale-95"
           >
             {t("customizer.random")}
           </button>
           <button 
             onClick={handleSave} 
-            className="flex-1 py-4 rounded-2xl bg-accent text-white text-sm font-black hover:brightness-110 transition-all active:scale-95 shadow-lg shadow-accent/20 btn-glow"
+            className="flex-1 py-4 rounded-2xl bg-accent text-on-accent text-sm font-black hover:brightness-110 transition-all active:scale-95 shadow-lg shadow-accent/20 btn-glow"
           >
             {t("customizer.save")}
           </button>

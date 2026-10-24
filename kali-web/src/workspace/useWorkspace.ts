@@ -125,7 +125,9 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
 
   // Create a window
   const createWindow = useCallback((type: WindowType, opts?: Partial<CreateWindowOpts>): number => {
-    const data = createWindowData({ type, ...opts });
+    const data = createWindowData({ type, ...opts }, windowsRef.current);
+    // Windows created in the same tick must see each other before React re-renders.
+    windowsRef.current = [...windowsRef.current, data];
     setWindows((prev) => focusInArray([...prev, data], data.id));
     undoRedo.push({ type: "create", windowId: data.id });
     return data.id;

@@ -60,7 +60,7 @@ export function ControlsWidget(_props: Props) {
           <span className="text-xs text-muted">{t("widget.controls.stream")}</span>
           <button
             onClick={() => setStream((s) => !s)}
-            className={`w-9 h-5 rounded-full transition-colors relative ${stream ? "bg-accent" : "bg-white/10"}`}
+            className={`w-9 h-5 rounded-full transition-colors relative ${stream ? "bg-accent" : "bg-fg/10"}`}
           >
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${stream ? "translate-x-4" : "translate-x-0.5"}`} />
           </button>
@@ -78,12 +78,12 @@ export function ControlsWidget(_props: Props) {
               { value: "echo", label: t("widget.controls.voice_echo") },
               { value: "fable", label: t("widget.controls.voice_fable") },
             ]}
-            buttonClassName="bg-white/[0.04] border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-fg focus:border-accent/40"
+            buttonClassName="bg-fg/[0.04] border-fg/10 rounded-lg px-2.5 py-1.5 text-xs text-fg focus:border-accent/40"
           />
         </div>
 
         {/* Apply button */}
-        <button onClick={apply} className="w-full py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:brightness-110 transition">
+        <button onClick={apply} className="w-full py-1.5 rounded-lg bg-accent text-on-accent text-xs font-medium hover:brightness-110 transition">
           {t("widget.controls.apply")}
         </button>
       </div>

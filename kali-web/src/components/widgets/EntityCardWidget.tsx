@@ -75,7 +75,7 @@ export function EntityCardWidget({ content }: Props) {
                 <button
                   key={i}
                   onClick={() => setSelectedSkill(selectedSkill === i ? null : i)}
-                  className={`hero-skill-btn text-xs px-2 py-1 rounded border border-white/10 bg-white/[0.03] text-muted hover:text-fg ${selectedSkill === i ? "active" : ""}`}
+                  className={`hero-skill-btn text-xs px-2 py-1 rounded border border-fg/10 bg-fg/[0.03] text-muted hover:text-fg ${selectedSkill === i ? "active" : ""}`}
                 >
                   {ab.key} {ab.name}
                 </button>

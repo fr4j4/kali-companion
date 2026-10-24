@@ -44,7 +44,7 @@ export function ImageWidget({ content }: Props) {
             />
           </div>
         ) : (
-          <div className="w-full h-40 bg-gradient-to-br from-accent/20 via-accent/5 to-transparent flex items-center justify-center border-b border-white/5">
+          <div className="w-full h-40 bg-gradient-to-br from-accent/20 via-accent/5 to-transparent flex items-center justify-center border-b border-fg/5">
             <span className="text-3xl">{'\u{1F5BC}\uFE0F'}</span>
           </div>
         )}
@@ -75,7 +75,7 @@ export function ImageWidget({ content }: Props) {
           />
           <button
             onClick={() => setLightbox(false)}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition"
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-fg/10 text-white flex items-center justify-center hover:bg-fg/20 transition"
           >
             {'\u2715'}
           </button>

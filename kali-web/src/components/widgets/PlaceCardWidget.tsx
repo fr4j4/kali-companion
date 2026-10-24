@@ -17,7 +17,7 @@ export function PlaceCardWidget({ content }: Props) {
     <BaseWidget>
       <div className="p-3 space-y-3">
         {/* Preview SVG */}
-        <div className="h-32 rounded-lg bg-gradient-to-br from-accent/10 via-accent/5 to-transparent border border-white/5 flex items-center justify-center">
+        <div className="h-32 rounded-lg bg-gradient-to-br from-accent/10 via-accent/5 to-transparent border border-fg/5 flex items-center justify-center">
           <svg viewBox="0 0 200 100" className="w-full h-full opacity-40">
             <path d="M0 80 Q50 40 100 60 T200 50" fill="none" stroke="var(--accent)" strokeWidth="1" />
             <path d="M0 70 Q50 50 100 45 T200 60" fill="none" stroke="var(--accent)" strokeWidth="0.5" opacity="0.5" />

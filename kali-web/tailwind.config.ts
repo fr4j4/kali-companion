@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss";
 
+const themeColor = (name: string) => `color-mix(in srgb, var(${name}) calc(<alpha-value> * 100%), transparent)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
@@ -15,29 +17,32 @@ export default {
     },
     extend: {
       colors: {
-        surface: "var(--bg)",
-        elevated: "var(--bg-elev)",
-        foreground: "var(--fg)",
-        fg: "var(--fg)",
-        muted: "var(--muted)",
-        accent: "var(--accent)",
-        "accent-dim": "var(--accent-dim)",
-        accent2: "#06b6d4",
+        // Theme colours resolve through color-mix so opacity modifiers (`bg-accent/10`,
+        // `text-muted/60`) work with CSS-variable colours; plain `var()` colours silently drop them.
+        surface: themeColor("--bg"),
+        elevated: themeColor("--bg-elev"),
+        foreground: themeColor("--fg"),
+        fg: themeColor("--fg"),
+        muted: themeColor("--muted"),
+        accent: themeColor("--accent"),
+        "accent-dim": themeColor("--accent-dim"),
+        "on-accent": themeColor("--on-accent"),
+        accent2: themeColor("--accent2"),
         accent3: "#c084fc",
-        ok: "var(--ok)",
-        err: "var(--err)",
-        warn: "var(--warn)",
-        "user-bubble": "var(--user-bubble)",
-        "assistant-bubble": "var(--assistant-bubble)",
-        border: "var(--border)",
-        "ai-bg": "var(--ai-bg)",
-        "ai-panel": "var(--ai-panel)",
-        "ai-rail": "var(--ai-rail)",
-        "ai-signal": "var(--ai-signal)",
-        "ai-live": "var(--ai-live)",
-        "ai-fail": "var(--ai-fail)",
-        "ai-readout": "var(--ai-readout)",
-        "ai-label": "var(--ai-label)",
+        ok: themeColor("--ok"),
+        err: themeColor("--err"),
+        warn: themeColor("--warn"),
+        "user-bubble": themeColor("--user-bubble"),
+        "assistant-bubble": themeColor("--assistant-bubble"),
+        border: themeColor("--border"),
+        "ai-bg": themeColor("--ai-bg"),
+        "ai-panel": themeColor("--ai-panel"),
+        "ai-rail": themeColor("--ai-rail"),
+        "ai-signal": themeColor("--ai-signal"),
+        "ai-live": themeColor("--ai-live"),
+        "ai-fail": themeColor("--ai-fail"),
+        "ai-readout": themeColor("--ai-readout"),
+        "ai-label": themeColor("--ai-label"),
       },
       screens: {
         xs: "480px",

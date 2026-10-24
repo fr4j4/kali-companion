@@ -117,7 +117,7 @@ export function MermaidWidget({ content }: Props) {
   return (
     <BaseWidget>
       <div className="flex flex-1 flex-col min-h-0">
-        <div className="flex items-center gap-0 border-b border-white/8 bg-white/[0.02] shrink-0" style={{ position: "relative", zIndex: 1 }}>
+        <div className="flex items-center gap-0 border-b border-fg/[0.08] bg-fg/[0.02] shrink-0" style={{ position: "relative", zIndex: 1 }}>
           <TabButton active={tab === "code"} onClick={() => handleTabClick("code")}>
             {"\u{1F4DD}"} {t("widget.mermaid.source")}
           </TabButton>
@@ -132,7 +132,7 @@ export function MermaidWidget({ content }: Props) {
         {tab === "code" ? (
           <>
             <div className="flex flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-              <div className="text-right px-2 py-3 text-xs text-muted/40 select-none font-mono leading-5 shrink-0 border-r border-white/5">
+              <div className="text-right px-2 py-3 text-xs text-muted/40 select-none font-mono leading-5 shrink-0 border-r border-fg/5">
                 {lines.map((_, i) => (
                   <div key={i}>{i + 1}</div>
                 ))}
@@ -148,7 +148,7 @@ export function MermaidWidget({ content }: Props) {
                 )}
               </pre>
             </div>
-            <div className="px-3 py-1.5 border-t border-white/5 flex items-center gap-3 text-[10px] text-muted/60 shrink-0">
+            <div className="px-3 py-1.5 border-t border-fg/5 flex items-center gap-3 text-[10px] text-muted/60 shrink-0">
               <span className="badge">mermaid</span>
               <span>{t("widget.code.lines", { count: lines.length })}</span>
               {error && <span className="text-red-400 ml-auto truncate">{error}</span>}
@@ -191,8 +191,8 @@ function TabButton({
       onClick={onClick}
       className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 ${
         active
-          ? "border-accent text-fg bg-white/[0.04]"
-          : "border-transparent text-muted hover:text-fg hover:bg-white/[0.02]"
+          ? "border-accent text-fg bg-fg/[0.04]"
+          : "border-transparent text-muted hover:text-fg hover:bg-fg/[0.02]"
       }`}
     >
       {children}
