@@ -9,6 +9,7 @@ import { SectionHeader } from "./SectionHeader";
 import { SettingsCard } from "./SettingsCard";
 import type { PerformanceProfile } from "../../App";
 import { loadMotionPref, saveMotionPref, type MotionPref } from "../../avatar/avatarPrefs";
+import { useCanvasV2Pref } from "../../lib/canvasV2Pref";
 
 interface Props {
   theme: string;
@@ -54,6 +55,7 @@ export function AppearanceSection({
 }: Props) {
   const [motion, setMotion] = useState<MotionPref>(() => loadMotionPref());
   const { t } = useTranslation();
+  const [canvasV2, setCanvasV2] = useCanvasV2Pref();
   const [font, setFont] = useState<FontChoice>(loadFont);
 
   return (
@@ -176,6 +178,12 @@ export function AppearanceSection({
       </SettingsCard>
 
       <SettingsCard title={t("settings.appearance.canvas_group")}>
+        <ToggleField
+          label={t("settings.canvas_v2")}
+          helperText={t("settings.canvas_v2_hint")}
+          checked={canvasV2}
+          onChange={setCanvasV2}
+        />
         <ToggleField
           label={t("settings.canvas_auto_expand")}
           checked={canvasAutoExpand}

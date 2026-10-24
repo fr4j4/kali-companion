@@ -4,7 +4,7 @@ import es from "../../locale/es/common.json";
 
 describe("desktop/chat locale keys", () => {
   it("exist in both languages with the same interpolation variables", () => {
-    const enKeys = Object.keys(en).filter((k) => k.startsWith("desktop.") || k.startsWith("chat.") || k.startsWith("settings.keywords.") || k.startsWith("font."));
+    const enKeys = Object.keys(en).filter((k) => k.startsWith("desktop.") || k.startsWith("chat.") || k.startsWith("settings.keywords.") || k.startsWith("font.") || k.startsWith("v2."));
     for (const key of enKeys) {
       const a = (en as Record<string, string>)[key];
       const b = (es as Record<string, string>)[key];

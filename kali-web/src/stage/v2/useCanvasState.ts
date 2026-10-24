@@ -43,9 +43,11 @@ interface Opts {
   api: WorkspaceAPI;
   sessionId: string | null;
   isTurnActive: boolean;
+  /** What you asked for in this turn: the name a new group takes (the window title otherwise). */
+  taskTitle?: string | null;
 }
 
-export function useCanvasState({ api, sessionId, isTurnActive }: Opts) {
+export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts) {
   const [state, setState] = useState<GroupsState>(EMPTY_GROUPS);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -62,6 +64,8 @@ export function useCanvasState({ api, sessionId, isTurnActive }: Opts) {
   windowsRef.current = api.windows;
   const apiRef = useRef(api);
   apiRef.current = api;
+  const taskTitleRef = useRef(taskTitle);
+  taskTitleRef.current = taskTitle;
 
   const setKaliView = useCallback((v: KaliView) => {
     setKaliViewState(v);
@@ -132,7 +136,7 @@ export function useCanvasState({ api, sessionId, isTurnActive }: Opts) {
         } else if (current && currentVisible) {
           next = assign(next, w.id, current.id, now);
         } else {
-          next = createGroup(next, w.title, [w.id], {}, now).state;
+          next = createGroup(next, taskTitleRef.current || w.title, [w.id], {}, now).state;
         }
         if (w.artifactId) pendingGroupRef.current.delete(w.artifactId);
       }

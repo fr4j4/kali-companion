@@ -238,6 +238,7 @@
 .v2-voice-text p:last-child { margin-bottom: 0; }
 .v2-voice-text :is(ul, ol) { text-align: left; display: inline-block; margin: .2em 0; }
 .v2-voice-text code { font-family: var(--font-mono); font-size: .82em; }
+.v2-voice-text.is-streaming > span > :last-child { display: inline; }
 .v2-cursor { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -0.15em; background: var(--accent); }
 .v2-cursor.is-blinking { animation: v2-blink 1.1s steps(2, start) infinite; }
 @keyframes v2-blink { to { visibility: hidden; } }
@@ -272,6 +273,15 @@
 .v2-column-voice .v2-echo { text-align: left; }
 .v2-column .stage-dock { position: static; transform: none; width: 100%; }
 .v2-column .stage-dock-pill { min-height: calc(44px * var(--k)); padding: calc(4px * var(--k)); }
+
+/* In Focus and Mosaic the map and the avatar sit inside Kali's column, above its background. */
+.v2-root.is-column .v2-map { z-index: 31; }
+.v2-root.is-column .v2-avatar:not(.is-bubble) { z-index: 32; }
+/* Blur budget: only the main dock blurs; the column and bubble composers are opaque. */
+.v2-column .stage-dock-pill, .v2-bubble-pop .stage-dock-pill { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); box-shadow: none; }
+.v2-bubble-pop .stage-dock { position: static; transform: none; width: 100%; }
+.v2-bubble-pop .stage-dock-pill { min-height: calc(44px * var(--k)); padding: calc(4px * var(--k)); border: 0; }
+.v2-seg.absolute { position: absolute; }
 
 /* Group rail and tabs */
 .v2-rail { position: absolute; z-index: 35; display: flex; flex-direction: column; align-items: center; gap: calc(10px * var(--k)); padding: calc(8px * var(--k)) 0; border-right: 1px solid var(--v2-line); background: color-mix(in srgb, var(--bg) 70%, transparent); }
@@ -365,6 +375,8 @@
 }
 .v2-search input { flex: 1; min-width: 0; background: transparent; outline: none; border: 0; color: var(--fg); font-size: max(11px, calc(14px * var(--kt))); }
 .v2-search input::placeholder { color: var(--muted); }
+.v2-search input:focus-visible { outline: none; }
+.v2-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* Miniatures */
 .v2-mini { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 10px; border-radius: 8px; border: 1px solid var(--v2-line); background: color-mix(in srgb, var(--bg) 60%, transparent); overflow: hidden; min-height: 64px; }

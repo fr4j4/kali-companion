@@ -221,13 +221,14 @@ function MobileIconButton({
   );
 }
 
-function ModelStatsPanel({
+export function ModelStatsPanel({
   systemStatus,
   turnStats,
   messageCount,
   artifactCount,
   toolCallCount,
   onClose,
+  className = "absolute right-0 top-full mt-2",
 }: {
   systemStatus: StatusEvent;
   turnStats: TurnStatsEvent | null;
@@ -235,12 +236,14 @@ function ModelStatsPanel({
   artifactCount: number;
   toolCallCount: number;
   onClose: () => void;
+  /** Placement (the v2 status pill opens it below its left edge). */
+  className?: string;
 }) {
   const { t } = useTranslation();
   const ts = turnStats;
 
   return (
-    <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-border bg-bg/95 backdrop-blur-sm shadow-xl overflow-hidden z-50">
+    <div className={`${className} w-72 rounded-xl border border-border bg-bg/95 backdrop-blur-sm shadow-xl overflow-hidden z-50`}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
         <span className="text-xs font-medium text-muted uppercase tracking-wider">Model Stats</span>
         <button

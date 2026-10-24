@@ -7,24 +7,22 @@
  * mosaic, and nothing (hidden) while it waits in the tray or another group is on screen.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
-import type { ArtifactEvent, ConsentRequestEvent } from "../../lib/protocol";
-import type { WindowData, WorkspaceAPI } from "../../workspace/types";
+import type { ArtifactEvent } from "../../lib/protocol";
+import type { WorkspaceAPI } from "../../workspace/types";
 import { cascadeSlots, defaultPreset, isCompactPanel, mosaicLayout, PRESET_PANELS, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { ArtifactShell } from "./ArtifactShell";
 import { WindowContentRouter } from "../WindowContentRouter";
 import type { CanvasStateApi } from "./useCanvasState";
-import type { ShellStatus } from "./shell";
-import { useStage } from "../StageProvider";
-
-export const DONE_SHOW_MS = 6000;
+import type { WindowStatusApi } from "./useWindowStatus";
 
 interface Props {
   api: WorkspaceAPI;
   canvas: CanvasStateApi;
   layout: CanvasLayout;
+  status: WindowStatusApi;
 }
 
 /** Which window ids sit in which mosaic panel. */
@@ -36,40 +34,9 @@ export function mosaicAssignment(tabIds: number[], panelIds: number[], preset: k
   return { preset: chosen.length < PRESET_PANELS[p] ? defaultPreset(chosen.length) : p, ids: chosen };
 }
 
-export function WindowLayer({ api, canvas, layout }: Props) {
+export function WindowLayer({ api, canvas, layout, status }: Props) {
   const { t } = useTranslation();
-  const { chat } = useStage();
   const { active, mode: groupMode, visibleIds, tabIds, panel, space } = canvas;
-
-  // When each window's content last changed, and when it finished streaming.
-  const updatedRef = useRef(new Map<number, { content: unknown; at: number; phase?: string }>());
-  const [doneAt, setDoneAt] = useState<Record<number, number>>({});
-  useEffect(() => {
-    const now = Date.now();
-    const finished: Record<number, number> = {};
-    for (const w of api.windows) {
-      const prev = updatedRef.current.get(w.id);
-      const ev = w.content as ArtifactEvent | null;
-      const phase = ev && typeof ev === "object" ? ev.phase : undefined;
-      if (!prev) { updatedRef.current.set(w.id, { content: w.content, at: now, phase }); continue; }
-      if (prev.content !== w.content) {
-        if (prev.phase === "streaming" && phase !== "streaming") finished[w.id] = now;
-        updatedRef.current.set(w.id, { content: w.content, at: now, phase });
-      }
-    }
-    if (Object.keys(finished).length) setDoneAt((d) => ({ ...d, ...finished }));
-  }, [api.windows]);
-  useEffect(() => {
-    const ids = Object.keys(doneAt);
-    if (!ids.length) return;
-    const timer = window.setTimeout(() => setDoneAt({}), DONE_SHOW_MS);
-    return () => window.clearTimeout(timer);
-  }, [doneAt]);
-
-  const terminalRunning = useMemo(() => {
-    for (const s of chat.terminalSessions.values()) for (const c of s.commands.values()) if (c.status === "running") return true;
-    return false;
-  }, [chat.terminalSessions]);
 
   const effMode = layout.mode;
   const zone = layout.artifact;
@@ -92,19 +59,6 @@ export function WindowLayer({ api, canvas, layout }: Props) {
     }
     return { map, preset: null };
   }, [zone, space, panel, effMode, active, visibleIds, tabIds, layout.wide, layout.k]);
-
-  const statusOf = (w: WindowData, consent: ConsentRequestEvent | null): ShellStatus | null => {
-    if (consent && !consent.handled_by_agent && (consent.artifact_id ? consent.artifact_id === w.artifactId : w.type === "terminal" && (consent.tool === "run_command" || consent.tool === "run_tests"))) {
-      return { kind: "permission" };
-    }
-    const ev = w.content as ArtifactEvent | null;
-    if (ev && typeof ev === "object" && ev.phase === "streaming") {
-      return { kind: w.type === "html" ? "updating" : w.type === "table" || w.type === "chart" ? "updating" : "writing" };
-    }
-    if (w.type === "terminal" && terminalRunning) return { kind: "running" };
-    if (doneAt[w.id]) return { kind: "done" };
-    return null;
-  };
 
   const detach = (artifactId?: string) => window.kaliDesktop && artifactId ? (
     <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
@@ -129,9 +83,9 @@ export function WindowLayer({ api, canvas, layout }: Props) {
             focused={!!place && w.focused}
             compact={place?.compact}
             chrome={effMode === "fullscreen" ? "bare" : "window"}
-            status={statusOf(w, chat.consentRequest)}
+            status={status.status.get(w.id) ?? null}
             progress={progress}
-            updatedAt={w.artifactId ? updatedRef.current.get(w.id)?.at : undefined}
+            updatedAt={status.updatedAt(w.id)}
             onFocus={() => canvas.focusWindow(w.id)}
             onMinimize={() => canvas.minimize(w.id)}
             onClose={() => canvas.close(w.id)}

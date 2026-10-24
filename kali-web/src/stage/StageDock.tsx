@@ -18,9 +18,13 @@ interface Props {
   /** The docked conversation panel has its own composer; leave "type anywhere" to it. */
   yieldTyping: boolean;
   onTypingChange: (typing: boolean) => void;
+  /** Neural canvas v2: the layout menu carries games, undo and debug, so the overflow menu goes. */
+  minimal?: boolean;
+  /** Narrow composer (Kali's column, the bubble): no "look at my screen" button. */
+  compact?: boolean;
 }
 
-export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: Props) {
+export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange, minimal = false, compact = false }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
   const [value, setValue] = useState("");
@@ -98,7 +102,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
             <X size={18} aria-hidden="true" />
           </button>
         )}
-        <button
+        {!compact && <button
           type="button"
           className="sd-btn"
           onClick={() => chat.send(t("dock.look_screen_prompt") as string)}
@@ -107,7 +111,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
           title={t("dock.look_screen") as string}
         >
           <Monitor size={18} aria-hidden="true" />
-        </button>
+        </button>}
         <textarea
           ref={taRef}
           rows={1}
@@ -119,7 +123,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
           aria-label={t("dock.placeholder") as string}
           className="sd-input"
         />
-        <div className="relative" ref={menuRef}>
+        {!minimal && <div className="relative" ref={menuRef}>
           <button type="button" className="sd-btn" onClick={() => setMenuOpen((v) => !v)} aria-label={t("dock.overflow") as string} title={t("dock.overflow") as string} aria-expanded={menuOpen} aria-haspopup="menu">
             <MoreHorizontal size={18} aria-hidden="true" />
           </button>
@@ -140,7 +144,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
               <button role="menuitem" className="ctx-item danger w-full" onClick={run(api.clearAll)}><Trash2 size={14} />{t("dock.clear")}</button>
             </div>
           )}
-        </div>
+        </div>}
         {busy ? (
           <button type="button" className="sd-send is-stop" onClick={chat.stop} aria-label={t("chat.stop") as string} title={t("chat.stop") as string}>
             <Square size={14} fill="currentColor" aria-hidden="true" />

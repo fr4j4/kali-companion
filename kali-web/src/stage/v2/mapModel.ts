@@ -335,8 +335,9 @@ export function rings(density: MapDensity, map: Rect, k: number): RingSpec {
     const fit = Math.min(1, (Math.min(map.w, map.h) / 2 - 58 * k) / (190 * k));
     return { r1: 130 * k * fit, r2: 190 * k * fit, sy: 1 };
   }
-  const rx = Math.max(60 * k, map.w / 2 - 34 * k);
-  const ry = Math.max(40 * k, map.h / 2 - 22 * k);
+  // Mini labels sit outside their port, so the ellipse leaves a label's width at each side.
+  const rx = Math.max(50 * k, map.w / 2 - 72 * k);
+  const ry = Math.max(36 * k, map.h / 2 - 26 * k);
   return { r1: rx * 0.62, r2: rx, sy: ry / rx };
 }
 
@@ -380,7 +381,7 @@ export function placeNodes(
   const ring = rings(density, map, k);
   const size = cardSize(density, k);
   const n = Math.max(1, ids.length);
-  return ids.map((id, i) => {
+  const placed = ids.map((id, i) => {
     const angle = -90 + (360 / n) * i;
     const a = (angle * Math.PI) / 180;
     const cos = Math.cos(a);
@@ -407,6 +408,36 @@ export function placeNodes(
     });
     return { id, angle, port, card: { x: cx, y: cy, w: size.w, h: size.h }, side, points };
   });
+  separateCards(placed, map, 6 * k);
+  return placed;
+}
+
+/**
+ * Nudge overlapping cards apart vertically (a node moving to the inner ring can land on its
+ * neighbour's card). A few passes are enough for a dozen nodes; cards stay inside the map.
+ */
+export function separateCards(nodes: PlacedNode[], map: Rect, gap: number): void {
+  const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+  const clampY = (r: Rect) => { r.y = Math.min(Math.max(r.y, map.y + 2), map.y + map.h - r.h - 2); };
+  for (let pass = 0; pass < 8; pass++) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i].card;
+        const b = nodes[j].card;
+        if (!overlaps(a, b)) continue;
+        const [top, bottom] = a.y + a.h / 2 <= b.y + b.h / 2 ? [a, b] : [b, a];
+        const need = top.y + top.h + gap - bottom.y;
+        if (need <= 0) continue;
+        top.y -= need / 2;
+        bottom.y += need / 2;
+        clampY(top);
+        clampY(bottom);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
 }
 
 /**

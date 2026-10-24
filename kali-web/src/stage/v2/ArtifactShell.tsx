@@ -210,7 +210,7 @@ function ArtifactShellImpl({
           </div>
         </SidePanelProvider>
       </ShellContext.Provider>
-      {!compact && (
+      {!compact && chrome === "window" && (
         <footer className="v2-shell-foot">
           <span className="v2-foot-slot" ref={setFooterEl} />
           {(right && !rightOpen) && (
