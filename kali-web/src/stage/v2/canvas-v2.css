@@ -531,6 +531,64 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
 .v2-port-pulse { animation: v2-pulse 2s ease-out infinite; }
 @keyframes v2-pulse { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(1.9); } }
 
+/* ── Hub: the lámina, «Anteriores», Hilo, Explorar ── */
+.v2-shell.is-lamina.v2-enter { animation: v2-lamina-in .32s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes v2-lamina-in { from { opacity: 0; transform: translateY(calc(24px * var(--k))); } to { opacity: 1; transform: none; } }
+.v2-type-tile.sm { width: calc(24px * var(--k)); height: calc(24px * var(--k)); }
+.v2-fichas { z-index: 30; flex-shrink: 0; }
+.v2-fichas ul { list-style: none; margin: 0; padding: 0; }
+.v2-fichas.is-row { position: absolute; display: flex; align-items: center; justify-content: center; gap: calc(8px * var(--k)); }
+.v2-fichas.is-row ul { display: flex; gap: calc(8px * var(--k)); min-width: 0; overflow: hidden; }
+.v2-fichas.is-column ul { display: flex; flex-direction: column; gap: 2px; max-height: calc(44px * 4 * var(--k)); overflow-y: auto; }
+.v2-ficha { position: relative; display: flex; align-items: center; min-width: 0; }
+.v2-ficha-main {
+  display: flex; align-items: center; gap: calc(10px * var(--k)); min-width: 0; width: 100%;
+  height: calc(44px * var(--k)); padding: 0 calc(28px * var(--k)) 0 calc(8px * var(--k));
+  border-radius: var(--v2-r-control); text-align: left; color: var(--fg);
+  font-size: max(11px, calc(13px * var(--kt)));
+}
+.v2-fichas.is-row .v2-ficha-main { max-width: calc(220px * var(--k)); border: 1px solid var(--v2-line); background: var(--v2-glass); border-radius: var(--v2-r-card); }
+.v2-ficha-main:hover { background: var(--v2-hover); }
+.v2-ficha-main small { margin-left: auto; color: var(--muted); font-size: max(11px, calc(12px * var(--kt))); white-space: nowrap; flex-shrink: 0; }
+.v2-ficha-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.v2-ficha-x {
+  position: absolute; right: calc(6px * var(--k)); display: inline-flex; align-items: center; justify-content: center;
+  width: calc(20px * var(--k)); height: calc(20px * var(--k)); border-radius: 9999px; color: var(--muted); opacity: 0;
+}
+.v2-ficha:hover .v2-ficha-x, .v2-ficha-x:focus-visible { opacity: 1; }
+.v2-ficha-x:hover { background: var(--v2-hover); color: var(--fg); }
+.v2-fichas.is-column .v2-ficha:hover small { visibility: hidden; }
+.v2-ficha-all { color: var(--accent); font-size: max(11px, calc(12px * var(--kt))); white-space: nowrap; padding: 0 calc(6px * var(--k)); }
+.v2-thread {
+  /* Under the avatar (25), which sits on its header's slot. */
+  position: absolute; z-index: 24; display: flex; flex-direction: column; gap: calc(12px * var(--k));
+  padding: calc(16px * var(--k)); border: 1px solid var(--v2-line-strong); border-radius: var(--v2-r-window);
+  background: color-mix(in srgb, var(--bg-elev) 72%, var(--bg));
+}
+.v2-thread-head { display: flex; align-items: center; gap: calc(14px * var(--k)); padding-bottom: calc(12px * var(--k)); border-bottom: 1px solid var(--v2-line); flex-shrink: 0; }
+.v2-thread-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.v2-thread-card {
+  display: flex; align-items: center; gap: calc(12px * var(--k)); flex-shrink: 0;
+  padding: calc(8px * var(--k)); border: 1px solid var(--v2-line); border-radius: var(--v2-r-card);
+  font-size: max(11px, calc(13px * var(--kt)));
+}
+.v2-thread-card small { color: var(--muted); font-size: max(11px, calc(12px * var(--kt))); }
+.v2-thread-card .v2-btn-quiet { margin-left: auto; }
+.v2-thread .stage-dock { position: static; transform: none; width: 100%; }
+.v2-thread .stage-dock-pill { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); box-shadow: none; }
+.v2-btn-quiet {
+  display: inline-flex; align-items: center; gap: 6px; height: calc(30px * var(--k)); padding: 0 calc(12px * var(--k));
+  border-radius: var(--v2-r-control); border: 1px solid var(--v2-line-strong); color: var(--fg);
+  font-size: max(11px, calc(13px * var(--kt))); flex-shrink: 0;
+}
+.v2-btn-quiet:hover { background: var(--v2-hover); }
+.v2-explore-exit {
+  position: absolute; z-index: 55; display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--v2-line-strong);
+  background: var(--bg-elev); color: var(--fg); font-size: 12px; box-shadow: var(--v2-shadow); opacity: .72;
+}
+.v2-explore-exit:hover, .v2-explore-exit:focus-visible { opacity: 1; }
+
 /* ── Performance and reduced motion: one switch for every canvas animation and blur. ── */
 :root[data-perf-profile="performance"] .v2-root *,
 html.kali-perf-low .v2-root * {

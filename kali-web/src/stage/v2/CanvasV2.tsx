@@ -9,15 +9,19 @@
  *   mosaic      the same with panels and dividers
  *   fullscreen  the window alone; the bar and the rail show at the edges; Kali is a bubble
  *
+ * In the Hub (useCanvasMode) the same pieces paint its four states: Escucha is the stage with a
+ * row of cards, Lámina is Kali's panel on the left and one artifact on the right, Explorar is the
+ * artifact alone with Kali as a bubble, and Hilo the conversation as a column.
+ *
  * The avatar is the real AvatarSVG, mounted once and always at the centre of the map (or the
- * bubble). Espacio, the tray, the overview and the Ctrl+K palette sit on top. NeuralCanvas keeps
+ * bubble, or the slot of Kali's panel). Espacio, the tray, the overview and the Ctrl+K palette sit on top. NeuralCanvas keeps
  * the shared logic (artifact sync, sessions, modals) and mounts this on desktop.
  */
 
 import "./canvas-v2.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus, RectangleHorizontal, Settings, Undo2, Volume2 } from "lucide-react";
+import { ArrowLeftRight, Bug, Columns2, Cpu, Eye, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus, RectangleHorizontal, Settings, Undo2, Volume2 } from "lucide-react";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { computeLayout, type ArtifactMode, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { useStage } from "../StageProvider";
@@ -34,7 +38,10 @@ import { NeuralMapV2 } from "./NeuralMapV2";
 import { ARTIFACT_NODE, type NodeId, type NodeStatus } from "./mapModel";
 import { LayoutButton, NoticesPill, StatusPill, WindowsPill, anchorStyle } from "./Hud";
 import { ConsentCard, ConversationPanel, Inspector, NowList, VoiceLine, VoiceText, useVoice } from "./KaliZone";
-import { KaliPanel } from "./KaliPanel";
+import { KaliPanel, ModeSeg } from "./KaliPanel";
+import { useCanvasMode } from "./useCanvasMode";
+import { Fichas } from "./Fichas";
+import { ExploreExit, ThreadView } from "./HubViews";
 import { FullscreenChrome, GroupRail, MosaicControls, TabBar } from "./GroupChrome";
 import { Overview, Tray } from "./ZonePanels";
 import { SpaceView } from "./SpaceView";
@@ -80,8 +87,17 @@ export function CanvasV2(p: Props) {
     const last = [...chat.messages].reverse().find((m) => m.role === "user" && m.content)?.content.trim().replace(/\s+/g, " ") ?? "";
     return last ? (last.length > 40 ? `${last.slice(0, 39).trimEnd()}…` : last) : null;
   }, [chat.messages]);
-  const canvas = useCanvasState({ api, sessionId: chat.sessionId, isTurnActive: chat.isTurnActive, taskTitle });
-  const { active, panel, space, kaliView } = canvas;
+  const lastUserText = useMemo(() => [...chat.messages].reverse().find((m) => m.role === "user" && m.content)?.content ?? null, [chat.messages]);
+  const hubActive = useRef(false);
+  const canvas = useCanvasState({ api, sessionId: chat.sessionId, isTurnActive: chat.isTurnActive, taskTitle, hubActive });
+  const cmode = useCanvasMode({ api, canvas, sessionId: chat.sessionId, lastUserText });
+  const inHub = cmode.mode === "hub";
+  hubActive.current = inHub;
+  const hub = cmode.hub;
+  const { active, space } = canvas;
+  // The Hub has no tray or overview of its own, and Hilo replaces the conversation view.
+  const panel = inHub ? null : canvas.panel;
+  const kaliView = inHub ? "map" : canvas.kaliView;
   const groupWindows = useMemo(() => (active ? active.windowIds.map((id) => api.windows.find((w) => w.id === id)).filter((w) => w && !w.closed) : []) as typeof api.windows, [active, api.windows]);
   const { nodes, statuses } = useMapStatuses(groupWindows);
   const winStatus = useWindowStatus(api.windows);
@@ -94,24 +110,28 @@ export function CanvasV2(p: Props) {
   const layout: CanvasLayout = useMemo(() => computeLayout({
     mode: panel ? "split" : canvas.mode,
     stage,
-    visibleWindows: panel ? 0 : shownCount,
+    visibleWindows: inHub ? (hub.currentId != null ? 1 : 0) : panel ? 0 : shownCount,
     kaliView,
     manualScale: p.manualScale,
     zonePanel: !!panel,
-  }), [panel, canvas.mode, stage, shownCount, kaliView, p.manualScale]);
+    hub: inHub ? hub.state : undefined,
+    hubCards: inHub ? hub.previousIds.length : 0,
+  }), [panel, canvas.mode, stage, shownCount, kaliView, p.manualScale, inHub, hub.state, hub.currentId, hub.previousIds.length]);
   const mode = layout.mode;
-  const artifactMode: ArtifactMode = mode === "stage" ? canvas.mode : mode;
+  const artifactMode: ArtifactMode = mode === "stage" || mode === "hub" ? canvas.mode : mode;
   const openCount = api.windows.filter((w) => !w.closed).length;
   const pending = chat.consentRequest && !chat.consentRequest.handled_by_agent ? chat.consentRequest : null;
   // A command's permission is asked inside the terminal when one is on screen; the Kali zone
   // then stays quiet so there is one question (and one countdown), not two.
   const terminalAsks = useMemo(() => {
-    if (!pending || (pending.tool !== "run_command" && pending.tool !== "run_tests") || !active || space || panel) return false;
+    if (!pending || (pending.tool !== "run_command" && pending.tool !== "run_tests") || space) return false;
+    if (inHub) return hub.currentId != null && !!layout.lamina && api.windows.some((w) => w.id === hub.currentId && !w.closed && w.type === "terminal");
+    if (!active || panel) return false;
     const shown = canvas.mode === "split" && !panel ? canvas.visibleIds
       : canvas.mode === "mosaic" ? canvas.tabIds
       : [active.activeId != null && canvas.tabIds.includes(active.activeId) ? active.activeId : canvas.tabIds[0]];
     return shown.some((id) => api.windows.find((w) => w.id === id && !w.closed && w.type === "terminal"));
-  }, [pending, active, space, panel, canvas.mode, canvas.visibleIds, canvas.tabIds, api.windows]);
+  }, [pending, active, space, panel, canvas.mode, canvas.visibleIds, canvas.tabIds, api.windows, inHub, hub.currentId, layout.lamina]);
   const consent = terminalAsks ? null : pending;
 
   // The window title names the task on screen.
@@ -140,8 +160,10 @@ export function CanvasV2(p: Props) {
 
   const setMode = useCallback((m: ArtifactMode) => {
     if (!active) return;
+    // From the Hub, a layout is a way into the Studio.
+    if (inHub) cmode.enterStudio();
     canvas.setMode(m);
-  }, [active, canvas]);
+  }, [active, canvas, inHub, cmode]);
 
   const toggleFullscreen = useCallback(() => {
     if (!active) return;
@@ -155,10 +177,11 @@ export function CanvasV2(p: Props) {
 
   const onDetail = useCallback((st: NodeStatus) => {
     const forNode = groupWindows.find((w) => ARTIFACT_NODE[w.type] === st.id || (st.id === "terminal" && w.type === "terminal"));
-    if (forNode) { canvas.focusWindow(forNode.id); return; }
+    if (forNode) { if (inHub) cmode.show(forNode.id); else canvas.focusWindow(forNode.id); return; }
     if (st.id === "memory") { p.onOpenReasoning(); return; }
+    if (inHub) { if (hub.state !== "hilo") cmode.toggleThread(); return; }
     canvas.setKaliView("conversation");
-  }, [groupWindows, canvas, p]);
+  }, [groupWindows, canvas, p, inHub, hub.state, cmode]);
 
   const back = useCallback((): boolean => {
     if (paletteOpen) { setPaletteOpen(false); return true; }
@@ -166,17 +189,25 @@ export function CanvasV2(p: Props) {
     if (bubbleOpen) { setBubbleOpen(false); return true; }
     if (panel) { canvas.setPanel(null); return true; }
     if (picked) { setPicked(null); return true; }
+    if (inHub) return cmode.back();
     if (active && canvas.mode === "fullscreen") { toggleFullscreen(); return true; }
     if (active && (canvas.mode === "focus" || canvas.mode === "mosaic")) { canvas.setMode("split"); return true; }
     return false;
-  }, [paletteOpen, space, bubbleOpen, panel, picked, active, canvas, toggleFullscreen]);
+  }, [paletteOpen, space, bubbleOpen, panel, picked, active, canvas, toggleFullscreen, inHub, cmode]);
+
+  const explore = useCallback(() => (hub.state === "explorar" ? cmode.back() : cmode.explore()), [hub.state, cmode]);
 
   useCanvasKeys({
     palette: () => setPaletteOpen((v) => !v),
-    mode: setMode,
-    windowAt: (i) => { const id = canvas.tabIds[i]; if (id != null) canvas.focusWindow(id); },
+    // The Hub has no layouts: Ctrl+1…4 wait for the Studio.
+    mode: (m) => { if (!inHub) setMode(m); },
+    windowAt: (i) => {
+      if (inHub) { const id = hub.previousIds[i]; if (id != null) cmode.show(id); return; }
+      const id = canvas.tabIds[i]; if (id != null) canvas.focusWindow(id);
+    },
     space: () => canvas.setSpace(!space),
-    fullscreen: toggleFullscreen,
+    fullscreen: inHub ? explore : toggleFullscreen,
+    toggleMode: cmode.toggleMode,
     back,
   }, api.windows);
 
@@ -185,11 +216,12 @@ export function CanvasV2(p: Props) {
   const menu = {
     mode: artifactMode,
     hasWindows: !!active && canvas.tabIds.length > 0,
-    kaliView,
+    kaliView: inHub ? (hub.state === "hilo" ? "conversation" : "map") as typeof kaliView : kaliView,
     onMode: setMode,
-    onOverview: () => canvas.setPanel("overview"),
+    onOverview: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("overview"); },
     onSpace: () => canvas.setSpace(true),
-    onKaliView: canvas.setKaliView,
+    onKaliView: inHub ? () => cmode.toggleThread() : canvas.setKaliView,
+    switchMode: { label: t(inHub ? "v2.hub.to_studio" : "v2.hub.to_hub"), onClick: cmode.toggleMode },
     onHistory: p.onOpenHistory,
     onCustomize: p.onOpenCustomizer,
     onJobs: p.onOpenJobs,
@@ -212,7 +244,18 @@ export function CanvasV2(p: Props) {
       for (const id of g.windowIds) {
         const w = api.windows.find((x) => x.id === id);
         if (!w || w.closed) continue;
-        out.push({ id: `w${id}`, section: sWin, label: w.title, keywords: `${g.title} ${w.type}`, icon: <WindowTypeIcon type={w.type} size={16} />, run: () => { if (g.id !== canvas.groups.activeGroupId) canvas.openGroup(g.id); canvas.focusWindow(id); } });
+        out.push({ id: `w${id}`, section: sWin, label: w.title, keywords: `${g.title} ${w.type}`, icon: <WindowTypeIcon type={w.type} size={16} />, run: () => {
+          if (inHub) { cmode.show(id); return; }
+          if (g.id !== canvas.groups.activeGroupId) canvas.openGroup(g.id);
+          canvas.focusWindow(id);
+        } });
+      }
+    }
+    if (inHub) {
+      const sPrev = t("v2.panel.previous");
+      for (const id of hub.previousIds) {
+        const w = api.windows.find((x) => x.id === id && !x.closed);
+        if (w) out.push({ id: `p${id}`, section: sPrev, label: t("v2.hub.show", { title: w.title }), keywords: w.type, icon: <Eye size={16} />, run: () => cmode.show(id) });
       }
     }
     const sGroups = t("v2.palette.groups");
@@ -223,11 +266,13 @@ export function CanvasV2(p: Props) {
       (["split", "focus", "mosaic", "fullscreen"] as ArtifactMode[]).forEach((m, i) => { const I = icons[m]; out.push({ id: `m${m}`, section: sMode, label: t(`v2.mode.${m}`), kbd: `Ctrl ${i + 1}`, icon: <I size={16} />, run: () => setMode(m) }); });
     }
     const sAct = t("v2.palette.actions");
+    const thread = inHub ? hub.state !== "hilo" : kaliView === "map";
     out.push(
-      { id: "overview", section: sAct, label: t("v2.menu.overview"), icon: <LayoutGrid size={16} />, run: () => canvas.setPanel("overview") },
-      { id: "tray", section: sAct, label: t("v2.tray.title"), icon: <LayoutGrid size={16} />, run: () => canvas.setPanel("tray") },
+      { id: "mode", section: sAct, label: t(inHub ? "v2.hub.to_studio" : "v2.hub.to_hub"), kbd: "Ctrl ⇧ T", icon: <ArrowLeftRight size={16} />, run: cmode.toggleMode },
+      { id: "overview", section: sAct, label: t("v2.menu.overview"), icon: <LayoutGrid size={16} />, run: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("overview"); } },
+      { id: "tray", section: sAct, label: t("v2.tray.title"), icon: <LayoutGrid size={16} />, run: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("tray"); } },
       { id: "space", section: sAct, label: t("v2.menu.space"), kbd: "Ctrl ⇧ E", icon: <Layers size={16} />, run: () => canvas.setSpace(true) },
-      { id: "view", section: sAct, label: kaliView === "map" ? t("v2.view.conversation") : t("v2.view.map"), icon: kaliView === "map" ? <MessageSquare size={16} /> : <Network size={16} />, run: () => canvas.setKaliView(kaliView === "map" ? "conversation" : "map") },
+      { id: "view", section: sAct, label: thread ? t("v2.view.conversation") : t("v2.view.map"), icon: thread ? <MessageSquare size={16} /> : <Network size={16} />, run: () => (inHub ? cmode.toggleThread() : canvas.setKaliView(kaliView === "map" ? "conversation" : "map")) },
       { id: "history", section: sAct, label: t("stage.history"), icon: <History size={16} />, run: p.onOpenHistory },
       { id: "library", section: sAct, label: t("v2.overview.library"), icon: <LayoutGrid size={16} />, run: p.onOpenLibrary },
       { id: "customize", section: sAct, label: t("dock.customizer"), icon: <Palette size={16} />, run: p.onOpenCustomizer },
@@ -240,11 +285,12 @@ export function CanvasV2(p: Props) {
     );
     if (import.meta.env.DEV && p.onToggleDebug) out.push({ id: "debug", section: sAct, label: t("dock.debug"), icon: <Bug size={16} />, run: p.onToggleDebug });
     return out;
-  }, [canvas, api.windows, active, kaliView, t, setMode, openToys, p]);
+  }, [canvas, api.windows, active, kaliView, t, setMode, openToys, p, inHub, hub.previousIds, hub.state, cmode]);
 
   // ── Pieces ──
   const isColumn = !!layout.column;
-  const showWindows = mode !== "stage";
+  // In the Hub the windows stay mounted in Escucha too, so a card comes back as it was left.
+  const showWindows = mode !== "stage" || inHub;
   const kaliZone = layout.kali && !isColumn ? layout.kali : null;
   const mapBusy = Object.values(statuses).some((s) => s.state === "working" || s.state === "recalling");
   const bubbleTone = consent ? "permission" : chat.isTurnActive || mapBusy ? "working" : Object.values(statuses).some((s) => s.state === "done") ? "done" : null;
@@ -285,13 +331,19 @@ export function CanvasV2(p: Props) {
       {/* Artifacts */}
       {showWindows && (
         <ErrorBoundary>
-          <WindowLayer api={api} canvas={canvas} layout={layout} status={winStatus} />
+          <WindowLayer
+            api={api}
+            canvas={canvas}
+            layout={layout}
+            status={winStatus}
+            hub={inHub ? { currentId: hub.currentId, exploring: hub.state === "explorar", onPutDown: cmode.closeLamina, onExplore: explore } : undefined}
+          />
         </ErrorBoundary>
       )}
       {mode === "mosaic" && !panel && <MosaicControls canvas={canvas} layout={layout} />}
 
       {/* Group chrome */}
-      {(mode === "focus" || mode === "mosaic") && (
+      {!inHub && (mode === "focus" || mode === "mosaic") && (
         <>
           <GroupRail canvas={canvas} rect={layout.rail} windows={api.windows} onSpace={() => canvas.setSpace(true)} />
           <TabBar canvas={canvas} windows={api.windows} status={winStatus.status} rect={layout.tabs} mode={artifactMode} onOverview={() => { canvas.setMode("split"); canvas.setPanel("overview"); }} />
@@ -305,10 +357,10 @@ export function CanvasV2(p: Props) {
       {panel === "tray" && layout.artifact && <Tray canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
       {panel === "overview" && layout.artifact && <Overview canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
 
-      {/* Kali's panel (focus, mosaic) */}
+      {/* Kali's panel (Studio: right; the Hub's Lámina: left, with the cards) */}
       {isColumn && layout.column && (
         <KaliPanel
-          side="right"
+          side={inHub ? "left" : "right"}
           rect={layout.column}
           k={layout.k}
           taskTitle={active?.title}
@@ -317,14 +369,35 @@ export function CanvasV2(p: Props) {
           onPickOrb={onDetail}
           consent={consentCard}
           dock={dock(true)}
+          mode={cmode.mode}
+          onSwitchMode={(m) => (m === "hub" ? cmode.enterHub() : cmode.enterStudio())}
+          switchEnabled
+          voiceOnly={inHub}
           headerExtra={(
             <>
               <NoticesPill compact drop="down" notices={notices.notices} flash={notices.flash} onClear={notices.clear} onDismiss={notices.dismiss} />
               <LayoutButton {...menu} drop="down" style={{ position: "relative" }} />
             </>
           )}
+        >
+          {inHub && <Fichas ids={hub.previousIds} windows={api.windows} layout="column" onShow={cmode.show} onClose={canvas.close} onLibrary={p.onOpenLibrary} />}
+        </KaliPanel>
+      )}
+
+      {/* Hub: Hilo, the cards of Escucha, the way out of Explorar */}
+      {layout.thread && (
+        <ThreadView
+          rect={layout.thread}
+          k={layout.k}
+          current={hub.currentId != null ? api.windows.find((w) => w.id === hub.currentId && !w.closed) ?? null : null}
+          onOpen={cmode.toggleThread}
+          onClose={cmode.toggleThread}
+          consent={consentCard}
+          dock={dock(true)}
         />
       )}
+      {layout.fichas && <Fichas ids={hub.previousIds} windows={api.windows} layout="row" onShow={cmode.show} onClose={canvas.close} onLibrary={p.onOpenLibrary} style={box(layout.fichas)} />}
+      {inHub && hub.state === "explorar" && <ExploreExit onExit={cmode.back} style={{ right: 16, top: 16 }} />}
 
       {/* Map and the avatar (always at its centre) */}
       {map}
@@ -335,7 +408,7 @@ export function CanvasV2(p: Props) {
       )}
       {layout.inspector && <Inspector statuses={statuses} picked={picked} onDetail={onDetail} style={box(layout.inspector)} />}
       {layout.voice && !(kaliView === "conversation" && mode === "stage") && <VoiceLine style={box(layout.voice)} />}
-      {kaliZone && consentCard && (
+      {kaliZone && consentCard && !layout.thread && (
         <div className="absolute" style={{ zIndex: 45, left: kaliZone.x + Math.max(12, (kaliZone.w - 520 * layout.k) / 2), width: Math.min(kaliZone.w - 24, 520 * layout.k), bottom: stage.h - (kaliZone.y + kaliZone.h) + 12 }}>
           {consentCard}
         </div>
@@ -346,10 +419,13 @@ export function CanvasV2(p: Props) {
 
       {/* Corners */}
       {layout.statusPill && <StatusPill style={anchorStyle(layout.statusPill, stage, "tl")} />}
+      {layout.modeSwitch && !isColumn && (
+        <ModeSeg mode={cmode.mode} onSwitch={(m) => (m === "hub" ? cmode.enterHub() : cmode.enterStudio())} style={{ ...anchorStyle(layout.modeSwitch, stage, "tr"), zIndex: 40 }} />
+      )}
       {layout.windowsPill && (openCount > 0 || hiddenArtifacts > 0) && (
         <WindowsPill count={openCount} open={panel === "tray"} onToggle={() => canvas.setPanel(panel === "tray" ? null : "tray")} style={anchorStyle(layout.windowsPill, stage, "tr")} />
       )}
-      {!isColumn && (
+      {!isColumn && !(inHub && hub.state === "explorar") && (
         <NoticesPill
           notices={notices.notices}
           flash={notices.flash}

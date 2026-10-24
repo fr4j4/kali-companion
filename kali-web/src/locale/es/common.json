@@ -1468,5 +1468,16 @@
   "v2.panel.mode_studio": "Estudio",
   "v2.panel.orbs": "Orbes",
   "v2.panel.resting": "en reposo",
-  "v2.panel.previous": "Anteriores"
+  "v2.panel.previous": "Anteriores",
+  "v2.hub.show": "Mostrar {{title}}",
+  "v2.hub.close_card": "Cerrar {{title}}",
+  "v2.hub.see_all": "Ver todas ({{count}})",
+  "v2.hub.thread": "Hilo de la conversación",
+  "v2.hub.thread_close": "Volver",
+  "v2.hub.open": "Abrir",
+  "v2.hub.explore": "Explorar",
+  "v2.hub.explore_exit": "Salir de Explorar",
+  "v2.hub.put_down": "Dejar en Anteriores",
+  "v2.hub.to_studio": "Ir al Estudio",
+  "v2.hub.to_hub": "Ir al Hub"
 }

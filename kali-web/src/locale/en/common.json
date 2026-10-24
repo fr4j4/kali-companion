@@ -1468,5 +1468,16 @@
   "v2.panel.mode_studio": "Studio",
   "v2.panel.orbs": "Orbs",
   "v2.panel.resting": "at rest",
-  "v2.panel.previous": "Earlier"
+  "v2.panel.previous": "Earlier",
+  "v2.hub.show": "Show {{title}}",
+  "v2.hub.close_card": "Close {{title}}",
+  "v2.hub.see_all": "See all ({{count}})",
+  "v2.hub.thread": "Conversation thread",
+  "v2.hub.thread_close": "Back",
+  "v2.hub.open": "Open",
+  "v2.hub.explore": "Explore",
+  "v2.hub.explore_exit": "Leave Explore",
+  "v2.hub.put_down": "Put away in Earlier",
+  "v2.hub.to_studio": "Go to Studio",
+  "v2.hub.to_hub": "Go to Hub"
 }

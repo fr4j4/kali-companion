@@ -29,8 +29,7 @@ import { useKaliStatus } from "./Hud";
 import { OrbList } from "./OrbList";
 import { VoiceText, useVoice } from "./KaliZone";
 import type { NodeId, NodeStatus } from "./mapModel";
-
-export type CanvasModeName = "hub" | "studio";
+import type { CanvasModeName } from "./useCanvasMode";
 
 interface Props {
   side: "left" | "right";
@@ -44,7 +43,7 @@ interface Props {
   nodes: NodeId[];
   statuses: Record<string, NodeStatus>;
   onPickOrb: (status: NodeStatus) => void;
-  /** Hub · Estudio switch; disabled until the Hub exists. */
+  /** Hub · Estudio switch. */
   mode?: CanvasModeName;
   onSwitchMode?: (mode: CanvasModeName) => void;
   switchEnabled?: boolean;
@@ -73,20 +72,7 @@ export function KaliPanel(p: Props) {
         <div className="v2-kpanel-who">
           <b>{t("assistant.name")}</b>
           <small className={`is-${kind}`} title={line}>{line}</small>
-          <div className="v2-seg sm" role="group" aria-label={t("v2.panel.mode") as string}>
-            {(["hub", "studio"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={(p.mode ?? "studio") === m}
-                disabled={!p.switchEnabled}
-                onClick={() => p.onSwitchMode?.(m)}
-                title={p.switchEnabled ? `${t(`v2.panel.mode_${m}`)} · Ctrl ⇧ T` : undefined}
-              >
-                {t(`v2.panel.mode_${m}`)}
-              </button>
-            ))}
-          </div>
+          <ModeSeg mode={p.mode ?? "studio"} onSwitch={p.onSwitchMode} enabled={p.switchEnabled} />
         </div>
         {p.headerExtra && <div className="v2-kpanel-extra">{p.headerExtra}</div>}
       </header>
@@ -98,6 +84,27 @@ export function KaliPanel(p: Props) {
       {p.consent}
       <div className="v2-kpanel-dock">{p.dock}</div>
     </aside>
+  );
+}
+
+/** Hub · Estudio: in Kali's panel, and alone at the top right where there is no panel. */
+export function ModeSeg({ mode, onSwitch, enabled = true, style }: { mode: CanvasModeName; onSwitch?: (m: CanvasModeName) => void; enabled?: boolean; style?: CSSProperties }) {
+  const { t } = useTranslation();
+  return (
+    <div className={`v2-seg sm ${style ? "absolute" : ""}`} style={style} role="group" aria-label={t("v2.panel.mode") as string}>
+      {(["hub", "studio"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          aria-pressed={mode === m}
+          disabled={!enabled}
+          onClick={() => { if (m !== mode) onSwitch?.(m); }}
+          title={enabled ? `${t(`v2.panel.mode_${m}`)} · Ctrl ⇧ T` : undefined}
+        >
+          {t(`v2.panel.mode_${m}`)}
+        </button>
+      ))}
+    </div>
   );
 }
 

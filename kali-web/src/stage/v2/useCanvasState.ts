@@ -45,9 +45,12 @@ interface Opts {
   isTurnActive: boolean;
   /** What you asked for in this turn: the name a new group takes (the window title otherwise). */
   taskTitle?: string | null;
+  /** True while the Hub is on screen: it decides which window is seen, so the split limit and
+   * the content-update focus stand down (read through a ref: the Hub's hook needs this one). */
+  hubActive?: { current: boolean };
 }
 
-export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts) {
+export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubActive }: Opts) {
   const [state, setState] = useState<GroupsState>(EMPTY_GROUPS);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -64,6 +67,8 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts
   windowsRef.current = api.windows;
   const apiRef = useRef(api);
   apiRef.current = api;
+  const hubRef = useRef(hubActive);
+  hubRef.current = hubActive;
   const taskTitleRef = useRef(taskTitle);
   taskTitleRef.current = taskTitle;
 
@@ -168,6 +173,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts
     }
     if (touched) {
       lastUsedRef.current.set(touched.id, Date.now());
+      if (hubRef.current?.current) return;
       const g = groupOf(stateRef.current, touched.id);
       if (g && g.id === stateRef.current.activeGroupId && !touched.minimized && !touched.focused) apiRef.current.focusWindow(touched.id);
     }
@@ -193,7 +199,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts
 
   // Split mode keeps at most three full windows; the least recently used go to the tray.
   useEffect(() => {
-    if (!active || active.mode !== "split") return;
+    if (!active || active.mode !== "split" || hubRef.current?.current) return;
     const extra = overflowing(active, (id) => { const w = winById(id); return !!w && isOpen(w) && !w.minimized; }, lastUsed);
     for (const id of extra) apiRef.current.toggleMinimize(id);
   }, [active, api.windows, winById, lastUsed]);

@@ -21,8 +21,11 @@ export const WIDE_BASE_W = 1800;
 
 /** Modes the user picks for a group with artifacts. */
 export type ArtifactMode = "split" | "focus" | "mosaic" | "fullscreen";
-/** Mode the canvas actually paints: the stage when nothing is open. */
-export type CanvasMode = "stage" | ArtifactMode;
+/** Mode the canvas actually paints: the stage when nothing is open, "hub" for the Hub's lámina,
+ * Explorar and Hilo (its Escucha is the stage). */
+export type CanvasMode = "stage" | "hub" | ArtifactMode;
+/** The Hub's states (stage/v2/useCanvasMode.ts). */
+export type HubLayoutState = "escucha" | "lamina" | "explorar" | "hilo";
 export type KaliView = "map" | "conversation";
 export type MapDensity = "stage" | "compact" | "mini";
 export type MosaicPreset = "1" | "2c" | "2r" | "1+2" | "2x2";
@@ -40,6 +43,10 @@ export interface LayoutInput {
   manualScale?: number;
   /** A tray, overview or other panel occupies the artifact zone even with no window open. */
   zonePanel?: boolean;
+  /** The Hub's state when the canvas is in the Hub (the group modes are then ignored). */
+  hub?: HubLayoutState;
+  /** Cards under «Anteriores» (Escucha shows them in a row above the dock). */
+  hubCards?: number;
 }
 
 export interface CanvasLayout {
@@ -68,6 +75,13 @@ export interface CanvasLayout {
   column: Rect | null;
   /** Kali reduced to a bubble (fullscreen, compact). */
   bubble: Rect | null;
+  /** Hub: the one artifact on screen, the conversation column (Hilo) and the row of cards (Escucha). */
+  lamina: Rect | null;
+  thread: Rect | null;
+  fichas: Rect | null;
+  hubState: HubLayoutState | null;
+  /** Hub · Studio switch, top right (null where Kali's panel carries it). */
+  modeSwitch: Point | null;
   /** Pills and the layout button (null where Kali's column carries them). */
   statusPill: Point | null;
   windowsPill: Point | null;
@@ -101,6 +115,11 @@ export const PANEL_PAD = 18;
 export const RAIL_W = 56;
 /** Avatar on the stage map (design units): the centre of the screen, with its halo. */
 export const STAGE_AVATAR = 160;
+/** Hub: Hilo's reading column and its avatar, the bubble, a card of «Anteriores». */
+export const THREAD_W = 680;
+export const THREAD_AVATAR = 56;
+export const BUBBLE = 56;
+export const FICHA_H = 44;
 const MINIMAP_H = 180;
 
 export function computeLayout(input: LayoutInput): CanvasLayout {
@@ -111,16 +130,18 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
   const compact = isCompact(stage.w, stage.h);
   const wide = W >= WIDE_BASE_W;
   const hasContent = input.visibleWindows > 0 || !!input.zonePanel;
+  const hubState: HubLayoutState | null = input.hub ? (input.hub !== "escucha" && input.hub !== "hilo" && !hasContent ? "escucha" : input.hub) : null;
 
-  let mode: CanvasMode = hasContent ? input.mode : "stage";
+  let mode: CanvasMode = hubState && hubState !== "escucha" ? "hub" : hasContent && !hubState ? input.mode : "stage";
   // A panel in the zone (tray, overview) is shown in the split layout.
-  if (input.visibleWindows === 0 && input.zonePanel) mode = "split";
+  if (!hubState && input.visibleWindows === 0 && input.zonePanel) mode = "split";
   if (compact && (mode === "split" || mode === "mosaic")) mode = "focus";
 
   const out: CanvasLayout = {
     k, mode, compact, wide,
     artifact: null, kali: null, map: null, mapCenter: null, mapDensity: "stage", avatar: STAGE_AVATAR,
     inspector: null, voice: null, dock: null, rail: null, tabs: null, column: null, bubble: null,
+    lamina: null, thread: null, fichas: null, hubState, modeSwitch: null,
     statusPill: null, windowsPill: null, noticesPill: null, layoutButton: null,
   };
 
@@ -135,14 +156,59 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
 
   if (mode === "stage") {
     const kali = r(20, 56, W - 40, H - 56 - 236);
+    const conversation = !hubState && input.kaliView === "conversation";
     out.kali = kali;
-    out.map = input.kaliView === "conversation" ? r(kali.x, kali.y, kali.w, MINIMAP_H) : kali;
+    out.map = conversation ? r(kali.x, kali.y, kali.w, MINIMAP_H) : kali;
     out.mapCenter = centerOf(out.map);
-    out.mapDensity = input.kaliView === "conversation" ? "mini" : "stage";
-    out.avatar = input.kaliView === "conversation" ? 76 : STAGE_AVATAR;
-    out.voice = r((W - 640) / 2, kali.y + kali.h + 8, 640, dockY - 8 - (kali.y + kali.h + 8));
+    out.mapDensity = conversation ? "mini" : "stage";
+    out.avatar = conversation ? 76 : STAGE_AVATAR;
+    // Escucha with cards: a row of «Anteriores» right above the dock, the voice above it.
+    const cards = hubState && (input.hubCards ?? 0) > 0;
+    const voiceBottom = cards ? dockY - 8 - FICHA_H - 10 : dockY - 8;
+    out.voice = r((W - 640) / 2, kali.y + kali.h + 8, 640, voiceBottom - (kali.y + kali.h + 8));
+    if (cards) out.fichas = r((W - 900) / 2, dockY - 10 - FICHA_H, 900, FICHA_H);
     out.dock = dock;
     pills();
+    if (hubState) { out.modeSwitch = out.windowsPill; out.windowsPill = null; }
+  } else if (mode === "hub") {
+    const top = 56;
+    const bottom = 54;
+    if (hubState === "lamina" && !compact) {
+      // P2, Kali presenter: her panel on the left, the lámina on the right.
+      const column = r(20, top, PANEL_W, H - top - bottom);
+      out.column = column;
+      out.kali = column;
+      out.lamina = r(column.x + column.w + 20, top, W - (column.x + column.w + 20) - 20, H - top - bottom);
+      out.mapCenter = { x: column.x + PANEL_PAD + PANEL_AVATAR / 2, y: column.y + PANEL_PAD + PANEL_AVATAR / 2 };
+      out.avatar = PANEL_AVATAR;
+      out.mapDensity = "mini";
+      // Status, notices and the menu live in the panel's header.
+    } else if (hubState === "hilo") {
+      const w = Math.min(THREAD_W, W - 24);
+      const thread = r((W - w) / 2, 24, w, H - 48);
+      out.thread = thread;
+      out.mapCenter = { x: thread.x + 16 + THREAD_AVATAR / 2, y: thread.y + 16 + THREAD_AVATAR / 2 };
+      out.avatar = THREAD_AVATAR;
+      out.mapDensity = "mini";
+      out.statusPill = { x: 20, y: 14 };
+      out.modeSwitch = { x: W - 20, y: 14 };
+      out.noticesPill = { x: 20, y: H - 20 };
+      out.layoutButton = { x: W - 20, y: H - 20 };
+    } else {
+      // Explorar (and the lámina on a small window): the artifact takes the screen, Kali a bubble.
+      // On a small window the lámina leaves a strip at the bottom: notices, the cards, the bubble.
+      const strip = hubState === "explorar" ? 0 : BUBBLE + 20;
+      out.lamina = hubState === "explorar" ? r(0, 0, W, H) : r(12, top, W - 24, H - top - 12 - strip);
+      out.bubble = r(W - 20 - BUBBLE, H - 12 - BUBBLE, BUBBLE, BUBBLE);
+      if (strip) {
+        out.noticesPill = { x: 12, y: H - 12 - (BUBBLE - 36) / 2 };
+        if ((input.hubCards ?? 0) > 0) out.fichas = r(150, H - 12 - (BUBBLE + FICHA_H) / 2, W - 150 - 40 - BUBBLE - 20, FICHA_H);
+      }
+      out.mapCenter = centerOf(out.bubble);
+      out.avatar = BUBBLE;
+      out.mapDensity = "mini";
+      if (hubState !== "explorar") { out.statusPill = { x: 12, y: 10 }; out.modeSwitch = { x: W - 12, y: 10 }; }
+    }
   } else if (mode === "split") {
     const aw = Math.round((W - 60) * (wide ? 0.66 : 0.594));
     const ah = H - 56 - 234;
@@ -200,6 +266,10 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
     tabs: scaleRect(out.tabs, k),
     column: scaleRect(out.column, k),
     bubble: scaleRect(out.bubble, k),
+    lamina: scaleRect(out.lamina, k),
+    thread: scaleRect(out.thread, k),
+    fichas: scaleRect(out.fichas, k),
+    modeSwitch: scalePoint(out.modeSwitch, k),
     statusPill: scalePoint(out.statusPill, k),
     windowsPill: scalePoint(out.windowsPill, k),
     noticesPill: scalePoint(out.noticesPill, k),

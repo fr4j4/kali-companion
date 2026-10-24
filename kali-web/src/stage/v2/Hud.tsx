@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { useTranslation } from "react-i18next";
 import {
   Bell, Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus,
-  RectangleHorizontal, Search, Settings, Undo2, Volume2, X, Library } from "lucide-react";
+  RectangleHorizontal, Search, Settings, Undo2, Volume2, X, Library, ArrowLeftRight } from "lucide-react";
 import { useStage } from "../StageProvider";
 import { ModelStatsPanel } from "../HUD";
 import type { ArtifactMode, KaliView, Point } from "../../workspace/layout";
@@ -198,6 +198,8 @@ export interface LayoutMenuProps {
   /** Artifacts of this conversation that are not on screen (closed or in the tray). */
   hiddenArtifacts: number;
   runningJobs: number;
+  /** "Ir al Estudio" / "Ir al Hub". */
+  switchMode?: { label: string; onClick: () => void };
 }
 
 export const MODE_ICONS: Record<ArtifactMode, typeof Columns2> = {
@@ -243,6 +245,7 @@ export function LayoutButton({ style, drop = "up", ...p }: LayoutMenuProps & { s
           <MenuItem onClose={close} icon={<Library size={16} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
           <div className="v2-menu-sep" />
           <div className="v2-pop-title">{t("v2.menu.more")}</div>
+          {p.switchMode && <MenuItem onClose={close} icon={<ArrowLeftRight size={16} />} label={p.switchMode.label} kbd="Ctrl ⇧ T" onClick={p.switchMode.onClick} />}
           {p.kaliView === "map"
             ? <MenuItem onClose={close} icon={<MessageSquare size={16} />} label={t("v2.view.conversation")} onClick={() => p.onKaliView("conversation")} />
             : <MenuItem onClose={close} icon={<Network size={16} />} label={t("v2.view.map")} onClick={() => p.onKaliView("map")} />}

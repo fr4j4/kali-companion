@@ -49,6 +49,10 @@ interface Props {
   /** Double click on the header: work on it in Focus. */
   onExpand?: () => void;
   headerActions?: ReactNode;
+  /** The Hub's lámina: it rises in when it arrives. */
+  lamina?: boolean;
+  /** The × label when it does not close (the Hub puts the lámina down). */
+  closeLabel?: string;
   children: ReactNode;
 }
 
@@ -80,7 +84,7 @@ export function cleanSubtitle(sub: string | null | undefined, title: string): st
 
 function ArtifactShellImpl({
   window: w, rect, z, focused, compact = false, chrome = "window", status, progress, updatedAt,
-  onFocus, onMinimize, onClose, onExpand, headerActions, children,
+  onFocus, onMinimize, onClose, onExpand, headerActions, lamina = false, closeLabel, children,
 }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
@@ -161,7 +165,7 @@ function ArtifactShellImpl({
       ref={ref}
       data-window-id={w.id}
       data-window-type={w.type}
-      className={`v2-shell ${focused ? "is-focused" : ""} ${compact ? "is-compact" : ""} ${chrome === "bare" ? "is-bare" : ""} ${hidden ? "is-hidden" : "v2-enter"}`}
+      className={`v2-shell ${focused ? "is-focused" : ""} ${compact ? "is-compact" : ""} ${chrome === "bare" ? "is-bare" : ""} ${lamina ? "is-lamina" : ""} ${hidden ? "is-hidden" : "v2-enter"}`}
       style={rect ? { left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex: z } : { zIndex: 0 }}
       onPointerDown={hidden ? undefined : onFocus}
       role="region"
@@ -191,10 +195,12 @@ function ArtifactShellImpl({
           <span className="v2-shell-actions" ref={setActionsEl} />
           {headerActions}
           <span className="v2-sep" aria-hidden="true" />
-          <button type="button" className="v2-icon-btn" onClick={(e) => { e.stopPropagation(); onMinimize(); }} aria-label={t("window.minimize") as string} title={t("window.minimize") as string}>
-            <Minus size={16} aria-hidden="true" />
-          </button>
-          <button type="button" className="v2-icon-btn is-close" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label={t("window.close") as string} title={t("window.close") as string}>
+          {!lamina && (
+            <button type="button" className="v2-icon-btn" onClick={(e) => { e.stopPropagation(); onMinimize(); }} aria-label={t("window.minimize") as string} title={t("window.minimize") as string}>
+              <Minus size={16} aria-hidden="true" />
+            </button>
+          )}
+          <button type="button" className="v2-icon-btn is-close" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label={closeLabel ?? t("window.close") as string} title={closeLabel ?? t("window.close") as string}>
             <X size={16} aria-hidden="true" />
           </button>
         </header>

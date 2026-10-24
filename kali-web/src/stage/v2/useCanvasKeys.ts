@@ -5,8 +5,10 @@
  *   Ctrl+1…4         Dividido, Foco, Mosaico, Pantalla completa
  *   Alt+1…9          window 1…9 of the group
  *   Ctrl+Shift+E     Espacio
- *   Ctrl+Shift+F     full screen (the mode and the real window)
- *   Esc              back one level: palette, Espacio, panel, fullscreen, focus/mosaic
+ *   Ctrl+Shift+F     full screen (the mode and the real window); Explorar in the Hub
+ *   Ctrl+Shift+T     Hub ⇄ Estudio
+ *   Esc              back one level: palette, Espacio, panel, fullscreen, focus/mosaic; in the
+ *                    Hub Explorar → Lámina → Escucha, and Hilo back where it came from
  *
  * Shortcuts with Ctrl/Alt work everywhere; Esc only acts when the key is not for a text field, a
  * game or an open dialog.
@@ -22,6 +24,8 @@ export interface CanvasKeyActions {
   windowAt: (index: number) => void;
   space: () => void;
   fullscreen: () => void;
+  /** Hub ⇄ Estudio. */
+  toggleMode?: () => void;
   /** Returns true when it handled Escape. */
   back: () => boolean;
 }
@@ -48,6 +52,7 @@ export function useCanvasKeys(actions: CanvasKeyActions, windows: WindowData[], 
       if (ctrl && !e.shiftKey && !e.altKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); a.palette(); return; }
       if (ctrl && e.shiftKey && code === "KeyE") { e.preventDefault(); a.space(); return; }
       if (ctrl && e.shiftKey && code === "KeyF") { e.preventDefault(); a.fullscreen(); return; }
+      if (ctrl && e.shiftKey && code === "KeyT" && a.toggleMode) { e.preventDefault(); a.toggleMode(); return; }
       if (ctrl && !e.shiftKey && !e.altKey && /^Digit[1-4]$/.test(code)) { e.preventDefault(); a.mode(MODE_KEYS[Number(code.slice(5)) - 1]); return; }
       if (e.altKey && !ctrl && !e.shiftKey && /^Digit[1-9]$/.test(code)) { e.preventDefault(); a.windowAt(Number(code.slice(5)) - 1); return; }
       if (e.key === "Escape" && !e.defaultPrevented) {

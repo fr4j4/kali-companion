@@ -5,11 +5,14 @@
  * so switching modes, groups or tabs never loses a window's scroll or state. Each window gets a
  * rectangle from the zone model: cascaded in split, the tab in focus and fullscreen, a panel in
  * mosaic, and nothing (hidden) while it waits in the tray or another group is on screen.
+ *
+ * In the Hub only the lámina has a rectangle; its minimize and close put it down as a card (the
+ * window stays open), and Explorar shows it bare.
  */
 
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Maximize2 } from "lucide-react";
 import type { ArtifactEvent } from "../../lib/protocol";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { cascadeSlots, defaultPreset, isCompactPanel, mosaicLayout, PRESET_PANELS, type CanvasLayout, type Rect } from "../../workspace/layout";
@@ -23,6 +26,8 @@ interface Props {
   canvas: CanvasStateApi;
   layout: CanvasLayout;
   status: WindowStatusApi;
+  /** The Hub is on screen: it decides the one window seen. */
+  hub?: { currentId: number | null; exploring: boolean; onPutDown: () => void; onExplore: () => void };
 }
 
 /** Which window ids sit in which mosaic panel. */
@@ -34,7 +39,7 @@ export function mosaicAssignment(tabIds: number[], panelIds: number[], preset: k
   return { preset: chosen.length < PRESET_PANELS[p] ? defaultPreset(chosen.length) : p, ids: chosen };
 }
 
-export function WindowLayer({ api, canvas, layout, status }: Props) {
+export function WindowLayer({ api, canvas, layout, status, hub }: Props) {
   const { t } = useTranslation();
   const { active, mode: groupMode, visibleIds, tabIds, panel, space } = canvas;
 
@@ -44,6 +49,10 @@ export function WindowLayer({ api, canvas, layout, status }: Props) {
   // Rectangle (and compact flag) per window id for this frame.
   const placement = useMemo(() => {
     const map = new Map<number, { rect: Rect; compact: boolean }>();
+    if (hub) {
+      if (layout.lamina && hub.currentId != null && !space) map.set(hub.currentId, { rect: layout.lamina, compact: false });
+      return { map, preset: null as null | string };
+    }
     if (!zone || space || (panel && effMode === "split") || !active) return { map, preset: null as null | string };
     if (effMode === "split") {
       const slots = cascadeSlots(zone, visibleIds.length, layout.wide);
@@ -58,7 +67,7 @@ export function WindowLayer({ api, canvas, layout, status }: Props) {
       return { map, preset };
     }
     return { map, preset: null };
-  }, [zone, space, panel, effMode, active, visibleIds, tabIds, layout.wide, layout.k]);
+  }, [hub, layout.lamina, zone, space, panel, effMode, active, visibleIds, tabIds, layout.wide, layout.k]);
 
   const detach = (artifactId?: string) => window.kaliDesktop && artifactId ? (
     <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
@@ -72,6 +81,7 @@ export function WindowLayer({ api, canvas, layout, status }: Props) {
     <div className="v2-window-layer" aria-label={t("canvas.aria_label") as string}>
       {open.map((w) => {
         const place = placement.map.get(w.id);
+        const lamina = !!hub && w.id === hub.currentId;
         const ev = w.content as ArtifactEvent | null;
         const progress = ev && typeof ev === "object" && typeof ev.progress === "number" ? ev.progress : null;
         return (
@@ -82,15 +92,28 @@ export function WindowLayer({ api, canvas, layout, status }: Props) {
             z={w.zIndex}
             focused={!!place && w.focused}
             compact={place?.compact}
-            chrome={effMode === "fullscreen" ? "bare" : "window"}
+            chrome={effMode === "fullscreen" || (lamina && hub!.exploring) ? "bare" : "window"}
+            lamina={lamina}
             status={status.status.get(w.id) ?? null}
             progress={progress}
             updatedAt={status.updatedAt(w.id)}
             onFocus={() => canvas.focusWindow(w.id)}
-            onMinimize={() => canvas.minimize(w.id)}
-            onClose={() => canvas.close(w.id)}
-            onExpand={() => { canvas.focusWindow(w.id); canvas.setMode(groupMode === "focus" ? "split" : "focus"); }}
-            headerActions={detach(w.artifactId)}
+            onMinimize={() => (lamina ? hub!.onPutDown() : canvas.minimize(w.id))}
+            onClose={() => (lamina ? hub!.onPutDown() : canvas.close(w.id))}
+            onExpand={() => {
+              if (lamina) { hub!.onExplore(); return; }
+              canvas.focusWindow(w.id); canvas.setMode(groupMode === "focus" ? "split" : "focus");
+            }}
+            closeLabel={lamina ? t("v2.hub.put_down") as string : undefined}
+            headerActions={lamina ? (
+              <>
+                <button type="button" className="v2-icon-btn" title={`${t("v2.hub.explore")} · Ctrl ⇧ F`} aria-label={t("v2.hub.explore") as string}
+                  onClick={(e) => { e.stopPropagation(); hub!.onExplore(); }}>
+                  <Maximize2 size={16} aria-hidden="true" />
+                </button>
+                {detach(w.artifactId)}
+              </>
+            ) : detach(w.artifactId)}
           >
             <WindowContentRouter window={w} api={api} />
           </ArtifactShell>

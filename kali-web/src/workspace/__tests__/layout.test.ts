@@ -43,7 +43,7 @@ describe("computeLayout", () => {
       expect(l.artifact).toEqual({ x: 70, y: 52, w: 976, h: 834 });
       expect(l.map).toBeNull();
       expect(l.mapCenter).toEqual({ x: 1060 + 18 + 36, y: 18 + 36 });
-      expect(l.avatar).toBe(72);
+      expect(l.avatar).toBeCloseTo(72 * l.k, 0);
       expect(l.mapDensity).toBe("mini");
     }
   });
@@ -128,5 +128,71 @@ describe("mosaicLayout", () => {
   it("flags small panels for the compact view", () => {
     expect(isCompactPanel({ x: 0, y: 0, w: 330, h: 260 })).toBe(true);
     expect(isCompactPanel({ x: 0, y: 0, w: 600, h: 400 })).toBe(false);
+  });
+});
+
+describe("computeLayout · Hub", () => {
+  const hub = (state: "escucha" | "lamina" | "explorar" | "hilo", w = 1440, h = 900, cards = 0, current = true) =>
+    computeLayout({ mode: "split", stage: { w, h }, visibleWindows: current ? 1 : 0, hub: state, hubCards: cards });
+  const inside = (r: { x: number; y: number; w: number; h: number }, w: number, h: number) =>
+    r.x >= 0 && r.y >= 0 && r.x + r.w <= w + 0.5 && r.y + r.h <= h + 0.5;
+
+  it("Escucha is the stage, with the cards above the dock and the switch top right", () => {
+    const none = hub("escucha", 1440, 900, 0, false);
+    expect(none.mode).toBe("stage");
+    expect(none.fichas).toBeNull();
+    expect(none.modeSwitch).not.toBeNull();
+    expect(none.windowsPill).toBeNull();
+    const l = hub("escucha", 1440, 900, 2, false);
+    expect(l.fichas).not.toBeNull();
+    expect(l.fichas!.y + l.fichas!.h).toBeLessThanOrEqual(l.dock!.y);
+    expect(l.voice!.y + l.voice!.h).toBeLessThanOrEqual(l.fichas!.y);
+  });
+
+  it("a lámina without a window is Escucha", () => {
+    expect(hub("lamina", 1440, 900, 0, false).mode).toBe("stage");
+  });
+
+  for (const [w, h] of [[1440, 900], [1920, 1080]]) {
+    it(`Lámina at ${w}×${h}: Kali's panel left, the artifact right, the avatar in the panel's slot`, () => {
+      const l = hub("lamina", w, h);
+      expect(l.mode).toBe("hub");
+      expect(l.column!.x).toBeLessThan(l.lamina!.x);
+      expect(l.column!.x + l.column!.w).toBeLessThan(l.lamina!.x);
+      expect(inside(l.lamina!, w, h)).toBe(true);
+      expect(l.bubble).toBeNull();
+      const c = l.mapCenter!;
+      expect(c.x).toBeGreaterThan(l.column!.x);
+      expect(c.x).toBeLessThan(l.column!.x + 120 * l.k);
+      expect(l.avatar).toBeCloseTo(72 * l.k, 0);
+    });
+  }
+
+  it("Explorar: the artifact takes the screen and Kali is a bubble", () => {
+    const l = hub("explorar");
+    expect(l.lamina).toEqual({ x: 0, y: 0, w: 1440, h: 900 });
+    expect(l.bubble).not.toBeNull();
+    expect(l.column).toBeNull();
+    expect(l.mapCenter!.x).toBeCloseTo(l.bubble!.x + l.bubble!.w / 2);
+  });
+
+  it("Hilo: a centred reading column with the avatar in its header", () => {
+    const l = hub("hilo");
+    expect(l.thread!.w).toBe(680);
+    expect(l.thread!.x).toBe((1440 - 680) / 2);
+    expect(l.lamina).toBeNull();
+    expect(l.avatar).toBe(56);
+    expect(l.mapCenter!.y).toBeLessThan(l.thread!.y + 80);
+  });
+
+  it("a small window shows the lámina wide, with a strip for notices, cards and the bubble", () => {
+    const l = hub("lamina", 1152, 700, 3);
+    expect(l.compact).toBe(true);
+    expect(l.column).toBeNull();
+    expect(l.bubble).not.toBeNull();
+    expect(l.lamina!.y + l.lamina!.h).toBeLessThanOrEqual(l.bubble!.y);
+    expect(l.fichas).not.toBeNull();
+    expect(l.fichas!.x + l.fichas!.w).toBeLessThanOrEqual(l.bubble!.x);
+    expect(inside(l.lamina!, 1152, 700)).toBe(true);
   });
 });
