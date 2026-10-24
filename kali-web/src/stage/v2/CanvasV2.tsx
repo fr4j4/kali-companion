@@ -101,7 +101,17 @@ export function CanvasV2(p: Props) {
   const mode = layout.mode;
   const artifactMode: ArtifactMode = mode === "stage" ? canvas.mode : mode;
   const openCount = api.windows.filter((w) => !w.closed).length;
-  const consent = chat.consentRequest && !chat.consentRequest.handled_by_agent ? chat.consentRequest : null;
+  const pending = chat.consentRequest && !chat.consentRequest.handled_by_agent ? chat.consentRequest : null;
+  // A command's permission is asked inside the terminal when one is on screen; the Kali zone
+  // then stays quiet so there is one question (and one countdown), not two.
+  const terminalAsks = useMemo(() => {
+    if (!pending || (pending.tool !== "run_command" && pending.tool !== "run_tests") || !active || space || panel) return false;
+    const shown = canvas.mode === "split" && !panel ? canvas.visibleIds
+      : canvas.mode === "mosaic" ? canvas.tabIds
+      : [active.activeId != null && canvas.tabIds.includes(active.activeId) ? active.activeId : canvas.tabIds[0]];
+    return shown.some((id) => api.windows.find((w) => w.id === id && !w.closed && w.type === "terminal"));
+  }, [pending, active, space, panel, canvas.mode, canvas.visibleIds, canvas.tabIds, api.windows]);
+  const consent = terminalAsks ? null : pending;
 
   // The window title names the task on screen.
   useEffect(() => {

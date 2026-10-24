@@ -4,6 +4,7 @@
 // preview). Here they can only remove it; the next message they write goes out together with it.
 
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import type { CaptureAttachedEvent } from "../lib/protocol";
 
 interface Props {
@@ -15,17 +16,17 @@ export function AttachedCapture({ capture, onDiscard }: Props) {
   const { t } = useTranslation();
   if (!capture) return null;
   return (
-    <div role="status"
-      className="pointer-events-auto fixed bottom-24 right-4 z-40 flex items-center gap-3 rounded-2xl border border-border bg-surface/95 p-2 pr-3 shadow-lg">
+    <div role="status" className="kw-capture">
       {capture.thumb && capture.thumb.startsWith("data:image/") && (
-        <img src={capture.thumb} alt="" draggable={false} className="max-h-16 max-w-[7rem] rounded-md border border-border" />
+        <img src={capture.thumb} alt="" draggable={false} />
       )}
-      <div className="flex flex-col text-sm">
-        <span>{t("capture.attached")}</span>
-        <span className="text-xs text-muted">{t("capture.attached_hint")}</span>
+      <div className="flex min-w-0 flex-col">
+        <span className="kw-capture-title">{t("capture.attached")}</span>
+        <span className="kw-capture-hint">{t("capture.attached_hint")}</span>
       </div>
-      <button type="button" aria-label={t("capture.discard") as string} onClick={onDiscard}
-        className="rounded-full border border-border px-2 py-1 text-sm hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-accent">✕</button>
+      <button type="button" className="v2-icon-btn sm" aria-label={t("capture.discard") as string} title={t("capture.discard") as string} onClick={onDiscard}>
+        <X size={14} aria-hidden="true" />
+      </button>
     </div>
   );
 }

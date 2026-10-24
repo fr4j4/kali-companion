@@ -1,38 +1,48 @@
+/**
+ * ReasoningWidget — how Kali got to her last answer, as quiet serif notes. While she is still
+ * thinking the text grows with a cursor at the end.
+ */
+
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollableWidget } from "./base/ScrollableWidget";
 import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { useStage } from "../../stage/StageProvider";
+import { WidgetFooter, WidgetToolbar } from "./base/WidgetChrome";
+import { useShellSubtitle } from "../../stage/v2/shell";
+import { wordCount } from "./DocumentWidget";
 
 export function ReasoningWidget() {
   const { t } = useTranslation();
   const { chat } = useStage();
 
-  const text = useMemo(() => {
-    const lastMsg = [...chat.messages].reverse().find((m) => m.reasoning);
-    return lastMsg?.reasoning ?? "";
-  }, [chat.messages]);
+  const { text, live } = useMemo(() => {
+    const msgs = [...chat.messages].reverse();
+    const lastMsg = msgs.find((m) => m.reasoning);
+    return { text: lastMsg?.reasoning ?? "", live: !!chat.isTurnActive && msgs[0] === lastMsg };
+  }, [chat.messages, chat.isTurnActive]);
 
-  const actions: HeaderAction[] = useMemo(() => {
-    const acts: HeaderAction[] = [];
-    acts.push({ type: "copy", getContent: () => text, tip: t("widget.document.copy") });
-    return acts;
-  }, [text, t]);
-
+  const actions: HeaderAction[] = useMemo(() => [{ type: "copy", getContent: () => text, tip: t("widget.document.copy") }], [text, t]);
   const { rendered: headerActions } = useHeaderActions(actions);
+  const paragraphs = useMemo(() => text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean), [text]);
+
+  useShellSubtitle(live ? t("v2.reasoning.thinking") : t("v2.reasoning.last_answer"));
 
   return (
-    <ScrollableWidget searchable={false}>
-      {headerActions.length > 0 && (
-        <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-fg/5 shrink-0">
-          {headerActions}
-        </div>
-      )}
-      <div className="flex-1 p-4 overflow-y-auto scrollbar-thin">
-        <pre className="text-sm text-fg leading-relaxed whitespace-pre-wrap font-sans" style={{ fontStyle: "italic" }}>
-          {text}
-        </pre>
+    <ScrollableWidget searchable={false} autoScroll>
+      <WidgetToolbar>{headerActions}</WidgetToolbar>
+      <div className="kw-reasoning">
+        {paragraphs.length === 0 && <p className="kw-empty">{t("v2.reasoning.empty")}</p>}
+        {paragraphs.map((p, i) => (
+          <p key={i}>
+            {p}
+            {live && i === paragraphs.length - 1 && <span className="kw-term-caret" aria-hidden="true" />}
+          </p>
+        ))}
       </div>
+      <WidgetFooter>
+        <span className="v2-foot-item">{t("v2.subtitle.words", { count: wordCount(text) })}</span>
+      </WidgetFooter>
     </ScrollableWidget>
   );
 }

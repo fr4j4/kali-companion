@@ -1,5 +1,11 @@
-import { useMemo } from "react";
+/**
+ * PlaceholderWidget — a type this version cannot draw yet. Says so plainly, and keeps the data
+ * one click away instead of filling the window with it.
+ */
+
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Package, ChevronDown, ChevronRight } from "lucide-react";
 import { BaseWidget } from "./base/BaseWidget";
 
 interface Props {
@@ -8,28 +14,27 @@ interface Props {
 
 export function PlaceholderWidget({ content }: Props) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const json = useMemo(() => {
     if (!content) return t("widget.placeholder.no_content");
     try {
-      return JSON.stringify(content, null, 2).slice(0, 1000);
+      return JSON.stringify(content, null, 2).slice(0, 4000);
     } catch {
-      return String(content).slice(0, 1000);
+      return String(content).slice(0, 4000);
     }
-  }, [content]);
+  }, [content, t]);
 
   return (
     <BaseWidget>
-      <div className="p-4 text-sm text-muted space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{'\u{1F4E6}'}</span>
-          <span className="font-medium text-fg">{t("widget.placeholder.unrecognized")}</span>
-        </div>
-        <p className="text-xs text-muted">
-          {t("widget.placeholder.description")}
-        </p>
-        <pre className="mt-2 p-2 rounded-lg bg-black/20 border border-fg/5 text-[10px] text-muted/60 overflow-auto max-h-48 scrollbar-thin">
-          {json}
-        </pre>
+      <div className="kw-empty-state">
+        <span className="kw-empty-icon"><Package size={22} aria-hidden="true" /></span>
+        <h3>{t("widget.placeholder.unrecognized")}</h3>
+        <p>{t("widget.placeholder.description")}</p>
+        <button type="button" className="kw-term-more" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          {open ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+          {t("v2.placeholder.show_data")}
+        </button>
+        {open && <pre className="kw-raw scrollbar-thin">{json}</pre>}
       </div>
     </BaseWidget>
   );

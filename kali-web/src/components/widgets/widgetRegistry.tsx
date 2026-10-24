@@ -1,4 +1,5 @@
 import React from "react";
+import "./widgets-v2.css";
 import { Brain, Gamepad2, Terminal } from "lucide-react";
 import type { WindowType } from "../../workspace/types";
 import { DEFAULT_SIZES, WINDOW_ICONS } from "../../workspace/types";

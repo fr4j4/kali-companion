@@ -115,6 +115,14 @@ export interface ConsoleResponseEvent {
   logs: ConsoleLogEntry[] | null;
 }
 
+/** Frontend → backend: you accepted or discarded one suggestion Kali made in a document. */
+export interface ArtifactSuggestionEvent {
+  event: "artifact_suggestion";
+  artifact_id: string;
+  suggestion_id: string;
+  decision: "accept" | "discard";
+}
+
 export interface ListJobsEvent {
   event: "list_jobs";
 }
@@ -951,7 +959,8 @@ export type IncomingEvent =
   | GameSessionListEvent
   | GameSessionLoadEvent
   | GameSessionDeleteEvent
-  | GetTerminalSessionEvent;
+  | GetTerminalSessionEvent
+  | ArtifactSuggestionEvent;
 
 export type OutgoingEvent =
   | ReadyEvent

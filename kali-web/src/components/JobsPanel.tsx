@@ -1,5 +1,9 @@
+// JobsPanel — long jobs Kali runs in the background: what each one is, its state in words with
+// an icon, a progress bar while it runs, its duration when it ends, and its log on demand.
+
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Loader2, Check, X, Ban, Clock, Image as ImageIcon, Cog, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import type { JobItem } from "../hooks/useChat";
 
@@ -22,19 +26,18 @@ function formatDuration(start?: string, end?: string): string {
   return `${mins}m ${remSecs}s`;
 }
 
-function statusIcon(status: string): string {
+function StatusIcon({ status }: { status: string }) {
   switch (status) {
-    case "running": return "🔄";
-    case "done": return "✅";
-    case "error": return "❌";
-    case "cancelled": return "⊘";
-    default: return "⏳";
+    case "running": return <Loader2 size={14} className="animate-spin text-accent" aria-hidden="true" />;
+    case "done": return <Check size={14} className="text-ok" aria-hidden="true" />;
+    case "error": return <X size={14} className="text-err" aria-hidden="true" />;
+    case "cancelled": return <Ban size={14} className="text-muted" aria-hidden="true" />;
+    default: return <Clock size={14} className="text-muted" aria-hidden="true" />;
   }
 }
 
-function jobTypeIcon(type: string): string {
-  if (type.startsWith("dota_image")) return "🖼️";
-  return "⚙️";
+function JobTypeIcon({ type }: { type: string }) {
+  return type.startsWith("dota_image") ? <ImageIcon size={16} aria-hidden="true" /> : <Cog size={16} aria-hidden="true" />;
 }
 
 export function JobsPanel({ open, onClose, jobs, onCancelJob, onGetLogs }: Props) {
@@ -48,73 +51,58 @@ export function JobsPanel({ open, onClose, jobs, onCancelJob, onGetLogs }: Props
   return (
     <Modal open={open} onClose={onClose} title={runningCount > 0 ? `${t("jobs.title")} (${t("jobs.active", { count: runningCount })})` : t("jobs.title") as string}>
       {jobList.length === 0 && (
-        <p className="text-muted text-sm text-center py-4">{t("jobs.empty")}</p>
+        <p className="kw-empty">{t("jobs.empty")}</p>
       )}
-      <div className="flex flex-col gap-2">
-        {jobList.map((job) => (
-          <div
-            key={job.id}
-            className="border border-border rounded-lg bg-surface overflow-hidden"
-          >
-            <div
-              className="flex items-center gap-2 p-2 cursor-pointer hover:bg-elevated/50"
-              onClick={() => {
-                if (expandedJob === job.id) {
-                  setExpandedJob(null);
-                } else {
-                  setExpandedJob(job.id);
-                  onGetLogs(job.id);
-                }
-              }}
-            >
-              <span className="text-base shrink-0">{jobTypeIcon(job.type)}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-foreground truncate">{job.type}</span>
-                  <span className="text-xs text-muted">{statusIcon(job.status)}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {job.status === "running" && (
-                    <div className="flex-1 h-1.5 bg-elevated rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-accent transition-all duration-300 rounded-full"
-                        style={{ width: `${job.progress}%` }}
-                      />
-                    </div>
-                  )}
-                  <span className="text-xs text-muted shrink-0">
-                    {job.status === "running" ? `${job.progress}%` : formatDuration(job.started_at, job.finished_at)}
-                  </span>
-                </div>
-              </div>
-              {job.status === "running" && (
+      <div className="kw-jobs">
+        {jobList.map((job) => {
+          const open = expandedJob === job.id;
+          return (
+            <div key={job.id} className={`kw-job is-${job.status}`}>
+              <div className="kw-job-row">
                 <button
-                  className="bg-transparent border border-err/30 text-err rounded-md px-2 py-1 text-xs cursor-pointer hover:bg-err/10 shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCancelJob(job.id);
+                  type="button"
+                  className="kw-job-main"
+                  aria-expanded={open}
+                  onClick={() => {
+                    if (open) setExpandedJob(null);
+                    else { setExpandedJob(job.id); onGetLogs(job.id); }
                   }}
                 >
-                  {t("jobs.cancel")}
+                  <span className="kw-job-tile"><JobTypeIcon type={job.type} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="kw-job-name">{job.type}</span>
+                    <span className="kw-job-state">
+                      <StatusIcon status={job.status} />
+                      {t(`jobs.status.${job.status}`, { defaultValue: job.status })}
+                      <span className="kw-mono">{job.status === "running" ? `${job.progress}%` : formatDuration(job.started_at, job.finished_at)}</span>
+                    </span>
+                  </span>
+                  {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
                 </button>
-              )}
-            </div>
-            {expandedJob === job.id && (
-              <div className="border-t border-border bg-elevated/30 p-2">
-                {job.error && (
-                  <p className="text-err text-xs mb-1">{job.error}</p>
-                )}
-                {job.logs && job.logs.length > 0 ? (
-                  <pre className="text-xs text-muted font-mono whitespace-pre-wrap max-h-40 overflow-y-auto scrollbar-thin">
-                    {job.logs.join("\n")}
-                  </pre>
-                ) : (
-                  <p className="text-muted text-xs italic">{t("jobs.no_logs")}</p>
+                {job.status === "running" && (
+                  <button type="button" className="v2-btn is-danger" onClick={() => onCancelJob(job.id)}>
+                    {t("jobs.cancel")}
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-        ))}
+              {job.status === "running" && (
+                <div className="kw-break-track kw-job-bar" role="progressbar" aria-valuenow={job.progress} aria-valuemin={0} aria-valuemax={100}>
+                  <div style={{ width: `${job.progress}%` }} />
+                </div>
+              )}
+              {open && (
+                <div className="kw-job-log">
+                  {job.error && <p className="text-err">{job.error}</p>}
+                  {job.logs && job.logs.length > 0 ? (
+                    <pre className="scrollbar-thin">{job.logs.join("\n")}</pre>
+                  ) : (
+                    <p className="kw-dim">{t("jobs.no_logs")}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </Modal>
   );

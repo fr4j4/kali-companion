@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus,
+  Bell, Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus,
   RectangleHorizontal, Search, Settings, Undo2, Volume2, X,
 } from "lucide-react";
 import { useStage } from "../StageProvider";
@@ -95,7 +95,7 @@ export function WindowsPill({ count, open, onToggle, style }: { count: number; o
   const { t } = useTranslation();
   return (
     <button type="button" className="v2-pill" style={style} onClick={onToggle} aria-expanded={open} title={t("v2.hud.windows_hint") as string}>
-      <LayoutGrid size={15} aria-hidden="true" />
+      <Layers size={15} aria-hidden="true" />
       {t("v2.hud.windows", { count })}
     </button>
   );
@@ -114,10 +114,9 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style }: {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
-  if (!notices.length) return null;
   return (
     <div ref={ref} className="absolute z-40" style={style}>
-      {open && (
+      {open && notices.length > 0 && (
         <div className="v2-pop" style={{ bottom: "calc(100% + 8px)", left: 0 }} role="dialog" aria-label={t("v2.notices.title") as string}>
           <div className="flex items-center justify-between">
             <div className="v2-pop-title">{t("v2.notices.title")}</div>
@@ -144,7 +143,7 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style }: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className={`v2-dot ${notices.some((n) => n.kind === "error") ? "is-error" : "is-working"}`} aria-hidden="true" />
+        {notices.length ? <span className={`v2-dot ${notices.some((n) => n.kind === "error") ? "is-error" : "is-working"}`} aria-hidden="true" /> : <Bell size={15} aria-hidden="true" />}
         {flash ? <span className="v2-flash-text" role="alert">{flash.text}</span> : t("v2.notices.count", { count: notices.length })}
       </button>
     </div>

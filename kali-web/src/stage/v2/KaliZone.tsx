@@ -114,10 +114,12 @@ export function Inspector({ statuses, picked, onDetail, style }: {
   const motive = motiveText(t as never, st);
   return (
     <div className={`v2-inspector ${st.state !== "idle" ? "is-active" : ""}`} style={{ ...style, ["--c" as string]: STATE_VAR[st.state] }} role="status">
-      <Icon size={18} aria-hidden="true" style={{ color: STATE_VAR[st.state], flexShrink: 0 }} />
-      <span className="v2-inspector-title">{t(`v2.node.${st.id}`)} · <span className="v2-word">{stateWord(t as never, st)}</span></span>
-      <span className="v2-inspector-motive min-w-0 flex-1" title={motive}>{motive}</span>
-      <button type="button" className="v2-btn is-quiet" onClick={() => onDetail(st)}>{t("v2.inspector.detail")}</button>
+      <span className="v2-inspector-tile"><Icon size={18} aria-hidden="true" /></span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="v2-inspector-title">{t(`v2.node.${st.id}`)} · <span className="v2-word">{stateWord(t as never, st)}</span></span>
+        <span className="v2-inspector-motive" title={motive}>{motive}</span>
+      </span>
+      <button type="button" className="v2-btn" onClick={() => onDetail(st)}>{t("v2.inspector.detail")}</button>
     </div>
   );
 }
