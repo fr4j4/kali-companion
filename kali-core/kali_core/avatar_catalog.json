@@ -85,7 +85,7 @@
       "delta": { "eyeOpenL": -0.2, "eyeOpenR": -0.2, "lowerLid": 0.5, "pupilScale": 0.05, "browY": 0.4, "blush": 0.5, "earTilt": 0.3, "bodyY": -2, "halo": 0.1, "whisker": 0.2 },
       "description": "Alegría, satisfacción, algo salió bien" },
     "carinoso": { "label": "cariñoso", "decayMs": 4000, "mouth": "catw", "symbol": "heart",
-      "delta": { "eyeOpenL": -0.7, "eyeOpenR": -0.7, "lowerLid": 0.8, "browY": 0.2, "browAngle": -0.2, "blush": 0.8, "earTilt": 0.2, "headTilt": 4, "halo": 0.1 },
+      "delta": { "eyeOpenL": -1.0, "eyeOpenR": -1.0, "lowerLid": 0.6, "browY": 0.2, "browAngle": -0.2, "blush": 0.8, "earTilt": 0.2, "headTilt": 4, "halo": 0.1 },
       "description": "Cariño, ternura, contento al ser acariciado" },
     "sorprendido": { "label": "sorprendido", "decayMs": 2500, "mouth": "o", "symbol": "exclaim",
       "delta": { "eyeOpenL": 0.15, "eyeOpenR": 0.15, "pupilScale": -0.55, "browY": 1, "earTilt": 0.6, "headY": -4, "halo": 0.1 },

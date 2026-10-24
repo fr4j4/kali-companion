@@ -10,9 +10,12 @@ const HALO_COLORS: Record<RenderState["tone"], string> = {
   alert: "#E87A5C",
 };
 
-const LID_TRAVEL = 214; // px the upper lid travels from fully open to fully closed
+export const LID_TRAVEL = 214; // px the upper lid travels from fully open to fully closed
 const LOWER_LID_TRAVEL = 75;
 const SLANT_DEG = 22;
+const CLOSED_FROM = 0.2; // eye opening at which the closed-eye line starts to fade in
+const CLOSED_TO = 0.04;
+const CLOSED_LINE_Y = 522;
 const MOUTH_X_SCALE: Record<string, number> = { smile: 1.12, o: 0.8, angry: 0.9, frown: 0.95, flat: 0.95 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -27,6 +30,10 @@ export class SvgRenderer implements RigRenderer {
   private upperR: SVGGElement | null;
   private lowerL: SVGGElement | null;
   private lowerR: SVGGElement | null;
+  private eyeL: SVGGElement | null;
+  private eyeR: SVGGElement | null;
+  private closedL: SVGElement | null;
+  private closedR: SVGElement | null;
   private pupilL: SVGGElement | null;
   private pupilR: SVGGElement | null;
   private cores: SVGElement[];
@@ -51,6 +58,10 @@ export class SvgRenderer implements RigRenderer {
     this.upperR = q("#eye-right .upper-lid");
     this.lowerL = q("#eye-left .lower-lid");
     this.lowerR = q("#eye-right .lower-lid");
+    this.eyeL = q("#eye-left");
+    this.eyeR = q("#eye-right");
+    this.closedL = q(".eye-closed-left");
+    this.closedR = q(".eye-closed-right");
     this.pupilL = q("#pupil-left-group");
     this.pupilR = q("#pupil-right-group");
     this.cores = all(".pupil-core");
@@ -112,6 +123,21 @@ export class SvgRenderer implements RigRenderer {
     this.attr(this.upperR, "transform", `translate(0 ${lid(s.eyeOpenR)}) rotate(${r2(-s.lidSlant * SLANT_DEG)} 645 480)`);
     this.attr(this.lowerL, "transform", `translate(0 ${r2(-s.lowerLid * LOWER_LID_TRAVEL)})`);
     this.attr(this.lowerR, "transform", `translate(0 ${r2(-s.lowerLid * LOWER_LID_TRAVEL)})`);
+
+    // A nearly shut eye reads better as a single line than as a white disc: cross-fade to the closed-eye
+    // stroke (an arch when the cheeks are pushed up, a soft curve otherwise).
+    const closing = (open: number) => {
+      const c = Math.min(1, Math.max(0, (CLOSED_FROM - open) / (CLOSED_FROM - CLOSED_TO)));
+      return c * c * (3 - 2 * c);
+    };
+    const happy = s.lowerLid > 0.35;
+    const flip = happy ? `translate(0 ${2 * CLOSED_LINE_Y}) scale(1 -1)` : "";
+    for (const [eye, line, open] of [[this.eyeL, this.closedL, s.eyeOpenL], [this.eyeR, this.closedR, s.eyeOpenR]] as const) {
+      const c = r2(closing(open) * 100) / 100;
+      this.attr(eye, "opacity", String(r2((1 - c) * 100) / 100));
+      this.attr(line, "opacity", String(c));
+      this.attr(line, "transform", flip);
+    }
 
     const look = `translate(${r2(s.pupilX)}px, ${r2(s.pupilY)}px)`;
     this.style(this.pupilL, "transform", look);

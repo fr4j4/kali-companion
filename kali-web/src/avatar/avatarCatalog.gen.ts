@@ -389,9 +389,9 @@ export const CATALOG = {
       "mouth": "catw",
       "symbol": "heart",
       "delta": {
-        "eyeOpenL": -0.7,
-        "eyeOpenR": -0.7,
-        "lowerLid": 0.8,
+        "eyeOpenL": -1,
+        "eyeOpenR": -1,
+        "lowerLid": 0.6,
         "browY": 0.2,
         "browAngle": -0.2,
         "blush": 0.8,
