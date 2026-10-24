@@ -21,6 +21,10 @@ if (process.platform === "linux" && !args.includes("--no-sandbox") && !suidSandb
   console.warn("[kali-shell] chrome-sandbox no es setuid root; arrancando con --no-sandbox --no-zygote (sin sudo).");
   // Sin sandbox el zygote muere y el proceso principal se queda colgado; --no-zygote lo evita.
   args.unshift("--no-sandbox", "--no-zygote");
+  // En KDE Wayland, sin sandbox la ventana no recibe clics; XWayland sí.
+  if (process.env.DISPLAY && !args.some((a) => a.startsWith("--ozone-platform"))) {
+    args.unshift("--ozone-platform=x11");
+  }
 }
 
 const child = spawn(electron, [".", ...args], { stdio: "inherit" });
