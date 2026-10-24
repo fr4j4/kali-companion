@@ -196,3 +196,28 @@ describe("computeLayout · Hub", () => {
     expect(inside(l.lamina!, 1152, 700)).toBe(true);
   });
 });
+
+describe("computeLayout · Studio", () => {
+  const studio = (w: number, h: number, groups = 1) => computeLayout({ mode: "focus", stage: { w, h }, visibleWindows: 2, studio: true, groups });
+  it("the area and its head beside Kali's panel; the rail only with two groups", () => {
+    const l = studio(1440, 900);
+    expect(l.mode).toBe("studio");
+    expect(l.rail).toBeNull();
+    expect(l.column!.w).toBe(380);
+    expect(l.area!.x + l.area!.w).toBeLessThanOrEqual(l.column!.x);
+    expect(l.areaHead!.y + l.areaHead!.h).toBeLessThanOrEqual(l.area!.y);
+    expect(l.artifact).toEqual(l.area);
+    const two = studio(1440, 900, 2);
+    expect(two.rail).not.toBeNull();
+    expect(two.area!.x).toBeGreaterThan(two.rail!.w);
+  });
+  it("a small window: the area full width, Kali a bubble under it", () => {
+    const l = studio(1100, 700);
+    expect(l.column).toBeNull();
+    expect(l.bubble).not.toBeNull();
+    expect(l.area!.y + l.area!.h).toBeLessThanOrEqual(l.bubble!.y);
+  });
+  it("with nothing open it is the stage", () => {
+    expect(computeLayout({ mode: "focus", stage: { w: 1440, h: 900 }, visibleWindows: 0, studio: true }).mode).toBe("stage");
+  });
+});

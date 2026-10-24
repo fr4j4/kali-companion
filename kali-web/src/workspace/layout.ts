@@ -23,7 +23,7 @@ export const WIDE_BASE_W = 1800;
 export type ArtifactMode = "split" | "focus" | "mosaic" | "fullscreen";
 /** Mode the canvas actually paints: the stage when nothing is open, "hub" for the Hub's lámina,
  * Explorar and Hilo (its Escucha is the stage). */
-export type CanvasMode = "stage" | "hub" | ArtifactMode;
+export type CanvasMode = "stage" | "hub" | "studio" | ArtifactMode;
 /** The Hub's states (stage/v2/useCanvasMode.ts). */
 export type HubLayoutState = "escucha" | "lamina" | "explorar" | "hilo";
 export type KaliView = "map" | "conversation";
@@ -47,6 +47,10 @@ export interface LayoutInput {
   hub?: HubLayoutState;
   /** Cards under «Anteriores» (Escucha shows them in a row above the dock). */
   hubCards?: number;
+  /** The Studio (its panes fill the area; the group modes are then ignored). */
+  studio?: boolean;
+  /** Groups in the session: the Studio shows the group rail only when there are two or more. */
+  groups?: number;
 }
 
 export interface CanvasLayout {
@@ -80,6 +84,9 @@ export interface CanvasLayout {
   thread: Rect | null;
   fichas: Rect | null;
   hubState: HubLayoutState | null;
+  /** Studio: the head of the area (the group, 1 · 2 · 3 · 4) and the area the panes share. */
+  areaHead: Rect | null;
+  area: Rect | null;
   /** Hub · Studio switch, top right (null where Kali's panel carries it). */
   modeSwitch: Point | null;
   /** Pills and the layout button (null where Kali's column carries them). */
@@ -120,6 +127,9 @@ export const THREAD_W = 680;
 export const THREAD_AVATAR = 56;
 export const BUBBLE = 56;
 export const FICHA_H = 44;
+/** Studio: the head of the area and a pane's row of tabs. */
+export const AREA_HEAD_H = 44;
+export const PANE_TABS_H = 40;
 const MINIMAP_H = 180;
 
 export function computeLayout(input: LayoutInput): CanvasLayout {
@@ -132,16 +142,16 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
   const hasContent = input.visibleWindows > 0 || !!input.zonePanel;
   const hubState: HubLayoutState | null = input.hub ? (input.hub !== "escucha" && input.hub !== "hilo" && !hasContent ? "escucha" : input.hub) : null;
 
-  let mode: CanvasMode = hubState && hubState !== "escucha" ? "hub" : hasContent && !hubState ? input.mode : "stage";
+  let mode: CanvasMode = hubState && hubState !== "escucha" ? "hub" : hasContent && !hubState ? (input.studio ? "studio" : input.mode) : "stage";
   // A panel in the zone (tray, overview) is shown in the split layout.
-  if (!hubState && input.visibleWindows === 0 && input.zonePanel) mode = "split";
+  if (!hubState && input.visibleWindows === 0 && input.zonePanel) mode = input.studio ? "studio" : "split";
   if (compact && (mode === "split" || mode === "mosaic")) mode = "focus";
 
   const out: CanvasLayout = {
     k, mode, compact, wide,
     artifact: null, kali: null, map: null, mapCenter: null, mapDensity: "stage", avatar: STAGE_AVATAR,
     inspector: null, voice: null, dock: null, rail: null, tabs: null, column: null, bubble: null,
-    lamina: null, thread: null, fichas: null, hubState, modeSwitch: null,
+    lamina: null, thread: null, fichas: null, hubState, modeSwitch: null, areaHead: null, area: null,
     statusPill: null, windowsPill: null, noticesPill: null, layoutButton: null,
   };
 
@@ -209,6 +219,32 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
       out.mapDensity = "mini";
       if (hubState !== "explorar") { out.statusPill = { x: 12, y: 10 }; out.modeSwitch = { x: W - 12, y: 10 }; }
     }
+  } else if (mode === "studio") {
+    // T2: the group rail (with two or more groups), the area's head and its panes, Kali's panel.
+    const rail = (input.groups ?? 1) > 1 ? RAIL_W : 0;
+    const columnW = compact ? 0 : PANEL_W;
+    if (rail) out.rail = r(0, 0, RAIL_W, H);
+    const x = rail + 14;
+    const w = W - columnW - x - 14;
+    out.areaHead = r(x, 6, w, AREA_HEAD_H);
+    // On a small window Kali is a bubble in a strip under the area (with the notices).
+    const strip = compact ? 64 + 16 : 0;
+    out.area = r(x, 6 + AREA_HEAD_H + 4, w, H - (6 + AREA_HEAD_H + 4) - 14 - strip);
+    out.artifact = out.area;
+    if (compact) {
+      out.bubble = r(W - 14 - 64, H - 10 - 64, 64, 64);
+      out.mapCenter = centerOf(out.bubble);
+      out.avatar = 56;
+      out.mapDensity = "mini";
+      out.noticesPill = { x: x, y: H - 24 };
+    } else {
+      const column = r(W - PANEL_W, 0, PANEL_W, H);
+      out.column = column;
+      out.kali = column;
+      out.mapCenter = { x: column.x + PANEL_PAD + PANEL_AVATAR / 2, y: column.y + PANEL_PAD + PANEL_AVATAR / 2 };
+      out.mapDensity = "mini";
+      out.avatar = PANEL_AVATAR;
+    }
   } else if (mode === "split") {
     const aw = Math.round((W - 60) * (wide ? 0.66 : 0.594));
     const ah = H - 56 - 234;
@@ -267,6 +303,8 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
     column: scaleRect(out.column, k),
     bubble: scaleRect(out.bubble, k),
     lamina: scaleRect(out.lamina, k),
+    areaHead: scaleRect(out.areaHead, k),
+    area: scaleRect(out.area, k),
     thread: scaleRect(out.thread, k),
     fichas: scaleRect(out.fichas, k),
     modeSwitch: scalePoint(out.modeSwitch, k),

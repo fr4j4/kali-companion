@@ -531,6 +531,35 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
 .v2-port-pulse { animation: v2-pulse 2s ease-out infinite; }
 @keyframes v2-pulse { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(1.9); } }
 
+/* ── Studio: the head of the area, panes with tabs ── */
+.v2-area-head { position: absolute; z-index: 35; display: flex; align-items: center; gap: calc(8px * var(--k)); }
+.v2-group-chip.is-editing { outline: none; border-color: var(--accent); color: var(--fg); font-weight: 600; width: calc(220px * var(--k)); }
+.v2-pane {
+  position: absolute; z-index: 19; display: flex; flex-direction: column;
+  border: 1px solid var(--v2-line); border-radius: var(--v2-r-window); background: var(--bg-elev);
+}
+.v2-pane.is-focused { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.v2-pane-tabs {
+  display: flex; align-items: flex-end; gap: calc(4px * var(--k)); flex-shrink: 0; min-width: 0;
+  padding: 0 calc(6px * var(--k)) 0 calc(8px * var(--k)); border-bottom: 1px solid var(--v2-line);
+}
+.v2-pane-tabs .v2-tablist { flex: 1; }
+.v2-pane-tabs > .v2-icon-btn, .v2-pane-actions { align-self: center; }
+.v2-pane-actions { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.v2-pane .v2-tab { height: calc(34px * var(--k)); touch-action: none; user-select: none; }
+.v2-pane .v2-tab[aria-selected="true"] { background: transparent; border-color: transparent; }
+.v2-pane:not(.is-focused) .v2-tab[aria-selected="true"]::after { background: var(--v2-line-strong); }
+.v2-tab .v2-tab-close { opacity: 0; }
+.v2-tab:hover .v2-tab-close, .v2-tab[aria-selected="true"] .v2-tab-close, .v2-tab-close:focus-visible { opacity: 1; }
+.v2-tab.is-dragged { opacity: .45; }
+.v2-tab-ghost {
+  position: absolute; z-index: 70; pointer-events: none; display: inline-flex; align-items: center; gap: 8px; max-width: 240px;
+  height: 30px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--accent); background: var(--bg-elev);
+  color: var(--fg); font-size: 13px; box-shadow: var(--v2-shadow);
+}
+.v2-shell.is-pane { border: 0; border-radius: 0 0 var(--v2-r-window) var(--v2-r-window); box-shadow: none !important; }
+.v2-shell.is-pane.is-focused { box-shadow: none !important; }
+
 /* ── Hub: the lámina, «Anteriores», Hilo, Explorar ── */
 .v2-shell.is-lamina.v2-enter { animation: v2-lamina-in .32s cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes v2-lamina-in { from { opacity: 0; transform: translateY(calc(24px * var(--k))); } to { opacity: 1; transform: none; } }

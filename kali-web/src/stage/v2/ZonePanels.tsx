@@ -187,7 +187,7 @@ export function Overview({ canvas, windows, rect, onClose, onLibrary }: { canvas
                   <span className="v2-swatch" style={{ width: 10, height: 10, borderRadius: 3, background: groupVar(g), flexShrink: 0 }} aria-hidden="true" />
                   <h3>{g.title}</h3>
                 </div>
-                <div className="v2-card-meta">{t("v2.hud.windows", { count: ws.length })} · {t(`v2.mode.${g.mode}`)} · {t("v2.ago.when", { when: formatAgo(Date.now() - g.lastUsed) })}</div>
+                <div className="v2-card-meta">{t("v2.hud.windows", { count: ws.length })} · {t("v2.ago.when", { when: formatAgo(Date.now() - g.lastUsed) })}</div>
                 <div className="v2-tiles" style={{ marginTop: 4 }}>
                   {ws.slice(0, 6).map((w) => (
                     <button key={w.id} type="button" className="v2-tile" title={w.title} aria-label={w.title} onClick={() => { canvas.openGroup(g.id); canvas.focusWindow(w.id); }}>
@@ -197,8 +197,7 @@ export function Overview({ canvas, windows, rect, onClose, onLibrary }: { canvas
                 </div>
                 <div className="v2-card-actions">
                   <button type="button" className="v2-btn is-primary" onClick={() => canvas.openGroup(g.id)}>{isActive ? t("v2.overview.back") : t("v2.tray.open_group")}</button>
-                  <button type="button" className="v2-btn is-quiet" onClick={() => canvas.openGroup(g.id, "focus")}>{t("v2.mode.focus")}</button>
-                  <button type="button" className="v2-btn is-quiet" onClick={() => canvas.openGroup(g.id, "mosaic")}>{t("v2.mode.mosaic")}</button>
+                  <button type="button" className="v2-btn is-quiet" onClick={() => canvas.openGroup(g.id)}>{t("v2.hub.open")}</button>
                 </div>
               </article>
             );

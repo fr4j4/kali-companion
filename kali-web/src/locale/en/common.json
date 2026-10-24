@@ -1479,5 +1479,14 @@
   "v2.hub.explore_exit": "Leave Explore",
   "v2.hub.put_down": "Put away in Earlier",
   "v2.hub.to_studio": "Go to Studio",
-  "v2.hub.to_hub": "Go to Hub"
+  "v2.hub.to_hub": "Go to Hub",
+  "v2.pane.tabs": "Pane tabs",
+  "v2.pane.maximize": "Maximize pane",
+  "v2.pane.restore": "Restore panes",
+  "v2.pane.split_right": "Split right",
+  "v2.area.rename": "Rename",
+  "v2.area.put_away": "Put the group away",
+  "v2.area.panes": "Panes",
+  "v2.area.preset_one": "{{count}} pane",
+  "v2.area.preset_other": "{{count}} panes"
 }

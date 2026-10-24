@@ -13,11 +13,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bell, Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus,
-  RectangleHorizontal, Search, Settings, Undo2, Volume2, X, Library, ArrowLeftRight } from "lucide-react";
+  Bell, Bug, Cpu, Gamepad2, History, Layers, LayoutGrid, MessageSquare, Network, Palette, Plus,
+  Search, Settings, Undo2, Volume2, X, Library, ArrowLeftRight } from "lucide-react";
 import { useStage } from "../StageProvider";
 import { ModelStatsPanel } from "../HUD";
-import type { ArtifactMode, KaliView, Point } from "../../workspace/layout";
+import type { KaliView, Point } from "../../workspace/layout";
+import { PresetGlyph } from "./AreaHead";
 import type { Notice } from "./useNotices";
 
 // ── Shared: dismiss a popover on outside click or Escape ─────────
@@ -177,10 +178,11 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style, drop = 
 // ── Layout button and menu ──────────────────────────────
 
 export interface LayoutMenuProps {
-  mode: ArtifactMode;
+  /** Panes of the active group (Ctrl+1…4). */
+  panes: number;
   hasWindows: boolean;
   kaliView: KaliView;
-  onMode: (m: ArtifactMode) => void;
+  onPreset: (n: 1 | 2 | 3 | 4) => void;
   onOverview: () => void;
   onSpace: () => void;
   onKaliView: (v: KaliView) => void;
@@ -201,14 +203,6 @@ export interface LayoutMenuProps {
   /** "Ir al Estudio" / "Ir al Hub". */
   switchMode?: { label: string; onClick: () => void };
 }
-
-export const MODE_ICONS: Record<ArtifactMode, typeof Columns2> = {
-  split: Columns2,
-  focus: RectangleHorizontal,
-  mosaic: Grid2x2,
-  fullscreen: Maximize,
-};
-export const MODES: ArtifactMode[] = ["split", "focus", "mosaic", "fullscreen"];
 
 interface MenuItemProps { icon: ReactNode; label: string; kbd?: string; onClick: () => void; checked?: boolean; disabled?: boolean; onClose: () => void }
 
@@ -236,10 +230,9 @@ export function LayoutButton({ style, drop = "up", ...p }: LayoutMenuProps & { s
           {/* Two groups (kit): how the artifacts are laid out, and everything else. The rest of
               the old list also lives in Ctrl+K. */}
           <div className="v2-pop-title">{t("v2.menu.layout")}</div>
-          {MODES.map((m, i) => {
-            const Icon = MODE_ICONS[m];
-            return <MenuItem onClose={close} key={m} icon={<Icon size={16} />} label={t(`v2.mode.${m}`)} kbd={`Ctrl ${i + 1}`} onClick={() => p.onMode(m)} checked={p.hasWindows && p.mode === m} disabled={!p.hasWindows} />;
-          })}
+          {([1, 2, 3, 4] as const).map((n) => (
+            <MenuItem onClose={close} key={n} icon={<PresetGlyph n={n} />} label={t("v2.area.preset", { count: n })} kbd={`Ctrl ${n}`} onClick={() => p.onPreset(n)} checked={p.hasWindows && p.panes === n} disabled={!p.hasWindows} />
+          ))}
           <MenuItem onClose={close} icon={<LayoutGrid size={16} />} label={t("v2.menu.overview")} onClick={p.onOverview} />
           <MenuItem onClose={close} icon={<Layers size={16} />} label={t("v2.menu.space")} kbd="Ctrl ⇧ E" onClick={p.onSpace} />
           <MenuItem onClose={close} icon={<Library size={16} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
@@ -262,7 +255,7 @@ export function LayoutButton({ style, drop = "up", ...p }: LayoutMenuProps & { s
         </div>
       )}
       <button type="button" className="v2-square-btn" style={{ position: "relative" }} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu" aria-label={t("v2.menu.label") as string} title={t("v2.menu.label") as string}>
-        {(() => { const Icon = p.hasWindows ? MODE_ICONS[p.mode] : LayoutGrid; return <Icon size={18} aria-hidden="true" />; })()}
+        {p.hasWindows ? <PresetGlyph n={Math.max(1, Math.min(4, p.panes)) as 1 | 2 | 3 | 4} /> : <LayoutGrid size={18} aria-hidden="true" />}
       </button>
     </div>
   );

@@ -1,13 +1,11 @@
 /**
- * stage/v2/WindowLayer.tsx — Places every open window in its zone for the current mode.
+ * stage/v2/WindowLayer.tsx — Places every open window where the current mode shows it.
  *
  * All open windows stay mounted (hidden ones are skipped by the renderer with content-visibility),
- * so switching modes, groups or tabs never loses a window's scroll or state. Each window gets a
- * rectangle from the zone model: cascaded in split, the tab in focus and fullscreen, a panel in
- * mosaic, and nothing (hidden) while it waits in the tray or another group is on screen.
- *
- * In the Hub only the lámina has a rectangle; its minimize and close put it down as a card (the
- * window stays open), and Explorar shows it bare.
+ * so switching modes, groups, panes or tabs never loses a window's scroll or state. In the Studio
+ * each pane shows its active tab under the pane's row of tabs, with the pane chrome (the widget's
+ * actions go to that row). In the Hub only the lámina has a rectangle; its close puts it down as a
+ * card (the window stays open), and Explorar shows it bare. Everything else gets no rectangle.
  */
 
 import { useMemo } from "react";
@@ -15,11 +13,12 @@ import { useTranslation } from "react-i18next";
 import { ExternalLink, Maximize2 } from "lucide-react";
 import type { ArtifactEvent } from "../../lib/protocol";
 import type { WorkspaceAPI } from "../../workspace/types";
-import { cascadeSlots, defaultPreset, isCompactPanel, mosaicLayout, PRESET_PANELS, type CanvasLayout, type Rect } from "../../workspace/layout";
+import { isCompactPanel, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { ArtifactShell } from "./ArtifactShell";
 import { WindowContentRouter } from "../WindowContentRouter";
 import type { CanvasStateApi } from "./useCanvasState";
 import type { WindowStatusApi } from "./useWindowStatus";
+import { paneBody, type StudioLeaf } from "./Pane";
 
 interface Props {
   api: WorkspaceAPI;
@@ -28,46 +27,29 @@ interface Props {
   status: WindowStatusApi;
   /** The Hub is on screen: it decides the one window seen. */
   hub?: { currentId: number | null; exploring: boolean; onPutDown: () => void; onExplore: () => void };
+  /** The Studio is on screen: its panes, the hosts of their actions, and maximize. */
+  studio?: { leaves: StudioLeaf[]; hosts: Record<string, HTMLElement | null>; onZoom: (leafId: string) => void };
 }
 
-/** Which window ids sit in which mosaic panel. */
-export function mosaicAssignment(tabIds: number[], panelIds: number[], preset: keyof typeof PRESET_PANELS | null) {
-  const p = preset ?? defaultPreset(Math.min(4, tabIds.length));
-  const want = Math.min(PRESET_PANELS[p], tabIds.length);
-  const chosen = panelIds.filter((id) => tabIds.includes(id)).slice(0, want);
-  for (const id of tabIds) { if (chosen.length >= want) break; if (!chosen.includes(id)) chosen.push(id); }
-  return { preset: chosen.length < PRESET_PANELS[p] ? defaultPreset(chosen.length) : p, ids: chosen };
-}
-
-export function WindowLayer({ api, canvas, layout, status, hub }: Props) {
+export function WindowLayer({ api, canvas, layout, status, hub, studio }: Props) {
   const { t } = useTranslation();
-  const { active, mode: groupMode, visibleIds, tabIds, panel, space } = canvas;
-
-  const effMode = layout.mode;
-  const zone = layout.artifact;
+  const { panel, space } = canvas;
 
   // Rectangle (and compact flag) per window id for this frame.
   const placement = useMemo(() => {
-    const map = new Map<number, { rect: Rect; compact: boolean }>();
-    if (hub) {
-      if (layout.lamina && hub.currentId != null && !space) map.set(hub.currentId, { rect: layout.lamina, compact: false });
-      return { map, preset: null as null | string };
+    const map = new Map<number, { rect: Rect; compact: boolean; leaf?: string }>();
+    if (space) return map;
+    if (studio && !panel) {
+      for (const l of studio.leaves) {
+        if (l.activeId == null) continue;
+        const rect = paneBody(l.rect, layout.k);
+        map.set(l.activeId, { rect, compact: isCompactPanel(rect, layout.k), leaf: l.id });
+      }
+    } else if (hub && layout.lamina && hub.currentId != null) {
+      map.set(hub.currentId, { rect: layout.lamina, compact: false });
     }
-    if (!zone || space || (panel && effMode === "split") || !active) return { map, preset: null as null | string };
-    if (effMode === "split") {
-      const slots = cascadeSlots(zone, visibleIds.length, layout.wide);
-      visibleIds.forEach((id, i) => map.set(id, { rect: slots[i], compact: false }));
-    } else if (effMode === "focus" || effMode === "fullscreen") {
-      const id = active.activeId != null && tabIds.includes(active.activeId) ? active.activeId : tabIds[0];
-      if (id != null) map.set(id, { rect: zone, compact: false });
-    } else if (effMode === "mosaic") {
-      const { preset, ids } = mosaicAssignment(tabIds, active.mosaic.panelIds, active.mosaic.preset);
-      const m = mosaicLayout(zone, preset, active.mosaic.ratios, layout.k);
-      ids.forEach((id, i) => { if (m.panels[i]) map.set(id, { rect: m.panels[i], compact: isCompactPanel(m.panels[i], layout.k) }); });
-      return { map, preset };
-    }
-    return { map, preset: null };
-  }, [hub, layout.lamina, zone, space, panel, effMode, active, visibleIds, tabIds, layout.wide, layout.k]);
+    return map;
+  }, [studio, hub, layout.lamina, layout.k, space, panel]);
 
   const detach = (artifactId?: string) => window.kaliDesktop && artifactId ? (
     <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
@@ -80,7 +62,7 @@ export function WindowLayer({ api, canvas, layout, status, hub }: Props) {
   return (
     <div className="v2-window-layer" aria-label={t("canvas.aria_label") as string}>
       {open.map((w) => {
-        const place = placement.map.get(w.id);
+        const place = placement.get(w.id);
         const lamina = !!hub && w.id === hub.currentId;
         const ev = w.content as ArtifactEvent | null;
         const progress = ev && typeof ev === "object" && typeof ev.progress === "number" ? ev.progress : null;
@@ -92,7 +74,8 @@ export function WindowLayer({ api, canvas, layout, status, hub }: Props) {
             z={w.zIndex}
             focused={!!place && w.focused}
             compact={place?.compact}
-            chrome={effMode === "fullscreen" || (lamina && hub!.exploring) ? "bare" : "window"}
+            chrome={place?.leaf ? "pane" : lamina && hub!.exploring ? "bare" : "window"}
+            actionsHost={place?.leaf ? studio?.hosts[place.leaf] ?? null : undefined}
             lamina={lamina}
             status={status.status.get(w.id) ?? null}
             progress={progress}
@@ -102,7 +85,7 @@ export function WindowLayer({ api, canvas, layout, status, hub }: Props) {
             onClose={() => (lamina ? hub!.onPutDown() : canvas.close(w.id))}
             onExpand={() => {
               if (lamina) { hub!.onExplore(); return; }
-              canvas.focusWindow(w.id); canvas.setMode(groupMode === "focus" ? "split" : "focus");
+              if (place?.leaf) studio!.onZoom(place.leaf);
             }}
             closeLabel={lamina ? t("v2.hub.put_down") as string : undefined}
             headerActions={lamina ? (
@@ -113,7 +96,7 @@ export function WindowLayer({ api, canvas, layout, status, hub }: Props) {
                 </button>
                 {detach(w.artifactId)}
               </>
-            ) : detach(w.artifactId)}
+            ) : place?.leaf ? undefined : detach(w.artifactId)}
           >
             <WindowContentRouter window={w} api={api} />
           </ArtifactShell>

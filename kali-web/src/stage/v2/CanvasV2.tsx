@@ -21,9 +21,9 @@
 import "./canvas-v2.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeftRight, Bug, Columns2, Cpu, Eye, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus, RectangleHorizontal, Settings, Undo2, Volume2 } from "lucide-react";
+import { ArrowLeftRight, Bug, Columns2, Cpu, ExternalLink, Eye, Gamepad2, History, Layers, LayoutGrid, Maximize2, MessageSquare, Network, Palette, Plus, Settings, Undo2, Volume2 } from "lucide-react";
 import type { WorkspaceAPI } from "../../workspace/types";
-import { computeLayout, type ArtifactMode, type CanvasLayout, type Rect } from "../../workspace/layout";
+import { computeLayout, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { useStage } from "../StageProvider";
 import { StageDock } from "../StageDock";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
@@ -42,7 +42,10 @@ import { KaliPanel, ModeSeg } from "./KaliPanel";
 import { useCanvasMode } from "./useCanvasMode";
 import { Fichas } from "./Fichas";
 import { ExploreExit, ThreadView } from "./HubViews";
-import { FullscreenChrome, GroupRail, MosaicControls, TabBar } from "./GroupChrome";
+import { GroupRail } from "./GroupChrome";
+import { AreaHead, PresetGlyph } from "./AreaHead";
+import { StudioPanes, studioView } from "./Pane";
+import { leafOf, leaves, splitAt } from "../../workspace/panes";
 import { Overview, Tray } from "./ZonePanels";
 import { SpaceView } from "./SpaceView";
 import { CommandPalette, type PaletteCommand } from "./CommandPalette";
@@ -106,19 +109,28 @@ export function CanvasV2(p: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [bubbleOpen, setBubbleOpen] = useState(false);
 
-  const shownCount = canvas.mode === "split" ? canvas.visibleIds.length : canvas.tabIds.length;
+  const groupCount = canvas.groups.groups.length;
   const layout: CanvasLayout = useMemo(() => computeLayout({
-    mode: panel ? "split" : canvas.mode,
+    mode: "focus",
     stage,
-    visibleWindows: inHub ? (hub.currentId != null ? 1 : 0) : panel ? 0 : shownCount,
+    visibleWindows: inHub ? (hub.currentId != null ? 1 : 0) : canvas.tabIds.length,
     kaliView,
     manualScale: p.manualScale,
     zonePanel: !!panel,
     hub: inHub ? hub.state : undefined,
     hubCards: inHub ? hub.previousIds.length : 0,
-  }), [panel, canvas.mode, stage, shownCount, kaliView, p.manualScale, inHub, hub.state, hub.currentId, hub.previousIds.length]);
+    studio: !inHub,
+    groups: groupCount,
+  }), [panel, stage, canvas.tabIds.length, kaliView, p.manualScale, inHub, hub.state, hub.currentId, hub.previousIds.length, groupCount]);
   const mode = layout.mode;
-  const artifactMode: ArtifactMode = mode === "stage" || mode === "hub" ? canvas.mode : mode;
+  // The Studio's panes for the active group (null in the Hub or with nothing open).
+  const view = useMemo(
+    () => (mode === "studio" && active && layout.area && canvas.tabIds.length ? studioView(active, canvas.tabIds, layout.area, layout.k, stage.w) : null),
+    [mode, active, layout.area, layout.k, canvas.tabIds, stage.w],
+  );
+  const paneCount = view ? (view.zoomed ? 1 : leaves(view.tree).length) : 1;
+  const [hosts, setHosts] = useState<Record<string, HTMLElement | null>>({});
+  const onHost = useCallback((id: string, el: HTMLElement | null) => setHosts((h) => (h[id] === el ? h : { ...h, [id]: el })), []);
   const openCount = api.windows.filter((w) => !w.closed).length;
   const pending = chat.consentRequest && !chat.consentRequest.handled_by_agent ? chat.consentRequest : null;
   // A command's permission is asked inside the terminal when one is on screen; the Kali zone
@@ -126,12 +138,10 @@ export function CanvasV2(p: Props) {
   const terminalAsks = useMemo(() => {
     if (!pending || (pending.tool !== "run_command" && pending.tool !== "run_tests") || space) return false;
     if (inHub) return hub.currentId != null && !!layout.lamina && api.windows.some((w) => w.id === hub.currentId && !w.closed && w.type === "terminal");
-    if (!active || panel) return false;
-    const shown = canvas.mode === "split" && !panel ? canvas.visibleIds
-      : canvas.mode === "mosaic" ? canvas.tabIds
-      : [active.activeId != null && canvas.tabIds.includes(active.activeId) ? active.activeId : canvas.tabIds[0]];
+    if (!view || panel) return false;
+    const shown = view.leaves.map((l) => l.activeId);
     return shown.some((id) => api.windows.find((w) => w.id === id && !w.closed && w.type === "terminal"));
-  }, [pending, active, space, panel, canvas.mode, canvas.visibleIds, canvas.tabIds, api.windows, inHub, hub.currentId, layout.lamina]);
+  }, [pending, space, panel, view, api.windows, inHub, hub.currentId, layout.lamina]);
   const consent = terminalAsks ? null : pending;
 
   // The window title names the task on screen.
@@ -158,22 +168,34 @@ export function CanvasV2(p: Props) {
     api.createWindow("game", { title: t("dock.toys"), icon: "\u{1F3AE}", content: { mode: "launchpad" }, resizable: true, minW: 360, minH: 400 });
   }, [api, canvas, t]);
 
-  const setMode = useCallback((m: ArtifactMode) => {
+  /** Ctrl+1…4: one to four panes; from the Hub it is a way into the Studio. */
+  const toPreset = useCallback((n: 1 | 2 | 3 | 4) => {
     if (!active) return;
-    // From the Hub, a layout is a way into the Studio.
     if (inHub) cmode.enterStudio();
-    canvas.setMode(m);
+    canvas.toPreset(n);
   }, [active, canvas, inHub, cmode]);
 
-  const toggleFullscreen = useCallback(() => {
-    if (!active) return;
-    const entering = canvas.mode !== "fullscreen";
-    canvas.setMode(entering ? "fullscreen" : "split");
-    try {
-      if (entering && !document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => undefined);
-      if (!entering && document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
-    } catch { /* not allowed here */ }
-  }, [active, canvas]);
+  /** Maximize the pane you are on, or bring the panes back. */
+  const toggleZoom = useCallback(() => {
+    if (!view) return;
+    canvas.zoomPane(view.zoomed ? null : view.activeLeaf);
+  }, [view, canvas]);
+
+  const cycleTab = useCallback((dir: 1 | -1) => {
+    const leaf = view?.leaves.find((l) => l.id === view.activeLeaf);
+    if (!leaf || leaf.tabIds.length < 2 || leaf.activeId == null) return;
+    const i = leaf.tabIds.indexOf(leaf.activeId);
+    canvas.focusWindow(leaf.tabIds[(i + dir + leaf.tabIds.length) % leaf.tabIds.length]);
+  }, [view, canvas]);
+
+  const splitRight = useCallback(() => {
+    const id = active?.activeId;
+    if (!view || id == null) return;
+    const leaf = leafOf(view.tree, id);
+    if (!leaf || leaf.tabIds.length < 2) return;
+    canvas.zoomPane(null);
+    canvas.setPanes((tree) => splitAt(tree, leaf.id, "right", id));
+  }, [view, active, canvas]);
 
   const onDetail = useCallback((st: NodeStatus) => {
     const forNode = groupWindows.find((w) => ARTIFACT_NODE[w.type] === st.id || (st.id === "terminal" && w.type === "terminal"));
@@ -190,34 +212,50 @@ export function CanvasV2(p: Props) {
     if (panel) { canvas.setPanel(null); return true; }
     if (picked) { setPicked(null); return true; }
     if (inHub) return cmode.back();
-    if (active && canvas.mode === "fullscreen") { toggleFullscreen(); return true; }
-    if (active && (canvas.mode === "focus" || canvas.mode === "mosaic")) { canvas.setMode("split"); return true; }
+    if (view?.zoomed) { canvas.zoomPane(null); return true; }
     return false;
-  }, [paletteOpen, space, bubbleOpen, panel, picked, active, canvas, toggleFullscreen, inHub, cmode]);
+  }, [paletteOpen, space, bubbleOpen, panel, picked, canvas, inHub, cmode, view]);
 
   const explore = useCallback(() => (hub.state === "explorar" ? cmode.back() : cmode.explore()), [hub.state, cmode]);
 
   useCanvasKeys({
     palette: () => setPaletteOpen((v) => !v),
-    // The Hub has no layouts: Ctrl+1…4 wait for the Studio.
-    mode: (m) => { if (!inHub) setMode(m); },
+    mode: () => undefined,
+    // The Hub has no panes: Ctrl+1…4 wait for the Studio.
+    preset: (n) => { if (!inHub) toPreset(n); },
+    cycleTab: (d) => { if (!inHub) cycleTab(d); },
+    splitRight: () => { if (!inHub) splitRight(); },
+    closeTab: () => { const id = inHub ? null : active?.activeId; if (id != null) canvas.close(id); },
     windowAt: (i) => {
       if (inHub) { const id = hub.previousIds[i]; if (id != null) cmode.show(id); return; }
       const id = canvas.tabIds[i]; if (id != null) canvas.focusWindow(id);
     },
     space: () => canvas.setSpace(!space),
-    fullscreen: inHub ? explore : toggleFullscreen,
+    fullscreen: inHub ? explore : toggleZoom,
     toggleMode: cmode.toggleMode,
     back,
   }, api.windows);
 
+  // Desktop only: the active tab of a pane opens in its own window.
+  const detachButton = useCallback((id: number) => {
+    const w = api.windows.find((x) => x.id === id);
+    if (!window.kaliDesktop || !w?.artifactId) return null;
+    const artifactId = w.artifactId;
+    return (
+      <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
+        onClick={() => { const sid = localStorage.getItem("kali.sessionId"); if (sid) void window.kaliDesktop?.openArtifact(sid, artifactId); }}>
+        <ExternalLink size={16} aria-hidden="true" />
+      </button>
+    );
+  }, [api.windows, t]);
+
   const runningJobs = Array.from(chat.jobs.values()).filter((j) => j.status === "running").length;
   const hiddenArtifacts = api.windows.filter((w) => w.artifactId && (w.closed || w.minimized)).length;
   const menu = {
-    mode: artifactMode,
+    panes: paneCount,
     hasWindows: !!active && canvas.tabIds.length > 0,
     kaliView: inHub ? (hub.state === "hilo" ? "conversation" : "map") as typeof kaliView : kaliView,
-    onMode: setMode,
+    onPreset: toPreset,
     onOverview: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("overview"); },
     onSpace: () => canvas.setSpace(true),
     onKaliView: inHub ? () => cmode.toggleThread() : canvas.setKaliView,
@@ -262,8 +300,13 @@ export function CanvasV2(p: Props) {
     for (const g of canvas.groups.groups) out.push({ id: `g${g.id}`, section: sGroups, label: g.title, icon: <span className="v2-swatch" style={{ width: 10, height: 10, borderRadius: 3, background: `var(--${g.color})` }} />, run: () => canvas.openGroup(g.id) });
     const sMode = t("v2.menu.layout");
     if (active) {
-      const icons = { split: Columns2, focus: RectangleHorizontal, mosaic: Grid2x2, fullscreen: Maximize };
-      (["split", "focus", "mosaic", "fullscreen"] as ArtifactMode[]).forEach((m, i) => { const I = icons[m]; out.push({ id: `m${m}`, section: sMode, label: t(`v2.mode.${m}`), kbd: `Ctrl ${i + 1}`, icon: <I size={16} />, run: () => setMode(m) }); });
+      ([1, 2, 3, 4] as const).forEach((n) => out.push({ id: `m${n}`, section: sMode, label: t("v2.area.preset", { count: n }), kbd: `Ctrl ${n}`, icon: <PresetGlyph n={n} />, run: () => toPreset(n) }));
+      if (!inHub) {
+        out.push(
+          { id: "split-right", section: sMode, label: t("v2.pane.split_right"), kbd: "Ctrl \\", icon: <Columns2 size={16} />, run: splitRight },
+          { id: "zoom", section: sMode, label: t("v2.pane.maximize"), kbd: "Ctrl ⇧ F", icon: <Maximize2 size={16} />, run: toggleZoom },
+        );
+      }
     }
     const sAct = t("v2.palette.actions");
     const thread = inHub ? hub.state !== "hilo" : kaliView === "map";
@@ -285,7 +328,7 @@ export function CanvasV2(p: Props) {
     );
     if (import.meta.env.DEV && p.onToggleDebug) out.push({ id: "debug", section: sAct, label: t("dock.debug"), icon: <Bug size={16} />, run: p.onToggleDebug });
     return out;
-  }, [canvas, api.windows, active, kaliView, t, setMode, openToys, p, inHub, hub.previousIds, hub.state, cmode]);
+  }, [canvas, api.windows, active, kaliView, t, toPreset, splitRight, toggleZoom, openToys, p, inHub, hub.previousIds, hub.state, cmode]);
 
   // ── Pieces ──
   const isColumn = !!layout.column;
@@ -337,20 +380,16 @@ export function CanvasV2(p: Props) {
             layout={layout}
             status={winStatus}
             hub={inHub ? { currentId: hub.currentId, exploring: hub.state === "explorar", onPutDown: cmode.closeLamina, onExplore: explore } : undefined}
+            studio={view ? { leaves: view.leaves, hosts, onZoom: (leafId) => canvas.zoomPane(view.zoomed ? null : leafId) } : undefined}
           />
         </ErrorBoundary>
       )}
-      {mode === "mosaic" && !panel && <MosaicControls canvas={canvas} layout={layout} />}
 
-      {/* Group chrome */}
-      {!inHub && (mode === "focus" || mode === "mosaic") && (
-        <>
-          <GroupRail canvas={canvas} rect={layout.rail} windows={api.windows} onSpace={() => canvas.setSpace(true)} />
-          <TabBar canvas={canvas} windows={api.windows} status={winStatus.status} rect={layout.tabs} mode={artifactMode} onOverview={() => { canvas.setMode("split"); canvas.setPanel("overview"); }} />
-        </>
-      )}
-      {mode === "fullscreen" && (
-        <FullscreenChrome canvas={canvas} windows={api.windows} status={winStatus.status} layout={layout} onOverview={() => { canvas.setMode("split"); canvas.setPanel("overview"); }} onSpace={() => canvas.setSpace(true)} />
+      {/* Studio: the group rail, the head of the area, the panes' tabs and dividers */}
+      {mode === "studio" && layout.rail && <GroupRail canvas={canvas} rect={layout.rail} windows={api.windows} onSpace={() => canvas.setSpace(true)} />}
+      {view && layout.areaHead && <AreaHead canvas={canvas} rect={layout.areaHead} view={view} onOverview={() => canvas.setPanel("overview")} />}
+      {view && !panel && !space && (
+        <StudioPanes canvas={canvas} view={view} windows={api.windows} status={winStatus.status} k={layout.k} onHost={onHost} extra={detachButton} />
       )}
 
       {/* Zone panels */}

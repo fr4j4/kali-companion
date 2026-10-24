@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_GROUPS, activate, assign, createGroup, detach, groupOf, overflowing, prune, recordClosed,
-  rename, reorder, setMode, toPersisted, togglePin,
+  rename, reorder, setActiveTab, setMode, setPanes, toPersisted, togglePin, zoomPane,
 } from "../groups";
+import { allTabs, leafOf, leaves, splitAt } from "../panes";
 
 describe("groups", () => {
   it("creates a group per task and keeps windows in exactly one group", () => {
@@ -71,5 +72,37 @@ describe("groups", () => {
     expect(state.groups[0].windowIds).toEqual([2]);
     const saved = toPersisted(state, (id) => (id === 2 ? "art-2" : undefined));
     expect(saved.groups[0].artifacts).toEqual(["art-2"]);
+  });
+
+  it("keeps the panes in step: new tabs join the pane you are on, closed ones leave", () => {
+    let { state, id } = createGroup(EMPTY_GROUPS, "Taller", [1, 2]);
+    state = setPanes(state, id, (tree) => splitAt(tree, "p1", "right", 2));
+    state = setActiveTab(state, 2);
+    state = assign(state, 3, id);
+    const g = state.groups[0];
+    expect(leafOf(g.panes, 3)!.id).toBe(leafOf(g.panes, 2)!.id);
+    state = detach(state, 1);
+    expect(leaves(state.groups[0].panes).length).toBe(1);
+    expect(allTabs(state.groups[0].panes).sort()).toEqual([2, 3]);
+  });
+
+  it("a maximized pane comes back when you pick a tab of another pane", () => {
+    let { state, id } = createGroup(EMPTY_GROUPS, "Taller", [1, 2]);
+    state = setPanes(state, id, (tree) => splitAt(tree, "p1", "right", 2));
+    const right = leafOf(state.groups[0].panes, 2)!.id;
+    state = zoomPane(state, id, right);
+    expect(state.groups[0].zoomed).toBe(right);
+    state = setActiveTab(state, 1);
+    expect(state.groups[0].zoomed).toBeNull();
+  });
+
+  it("saves version 2 with the panes by artifact id", () => {
+    let { state, id } = createGroup(EMPTY_GROUPS, "Taller", [1, 2]);
+    state = setPanes(state, id, (tree) => splitAt(tree, "p1", "bottom", 2));
+    const saved = toPersisted(state, (w) => `art-${w}`);
+    expect(saved.v).toBe(2);
+    const panes = saved.groups[0].panes!;
+    expect(panes.kind === "split" && panes.dir).toBe("col");
+    expect(allTabs(panes)).toEqual(["art-1", "art-2"]);
   });
 });

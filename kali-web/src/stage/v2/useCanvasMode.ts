@@ -242,13 +242,8 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
   const enterStudio = useCallback(() => {
     const c = canvasRef.current;
     const h = hubRef.current;
-    if (h.currentId != null) {
-      const g = groupOf(c.groups, h.currentId);
-      c.focusWindow(h.currentId);
-      if (g) c.setMode(g.mode === "mosaic" ? "mosaic" : "focus", g.id);
-    } else if (c.active) {
-      c.setMode(c.active.mode === "mosaic" ? "mosaic" : "focus");
-    }
+    // The lámina becomes the active tab of its group (its pane comes forward).
+    if (h.currentId != null && groupOf(c.groups, h.currentId)) c.focusWindow(h.currentId);
     setMode("studio");
   }, [setMode]);
 

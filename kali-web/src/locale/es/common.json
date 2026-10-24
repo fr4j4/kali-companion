@@ -1479,5 +1479,14 @@
   "v2.hub.explore_exit": "Salir de Explorar",
   "v2.hub.put_down": "Dejar en Anteriores",
   "v2.hub.to_studio": "Ir al Estudio",
-  "v2.hub.to_hub": "Ir al Hub"
+  "v2.hub.to_hub": "Ir al Hub",
+  "v2.pane.tabs": "Pestañas del panel",
+  "v2.pane.maximize": "Maximizar panel",
+  "v2.pane.restore": "Restaurar paneles",
+  "v2.pane.split_right": "Dividir a la derecha",
+  "v2.area.rename": "Renombrar",
+  "v2.area.put_away": "Guardar el grupo",
+  "v2.area.panes": "Paneles",
+  "v2.area.preset_one": "{{count}} panel",
+  "v2.area.preset_other": "{{count}} paneles"
 }

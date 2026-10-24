@@ -27,7 +27,9 @@ import { SidePanelProvider, type SidePanelContent } from "../SidePanelContext";
 import { ShellContext, type ShellApi, type ShellStatus } from "./shell";
 import { useRelativeTime } from "./useRelativeTime";
 
-export type ShellChrome = "window" | "bare";
+/** window: header and footer; pane: the Studio's (the tab row is the header, the widget's
+ * actions go to `actionsHost` in that row), footer only; bare: the content alone. */
+export type ShellChrome = "window" | "pane" | "bare";
 
 interface Props {
   window: WindowData;
@@ -53,6 +55,8 @@ interface Props {
   lamina?: boolean;
   /** The × label when it does not close (the Hub puts the lámina down). */
   closeLabel?: string;
+  /** chrome "pane": where the widget's header actions go (the pane's tab row). */
+  actionsHost?: HTMLElement | null;
   children: ReactNode;
 }
 
@@ -84,7 +88,7 @@ export function cleanSubtitle(sub: string | null | undefined, title: string): st
 
 function ArtifactShellImpl({
   window: w, rect, z, focused, compact = false, chrome = "window", status, progress, updatedAt,
-  onFocus, onMinimize, onClose, onExpand, headerActions, lamina = false, closeLabel, children,
+  onFocus, onMinimize, onClose, onExpand, headerActions, lamina = false, closeLabel, actionsHost, children,
 }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
@@ -108,10 +112,11 @@ function ArtifactShellImpl({
     if (rect) prevRect.current = rect;
   }, [rect]);
 
+  const effActionsEl = chrome === "pane" ? actionsHost ?? null : actionsEl;
   const shell = useMemo<ShellApi>(() => ({
-    actionsEl, footerEl, toolbarEl, compact,
+    actionsEl: effActionsEl, footerEl, toolbarEl, compact,
     setSubtitle, setStatus: setOwnStatus, setProgress: setOwnProgress, setSample,
-  }), [actionsEl, footerEl, toolbarEl, compact]);
+  }), [effActionsEl, footerEl, toolbarEl, compact]);
 
   // Side panels (HTML console, game logs) dock inside the frame instead of floating outside it.
   const panelCfg = widgetRegistry[w.type]?.sidePanel;
@@ -165,7 +170,7 @@ function ArtifactShellImpl({
       ref={ref}
       data-window-id={w.id}
       data-window-type={w.type}
-      className={`v2-shell ${focused ? "is-focused" : ""} ${compact ? "is-compact" : ""} ${chrome === "bare" ? "is-bare" : ""} ${lamina ? "is-lamina" : ""} ${hidden ? "is-hidden" : "v2-enter"}`}
+      className={`v2-shell ${focused ? "is-focused" : ""} ${compact ? "is-compact" : ""} ${chrome === "bare" ? "is-bare" : chrome === "pane" ? "is-pane" : ""} ${lamina ? "is-lamina" : ""} ${hidden ? "is-hidden" : "v2-enter"}`}
       style={rect ? { left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex: z } : { zIndex: 0 }}
       onPointerDown={hidden ? undefined : onFocus}
       role="region"
@@ -214,7 +219,7 @@ function ArtifactShellImpl({
           </div>
         </SidePanelProvider>
       </ShellContext.Provider>
-      {!compact && chrome === "window" && (
+      {!compact && chrome !== "bare" && (
         <footer className="v2-shell-foot">
           <span className="v2-foot-slot" ref={setFooterEl} />
           {(right && !rightOpen) && (

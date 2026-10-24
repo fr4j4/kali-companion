@@ -4,7 +4,8 @@
  * Wires the pure group model (workspace/groups.ts) to the workspace windows:
  *  - every open window joins a group: the one the core names, the one it had last time, the group
  *    Kali is already working in this turn, the group on screen, or a new one;
- *  - the active group shows at most three full windows in split mode, the rest wait in the tray;
+ *  - each group splits into the Studio's panes (workspace/panes.ts); a saved tree comes back with
+ *    the windows it held, and a layout saved before the panes is migrated (fromMosaic);
  *  - closing records the window under "Recently closed" so it can be reopened or undone;
  *  - groups, their mode and mosaic are saved per session (by artifact id).
  */
@@ -13,9 +14,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ArtifactEvent } from "../../lib/protocol";
 import type { WindowData, WorkspaceAPI } from "../../workspace/types";
 import type { ArtifactMode, KaliView, MosaicPreset, MosaicRatios } from "../../workspace/layout";
+import { fromMosaic, mapTabs, reconcile, toPreset as treeToPreset, type PaneNode } from "../../workspace/panes";
 import {
   EMPTY_GROUPS, MAX_VISIBLE, activate, activeGroup as pickActive, assign, createGroup, detach, forgetClosed, groupOf,
-  overflowing, recordClosed, rename as renameGroup, reorder as reorderGroup, setActiveTab, setMode as setGroupMode,
+  recordClosed, setPanes as setGroupPanes, zoomPane as zoomGroupPane, rename as renameGroup, reorder as reorderGroup, setActiveTab, setMode as setGroupMode,
   setMosaic as setGroupMosaic, togglePin as toggleGroupPin, toPersisted,
   type ClosedEntry, type Group, type GroupsState, type PersistedGroups,
 } from "../../workspace/groups";
@@ -63,6 +65,8 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const windowTurn = useRef(new Map<number, number>());
   const persistedRef = useRef<ReturnType<typeof load>>(null);
   const pendingGroupRef = useRef(new Map<string, string>());
+  /** Saved trees (by artifact id) still waiting for their windows; dropped once you change the panes. */
+  const templatesRef = useRef(new Map<string, PaneNode<string>>());
   const windowsRef = useRef(api.windows);
   windowsRef.current = api.windows;
   const apiRef = useRef(api);
@@ -95,6 +99,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     windowTurn.current.clear();
     pendingGroupRef.current.clear();
     persistedRef.current = sessionId ? load(sessionId) : null;
+    templatesRef.current = new Map((persistedRef.current?.groups ?? []).map((g) => [g.id, g.panes ?? fromMosaic({ mode: g.mode, preset: g.preset, ratios: g.ratios, tabIds: g.artifacts })]));
     if (persistedRef.current?.closed) setState((s) => ({ ...s, closed: persistedRef.current?.closed ?? [] }));
   }, [sessionId]);
 
@@ -144,6 +149,12 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
           next = createGroup(next, taskTitleRef.current || w.title, [w.id], {}, now).state;
         }
         if (w.artifactId) pendingGroupRef.current.delete(w.artifactId);
+        // A window coming back to its saved group takes its place in the saved panes.
+        const tpl = rememberedId ? templatesRef.current.get(rememberedId) : undefined;
+        if (tpl && rememberedId && w.artifactId) {
+          const byArtifact = new Map(windows.filter((x) => x.artifactId).map((x) => [x.artifactId!, x.id]));
+          next = setGroupPanes(next, rememberedId, (_tree, g) => reconcile(mapTabs(tpl, (a) => { const id = byArtifact.get(a); return id != null && g.windowIds.includes(id) ? id : undefined; }), g.windowIds, null));
+        }
       }
       windowTurn.current.set(w.id, turnRef.current);
       const g = groupOf(next, w.id);
@@ -196,13 +207,6 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const visibleIds = useMemo(() => openIds(active).filter((id) => !winById(id)?.minimized), [active, openIds, winById, api.windows]);
   /** Tabs of the active group (focus, mosaic, fullscreen). */
   const tabIds = useMemo(() => openIds(active), [active, openIds, api.windows]);
-
-  // Split mode keeps at most three full windows; the least recently used go to the tray.
-  useEffect(() => {
-    if (!active || active.mode !== "split" || hubRef.current?.current) return;
-    const extra = overflowing(active, (id) => { const w = winById(id); return !!w && isOpen(w) && !w.minimized; }, lastUsed);
-    for (const id of extra) apiRef.current.toggleMinimize(id);
-  }, [active, api.windows, winById, lastUsed]);
 
   // ── Actions ─────────────────────────────────────────────
 
@@ -357,6 +361,26 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const setMosaic = useCallback((groupId: string, patch: { preset?: MosaicPreset | null; ratios?: Partial<MosaicRatios>; panelIds?: number[] }) => {
     setState((s) => setGroupMosaic(s, groupId, patch as Partial<Group["mosaic"]>));
   }, []);
+  /** Change the active group's panes (a drag, a divider, Ctrl+\); the saved tree is no longer waited for. */
+  const setPanes = useCallback((fn: (tree: PaneNode) => PaneNode, groupId?: string) => {
+    const gid = groupId ?? stateRef.current.activeGroupId;
+    if (!gid) return;
+    templatesRef.current.delete(gid);
+    setState((s) => setGroupPanes(s, gid, fn));
+  }, []);
+  /** Ctrl+1…4: one, two, three or four panes. */
+  const toPreset = useCallback((n: 1 | 2 | 3 | 4) => {
+    const g = stateRef.current.groups.find((x) => x.id === stateRef.current.activeGroupId);
+    if (!g) return;
+    templatesRef.current.delete(g.id);
+    setState((s) => zoomGroupPane(setGroupPanes(s, g.id, (tree) => treeToPreset(tree, n)), g.id, null));
+    // Windows put in the tray by the old layout come back as tabs.
+    for (const id of g.windowIds) { const w = winById(id); if (w && isOpen(w) && w.minimized) apiRef.current.toggleMinimize(id); }
+  }, [winById]);
+  const zoomPane = useCallback((leafId: string | null) => {
+    const gid = stateRef.current.activeGroupId;
+    if (gid) setState((s) => zoomGroupPane(s, gid, leafId));
+  }, []);
   const activateGroup = useCallback((groupId: string | null) => setState((s) => activate(s, groupId)), []);
 
   /** Windows nobody used for an hour (not pinned, not on screen now). */
@@ -402,6 +426,9 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     togglePin,
     reorder,
     setMosaic,
+    setPanes,
+    toPreset,
+    zoomPane,
   };
 }
 

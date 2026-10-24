@@ -2,7 +2,10 @@
  * stage/v2/useCanvasKeys.ts — Keyboard shortcuts of the neural canvas.
  *
  *   Ctrl+K           command palette
- *   Ctrl+1…4         Dividido, Foco, Mosaico, Pantalla completa
+ *   Ctrl+1…4         one to four panes (Studio)
+ *   Ctrl+Tab         next tab of the pane (Ctrl+Shift+Tab, the previous one)
+ *   Ctrl+\           the tab to a new pane on the right
+ *   Ctrl+W           close the tab
  *   Alt+1…9          window 1…9 of the group
  *   Ctrl+Shift+E     Espacio
  *   Ctrl+Shift+F     full screen (the mode and the real window); Explorar in the Hub
@@ -21,6 +24,11 @@ import type { WindowData } from "../../workspace/types";
 export interface CanvasKeyActions {
   palette: () => void;
   mode: (m: ArtifactMode) => void;
+  /** Ctrl+1…4 in the Studio (instead of `mode`). */
+  preset?: (n: 1 | 2 | 3 | 4) => void;
+  cycleTab?: (dir: 1 | -1) => void;
+  splitRight?: () => void;
+  closeTab?: () => void;
   windowAt: (index: number) => void;
   space: () => void;
   fullscreen: () => void;
@@ -53,7 +61,15 @@ export function useCanvasKeys(actions: CanvasKeyActions, windows: WindowData[], 
       if (ctrl && e.shiftKey && code === "KeyE") { e.preventDefault(); a.space(); return; }
       if (ctrl && e.shiftKey && code === "KeyF") { e.preventDefault(); a.fullscreen(); return; }
       if (ctrl && e.shiftKey && code === "KeyT" && a.toggleMode) { e.preventDefault(); a.toggleMode(); return; }
-      if (ctrl && !e.shiftKey && !e.altKey && /^Digit[1-4]$/.test(code)) { e.preventDefault(); a.mode(MODE_KEYS[Number(code.slice(5)) - 1]); return; }
+      if (ctrl && !e.shiftKey && !e.altKey && /^Digit[1-4]$/.test(code)) {
+        e.preventDefault();
+        const n = Number(code.slice(5)) as 1 | 2 | 3 | 4;
+        if (a.preset) a.preset(n); else a.mode(MODE_KEYS[n - 1]);
+        return;
+      }
+      if (ctrl && !e.altKey && code === "Tab" && a.cycleTab) { e.preventDefault(); a.cycleTab(e.shiftKey ? -1 : 1); return; }
+      if (ctrl && !e.shiftKey && !e.altKey && code === "Backslash" && a.splitRight) { e.preventDefault(); a.splitRight(); return; }
+      if (ctrl && !e.shiftKey && !e.altKey && code === "KeyW" && a.closeTab && !isTextTarget(e.target)) { e.preventDefault(); a.closeTab(); return; }
       if (e.altKey && !ctrl && !e.shiftKey && /^Digit[1-9]$/.test(code)) { e.preventDefault(); a.windowAt(Number(code.slice(5)) - 1); return; }
       if (e.key === "Escape" && !e.defaultPrevented) {
         // A text field keeps Esc for itself, except that an open overlay (Espacio, a zone
