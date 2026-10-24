@@ -82,7 +82,7 @@ export function AppearanceSection({
                   {swatches.map((c, i) => (
                     <span
                       key={i}
-                      className="w-3 h-3 rounded-full border border-white/10"
+                      className="w-3 h-3 rounded-full border border-fg/10"
                       style={{ backgroundColor: c }}
                     />
                   ))}

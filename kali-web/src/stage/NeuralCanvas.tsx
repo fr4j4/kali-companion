@@ -566,7 +566,7 @@ export function NeuralCanvas({
                 {openWindows.map((w) => {
                   const focused = w.focused && !w.minimized;
                   return (
-                    <div key={w.id} className={`rounded-xl border px-3 py-3 flex items-center gap-3 ${focused ? "border-accent bg-accent/10" : "border-border bg-white/[0.03]"}`}>
+                    <div key={w.id} className={`rounded-xl border px-3 py-3 flex items-center gap-3 ${focused ? "border-accent bg-accent/10" : "border-border bg-fg/[0.03]"}`}>
                       <button
                         className="flex-1 min-w-0 text-left flex items-center gap-3"
                         onClick={() => {

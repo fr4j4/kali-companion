@@ -41,7 +41,7 @@ export function DocumentWidget({ content, variant = "markdown" }: Props) {
     return (
       <ScrollableWidget searchable={false} content={content} autoScroll>
         {headerActions.length > 0 && (
-          <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-white/5 shrink-0">
+          <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-fg/5 shrink-0">
             {headerActions}
           </div>
         )}

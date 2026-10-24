@@ -172,11 +172,11 @@ export function SpotlightInput({ open, onClose, firstCharRef }: Props) {
           >
             <div 
               className={`glass-strong rounded-3xl overflow-hidden transition-all duration-300 shadow-2xl border ${
-                value.length > 0 ? "border-accent/40 ring-1 ring-accent/10" : "border-white/10"
+                value.length > 0 ? "border-accent/40 ring-1 ring-accent/10" : "border-fg/10"
               }`}
             >
               {/* Header / Badge */}
-              <div className="flex items-center justify-between px-6 py-3 border-b border-white/5 bg-white/5">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-fg/5 bg-fg/5">
                 <div className="flex items-center gap-2 text-accent/80">
                   <Sparkles size={14} className="animate-pulse" />
                   <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-70">
@@ -212,21 +212,21 @@ export function SpotlightInput({ open, onClose, firstCharRef }: Props) {
               </div>
 
               {/* Footer labels */}
-              <div className="flex items-center justify-center gap-6 px-6 py-3 border-t border-white/5 bg-black/10">
+              <div className="flex items-center justify-center gap-6 px-6 py-3 border-t border-fg/5 bg-black/10">
                 <div className="flex items-center gap-1.5 text-muted/60 text-[10px] font-medium">
-                  <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-fg/80 min-w-[2.5em] text-center">Enter</kbd>
+                  <kbd className="px-1.5 py-0.5 rounded bg-fg/10 border border-fg/10 text-fg/80 min-w-[2.5em] text-center">Enter</kbd>
                   <span>{t("chat.send")}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-muted/60 text-[10px] font-medium">
-                  <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-fg/80 min-w-[5em] text-center">Shift+Enter</kbd>
+                  <kbd className="px-1.5 py-0.5 rounded bg-fg/10 border border-fg/10 text-fg/80 min-w-[5em] text-center">Shift+Enter</kbd>
                   <span>{t("chat.newline")}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-muted/60 text-[10px] font-medium">
-                  <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-fg/80 min-w-[2.5em] text-center">Esc</kbd>
+                  <kbd className="px-1.5 py-0.5 rounded bg-fg/10 border border-fg/10 text-fg/80 min-w-[2.5em] text-center">Esc</kbd>
                   <span>{t("chat.cancel")}</span>
                 </div>
                 {value.length > 0 && (
-                  <div className="ml-auto pl-4 border-l border-white/10 text-accent/50 font-mono text-[10px]">
+                  <div className="ml-auto pl-4 border-l border-fg/10 text-accent/50 font-mono text-[10px]">
                     {value.length}
                   </div>
                 )}

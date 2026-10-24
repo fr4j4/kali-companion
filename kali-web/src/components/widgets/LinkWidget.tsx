@@ -21,7 +21,7 @@ export function LinkWidget({ content }: Props) {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block p-3 hover:bg-white/[0.02] transition group"
+        className="block p-3 hover:bg-fg/[0.02] transition group"
       >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">

@@ -106,7 +106,7 @@ export function HUD({
             <MobileIconButton onClick={onOpenArtifacts} label={t("dock.artifacts_hint") as string}>
               <Library size={15} />
               {totalArtifacts > 0 && (
-                <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-1 bg-accent text-on-accent text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
                   {totalArtifacts}
                 </span>
               )}
@@ -197,7 +197,7 @@ export function HUD({
             <IconButton size="sm" onClick={onOpenJobs} aria-label={t("stage.jobs")} title={t("stage.jobs")} active={runningJobs > 0}>
               <Cpu size={16} />
               {runningJobs > 0 && (
-                <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-1 bg-accent text-on-accent text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
                   {runningJobs}
                 </span>
               )}
@@ -235,17 +235,17 @@ function ArtifactsBeacon({
       onClick={onClick}
       aria-label={t("dock.artifacts_hint") as string}
       title={t("dock.artifacts_hint") as string}
-      className={`artifacts-beacon group inline-flex items-center gap-2 rounded-full bg-accent text-white border border-accent cursor-pointer transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+      className={`artifacts-beacon group inline-flex items-center gap-2 rounded-full bg-accent text-on-accent border border-accent cursor-pointer transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
         compact ? "px-2.5 py-2 min-w-11 justify-center" : "px-3 py-1.5"
       }`}
     >
       <Library size={14} className="shrink-0" />
-      {!compact && <span className="badge text-white/90">{t("dock.artifacts")}</span>}
+      {!compact && <span className="badge text-on-accent/90">{t("dock.artifacts")}</span>}
       {hasArtifacts && (
         <span className="flex items-center gap-1 tabular-nums text-[11px] font-mono leading-none">
-          <span className="text-white">{openCount}</span>
-          <span className="text-white/40">·</span>
-          <span className="text-white/60">{closedCount}</span>
+          <span className="text-on-accent">{openCount}</span>
+          <span className="text-on-accent/40">·</span>
+          <span className="text-on-accent/60">{closedCount}</span>
         </span>
       )}
     </button>
@@ -267,7 +267,7 @@ function MobileIconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="relative h-9 w-9 rounded-xl border border-white/10 bg-[color-mix(in_srgb,var(--bg-elev)_88%,transparent)] text-fg flex items-center justify-center shadow-lg backdrop-blur-md transition active:scale-95"
+      className="relative h-9 w-9 rounded-xl border border-fg/10 bg-[color-mix(in_srgb,var(--bg-elev)_88%,transparent)] text-fg flex items-center justify-center shadow-lg backdrop-blur-md transition active:scale-95"
     >
       {children}
     </button>

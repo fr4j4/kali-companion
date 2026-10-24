@@ -331,7 +331,7 @@ function WindowImpl({
             {content.onClear && (
               <button
                 onClick={content.onClear}
-                className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
+                className="p-1 rounded hover:bg-fg/10 text-muted hover:text-fg transition"
                 title="Clear"
               >
                 <X size={12} />
@@ -339,7 +339,7 @@ function WindowImpl({
             )}
             <button
               onClick={onClose}
-              className="p-1 rounded hover:bg-white/10 text-muted hover:text-fg transition"
+              className="p-1 rounded hover:bg-fg/10 text-muted hover:text-fg transition"
               title="Close panel"
             >
               <X size={12} />
@@ -527,7 +527,7 @@ function WindowHeader({
         {hasSidePanel && onToggleLeftPanel && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleLeftPanel(); }}
-            className={`p-1 rounded transition flex items-center justify-center relative ${leftPanelOpen ? "bg-accent/20 text-accent" : "hover:bg-white/10 text-muted hover:text-fg"}`}
+            className={`p-1 rounded transition flex items-center justify-center relative ${leftPanelOpen ? "bg-accent/20 text-accent" : "hover:bg-fg/10 text-muted hover:text-fg"}`}
             title="Toggle reasoning panel"
           >
             {leftPanelIcon ?? <span className="text-xs">&#9776;</span>}
@@ -542,7 +542,7 @@ function WindowHeader({
         {hasSidePanel && onToggleSidePanel && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSidePanel(); }}
-            className={`p-1 rounded transition flex items-center justify-center relative ${sidePanelOpen ? "bg-accent/20 text-accent" : "hover:bg-white/10 text-muted hover:text-fg"}`}
+            className={`p-1 rounded transition flex items-center justify-center relative ${sidePanelOpen ? "bg-accent/20 text-accent" : "hover:bg-fg/10 text-muted hover:text-fg"}`}
             title="Toggle debug panel"
           >
             {panelIcon ?? <span className="text-xs">&#9776;</span>}

@@ -141,7 +141,7 @@ export function Select({
                   className={`w-full px-3 py-2 text-sm text-left transition cursor-pointer outline-none ${
                     opt.value === value
                       ? "bg-accent/10 text-accent font-semibold"
-                      : "text-foreground hover:bg-white/5 hover:text-foreground"
+                      : "text-foreground hover:bg-fg/5 hover:text-foreground"
                   }`}
                   onClick={() => handleSelect(opt.value)}
                 >

@@ -134,7 +134,7 @@ export function SettingsModal({
                 ? isAISection(s.id)
                   ? "bg-ai-signal/10 text-ai-signal border border-ai-signal/30"
                   : "bg-accent/15 text-accent border border-accent/30"
-                  : "text-fg hover:bg-white/5 border border-transparent"
+                  : "text-fg hover:bg-fg/5 border border-transparent"
             }`}
           >
             <Icon size={14} />
@@ -182,7 +182,7 @@ export function SettingsModal({
                           ? isAISection(s.id)
                             ? "bg-ai-signal/10 text-ai-signal"
                             : "bg-accent/15 text-accent"
-                          : "text-fg hover:bg-white/5"
+                          : "text-fg hover:bg-fg/5"
                       }`}
                     >
                       <Icon size={16} />

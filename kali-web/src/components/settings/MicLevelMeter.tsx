@@ -36,7 +36,7 @@ export function MicLevelMeter({ micLevelRef, threshold, calibrating }: Props) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs text-muted">{t("settings.stt_vad_mic_level")}</label>
-      <div className="relative h-3 rounded-full bg-black/40 overflow-hidden border border-white/5">
+      <div className="relative h-3 rounded-full bg-black/40 overflow-hidden border border-fg/5">
         {/* Live level bar (updated imperatively via rAF) */}
         <div
           ref={barRef}
@@ -45,7 +45,7 @@ export function MicLevelMeter({ micLevelRef, threshold, calibrating }: Props) {
         />
         {/* Threshold marker */}
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-white/70 shadow-sm pointer-events-none"
+          className="absolute top-0 bottom-0 w-0.5 bg-fg/70 shadow-sm pointer-events-none"
           style={{ left: `${thresholdPct}%` }}
         />
       </div>

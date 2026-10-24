@@ -185,7 +185,7 @@ export function GameConnectionPicker({
       <div className="flex items-center justify-between pt-4 mt-3 border-t border-border/30">
         <button
           onClick={checkAllConnections}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           title={t("connections.test")}
         >
           <Circle
@@ -205,7 +205,7 @@ export function GameConnectionPicker({
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           >
             {t("connections.cancel")}
           </button>
@@ -249,7 +249,7 @@ function ActiveConnectionCard({
       onClick={onSelect}
       className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all text-left w-full group ${
         selected
-          ? "border-accent/50 bg-accent/8 shadow-sm"
+          ? "border-accent/50 bg-accent/[0.08] shadow-sm"
           : "border-border bg-surface hover:border-accent/30"
       }`}
     >
@@ -352,7 +352,7 @@ function ConnectionCard({
     <div
       className={`flex flex-col rounded-xl border transition-all overflow-hidden group ${
         selected
-          ? "border-accent/50 bg-accent/8"
+          ? "border-accent/50 bg-accent/[0.08]"
           : isDisabled
           ? "border-border bg-surface/50 opacity-60"
           : "border-border bg-surface hover:border-accent/20"

@@ -63,7 +63,7 @@ export function ArtifactModal({ open, onClose, api }: Props) {
             <button
               key={art.id}
               onClick={() => handleFocus(art.id)}
-              className="w-full text-left flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-border/50 hover:bg-white/[0.06] hover:border-accent/30 transition group cursor-pointer"
+              className="w-full text-left flex items-start gap-3 p-3 rounded-xl bg-fg/[0.02] border border-border/50 hover:bg-fg/[0.06] hover:border-accent/30 transition group cursor-pointer"
             >
               <span className="text-xl mt-0.5 shrink-0">{icon}</span>
               <div className="min-w-0 flex-1">

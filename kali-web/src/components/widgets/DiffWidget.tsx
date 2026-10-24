@@ -50,7 +50,7 @@ export function DiffWidget({ content }: Props) {
           );
         })}
       </pre>
-      <div className="px-3 py-1.5 border-t border-white/5 flex items-center gap-3 text-[10px] text-muted/60">
+      <div className="px-3 py-1.5 border-t border-fg/5 flex items-center gap-3 text-[10px] text-muted/60">
         <span className="text-ok">+{addCount}</span>
         <span className="text-err">-{delCount}</span>
       </div>

@@ -179,7 +179,7 @@ export function Overlay({
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
                   <h2 className="text-sm font-semibold text-foreground m-0">{title}</h2>
                   <button
-                    className="flex items-center justify-center w-7 h-7 bg-transparent border-none text-muted cursor-pointer hover:text-foreground hover:bg-white/5 transition-colors rounded-md focus-visible:ring-2 focus-visible:ring-accent outline-none"
+                    className="flex items-center justify-center w-7 h-7 bg-transparent border-none text-muted cursor-pointer hover:text-foreground hover:bg-fg/5 transition-colors rounded-md focus-visible:ring-2 focus-visible:ring-accent outline-none"
                     onClick={onClose}
                     aria-label={closeLabel}
                   >

@@ -112,7 +112,7 @@ export function SessionDrawer({ open, onClose, sessions, activeSessionId, onNewS
                 <div ref={confirmRef} className="flex items-center gap-2 px-3 py-2">
                   <span className="text-xs text-muted flex-1">{t("sidebar.delete_session_confirm")}</span>
                   <button
-                    className="text-[11px] font-medium text-muted hover:text-fg transition px-2 py-1 rounded hover:bg-white/10"
+                    className="text-[11px] font-medium text-muted hover:text-fg transition px-2 py-1 rounded hover:bg-fg/10"
                     onClick={handleCancelDelete}
                   >
                     {t("common.cancel")}
@@ -172,7 +172,7 @@ export function SessionDrawer({ open, onClose, sessions, activeSessionId, onNewS
               <p className="text-xs text-muted leading-relaxed mb-5">{t("sidebar.delete_all_confirm_body")}</p>
               <div className="flex items-center justify-end gap-2">
                 <button
-                  className="px-3 py-1.5 text-xs font-medium text-muted hover:text-fg transition rounded-lg hover:bg-white/10"
+                  className="px-3 py-1.5 text-xs font-medium text-muted hover:text-fg transition rounded-lg hover:bg-fg/10"
                   onClick={handleCancelDeleteAll}
                 >
                   {t("common.cancel")}

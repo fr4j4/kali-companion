@@ -63,7 +63,7 @@ export function ConsentModal({ request, onRespond }: Props) {
           <div className="mt-3 mb-1">
             <div className="text-xs text-muted mb-1">{t("consent.command_label")}</div>
             <pre
-              className={`bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-fg overflow-x-auto whitespace-pre-wrap break-all scrollbar-thin ${
+              className={`bg-black/40 border border-fg/10 rounded-lg px-3 py-2 text-sm font-mono text-fg overflow-x-auto whitespace-pre-wrap break-all scrollbar-thin ${
                 isLongCommand ? "max-h-[240px] overflow-y-auto" : "max-h-[120px] overflow-y-auto"
               }`}
             >
@@ -74,7 +74,7 @@ export function ConsentModal({ request, onRespond }: Props) {
         <div className="text-xs text-muted text-center mb-3">{countdown}s</div>
         <div className="flex gap-2.5 justify-end max-sm:flex-col">
           <button
-            className="border-none rounded-[10px] px-3.5 py-2.5 text-sm cursor-pointer bg-accent text-white hover:brightness-110 max-lg:min-h-[44px]"
+            className="border-none rounded-[10px] px-3.5 py-2.5 text-sm cursor-pointer bg-accent text-on-accent hover:brightness-110 max-lg:min-h-[44px]"
             onClick={() => onRespond(request.id, "allow")}
           >
             {t("consent.allow_once")}

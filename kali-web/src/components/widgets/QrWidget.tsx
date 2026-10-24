@@ -78,7 +78,7 @@ export function QrWidget({ content }: Props) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={t("widget.qr.placeholder")}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-muted outline-none focus:border-accent/40 transition text-center"
+          className="w-full bg-fg/[0.04] border border-fg/10 rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-muted outline-none focus:border-accent/40 transition text-center"
         />
       </div>
     </BaseWidget>

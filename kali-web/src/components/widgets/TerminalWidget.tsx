@@ -63,7 +63,7 @@ function SessionListItem({
       className={`w-full text-left px-3 py-2.5 rounded-lg transition border ${
         isSelected
           ? "bg-accent/10 border-accent/30"
-          : "bg-white/[0.02] border-transparent hover:bg-white/[0.05]"
+          : "bg-fg/[0.02] border-transparent hover:bg-fg/[0.05]"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ function CommandBlock({
   }, [visibleLines, cmd.status]);
 
   return (
-    <div className="border-b border-white/5 last:border-0 pb-3 mb-3">
+    <div className="border-b border-fg/5 last:border-0 pb-3 mb-3">
       {/* Command header */}
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="min-w-0 flex-1">
@@ -258,7 +258,7 @@ export function TerminalWidget(_props: Props) {
         <div className="flex-1 min-w-0 flex flex-col">
           {selectedSession && (
             <>
-              <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 shrink-0">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-fg/5 shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={`w-2 h-2 rounded-full shrink-0 ${
@@ -274,7 +274,7 @@ export function TerminalWidget(_props: Props) {
                 </div>
                 <button
                   onClick={() => setAutoScroll((v) => !v)}
-                  className="text-xs text-muted hover:text-fg transition shrink-0 px-2 py-0.5 rounded hover:bg-white/5"
+                  className="text-xs text-muted hover:text-fg transition shrink-0 px-2 py-0.5 rounded hover:bg-fg/5"
                 >
                   {autoScroll ? t("terminal.autoscroll.on") : t("terminal.autoscroll.off")}
                 </button>
@@ -309,16 +309,16 @@ export function TerminalWidget(_props: Props) {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerLeave={onPointerUp}
-          className="w-1.5 shrink-0 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors border-l border-white/5"
+          className="w-1.5 shrink-0 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors border-l border-fg/5"
           style={{ touchAction: "none" }}
         />
 
         {/* Sidebar — session history */}
         <div
-          className="shrink-0 border-l border-white/5 flex flex-col"
+          className="shrink-0 border-l border-fg/5 flex flex-col"
           style={{ width: sidebarWidth }}
         >
-          <div className="px-3 py-2 border-b border-white/5 shrink-0">
+          <div className="px-3 py-2 border-b border-fg/5 shrink-0">
             <span className="text-xs font-medium text-muted uppercase tracking-wider">
               {t("terminal.sessions.title")}
             </span>

@@ -18,7 +18,7 @@ export function useHeaderActions(actions: HeaderAction[]) {
           <button
             key={i}
             onClick={() => copy(a.getContent())}
-            className="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center"
+            className="tooltip w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-accent transition flex items-center justify-center"
             title={a.tip}
             aria-label={a.tip}
           >
@@ -31,7 +31,7 @@ export function useHeaderActions(actions: HeaderAction[]) {
           <button
             key={i}
             onClick={() => download(a.content, a.filename)}
-            className="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center"
+            className="tooltip w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-accent transition flex items-center justify-center"
             title={a.tip}
             aria-label={a.tip}
           >
@@ -44,7 +44,7 @@ export function useHeaderActions(actions: HeaderAction[]) {
           <button
             key={i}
             onClick={a.onClick}
-            className="tooltip w-6 h-6 rounded hover:bg-white/10 text-muted hover:text-accent transition flex items-center justify-center"
+            className="tooltip w-6 h-6 rounded hover:bg-fg/10 text-muted hover:text-accent transition flex items-center justify-center"
             title={a.tip}
             aria-label={a.tip}
           >
