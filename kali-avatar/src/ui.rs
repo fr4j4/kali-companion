@@ -335,7 +335,7 @@ pub fn build(
     apply_prefs(&mut state.borrow_mut());
     surface.place_initial(&state.borrow().config.avatar, &monitors);
 
-    // Messages from the page: "ready" flushes the queue, "open" starts kali-shell.
+    // Messages from the page: "ready" flushes the queue, "open" starts kali-shell, "signal" reaches the core.
     {
         let state = state.clone();
         content.connect_script_message_received(Some("kali"), move |_, value| {
@@ -352,6 +352,12 @@ pub fn build(
                         push(&mut st, &item);
                     }
                     apply_prefs(&mut st);
+                }
+                // Presence signals from the page (petting): forwarded to the core's avatar brain.
+                Some("signal") => {
+                    if let Some(kind) = message["signal"]["kind"].as_str().filter(|k| *k == "pet") {
+                        crate::link::send_frame(serde_json::json!({ "event": "presence_signal", "kind": kind }));
+                    }
                 }
                 Some("open") => launch_shell(match message["target"].as_str() {
                     Some("artifacts") => "artifacts",
