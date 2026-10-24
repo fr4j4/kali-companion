@@ -258,9 +258,19 @@ class PresenceEngine:
     def _on_tts_audio(self, s: _Session, ev: dict[str, Any], now: float) -> None:
         dur = ev.get("duration")
         dur_ms = float(dur) * 1000 if isinstance(dur, (int, float)) and dur > 0 else float(self.cfg["unknownSpeechMs"])
+        seg = ev.get("segment")
+        # A streamed chunk continues the segment still queued: grow it with the chunk's real
+        # duration and envelope (window-aligned by the core, so the bytes concatenate in time).
+        if ev.get("continues") and s.speech and s.speech[-1].segment == seg:
+            last = s.speech[-1]
+            last.duration_ms += dur_ms
+            env = ev.get("env") if isinstance(ev.get("env"), str) else ""
+            if env:
+                last.env = base64.b64encode(base64.b64decode(last.env or "") + base64.b64decode(env)).decode("ascii")
+            s.speech_end = last.started_at + last.duration_ms
+            return
         start = max(now, s.speech[-1].started_at + s.speech[-1].duration_ms if s.speech else now)
         env = ev.get("env") if isinstance(ev.get("env"), str) else ""
-        seg = ev.get("segment")
         emo = ev.get("emotion")
         cue = None
         if isinstance(emo, dict) and emo.get("id") in self.emotions:

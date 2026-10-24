@@ -366,6 +366,8 @@ tts_mode: str = os.getenv("KALI_TTS_MODE", "normal")
 tts_max_length: int = int(os.getenv("KALI_TTS_MAX_LENGTH", "2000"))
 tts_http_url: str = os.getenv("KALI_TTS_HTTP_URL", "http://localhost:3000")
 tts_enabled: bool = _env_bool("KALI_TTS_ENABLED", False)
+# Stream PCM from providers that support it (Qwen3) instead of whole WAV segments.
+tts_stream: bool = _env_bool("KALI_TTS_STREAM", True)
 
 # ── STT (kali-ear) ────────────────────────────────────────
 stt_provider: Literal["vosk", "qwen3"] = os.getenv("KALI_STT_PROVIDER", "vosk")
@@ -458,6 +460,7 @@ class _Settings:
     tts_max_length = tts_max_length
     tts_http_url = tts_http_url
     tts_enabled = tts_enabled
+    tts_stream = tts_stream
 
     tts_models_dir = tts_models_dir
     qwen_port = qwen_port

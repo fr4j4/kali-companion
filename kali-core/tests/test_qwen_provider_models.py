@@ -386,3 +386,23 @@ def test_resolve_binary_prefers_override_then_package(tmp_path, monkeypatch):
     monkeypatch.setenv("KALI_QWEN_BINARY", str(own))
     assert qwen_mod._resolve_binary("CUDA0") == own
     assert qwen_mod._resolve_binary("CPU") == own
+
+
+def test_kill_stale_engine_stops_the_orphan_named_in_the_pid_file(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+
+    fake = tmp_path / "tts-server"
+    fake.write_text("import time\ntime.sleep(30)\n")
+    orphan = subprocess.Popen([sys.executable, str(fake)])  # cmdline names tts-server
+    try:
+        prov = QwenTTSProvider.__new__(QwenTTSProvider)
+        prov._port = 18999
+        monkeypatch.setattr(QwenTTSProvider, "_kill_port_owner", lambda self: None)
+        prov._pid_file.write_text(str(orphan.pid))
+        prov._kill_stale_engine()
+        assert orphan.wait(timeout=5) is not None
+        assert not prov._pid_file.exists()
+    finally:
+        if orphan.poll() is None:
+            orphan.kill()

@@ -11,12 +11,14 @@ Supports two modes:
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 import os
 import random
 import re
 import subprocess
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -308,6 +310,7 @@ class QwenTTSProvider:
         self._instructions = ""
         self._seed = -1
         self._proc: subprocess.Popen[bytes] | None = None
+        self._atexit_registered = False
         self._client: httpx.AsyncClient | None = None
         self._log_file: Path | None = None
         self._loaded_model_id: str | None = None
@@ -379,16 +382,11 @@ class QwenTTSProvider:
     def tts_variant(self) -> str:
         return "voicedesign" if self._voice_design else "customvoice"
 
-    async def synthesize(
-        self,
-        text: str,
-        voice: str,
-        mode: str = "normal",
-        language: str = "auto",
-    ) -> TTSResult:
-        if self._client is None:
-            raise RuntimeError("QwenTTSProvider not started (client is None)")
+    # The engine streams s16le mono PCM at this rate (response_format "pcm").
+    sample_rate = 24000
+    supports_streaming = True
 
+    def _speech_payload(self, text: str, voice: str, language: str, response_format: str) -> dict[str, Any]:
         normalized_lang = (
             _normalize_language(language)
             if language and language != "auto"
@@ -406,7 +404,7 @@ class QwenTTSProvider:
             "input": text,
             "voice": effective_voice,
             "language": normalized_lang,
-            "response_format": "wav",
+            "response_format": response_format,
             "speed": 1.0,
         }
         if self._voice_design:
@@ -418,6 +416,21 @@ class QwenTTSProvider:
                 payload["instructions"] = self._instructions
                 payload["seed"] = self._seed
 
+        return payload
+
+    async def synthesize(
+        self,
+        text: str,
+        voice: str,
+        mode: str = "normal",
+        language: str = "auto",
+    ) -> TTSResult:
+        if self._client is None:
+            raise RuntimeError("QwenTTSProvider not started (client is None)")
+
+        payload = self._speech_payload(text, voice, language, "wav")
+        effective_voice = payload["voice"]
+        normalized_lang = payload["language"]
         logger.info(
             "synthesize request: voice=%s variant=%s lang=%s chars=%d text_preview=%r",
             effective_voice,
@@ -444,6 +457,37 @@ class QwenTTSProvider:
             mode=mode,
             segment=0,
         )
+
+    async def synthesize_pcm(
+        self,
+        text: str,
+        voice: str,
+        mode: str = "normal",
+        language: str = "auto",
+    ) -> AsyncIterator[bytes]:
+        """Stream s16le mono PCM (``sample_rate`` Hz) as the engine generates it.
+
+        Raises when the engine answers an error or ends without audio (an invalid
+        voice or language gives 200 with an empty body), so the caller can fall back.
+        """
+        if self._client is None:
+            raise RuntimeError("QwenTTSProvider not started (client is None)")
+        payload = self._speech_payload(text, voice, language, "pcm")
+        logger.info("synthesize_pcm request: voice=%s lang=%s chars=%d", payload["voice"], payload["language"], len(text))
+        t0 = time.perf_counter()
+        total = 0
+        async with self._client.stream("POST", "/v1/audio/speech", json=payload, timeout=60.0) as resp:
+            resp.raise_for_status()
+            async for data in resp.aiter_bytes():
+                if not data:
+                    continue
+                if total == 0:
+                    logger.info("synthesize_pcm first audio after %.3fs", time.perf_counter() - t0)
+                total += len(data)
+                yield data
+        logger.info("synthesize_pcm done: %.3fs bytes=%d", time.perf_counter() - t0, total)
+        if total == 0:
+            raise RuntimeError("Qwen3-TTS returned no audio (check voice/language in the engine log)")
 
     async def list_voices(self, variant: str | None = None) -> list[dict]:
         effective = variant or ("voicedesign" if self._voice_design else "customvoice")
@@ -749,9 +793,43 @@ class QwenTTSProvider:
 
         self._spawn_server()
 
+    @property
+    def _pid_file(self) -> Path:
+        return Path("/tmp") / f"qwen-tts-{self._port}.pid"
+
+    def _kill_stale_engine(self) -> None:
+        """Stop an engine a previous core left running on our port.
+
+        A core reload or crash can skip shutdown(), leaving the old tts-server bound
+        to the port; the new one then fails to bind and the health check talks to the
+        orphan. The pid file names it even where fuser is not installed.
+        """
+        try:
+            pid = int(self._pid_file.read_text().strip())
+        except (OSError, ValueError):
+            pid = 0
+        if pid and pid != os.getpid():
+            try:
+                cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+            except OSError:
+                cmdline = b""
+            if b"tts-server" in cmdline:
+                logger.info("Stopping orphaned qwen-tts-server (pid %d) from a previous run", pid)
+                try:
+                    os.kill(pid, 15)
+                    for _ in range(30):
+                        time.sleep(0.1)
+                        os.kill(pid, 0)
+                    os.kill(pid, 9)
+                except (ProcessLookupError, PermissionError):
+                    pass
+        self._pid_file.unlink(missing_ok=True)
+        self._kill_port_owner()
+
     def _spawn_server(self) -> None:
         log_path = Path("/tmp") / f"qwen-tts-{self._port}.log"
         self._log_file = log_path
+        self._kill_stale_engine()
 
         env = os.environ.copy()
         # El linker no busca librerías en el directorio del binario por sí solo:
@@ -787,6 +865,16 @@ class QwenTTSProvider:
             stderr=subprocess.STDOUT,
             env=env,
         )
+        pid = getattr(self._proc, "pid", None)
+        if pid:
+            try:
+                self._pid_file.write_text(str(pid))
+            except OSError:
+                pass
+        if not self._atexit_registered:
+            # A normal interpreter exit (uvicorn reload sends SIGTERM) stops the engine too.
+            atexit.register(self._shutdown_at_exit)
+            self._atexit_registered = True
 
         self._wait_for_health()
 
@@ -848,6 +936,12 @@ class QwenTTSProvider:
             f"Log ({self._log_file}):\n{log_detail}"
         )
 
+    def _shutdown_at_exit(self) -> None:
+        try:
+            self.shutdown()
+        except Exception:
+            pass
+
     def shutdown(self) -> None:
         logger.info("Shutting down qwen-tts-server (port %s)", self._port)
         if self._client:
@@ -865,6 +959,7 @@ class QwenTTSProvider:
                 self._proc.kill()
                 self._proc.wait()
             self._proc = None
+            self._pid_file.unlink(missing_ok=True)
 
         self._kill_port_owner()
 

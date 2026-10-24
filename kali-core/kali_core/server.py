@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import hmac
 import json
 import logging
@@ -82,6 +83,7 @@ from kali_core.ear.manager import WakeWordDetector
 from kali_core.ear.providers import get_stt_provider
 from kali_core import avatar_config
 from kali_core.presence import tts_duration, tts_envelope
+from kali_core.voice.streaming import LiveEnvelope, PcmChunker, encode_frame, pcm_duration
 from kali_core.presence_engine import PRESENCE_VERSION, PresenceEngine
 from kali_core.user_config import UserConfig, load_or_default as load_user_config, save as save_user_config
 from kali_core.game.gsi import gsi_state
@@ -113,6 +115,7 @@ from kali_core.mind.runtime import AgentRuntime
 from kali_core.nest.job_store import JobStore
 from kali_core.nest.store import SessionStore
 from kali_core.voice.pipeline import TTSPipeline
+from kali_core.voice.providers.base import TTSResult
 from kali_core.voice.providers.http import HTTPTTSProvider
 from kali_core.voice.providers.inproc import InProcTTSProvider
 from kali_core.voice.providers.qwen import (
@@ -609,7 +612,9 @@ class Server:
         if event == "tts_audio":
             compact = {k: v for k, v in payload.items() if k != "audio"}
             compact["duration"] = await asyncio.to_thread(tts_duration, payload)
-            compact["env"] = await asyncio.to_thread(tts_envelope, payload, self.presence.cfg["envHz"])
+            # Streamed chunks bring their own envelope, computed from the real PCM.
+            if not isinstance(payload.get("env"), str):
+                compact["env"] = await asyncio.to_thread(tts_envelope, payload, self.presence.cfg["envHz"])
         elif event == "tool_event":
             compact = {k: payload.get(k) for k in ("event", "session_id", "tool", "status", "call_id")}
         if session_id and "session_id" not in compact:
@@ -3589,7 +3594,11 @@ class Connection:
             if not any(b["emotion"] for b in emotional):
                 emotional = [{"emotion": None, "intensity": None, "text": raw_text, "sent": True}]
             segment_no = 0
-            for block in emotional:
+            stream = settings.tts_stream and getattr(pipeline, "can_stream_pcm", False)
+            for block_id, block in enumerate(emotional):
+                if stream:
+                    segment_no = await self._speak_block_streamed(pipeline, block, block_id, segment_no, session_id)
+                    continue
                 spoken = False
                 async for result in pipeline.synthesize_stream(block["text"]):
                     payload = {
@@ -3612,6 +3621,78 @@ class Connection:
         except Exception as exc:
             logger.exception("TTS pipeline error")
             await self.send({"event": "error", "detail": f"TTS failed: {exc}"})
+
+    async def _speak_block_streamed(
+        self, pipeline: TTSPipeline, block: dict[str, Any], block_id: int, segment_no: int, session_id: str,
+    ) -> int:
+        """Speak one emotion block with streamed PCM; returns the next segment number.
+
+        Same contract as the WAV path: the block's emotion rides on its first audio (the
+        presence engine shows it when that audio starts to sound), and a block with no
+        audio still shows it. Duration and mouth envelope come from the real PCM of each
+        chunk, cut to whole envelope windows so the bytes join without seams.
+        """
+        emotion = {"id": block["emotion"], "intensity": block["intensity"]} if block["emotion"] else None
+        await self.send({"event": "tts_block_start", "session_id": session_id, "block_id": block_id,
+                         "emotion": emotion})
+        env_hz = int(self.server.presence.cfg["envHz"])
+        rate = int(getattr(pipeline.provider, "sample_rate", 24000))
+        spoken = False
+        status = "done"
+        state: dict[int, dict[str, Any]] = {}  # pipeline segment -> {no, seq, chunker, env}
+
+        async def emit(st: dict[str, Any], pcm: bytes, final: bool) -> None:
+            nonlocal spoken
+            if not pcm and not final:
+                return
+            await self.send_bytes(encode_frame(block_id, st["no"], st["seq"], rate, pcm, final))
+            if pcm:
+                presence = {"event": "tts_audio", "session_id": session_id, "segment": st["no"], "block_id": block_id,
+                            "duration": pcm_duration(pcm, rate), "env": st["env"].chunk(pcm), "continues": st["seq"] > 0}
+                if emotion and not spoken:
+                    presence["emotion"] = emotion
+                spoken = True
+                await self.server.mirror_presence(session_id, presence)
+            st["seq"] += 1
+
+        try:
+            # aclosing: a cancelled turn closes the HTTP stream now, so the engine stops generating.
+            async with contextlib.aclosing(pipeline.synthesize_pcm_stream(block["text"])) as pieces:
+                async for piece in pieces:
+                    if isinstance(piece, TTSResult):
+                        # Stream failed before any audio: this segment takes the WAV path.
+                        payload = {"event": "tts_audio", "audio": base64.b64encode(piece.audio).decode("ascii"),
+                                   "segment": segment_no, "total_segments": -1, "text": "", "duration": piece.duration,
+                                   "block_id": block_id}
+                        if emotion and not spoken:
+                            payload["emotion"] = emotion
+                        spoken = True
+                        segment_no += 1
+                        await self.send(payload)
+                        continue
+                    st = state.get(piece.segment)
+                    if st is None:
+                        st = state[piece.segment] = {"no": segment_no, "seq": 0,
+                                                     "chunker": PcmChunker(rate, env_hz), "env": LiveEnvelope(rate, env_hz)}
+                        segment_no += 1
+                    for pcm in st["chunker"].feed(piece.pcm):
+                        await emit(st, pcm, False)
+                    if piece.final:
+                        await emit(st, st["chunker"].flush(), True)
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
+        finally:
+            if status != "cancelled" and not spoken:
+                status = "empty"
+                if emotion and not block["sent"]:
+                    # Nothing was synthesized for this block: show its emotion anyway.
+                    await self.send({"event": "emotion_event", "session_id": session_id, **emotion})
+            try:
+                await self.send({"event": "tts_block_end", "session_id": session_id, "block_id": block_id, "status": status})
+            except Exception:
+                pass
+        return segment_no
 
     # ── Settings ───────────────────────────────────────────
 
@@ -4003,6 +4084,13 @@ class Connection:
         """Replay the shared avatar appearance; `always` also answers "none stored" (config: null)."""
         if always or self.server.avatar_config is not None:
             await self.send({"event": "avatar_config", "config": self.server.avatar_config})
+
+    async def send_bytes(self, data: bytes) -> None:
+        async with self._send_lock:
+            try:
+                await self.ws.send_bytes(data)
+            except Exception:
+                logger.exception("send_bytes failed")
 
     async def send(self, payload: dict[str, Any]) -> None:
         async with self._send_lock:

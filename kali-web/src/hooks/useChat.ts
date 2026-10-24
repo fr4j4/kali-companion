@@ -25,6 +25,7 @@ import type {
   SessionListEvent,
   StepStartEvent,
   TtsAudioEvent,
+  TtsAudioChunkEvent,
   TtsFilteredEvent,
   StatusEvent,
   ErrorEvent,
@@ -168,7 +169,7 @@ export interface ChatState {
   clearAllSessions: () => void;
   updateSettings: (patch: Record<string, unknown>) => void;
   respondConsent: (id: string, decision: ConsentDecision) => void;
-  subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void;
+  subscribeTts: (fn: (e: TtsAudioEvent | TtsAudioChunkEvent) => void) => () => void;
   sendPresenceSignal: (signal: PresenceSignal) => void;
   onTtsEnded: (fn: () => void) => () => void;
   listJobs: () => void;
@@ -259,7 +260,7 @@ export function useChat(sessionOverride?: string): ChatState {
   const cmdOutputRafRef = useRef<number | null>(null);
 
   const clientRef = useRef<WSClient | null>(null);
-  const ttsListeners = useRef<Array<(e: TtsAudioEvent) => void>>([]);
+  const ttsListeners = useRef<Array<(e: TtsAudioEvent | TtsAudioChunkEvent) => void>>([]);
   const ttsEndedListeners = useRef<Array<() => void>>([]);
   const selectedArtifactsProviderRef = useRef<(() => SelectedArtifactRef[]) | null>(null);
   // Registry of open HTML widgets keyed by artifact id, so the agent can
@@ -501,6 +502,14 @@ export function useChat(sessionOverride?: string): ChatState {
         const ev = p as TtsAudioEvent;
         setTtsSegment(ev.segment);
         setTtsTotal(ev.total_segments);
+        setTtsPlaying(true);
+        ttsListeners.current.forEach((fn) => fn(ev));
+      });
+
+      client.on("tts_audio_chunk", (p) => {
+        const ev = p as TtsAudioChunkEvent;
+        setTtsSegment(ev.segment);
+        setTtsTotal(-1);
         setTtsPlaying(true);
         ttsListeners.current.forEach((fn) => fn(ev));
       });
@@ -1162,7 +1171,7 @@ export function useChat(sessionOverride?: string): ChatState {
   }, []);
 
   // Allow the TTS hook to subscribe to audio events.
-  const subscribeTts = useCallback((fn: (e: TtsAudioEvent) => void) => {
+  const subscribeTts = useCallback((fn: (e: TtsAudioEvent | TtsAudioChunkEvent) => void) => {
     ttsListeners.current.push(fn);
     return () => {
       ttsListeners.current = ttsListeners.current.filter((l) => l !== fn);
