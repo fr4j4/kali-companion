@@ -1,3 +1,4 @@
+import { applyMotionPref } from "./avatar/avatarPrefs";
 import { useEffect, useState } from "react";
 import { applyFont, loadFont } from "./lib/appearancePrefs";
 import { StageProvider } from "./stage/StageProvider";
@@ -78,6 +79,8 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("kali.theme", theme);
   }, [theme]);
+
+  useEffect(() => applyMotionPref(), []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-perf-profile", performanceProfile);

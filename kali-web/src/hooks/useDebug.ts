@@ -16,8 +16,6 @@ import type {
   TurnEndEvent,
   TurnStartEvent,
 } from "../lib/protocol";
-import type { AvatarState, AvatarEmotion } from "../avatar/avatarConfig";
-import { setDebugAvatarState, resetDebugAvatarState } from "../avatar/debugAvatarState";
 
 interface ChatMessage {
   id: string;
@@ -63,10 +61,10 @@ export interface DebugAPI {
   simulateStatus: (patch: Partial<StatusEvent>) => void;
   clearAll: () => void;
   speakText: (text: string) => void;
-  setAvatarState: (state: AvatarState) => void;
-  setAvatarEmotion: (emotion: AvatarEmotion, force?: boolean) => void;
-  clearAvatarStateOverride: () => void;
-  clearAvatarEmotionOverride: () => void;
+  /** Pin an activity / emotion / gesture on the core's avatar brain (`presence_signal` debug_override). */
+  setAvatarActivity: (activity: string | null) => void;
+  setAvatarEmotion: (emotion: string | null, intensity?: number, hold?: boolean) => void;
+  playAvatarGesture: (gesture: string) => void;
   resetAvatarOverride: () => void;
 }
 
@@ -381,28 +379,15 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
       session_id: "debug",
       cancelled: false,
     } as unknown as TurnEndEvent);
-    resetDebugAvatarState();
   }, []);
 
-  const setAvatarState = useCallback((state: AvatarState) => {
-    setDebugAvatarState({ overrideState: state });
+  const debugSignal = useCallback((fields: Record<string, unknown>) => {
+    clientRef.current?.send({ event: "presence_signal", kind: "debug_override", ...fields });
   }, []);
-
-  const setAvatarEmotion = useCallback((emotion: AvatarEmotion, force = false) => {
-    setDebugAvatarState({ overrideEmotion: emotion, forceEmotion: force });
-  }, []);
-
-  const clearAvatarStateOverride = useCallback(() => {
-    setDebugAvatarState({ overrideState: null });
-  }, []);
-
-  const clearAvatarEmotionOverride = useCallback(() => {
-    setDebugAvatarState({ overrideEmotion: null, forceEmotion: false });
-  }, []);
-
-  const resetAvatarOverride = useCallback(() => {
-    resetDebugAvatarState();
-  }, []);
+  const setAvatarActivity = useCallback((activity: string | null) => debugSignal({ activity }), [debugSignal]);
+  const setAvatarEmotion = useCallback((emotion: string | null, intensity = 1, hold = true) => debugSignal({ emotion, intensity, hold }), [debugSignal]);
+  const playAvatarGesture = useCallback((gesture: string) => debugSignal({ gesture }), [debugSignal]);
+  const resetAvatarOverride = useCallback(() => debugSignal({ activity: null, emotion: null }), [debugSignal]);
 
   return {
     simulateUserMessage,
@@ -433,10 +418,9 @@ export function useDebug(client: { simulate: (payload: unknown) => void; send: (
     simulateStatus,
     clearAll,
     speakText,
-    setAvatarState,
+    setAvatarActivity,
     setAvatarEmotion,
-    clearAvatarStateOverride,
-    clearAvatarEmotionOverride,
+    playAvatarGesture,
     resetAvatarOverride,
   };
 }

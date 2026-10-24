@@ -212,3 +212,41 @@ async def test_tool_call_loop() -> None:
     # Last entry should be the assistant reply.
     assert history[-1]["role"] == "assistant"
     assert len(history[-1].get("content", "")) > 0
+
+
+class TaggedLLM:
+    """Streams a reply whose emotion tags are split across chunk boundaries."""
+
+    provider_name = "fake_tagged"
+
+    def __init__(self, chunks: list[str]) -> None:
+        self.chunks = chunks
+
+    async def stream(self, messages, tools=None):
+        for chunk in self.chunks:
+            yield StreamEvent(kind="delta", text=chunk)
+        yield StreamEvent(kind="done")
+
+    async def complete(self, messages, tools=None):
+        return {"text": ""}
+
+
+@pytest.mark.asyncio
+async def test_emotion_tags_become_events_and_never_reach_text_or_history() -> None:
+    chunks = ["[EMO", "TION: orgullo", "so 0.8] ¡Lo logr", "amos! [EMOTION: ale", "gre]"]
+    agent = AgentRuntime(TaggedLLM(chunks))
+    events = [e async for e in agent.respond("hola", "sess-emo", language="es")]
+    text = "".join(e.text for e in events if e.kind == "delta")
+    emotions = [(e.emotion, e.intensity) for e in events if e.kind == "emotion"]
+    assert text == "¡Lo logramos!" or text == "¡Lo logramos! "
+    assert emotions == [("orgulloso", 0.8), ("alegre", None)]
+    saved = agent._get_history("sess-emo")[-1]
+    assert saved["role"] == "assistant" and "EMOTION" not in saved["content"]
+
+
+@pytest.mark.asyncio
+async def test_emotion_tag_text_that_is_not_a_tag_survives() -> None:
+    agent = AgentRuntime(TaggedLLM(["Usa lista[0] ", "y [EMAIL] ok"]))
+    events = [e async for e in agent.respond("x", "sess-emo2", language="es")]
+    assert "".join(e.text for e in events if e.kind == "delta") == "Usa lista[0] y [EMAIL] ok"
+    assert not [e for e in events if e.kind == "emotion"]

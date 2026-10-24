@@ -297,6 +297,21 @@ copies of `turn_start`, `delta`, `reasoning_delta`, `turn_end`, `message`, `stt_
 `error` for the followed session. `{"event":"ping","t":...}` is answered with `{"event":"pong","t":...}`;
 clients ping every ~25 s and reconnect when no pong arrives.
 
+### Avatar presence (v2)
+
+The core owns the avatar's behaviour (`kali_core/presence_engine.py`, data in `kali_core/avatar_catalog.json`).
+`ready` carries `presence_v: 2`; clients that see it render frames instead of deriving a mood locally.
+
+| Event | Direction | Payload |
+| --- | --- | --- |
+| `presence_state` | core → web, presence | `v: 2`, `session_id`, `seq`, `t` (core ms), `connected`, `activity {id, since, detail?}`, `emotion {id, intensity, since, until, source}`, `gesture {id, gid, at, dur} \| null`, `speech {active, segment, started_at, duration, env_hz, env (base64 u8 envelope), estimated} \| null`, `attention` (`cursor`\|`user`\|`work`\|`thought`). Sent on every change, on `hello` and on `attach_session`; views treat the last frame as truth. |
+| `presence_signal` | web, presence → core | `kind`: `typing_start`, `typing_stop`, `pet`, `speech_started` / `speech_ended` (`segment`), `speech_cancelled`, or `debug_override` (`activity?`, `emotion?`, `intensity?`, `hold?`, `gesture?`). The core arbitrates priorities, cooldowns and holds. |
+
+Activities (priority): `offline` 100, `esperando` 90, `escuchando` 80, `hablando` 70, `trabajando` 60, `pensando` 50,
+`atento` 40, `reposo` 10, `relajado` 8, `durmiendo` 5. Emotion sources rank pet > user > llm > system > heuristic.
+The LLM sets emotions with a leading `[EMOTION: id 0.7]` tag (on by default, `KALI_AVATAR_EMOTION_TAG=0` disables it);
+the core strips it from the text, history and TTS and emits an `emotion` stream event. See `docs/AVATAR.md`.
+
 ## Events: core → web
 
 ### `ready`

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TtsAudioEvent } from "../lib/protocol";
+import type { PresenceSignal } from "../avatar/presence";
 
 export interface TtsPlaybackState {
   playing: boolean;
@@ -17,6 +18,7 @@ export interface TtsPlaybackState {
 export function useTTS(
   subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void,
   onTtsEnded: (fn: () => void) => () => void,
+  onSignal?: (signal: PresenceSignal) => void,
 ): TtsPlaybackState & { stop: () => void } {
   const [playing, setPlaying] = useState(false);
   const [currentSegment, setCurrentSegment] = useState(0);
@@ -29,6 +31,8 @@ export function useTTS(
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const playingRef = useRef(false);
   const stopRef = useRef(false);
+  const signalRef = useRef(onSignal);
+  signalRef.current = onSignal;
 
   const ensureContext = useCallback(() => {
     if (!ctxRef.current) {
@@ -66,10 +70,13 @@ export function useTTS(
     src.buffer = next.audio;
     src.connect(an);
     sourceRef.current = src;
+    const segment = next.segment;
     src.onended = () => {
       sourceRef.current = null;
+      if (!stopRef.current) signalRef.current?.({ kind: "speech_ended", segment });
       if (!stopRef.current) playNext();
     };
+    signalRef.current?.({ kind: "speech_started", segment });
     src.start();
   }, []);
 
@@ -109,6 +116,7 @@ export function useTTS(
   }, [onTtsEnded]);
 
   const stop = useCallback(() => {
+    if (playingRef.current) signalRef.current?.({ kind: "speech_cancelled" });
     sourceRef.current?.stop();
     sourceRef.current = null;
     stopRef.current = true;

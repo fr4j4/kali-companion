@@ -8,6 +8,7 @@ import { SelectField, SliderField, ToggleField } from "./fields";
 import { SectionHeader } from "./SectionHeader";
 import { SettingsCard } from "./SettingsCard";
 import type { PerformanceProfile } from "../../App";
+import { loadMotionPref, saveMotionPref, type MotionPref } from "../../avatar/avatarPrefs";
 
 interface Props {
   theme: string;
@@ -50,6 +51,7 @@ export function AppearanceSection({
   currentLanguage,
   onLanguageChange,
 }: Props) {
+  const [motion, setMotion] = useState<MotionPref>(() => loadMotionPref());
   const { t } = useTranslation();
   const [font, setFont] = useState<FontChoice>(loadFont);
 
@@ -120,6 +122,13 @@ export function AppearanceSection({
           onChange={(value) => onPerformanceProfileChange(value as PerformanceProfile)}
           helperText={t("settings.performance_profile_hint")}
           options={PERFORMANCE_PROFILES.map((p) => ({ value: p, label: t(`performance_profile.${p}`) }))}
+        />
+        <SelectField
+          label={t("settings.avatar_motion")}
+          value={motion}
+          onChange={(value) => { setMotion(value as MotionPref); saveMotionPref(value as MotionPref); }}
+          helperText={t("settings.avatar_motion_hint")}
+          options={(["system", "always", "never"] as const).map((m) => ({ value: m, label: t(`settings.avatar_motion.${m}`) }))}
         />
       </SettingsCard>
 

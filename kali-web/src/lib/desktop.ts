@@ -16,6 +16,8 @@ export interface DesktopConnectionConfig {
   captureSound: boolean;
 }
 
+export interface DesktopPresence { frame: import("../avatar/rig/types").PresenceFrame | null; offset: number; connected: boolean; text: string }
+
 export interface NativeArtifactRef { sessionId: string; id: string }
 
 export interface DesktopBridge {
@@ -39,8 +41,9 @@ export interface DesktopBridge {
   onArtifactNative(callback: (state: NativeArtifactRef & { open: boolean; returned: boolean }) => void): () => void;
   openArtifact(sessionId: string, artifactId: string): Promise<void>;
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
-  setPresence(state: { mood: string; emotion: string; text: string; connected: boolean }): void;
-  onPresence(callback: (state: { mood: string; emotion: string; text: string; connected: boolean }) => void): () => void;
+  /** Latest presence frame (core `presence_state` v2) plus the clock offset and the assistant text tail. */
+  setPresence(state: DesktopPresence): void;
+  onPresence(callback: (state: DesktopPresence) => void): () => void;
   /** System dialog for a consent question; resolves to allow, allow_session or deny. */
   askConsent?(text: { title: string; detail: string; allow: string; allowSession: string; deny: string }): Promise<"allow" | "allow_session" | "deny">;
   onNavigate(callback: (hash: string) => void): () => void;

@@ -22,6 +22,7 @@ from openai import AsyncOpenAI
 
 from kali_core.config import settings
 
+from ..emotion_prompt import build_emotion_prompt_fragment, emotion_tag_enabled
 from ..json_stream_extractor import StreamingArtifactArgParser
 from .provider import StreamEvent, ToolDef
 
@@ -193,6 +194,8 @@ class DirectLLMProvider:
         system_content = self._system_prompt
         if tools:
             system_content += "\n\n" + self._tool_descriptions_system(tools)
+        if emotion_tag_enabled():
+            system_content += "\n\n" + build_emotion_prompt_fragment()
         full = [{"role": "system", "content": system_content}]
         full += messages
         tools_param = self._build_tools_param(tools)

@@ -1,15 +1,14 @@
 /**
- * avatar/avatarState.ts — Pure avatar state derivation from the raw core event stream.
+ * avatar/avatarState.ts — Fallback activity tracker for a core that predates the avatar brain.
  *
- * The full UI derives the avatar mood from React state (`AvatarMoodEngine`). The
- * native avatar agent has no chat state: it only receives the compact presence
- * events the core mirrors to `mode: "presence"` connections. This tracker applies
- * the same priority rules to that stream, with no React or DOM dependency, so it
- * can run in the minimal avatar bundle and be unit-tested.
+ * Current cores publish `presence_state` frames (kali-core/presence_engine.py) and every view just
+ * renders them. This tracker only derives a coarse equivalent (activity + success/error emotion)
+ * from the raw presence event stream, with no React or DOM dependency, so a new client keeps
+ * working against an old core.
  */
 
-import type { AvatarEmotion, AvatarState } from "./avatarConfig";
-import { analyzeAssistantText } from "./textEmotionAnalyzer";
+import type { ActivityId, EmotionId } from "./avatarCatalog.gen";
+import type { PresenceFrame } from "./rig/types";
 
 export interface PresenceEvent {
   event: string;
@@ -17,8 +16,8 @@ export interface PresenceEvent {
 }
 
 export interface AvatarViewState {
-  mood: AvatarState;
-  emotion: AvatarEmotion;
+  activity: ActivityId;
+  emotion: EmotionId;
   text: string;
   connected: boolean;
 }
@@ -27,9 +26,7 @@ const TEXT_TAIL = 160;
 const WAKE_LISTEN_MS = 8000;
 /** Speech time assumed for a TTS segment whose duration is unknown (0 / missing). */
 const UNKNOWN_SPEECH_S = 1.5;
-const SUCCESS_MS = 2000;
 const ERROR_MS = 3000;
-const REACTION_MS = 3000;
 
 export class AvatarStateTracker {
   private connected = false;
@@ -39,7 +36,7 @@ export class AvatarStateTracker {
   private listeningUntil = 0;
   private toolsRunning = new Set<string>();
   private consentOpen = false;
-  private emotion: AvatarEmotion = "normal";
+  private emotion: EmotionId = "neutral";
   private emotionUntil = 0;
 
   /** Feed one event; returns the resulting view state. */
@@ -57,7 +54,6 @@ export class AvatarStateTracker {
         this.streaming = true;
         this.text = "";
         this.listeningUntil = 0;
-        this.emotion = "normal";
         break;
       case "delta":
         this.streaming = true;
@@ -73,7 +69,6 @@ export class AvatarStateTracker {
         this.streaming = false;
         this.consentOpen = false;
         this.toolsRunning.clear();
-        this.reactToText(now);
         break;
       case "tts_audio": {
         const seconds = typeof ev.duration === "number" && ev.duration > 0 ? ev.duration : UNKNOWN_SPEECH_S;
@@ -97,13 +92,16 @@ export class AvatarStateTracker {
         } else {
           this.toolsRunning.delete(id);
           this.consentOpen = false;
-          if (ev.status === "error" || ev.status === "err") this.setEmotion("enojado", now + ERROR_MS);
-          else if (ev.status === "ok" || ev.status === "success") this.setEmotion("feliz", now + SUCCESS_MS);
+          if (ev.status === "error" || ev.status === "err") this.setEmotion("preocupado", now + ERROR_MS);
         }
         break;
       }
+      case "emotion_event":
+        if (typeof ev.id === "string") this.setEmotion(ev.id as EmotionId, now + ERROR_MS * 2);
+        break;
       case "error":
-        this.setEmotion("enojado", now + ERROR_MS);
+        this.streaming = false;
+        this.setEmotion("preocupado", now + ERROR_MS);
         break;
     }
     return this.view(now);
@@ -111,20 +109,14 @@ export class AvatarStateTracker {
 
   /** Re-evaluate time-based transitions (speaking/listening/emotion expiry). */
   view(now = Date.now()): AvatarViewState {
-    let mood: AvatarState = "idle";
-    let emotion: AvatarEmotion = "normal";
-    const judging = this.consentOpen || this.toolsRunning.size > 0;
-    if (judging) {
-      emotion = "enojado"; // judge stare, same as the in-app mood engine
-    } else if (now < this.speakingUntil) {
-      mood = "hablando";
-    } else if (now < this.listeningUntil) {
-      mood = "escuchando";
-    } else if (this.streaming) {
-      mood = "pensando";
-    }
-    if (!judging && mood !== "pensando" && mood !== "escuchando" && now < this.emotionUntil) emotion = this.emotion;
-    return { mood, emotion, text: this.text, connected: this.connected };
+    let activity: ActivityId = "reposo";
+    if (this.consentOpen) activity = "esperando";
+    else if (now < this.listeningUntil) activity = "escuchando";
+    else if (now < this.speakingUntil) activity = "hablando";
+    else if (this.toolsRunning.size > 0) activity = "trabajando";
+    else if (this.streaming) activity = "pensando";
+    const emotion = now < this.emotionUntil ? this.emotion : "neutral";
+    return { activity, emotion, text: this.text, connected: this.connected };
   }
 
   /** Earliest future timestamp at which `view()` may change by itself, or 0. */
@@ -133,12 +125,7 @@ export class AvatarStateTracker {
     return times.length ? Math.min(...times) : 0;
   }
 
-  private reactToText(now: number): void {
-    const match = analyzeAssistantText(this.text);
-    if (match.confidence > 0.6 && match.emotion !== "normal") this.setEmotion(match.emotion, now + REACTION_MS);
-  }
-
-  private setEmotion(emotion: AvatarEmotion, until: number): void {
+  private setEmotion(emotion: EmotionId, until: number): void {
     this.emotion = emotion;
     this.emotionUntil = until;
   }
@@ -151,4 +138,17 @@ export class AvatarStateTracker {
     this.consentOpen = false;
     this.emotionUntil = 0;
   }
+}
+
+/** A frame equivalent to what the core would publish, for the fallback path. */
+export function viewToFrame(view: AvatarViewState, now: number): PresenceFrame {
+  const attention = { esperando: "user", escuchando: "user", hablando: "user", trabajando: "work", pensando: "thought" } as Partial<Record<ActivityId, PresenceFrame["attention"]>>;
+  return {
+    event: "presence_state", v: 2, session_id: "", seq: 0, t: now, connected: view.connected,
+    activity: { id: view.activity, since: now },
+    emotion: { id: view.emotion, intensity: view.emotion === "neutral" ? 0 : 0.6, since: now, until: view.emotion === "neutral" ? 0 : now + 60_000, source: "system" },
+    gesture: null,
+    speech: view.activity === "hablando" ? { active: true, segment: 0, started_at: now, duration: 1500, env_hz: 20, env: "", estimated: true } : null,
+    attention: attention[view.activity] ?? "cursor",
+  };
 }

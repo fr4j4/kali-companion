@@ -117,15 +117,29 @@ class DesktopBrokerTests(unittest.IsolatedAsyncioTestCase):
 
         broker = DesktopBroker()
         presence, other_session, client = Conn(broker, "presence", "s1"), Conn(broker, "presence", "s2"), Conn(broker, "client", "s1")
+        from kali_core.presence_engine import PresenceEngine
+
         server = object.__new__(Server)
         server._connections = [presence, other_session, client]
         server.last_active_session = None
-        await Server.mirror_presence(server, "s1", {"event": "tts_audio", "audio": "AAAA", "duration": 1.5})
-        await Server.mirror_presence(server, "s1", {"event": "artifact", "content": "x"})
-        self.assertEqual(presence.sent, [{"event": "tts_audio", "duration": 1.5, "session_id": "s1"}])
-        self.assertEqual(other_session.sent, [])
-        self.assertEqual(client.sent, [])
+        server.presence = PresenceEngine()
+        server._presence_task = None
+        server._presence_wake = None
+        try:
+            await Server.mirror_presence(server, "s1", {"event": "tts_audio", "audio": "AAAA", "duration": 1.5})
+            await Server.mirror_presence(server, "s1", {"event": "artifact", "content": "x"})
+        finally:
+            server._presence_task.cancel()
+        raw = lambda conn: [e for e in conn.sent if e.get("event") != "presence_state"]
+        frames = lambda conn: [e for e in conn.sent if e.get("event") == "presence_state"]
+        self.assertEqual(raw(presence), [{"event": "tts_audio", "duration": 1.5, "env": "", "session_id": "s1"}])
+        self.assertEqual(raw(other_session), [])
+        self.assertEqual(raw(client), [])
         self.assertEqual(server.last_active_session, "s1")
+        # The brain's frame reaches everyone on that session (client and presence), but not other sessions.
+        self.assertEqual(frames(presence)[-1]["activity"]["id"], "hablando")
+        self.assertEqual(frames(client)[-1]["session_id"], "s1")
+        self.assertEqual(frames(other_session), [])
 
 
 class DesktopBrokerConsentTests(unittest.IsolatedAsyncioTestCase):

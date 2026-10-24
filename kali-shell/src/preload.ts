@@ -25,9 +25,9 @@ contextBridge.exposeInMainWorld("kaliDesktop", {
   },
   openArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:open-artifact", sessionId, artifactId),
   performAction: (action: string, params: Record<string, unknown>) => ipcRenderer.invoke("desktop:action", action, params),
-  setPresence: (state: { mood: string; emotion: string; text: string; connected: boolean }) => ipcRenderer.send("desktop:presence", state),
-  onPresence: (callback: (state: { mood: string; emotion: string; text: string; connected: boolean }) => void) => {
-    const handler = (_event: unknown, state: { mood: string; emotion: string; text: string; connected: boolean }) => callback(state);
+  setPresence: (state: unknown) => ipcRenderer.send("desktop:presence", state),
+  onPresence: (callback: (state: unknown) => void) => {
+    const handler = (_event: unknown, state: unknown) => callback(state);
     ipcRenderer.on("desktop:presence", handler);
     return () => ipcRenderer.removeListener("desktop:presence", handler);
   },
