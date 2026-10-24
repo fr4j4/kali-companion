@@ -18,8 +18,9 @@ function suidSandboxOk() {
 }
 
 if (process.platform === "linux" && !args.includes("--no-sandbox") && !suidSandboxOk()) {
-  console.warn("[kali-shell] chrome-sandbox no es setuid root; arrancando con --no-sandbox (sin sudo).");
-  args.unshift("--no-sandbox");
+  console.warn("[kali-shell] chrome-sandbox no es setuid root; arrancando con --no-sandbox --no-zygote (sin sudo).");
+  // Sin sandbox el zygote muere y el proceso principal se queda colgado; --no-zygote lo evita.
+  args.unshift("--no-sandbox", "--no-zygote");
 }
 
 const child = spawn(electron, [".", ...args], { stdio: "inherit" });
