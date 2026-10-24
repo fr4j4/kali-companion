@@ -9,9 +9,9 @@
   "license": "MIT",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && electron .",
+    "dev": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/launch.cjs",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json",
-    "start": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && electron .",
+    "start": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/launch.cjs",
     "dist": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && electron-builder",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.preload.json --noEmit"
   },
