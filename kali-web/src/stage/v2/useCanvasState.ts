@@ -1,0 +1,376 @@
+/**
+ * stage/v2/useCanvasState.ts — Groups, modes and panels of the neural canvas.
+ *
+ * Wires the pure group model (workspace/groups.ts) to the workspace windows:
+ *  - every open window joins a group: the one the core names, the one it had last time, the group
+ *    Kali is already working in this turn, the group on screen, or a new one;
+ *  - the active group shows at most three full windows in split mode, the rest wait in the tray;
+ *  - closing records the window under "Recently closed" so it can be reopened or undone;
+ *  - groups, their mode and mosaic are saved per session (by artifact id).
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ArtifactEvent } from "../../lib/protocol";
+import type { WindowData, WorkspaceAPI } from "../../workspace/types";
+import type { ArtifactMode, KaliView, MosaicPreset, MosaicRatios } from "../../workspace/layout";
+import {
+  EMPTY_GROUPS, MAX_VISIBLE, activate, activeGroup as pickActive, assign, createGroup, detach, forgetClosed, groupOf,
+  overflowing, recordClosed, rename as renameGroup, reorder as reorderGroup, setActiveTab, setMode as setGroupMode,
+  setMosaic as setGroupMosaic, togglePin as toggleGroupPin, toPersisted,
+  type ClosedEntry, type Group, type GroupsState, type PersistedGroups,
+} from "../../workspace/groups";
+
+export type ZonePanel = "tray" | "overview" | null;
+
+const STORE_PREFIX = "kali.v2.groups.";
+const VIEW_KEY = "kali.v2.kaliView";
+/** Windows unused for this long are offered to be put away. */
+export const STALE_MS = 60 * 60 * 1000;
+
+function load(sid: string): (PersistedGroups & { closed?: ClosedEntry[] }) | null {
+  try {
+    const raw = localStorage.getItem(STORE_PREFIX + sid);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function save(sid: string, data: PersistedGroups & { closed: ClosedEntry[] }) {
+  try { localStorage.setItem(STORE_PREFIX + sid, JSON.stringify(data)); } catch { /* storage full or blocked */ }
+}
+
+const isOpen = (w: WindowData) => !w.closed;
+
+interface Opts {
+  api: WorkspaceAPI;
+  sessionId: string | null;
+  isTurnActive: boolean;
+}
+
+export function useCanvasState({ api, sessionId, isTurnActive }: Opts) {
+  const [state, setState] = useState<GroupsState>(EMPTY_GROUPS);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const [panel, setPanel] = useState<ZonePanel>(null);
+  const [space, setSpace] = useState(false);
+  const [kaliView, setKaliViewState] = useState<KaliView>(() => (localStorage.getItem(VIEW_KEY) === "conversation" ? "conversation" : "map"));
+  const lastUsedRef = useRef(new Map<number, number>());
+  const [usedTick, setUsedTick] = useState(0);
+  const turnRef = useRef(0);
+  const windowTurn = useRef(new Map<number, number>());
+  const persistedRef = useRef<ReturnType<typeof load>>(null);
+  const pendingGroupRef = useRef(new Map<string, string>());
+  const windowsRef = useRef(api.windows);
+  windowsRef.current = api.windows;
+  const apiRef = useRef(api);
+  apiRef.current = api;
+
+  const setKaliView = useCallback((v: KaliView) => {
+    setKaliViewState(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ }
+  }, []);
+
+  const touch = useCallback((id: number) => {
+    lastUsedRef.current.set(id, Date.now());
+    setUsedTick((n) => n + 1);
+  }, []);
+  const lastUsed = useCallback((id: number) => lastUsedRef.current.get(id) ?? 0, []);
+
+  // A new turn starts a new "same task" window chain.
+  useEffect(() => { if (isTurnActive) turnRef.current += 1; }, [isTurnActive]);
+
+  // Session change: start empty and remember the saved groups to re-assign restored windows.
+  useEffect(() => {
+    setState(EMPTY_GROUPS);
+    setPanel(null);
+    setSpace(false);
+    lastUsedRef.current.clear();
+    windowTurn.current.clear();
+    pendingGroupRef.current.clear();
+    persistedRef.current = sessionId ? load(sessionId) : null;
+    if (persistedRef.current?.closed) setState((s) => ({ ...s, closed: persistedRef.current?.closed ?? [] }));
+  }, [sessionId]);
+
+  // Assign new windows to a group, record closes, and drop windows that are gone.
+  useEffect(() => {
+    const windows = api.windows;
+    let next = stateRef.current;
+    const known = new Set<number>();
+    for (const g of next.groups) for (const id of g.windowIds) known.add(id);
+    const alive = new Set(windows.map((w) => w.id));
+
+    for (const w of windows) {
+      const inGroup = known.has(w.id);
+      if (w.closed) {
+        if (inGroup) {
+          const g = groupOf(next, w.id);
+          next = recordClosed(next, { windowId: w.id, artifactId: w.artifactId, title: w.title, type: w.type, groupId: g?.id ?? null, closedAt: Date.now(), saved: false });
+          next = detach(next, w.id);
+        }
+        continue;
+      }
+      if (inGroup) continue;
+      next = forgetClosed(next, w.id);
+      const ev = w.content as ArtifactEvent | null;
+      const now = Date.now();
+      // 1. The core names the task.
+      if (ev?.group) {
+        const gid = `core:${ev.group}`;
+        if (next.groups.some((g) => g.id === gid)) next = assign(next, w.id, gid, now);
+        else next = createGroup(next, ev.group_title || w.title, [w.id], { id: gid }, now).state;
+      } else {
+        // 2. It had a group last time (saved layout or a reopen).
+        const remembered = w.artifactId ? pendingGroupRef.current.get(w.artifactId) ?? persistedRef.current?.groups.find((g) => g.artifacts.includes(w.artifactId!)) : undefined;
+        const rememberedId = typeof remembered === "string" ? remembered : remembered?.id;
+        const sameTurn = [...windowTurn.current.entries()].reverse().find(([id, turn]) => turn === turnRef.current && isTurnActive && groupOf(next, id));
+        const current = pickActive(next);
+        const currentVisible = current && current.windowIds.some((id) => { const x = windows.find((y) => y.id === id); return x && isOpen(x) && !x.minimized; });
+        if (rememberedId && next.groups.some((g) => g.id === rememberedId)) {
+          next = assign(next, w.id, rememberedId, now);
+        } else if (rememberedId && typeof remembered !== "string" && remembered) {
+          next = createGroup(next, remembered.title, [w.id], { id: remembered.id, color: remembered.color, mode: remembered.mode, mosaic: { preset: remembered.preset, ratios: remembered.ratios, panelIds: [] } }, now).state;
+        } else if (sameTurn) {
+          next = assign(next, w.id, groupOf(next, sameTurn[0])!.id, now);
+        } else if (current && currentVisible) {
+          next = assign(next, w.id, current.id, now);
+        } else {
+          next = createGroup(next, w.title, [w.id], {}, now).state;
+        }
+        if (w.artifactId) pendingGroupRef.current.delete(w.artifactId);
+      }
+      windowTurn.current.set(w.id, turnRef.current);
+      const g = groupOf(next, w.id);
+      if (g && !w.minimized && !w.closed) next = activate(next, g.id, now);
+      lastUsedRef.current.set(w.id, now);
+    }
+    for (const g of next.groups) for (const id of g.windowIds) if (!alive.has(id)) next = detach(next, id);
+    if (next !== stateRef.current) setState(next);
+  }, [api.windows, isTurnActive]);
+
+  // Saved layout restores the active group once its windows are back.
+  useEffect(() => {
+    const p = persistedRef.current;
+    if (!p?.active || state.activeGroupId) return;
+    if (state.groups.some((g) => g.id === p.active)) setState((s) => activate(s, p.active));
+  }, [state.groups, state.activeGroupId]);
+
+  // Content updates count as use: the window Kali touches comes to the front without moving others.
+  const contentSig = useRef(new Map<number, unknown>());
+  useEffect(() => {
+    let touched: WindowData | null = null;
+    for (const w of api.windows) {
+      if (w.closed) continue;
+      const prev = contentSig.current.get(w.id);
+      if (prev !== undefined && prev !== w.content && w.content != null) touched = w;
+      contentSig.current.set(w.id, w.content);
+    }
+    if (touched) {
+      lastUsedRef.current.set(touched.id, Date.now());
+      const g = groupOf(stateRef.current, touched.id);
+      if (g && g.id === stateRef.current.activeGroupId && !touched.minimized && !touched.focused) apiRef.current.focusWindow(touched.id);
+    }
+  }, [api.windows]);
+
+  // Persist per session.
+  useEffect(() => {
+    if (!sessionId) return;
+    const artifactOf = (id: number) => windowsRef.current.find((w) => w.id === id)?.artifactId;
+    save(sessionId, { ...toPersisted(state, artifactOf), closed: state.closed.filter((c) => c.artifactId) });
+  }, [state, sessionId]);
+
+  const active = useMemo(() => pickActive(state), [state]);
+  const mode: ArtifactMode = active?.mode ?? "split";
+
+  const winById = useCallback((id: number) => windowsRef.current.find((w) => w.id === id), []);
+  const openIds = useCallback((g: Group | undefined) => (g ? g.windowIds.filter((id) => { const w = winById(id); return !!w && isOpen(w); }) : []), [winById]);
+
+  /** Windows the active group shows in split mode (not in the tray), in slot order. */
+  const visibleIds = useMemo(() => openIds(active).filter((id) => !winById(id)?.minimized), [active, openIds, winById, api.windows]);
+  /** Tabs of the active group (focus, mosaic, fullscreen). */
+  const tabIds = useMemo(() => openIds(active), [active, openIds, api.windows]);
+
+  // Split mode keeps at most three full windows; the least recently used go to the tray.
+  useEffect(() => {
+    if (!active || active.mode !== "split") return;
+    const extra = overflowing(active, (id) => { const w = winById(id); return !!w && isOpen(w) && !w.minimized; }, lastUsed);
+    for (const id of extra) apiRef.current.toggleMinimize(id);
+  }, [active, api.windows, winById, lastUsed]);
+
+  // ── Actions ─────────────────────────────────────────────
+
+  const focusWindow = useCallback((id: number) => {
+    const w = winById(id);
+    if (!w) return;
+    if (w.closed) { apiRef.current.restoreWindow(id); }
+    else if (w.minimized) apiRef.current.toggleMinimize(id);
+    apiRef.current.focusWindow(id);
+    setState((s) => setActiveTab(s, id));
+    setPanel(null);
+    setSpace(false);
+    touch(id);
+  }, [winById, touch]);
+
+  const setMode = useCallback((m: ArtifactMode, groupId?: string) => {
+    const gid = groupId ?? stateRef.current.activeGroupId;
+    if (!gid) return;
+    setState((s) => {
+      let next = activate(setGroupMode(s, gid, m), gid);
+      const g = next.groups.find((x) => x.id === gid);
+      if (g && g.activeId == null && g.windowIds.length) next = setActiveTab(next, g.windowIds[0]);
+      return next;
+    });
+    setPanel(null);
+    setSpace(false);
+    // Leaving split brings tray windows back as tabs; entering split re-applies the limit.
+    const g = stateRef.current.groups.find((x) => x.id === gid);
+    if (g && m !== "split") {
+      const front = g.activeId ?? g.windowIds[0];
+      const w = front != null ? winById(front) : undefined;
+      if (w?.minimized) apiRef.current.toggleMinimize(w.id);
+    }
+  }, [winById]);
+
+  /** Show a group: restore up to three of its windows and make it the active one. */
+  const openGroup = useCallback((groupId: string, m?: ArtifactMode) => {
+    const g = stateRef.current.groups.find((x) => x.id === groupId);
+    if (!g) return;
+    const ids = g.windowIds.filter((id) => { const w = winById(id); return w && isOpen(w); });
+    const ranked = [...ids].sort((a, b) => lastUsed(b) - lastUsed(a)).slice(0, MAX_VISIBLE);
+    for (const id of ranked) { const w = winById(id); if (w?.minimized) apiRef.current.toggleMinimize(id); }
+    // Other groups' windows step back to the tray so only one task is on screen.
+    for (const other of stateRef.current.groups) {
+      if (other.id === groupId) continue;
+      for (const id of other.windowIds) { const w = winById(id); if (w && isOpen(w) && !w.minimized && !other.pinnedIds.includes(id)) apiRef.current.toggleMinimize(id); }
+    }
+    if (ranked[0] != null) apiRef.current.focusWindow(ranked[0]);
+    setState((s) => {
+      let next = activate(s, groupId);
+      if (m) next = setGroupMode(next, groupId, m);
+      return next;
+    });
+    setPanel(null);
+    setSpace(false);
+  }, [winById, lastUsed]);
+
+  const minimize = useCallback((id: number) => {
+    const w = winById(id);
+    if (w && !w.minimized) apiRef.current.toggleMinimize(id);
+  }, [winById]);
+
+  const close = useCallback((id: number) => { apiRef.current.closeWindow(id); }, []);
+
+  /** Put a whole group away: its windows close into "Saved", pinned ones stay. */
+  const saveGroup = useCallback((groupId: string, onlyIds?: number[]) => {
+    const g = stateRef.current.groups.find((x) => x.id === groupId);
+    if (!g) return;
+    let next = stateRef.current;
+    for (const id of onlyIds ?? g.windowIds) {
+      if (!onlyIds && g.pinnedIds.includes(id)) continue;
+      const w = winById(id);
+      if (!w) continue;
+      next = recordClosed(next, { windowId: id, artifactId: w.artifactId, title: w.title, type: w.type, groupId: g.id, closedAt: Date.now(), saved: true });
+      next = detach(next, id);
+      apiRef.current.closeWindow(id);
+    }
+    setState(next);
+  }, [winById]);
+
+  /** Save specific windows wherever they are (the tray's "put away unused" offer). */
+  const saveWindows = useCallback((ids: number[]) => {
+    let next = stateRef.current;
+    for (const id of ids) {
+      const w = winById(id);
+      if (!w) continue;
+      const g = groupOf(next, id);
+      next = recordClosed(next, { windowId: id, artifactId: w.artifactId, title: w.title, type: w.type, groupId: g?.id ?? null, closedAt: Date.now(), saved: true });
+      next = detach(next, id);
+      apiRef.current.closeWindow(id);
+    }
+    setState(next);
+  }, [winById]);
+
+  const reopen = useCallback((entry: ClosedEntry) => {
+    if (entry.groupId && entry.artifactId) pendingGroupRef.current.set(entry.artifactId, entry.groupId);
+    const w = winById(entry.windowId);
+    if (w && w.closed) {
+      if (entry.groupId && stateRef.current.groups.some((g) => g.id === entry.groupId)) {
+        setState((s) => forgetClosed(assign(s, entry.windowId, entry.groupId!), entry.windowId));
+      }
+      apiRef.current.restoreWindow(entry.windowId);
+    } else if (entry.artifactId) {
+      apiRef.current.reopenArtifact(entry.artifactId);
+    }
+    setState((s) => forgetClosed(s, entry.windowId));
+  }, [winById]);
+
+  const moveToGroup = useCallback((ids: number[], groupId: string | "new", title?: string) => {
+    setState((s) => {
+      if (groupId === "new") {
+        const first = winById(ids[0]);
+        return createGroup(s, title || first?.title || "…", ids).state;
+      }
+      let next = s;
+      for (const id of ids) next = assign(next, id, groupId);
+      return next;
+    });
+  }, [winById]);
+
+  const newGroup = useCallback((title: string, ids: number[] = []) => {
+    let created = "";
+    setState((s) => { const r = createGroup(s, title, ids); created = r.id; return r.state; });
+    return created;
+  }, []);
+
+  const rename = useCallback((groupId: string, title: string) => setState((s) => renameGroup(s, groupId, title)), []);
+  const togglePin = useCallback((id: number) => setState((s) => toggleGroupPin(s, id)), []);
+  const reorder = useCallback((id: number, index: number) => setState((s) => reorderGroup(s, id, index)), []);
+  const setMosaic = useCallback((groupId: string, patch: { preset?: MosaicPreset | null; ratios?: Partial<MosaicRatios>; panelIds?: number[] }) => {
+    setState((s) => setGroupMosaic(s, groupId, patch as Partial<Group["mosaic"]>));
+  }, []);
+  const activateGroup = useCallback((groupId: string | null) => setState((s) => activate(s, groupId)), []);
+
+  /** Windows nobody used for an hour (not pinned, not on screen now). */
+  const staleIds = useMemo(() => {
+    const now = Date.now();
+    const out: number[] = [];
+    for (const g of state.groups) {
+      for (const id of g.windowIds) {
+        const w = winById(id);
+        if (!w || w.closed || g.pinnedIds.includes(id)) continue;
+        if (g.id === state.activeGroupId && !w.minimized) continue;
+        const used = lastUsedRef.current.get(id) ?? now;
+        if (now - used > STALE_MS) out.push(id);
+      }
+    }
+    return out;
+    // usedTick re-evaluates after use; windows change membership.
+  }, [state, winById, usedTick, api.windows]);
+
+  return {
+    groups: state,
+    active,
+    mode,
+    visibleIds,
+    tabIds,
+    panel, setPanel,
+    space, setSpace,
+    kaliView, setKaliView,
+    lastUsed,
+    staleIds,
+    focusWindow,
+    setMode,
+    openGroup,
+    activateGroup,
+    minimize,
+    close,
+    saveGroup,
+    saveWindows,
+    reopen,
+    moveToGroup,
+    newGroup,
+    rename,
+    togglePin,
+    reorder,
+    setMosaic,
+  };
+}
+
+export type CanvasStateApi = ReturnType<typeof useCanvasState>;

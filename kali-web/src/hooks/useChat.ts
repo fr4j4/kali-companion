@@ -36,6 +36,7 @@ import type {
   SuggestionEvent,
   ConsentDecision,
   ToolEvent,
+  MemoryEvent,
   JobStartEvent,
   JobProgressEvent,
   JobDoneEvent,
@@ -119,6 +120,12 @@ export interface TerminalSessionData {
   detailLoaded: boolean;
 }
 
+export interface MemoryEventEntry {
+  action: "recall" | "save";
+  text?: string;
+  receivedAt: number;
+}
+
 export type ConnStatus = "connecting" | "ready" | "error" | "disconnected";
 
 /** What the user would have typed after picking a suggestion; it goes through the normal chat flow. */
@@ -148,6 +155,8 @@ export interface ChatState {
   suggestion: SuggestionEvent | null;
   answerSuggestion: (choice: SuggestionChoice) => void;
   toolEvents: ToolEvent[];
+  /** Memory use reported by the core (recall or save), newest last. */
+  memoryEvents: MemoryEventEntry[];
   isThinking: boolean;
   isTurnActive: boolean;
   currentStep: number;
@@ -244,6 +253,7 @@ export function useChat(sessionOverride?: string): ChatState {
     return () => window.clearTimeout(timer);
   }, [suggestionId]);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
+  const [memoryEvents, setMemoryEvents] = useState<MemoryEventEntry[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isTurnActive, setIsTurnActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -563,7 +573,8 @@ export function useChat(sessionOverride?: string): ChatState {
       });
 
       client.on("tool_event", (p) => {
-        const ev = p as ToolEvent;
+        // Arrival time lets the map say "done" for a few seconds and order what happened.
+        const ev = { ...(p as ToolEvent), receivedAt: Date.now() };
         setToolEvents((prev) => [...prev, ev]);
         setMessages((prev) => {
           const existing = prev.find(
@@ -581,6 +592,11 @@ export function useChat(sessionOverride?: string): ChatState {
             toolEvent: ev,
           }];
         });
+      });
+
+      client.on("memory_event", (p) => {
+        const ev = p as MemoryEvent;
+        setMemoryEvents((prev) => [...prev.slice(-19), { action: ev.action, text: ev.text, receivedAt: Date.now() }]);
       });
 
       // wake_word events are handled by usePTT (PCM-level detection via AudioWorklet).
@@ -1021,6 +1037,7 @@ export function useChat(sessionOverride?: string): ChatState {
     setMessages([]);
     setArtifacts(new Map());
     setToolEvents([]);
+    setMemoryEvents([]);
     setTerminalSessions(new Map());
     setConsentRequest(null);
     setTtsPlaying(false);
@@ -1057,6 +1074,7 @@ export function useChat(sessionOverride?: string): ChatState {
     setMessages([]);
     setArtifacts(new Map());
     setToolEvents([]);
+    setMemoryEvents([]);
     setTerminalSessions(new Map());
     setConsentRequest(null);
     setTtsPlaying(false);
@@ -1203,6 +1221,7 @@ export function useChat(sessionOverride?: string): ChatState {
     suggestion,
     answerSuggestion,
     toolEvents,
+    memoryEvents,
     isThinking,
     isTurnActive,
     currentStep,
@@ -1239,7 +1258,7 @@ export function useChat(sessionOverride?: string): ChatState {
   }), [
     status, messages, sessionId, sessions, artifacts, jobs, imageReadyKeys,
     ttsPlaying, ttsSegment, ttsTotal, ttsFilteredRaw, ttsFilteredOut,
-    error, systemStatus, consentRequest, attachedCapture, discardCapture, suggestion, answerSuggestion, toolEvents, isThinking, isTurnActive,
+    error, systemStatus, consentRequest, attachedCapture, discardCapture, suggestion, answerSuggestion, toolEvents, memoryEvents, isThinking, isTurnActive,
     currentStep, turnStats, stopped, downloadProgress, downloadError,
     isCreatingSession,
     terminalSessions, getTerminalSessionDetail,
