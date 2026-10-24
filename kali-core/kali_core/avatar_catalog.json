@@ -123,6 +123,12 @@
     "travieso": { "label": "travieso", "decayMs": 5000, "mouth": "catw", "symbol": "none",
       "delta": { "eyeOpenL": -0.15, "eyeOpenR": -0.55, "lidSlant": 0.3, "browAsym": 0.5, "browAngle": 0.3, "earAsym": 0.4, "blush": 0.2, "headTilt": -5 },
       "description": "Picardía, broma, tono juguetón" },
+    "aburrido": { "label": "aburrido", "decayMs": 10000, "mouth": "flat", "symbol": "none",
+      "delta": { "eyeOpenL": -0.45, "eyeOpenR": -0.45, "pupilScale": -0.1, "browY": -0.2, "earTilt": -0.4, "headY": 4, "headTilt": -4, "breath": -0.2 },
+      "description": "Aburrimiento, desinterés, algo repetitivo" },
+    "determinado": { "label": "determinado", "decayMs": 8000, "mouth": "flat", "symbol": "none",
+      "delta": { "eyeOpenL": -0.2, "eyeOpenR": -0.2, "pupilScale": -0.1, "browY": -0.1, "browAngle": 0.4, "earTilt": 0.3, "headY": -2 },
+      "description": "Determinación, decisión de resolver algo difícil" },
     "asustado": { "label": "asustado", "decayMs": 4000, "mouth": "o", "symbol": "sweat",
       "delta": { "eyeOpenL": 0.2, "eyeOpenR": 0.2, "pupilScale": -0.6, "browY": 0.9, "browAngle": -0.6, "earTilt": -0.9, "headY": 4, "breath": 0.8 },
       "description": "Susto, miedo, peligro" }

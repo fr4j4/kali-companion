@@ -24,10 +24,10 @@ import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
-import { useAvatarMoodEngine } from "../avatar/AvatarMoodEngine";
+import { usePresence } from "../avatar/presence";
 import { AvatarSVG } from "../avatar/AvatarSVG";
 import { publishAvatarConfig, subscribeAvatarConfig } from "../avatar/avatarSync";
-import { loadAvatarConfig, saveAvatarConfig, type AvatarConfig, type AvatarEmotion } from "../avatar/avatarConfig";
+import { loadAvatarConfig, saveAvatarConfig, type AvatarConfig } from "../avatar/avatarConfig";
 import { useWorkspace } from "../workspace/useWorkspace";
 import type { SelectedArtifactRef } from "../lib/protocol";
 import { HUD } from "./HUD";
@@ -117,9 +117,6 @@ export function NeuralCanvas({
   const reasoningWindowIdRef = useRef<number | null>(null);
   const terminalWindowIdRef = useRef<number | null>(null);
 
-  // Click override — petting the avatar → brief "ronroneando"
-  const [overrideEmotion, setOverrideEmotion] = useState<{ emotion: AvatarEmotion; until: number } | null>(null);
-
   // Scale
   const avScale = uiScale.global * uiScale.avatar;
   const winScale = uiScale.global * uiScale.window;
@@ -128,14 +125,17 @@ export function NeuralCanvas({
   const ring2Px = (isMobile ? (customizerOpen ? 230 : 130) : (customizerOpen ? 390 : 170)) * avScale;
   const innerPx = (isMobile ? (customizerOpen ? 300 : 160) : (customizerOpen ? 520 : 220)) * avScale;
 
-  // Mood engine — derives state + emotion from runtime context
-  const { state: avatarState, emotion: avatarEmotion } = useAvatarMoodEngine(typing, overrideEmotion);
+  // The core's brain decides activity, emotion and gestures; this window only renders the frame.
+  const presence = usePresence();
+  const sendSignal = chat.sendPresenceSignal;
+
+  useEffect(() => { sendSignal({ kind: typing ? "typing_start" : "typing_stop" }); }, [typing, sendSignal]);
 
   useEffect(() => {
     if (!window.kaliDesktop) return;
     const last = [...chat.messages].reverse().find((m) => m.role === "assistant" && m.content);
-    window.kaliDesktop.setPresence({ mood: avatarState, emotion: avatarEmotion, text: last?.content?.slice(-160) || "", connected: chat.status === "ready" });
-  }, [avatarState, avatarEmotion, chat.messages, chat.status]);
+    window.kaliDesktop.setPresence({ frame: presence.frame, offset: presence.offset, connected: chat.status === "ready", text: last?.content?.slice(-160) || "" });
+  }, [presence, chat.messages, chat.status]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("kali-mobile-stage", isMobile);
@@ -181,7 +181,6 @@ export function NeuralCanvas({
     setMobileMenuOpen(false);
     setMobileSwitcherOpen(false);
     setTyping(false);
-    setOverrideEmotion(null);
     firstCharRef.current = "";
     reasoningWindowIdRef.current = null;
   }, []);
@@ -323,8 +322,8 @@ export function NeuralCanvas({
 
   // Avatar click → pet → ronroneando for 3s
   const onAvatarClick = useCallback(() => {
-    setOverrideEmotion({ emotion: "ronroneando", until: Date.now() + 3000 });
-  }, []);
+    sendSignal({ kind: "pet" });
+  }, [sendSignal]);
 
   const closeMobileSheets = useCallback(() => {
     setMobileMenuOpen(false);
@@ -400,12 +399,10 @@ export function NeuralCanvas({
             filter: customizerOpen || typing ? "drop-shadow(0 0 40px rgba(124,92,255,0.35))" : undefined,
           }}>
             <AvatarSVG
-              state={avatarState}
-              emotion={avatarEmotion}
+              presence={presence}
               analyser={tts.analyser}
               config={avatarConfig}
               onClick={onAvatarClick}
-              typing={typing}
               className="avatar-mount"
             />
           </div>

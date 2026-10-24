@@ -1,3 +1,4 @@
+import { CATALOG } from "../avatar/avatarCatalog.gen";
 import { useRef, useCallback, useState } from "react";
 import { startDrag, startResize, type ResizeEdge } from "../workspace/useDragResize";
 import { X, ChevronDown, ChevronRight, Bug, Play, GripVertical, ChevronUp } from "lucide-react";
@@ -221,40 +222,28 @@ export function DebugPad({ onClose, client, perfMetrics }: Props) {
             </Section>
 
             <Section title="Avatar" forceOpen={allExpanded}>
-              <div className="w-full text-[11px] text-muted/80 mb-1">Estado</div>
+              <div className="w-full text-[11px] text-muted/80 mb-1">Actividad</div>
               <div className="w-full flex flex-wrap gap-1 mb-2">
-                <Button onClick={() => debug.clearAvatarStateOverride()}>Auto</Button>
-                <Button onClick={() => debug.setAvatarState("idle")}>Idle</Button>
-                <Button onClick={() => debug.setAvatarState("pensando")}>Pensando</Button>
-                <Button onClick={() => debug.setAvatarState("escuchando")}>Escuchando</Button>
-                <Button onClick={() => debug.setAvatarState("hablando")}>Hablar</Button>
+                <Button onClick={() => debug.setAvatarActivity(null)}>Auto</Button>
+                {Object.keys(CATALOG.activities).map((id) => <Button key={id} onClick={() => debug.setAvatarActivity(id)}>{id}</Button>)}
               </div>
 
               <div className="w-full text-[11px] text-muted/80 mb-1">Emoción</div>
               <div className="w-full flex flex-wrap gap-1 mb-2">
-                <Button onClick={() => debug.clearAvatarEmotionOverride()}>Auto</Button>
-                <Button onClick={() => debug.setAvatarEmotion("normal", forceEmotion)}>Normal</Button>
-                <Button onClick={() => debug.setAvatarEmotion("feliz", forceEmotion)}>Feliz</Button>
-                <Button onClick={() => debug.setAvatarEmotion("enojado", forceEmotion)}>Enojado</Button>
-                <Button onClick={() => debug.setAvatarEmotion("sorprendido", forceEmotion)}>Sorprendido</Button>
-                <Button onClick={() => debug.setAvatarEmotion("ronroneando", forceEmotion)}>Ronroneando</Button>
-                <Button onClick={() => debug.setAvatarEmotion("confundido", forceEmotion)}>Confundido</Button>
+                <Button onClick={() => debug.setAvatarEmotion(null)}>Auto</Button>
+                {Object.keys(CATALOG.emotions).map((id) => <Button key={id} onClick={() => debug.setAvatarEmotion(id, 1, forceEmotion)}>{id}</Button>)}
+              </div>
+
+              <div className="w-full text-[11px] text-muted/80 mb-1">Gesto</div>
+              <div className="w-full flex flex-wrap gap-1 mb-2">
+                {Object.keys(CATALOG.gestures).map((id) => <Button key={id} onClick={() => debug.playAvatarGesture(id)}>{id}</Button>)}
               </div>
 
               <div className="w-full flex flex-wrap items-center gap-1">
-                <Button
-                  variant={forceEmotion ? "accent" : "default"}
-                  onClick={() => setForceEmotion((v) => !v)}
-                >
-                  Forzar emoción
+                <Button variant={forceEmotion ? "accent" : "default"} onClick={() => setForceEmotion((v) => !v)}>
+                  Mantener emoción
                 </Button>
-                <Button
-                  variant="accent"
-                  onClick={() => {
-                    debug.resetAvatarOverride();
-                    setForceEmotion(true);
-                  }}
-                >
+                <Button variant="accent" onClick={() => debug.resetAvatarOverride()}>
                   Reset total
                 </Button>
               </div>

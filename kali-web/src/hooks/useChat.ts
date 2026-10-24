@@ -11,6 +11,7 @@ import { SUGGESTION_VISIBLE_MS } from "../components/SuggestionChips";
 import { WSClient } from "../lib/wsClient";
 import { handleRemoteAvatarConfig } from "../avatar/avatarSync";
 import { websocketUrl } from "../lib/desktop";
+import type { PresenceSignal } from "../avatar/presence";
 import type {
   ArtifactEvent,
   ConnectedEvent,
@@ -168,6 +169,7 @@ export interface ChatState {
   updateSettings: (patch: Record<string, unknown>) => void;
   respondConsent: (id: string, decision: ConsentDecision) => void;
   subscribeTts: (fn: (e: TtsAudioEvent) => void) => () => void;
+  sendPresenceSignal: (signal: PresenceSignal) => void;
   onTtsEnded: (fn: () => void) => () => void;
   listJobs: () => void;
   cancelJob: (id: string) => void;
@@ -1167,6 +1169,11 @@ export function useChat(sessionOverride?: string): ChatState {
     };
   }, []);
 
+  // Tell the core's avatar brain what only this view knows (typing, petting, playback of the voice).
+  const sendPresenceSignal = useCallback((signal: PresenceSignal) => {
+    clientRef.current?.send({ event: "presence_signal", ...signal });
+  }, []);
+
   const onTtsEnded = useCallback((fn: () => void) => {
     ttsEndedListeners.current.push(fn);
     return () => {
@@ -1213,6 +1220,7 @@ export function useChat(sessionOverride?: string): ChatState {
     updateSettings,
     respondConsent,
     subscribeTts,
+    sendPresenceSignal,
     onTtsEnded,
     listJobs,
     cancelJob,
@@ -1237,7 +1245,7 @@ export function useChat(sessionOverride?: string): ChatState {
     terminalSessions, getTerminalSessionDetail,
     send, sendEvent, setSelectedArtifactsProvider, stop, newSession,
     listSessions, attachSession, deleteSession, clearAllSessions, updateSettings,
-    respondConsent, subscribeTts, onTtsEnded, listJobs, cancelJob, getJobLogs,
+    respondConsent, subscribeTts, sendPresenceSignal, onTtsEnded, listJobs, cancelJob, getJobLogs,
     requestImage, downloadTtsModel, downloadSttModel,
     markArtifactClosed, setArtifactContent, registerConsoleProvider,
   ]);

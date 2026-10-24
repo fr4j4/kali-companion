@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "gen:avatar": "node scripts/gen-avatar-catalog.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

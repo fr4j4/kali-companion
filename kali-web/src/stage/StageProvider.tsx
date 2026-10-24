@@ -70,7 +70,7 @@ async function fetchWithRetry(
 
 export function StageProvider({ children, detachedSessionId }: { children: ReactNode; detachedSessionId?: string }) {
   const chat = useChat(detachedSessionId);
-  const tts = useTTS(chat.subscribeTts, chat.onTtsEnded);
+  const tts = useTTS(chat.subscribeTts, chat.onTtsEnded, chat.sendPresenceSignal);
   const navigate = useNavigate();
   const { sid: urlSid } = useParams<{ sid?: string }>();
   const [customVoices, setCustomVoices] = useState<CustomVoice[]>([]);

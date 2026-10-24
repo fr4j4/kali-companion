@@ -5,6 +5,7 @@
 
 import type { OutgoingEvent, EventName } from "./protocol";
 import { getApiToken, getDesktopConfig } from "./desktop";
+import { presenceStore } from "../avatar/presence";
 
 const DEFAULT_SEND_TIMEOUT_MS = 10_000;
 const HEARTBEAT_INTERVAL_MS = 25_000;
@@ -96,6 +97,13 @@ export class WSClient {
             .catch((error: unknown) => this.send({ event: "desktop_action_result", id: action.id, ok: false, error: error instanceof Error ? error.message : String(error) }));
           return;
         }
+        // The avatar renders whatever the core's presence brain publishes.
+        if ((event as string) === "presence_state" || (event as string) === "ready" || (event as string) === "tts_audio" || (event as string) === "emotion_event"
+          || (event as string) === "turn_start" || (event as string) === "turn_end" || (event as string) === "tool_event" || (event as string) === "consent_request"
+          || (event as string) === "delta" || (event as string) === "reasoning_delta" || (event as string) === "error" || (event as string) === "wake_word"
+          || (event as string) === "stt_partial" || (event as string) === "stt_final") {
+          presenceStore.ingest(payload as never);
+        }
         this.dispatch(event, payload);
       } catch {
         // ignore malformed frames
@@ -105,6 +113,7 @@ export class WSClient {
     this.ws.onerror = () => this.dispatch("error", { event: "error", detail: "WS error" });
     this.ws.onclose = () => {
       this.stopHeartbeat();
+      presenceStore.ingest({ event: "disconnected" });
       this.dispatch("disconnected", { event: "disconnected" });
       if (this.shouldReconnect) {
         // Jitter avoids every client reconnecting in lockstep after a server restart.

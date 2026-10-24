@@ -425,7 +425,7 @@ app.whenReady().then(() => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Only main window may execute desktop actions");
     return runDesktopAction(action, params);
   });
-  ipcMain.on("desktop:presence", (_event, state: { mood: string; emotion: string; text: string; connected: boolean }) => {
+  ipcMain.on("desktop:presence", (_event, state: unknown) => {
     avatarWindow?.webContents.send("desktop:presence", state);
     if (state.connected !== backendConnected) { backendConnected = state.connected; updateTray(); }
     tray?.setToolTip(state.connected ? "Kali Companion — conectado" : "Kali Companion — sin conexión");
