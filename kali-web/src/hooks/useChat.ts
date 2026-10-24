@@ -123,6 +123,7 @@ export interface TerminalSessionData {
 export interface MemoryEventEntry {
   action: "recall" | "save";
   text?: string;
+  count?: number;
   receivedAt: number;
 }
 
@@ -596,7 +597,7 @@ export function useChat(sessionOverride?: string): ChatState {
 
       client.on("memory_event", (p) => {
         const ev = p as MemoryEvent;
-        setMemoryEvents((prev) => [...prev.slice(-19), { action: ev.action, text: ev.text, receivedAt: Date.now() }]);
+        setMemoryEvents((prev) => [...prev.slice(-19), { action: ev.action, text: ev.text, count: ev.count, receivedAt: Date.now() }]);
       });
 
       // wake_word events are handled by usePTT (PCM-level detection via AudioWorklet).

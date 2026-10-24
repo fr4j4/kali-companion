@@ -1308,5 +1308,7 @@
   "jobs.status.done": "Terminado",
   "jobs.status.error": "Falló",
   "jobs.status.cancelled": "Cancelado",
-  "jobs.status.pending": "En cola"
+  "jobs.status.pending": "En cola",
+  "v2.motive.memory_recall_count_one": "Retomó un mensaje de esta conversación",
+  "v2.motive.memory_recall_count_other": "Retomó {{count}} mensajes de esta conversación"
 }

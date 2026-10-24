@@ -19,6 +19,9 @@ created in the current session:
       unique fragment of the current content. Only for streamable types
       (code, document, diff, html, mermaid). When
       ``settings.artifact_diff_preview`` is True (default), a ``diff``
+    * Suggestion mode (``suggestions``): documents only. The text is not
+      touched; the proposed changes are stored and shown in the document
+      with Accept and Discard (see ``kali_core.canvas.suggestions``).
   The updated content is persisted to SQLite and emitted as an
   ``update: "update"`` WS event so the frontend re-renders the window.
 
@@ -32,6 +35,7 @@ import difflib
 import logging
 from typing import Any
 
+from kali_core.canvas import suggestions as sug
 from kali_core.claws.base import ToolContext, ToolResult
 from kali_core.canvas.registry import is_streamable_type
 
@@ -170,6 +174,9 @@ class GetArtifactTool:
             "window_type": art.get("window_type", ""),
             "title": art.get("title", ""),
         }
+        pending = sug.load(art.get("suggestions"))
+        if pending:
+            base["pending_suggestions"] = pending
         content = art.get("content", "") or ""
 
         offset_raw = params.get("offset")
@@ -237,6 +244,12 @@ class UpdateArtifactTool:
         "offset/limit to read only the region you need to change, "
         "then patch just that fragment — avoids regenerating the "
         "whole artifact.\n\n"
+        "3. Suggestion mode (documents only): pass 'suggestions' as a "
+        "list of {old, new, note}. The text is NOT changed: each "
+        "suggestion shows in the document struck out and underlined "
+        "with Accept and Discard, and the user's decision applies it. "
+        "Use it when the user should decide (wording, facts you are "
+        "not sure of). Each 'old' must appear exactly once.\n\n"
         "Do NOT pass both 'content' and 'old_string' — pick one mode. "
         "The artifact must belong to the current session. An optional "
         "new title may be provided; if omitted the title is unchanged. "
@@ -286,6 +299,24 @@ class UpdateArtifactTool:
                 "type": "string",
                 "description": "Optional new title for the artifact.",
             },
+            "suggestions": {
+                "type": "array",
+                "description": (
+                    "Suggestion mode (documents only): proposed changes "
+                    "for the user to accept or discard. 'old' must "
+                    "appear exactly once in the document; 'note' says "
+                    "why, in one sentence."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "old": {"type": "string"},
+                        "new": {"type": "string"},
+                        "note": {"type": "string"},
+                    },
+                    "required": ["old", "new"],
+                },
+            },
         },
         "required": ["artifact_id"],
     }
@@ -304,6 +335,17 @@ class UpdateArtifactTool:
 
         has_content = content is not None and content != ""
         has_patch = old_string is not None or new_string is not None
+        proposed = params.get("suggestions")
+
+        if proposed is not None:
+            if has_content or has_patch:
+                return ToolResult(
+                    error=(
+                        "Suggestion mode takes only 'suggestions'; do not "
+                        "pass 'content' or 'old_string' with it."
+                    )
+                )
+            return await self._suggest(artifact_id, proposed, ctx)
 
         if has_content and has_patch:
             return ToolResult(
@@ -403,13 +445,21 @@ class UpdateArtifactTool:
             ctx.session_id[:8],
         )
 
+        # Suggestions whose text this edit removed can no longer be shown.
+        pending = sug.load(existing.get("suggestions"))
+        if pending:
+            kept = sug.prune(new_content, pending)
+            if len(kept) != len(pending):
+                await store.set_artifact_suggestions(ctx.session_id, artifact_id, sug.dump(kept))
+            pending = kept
+
         payload = {
             "event": "artifact",
             "id": artifact_id,
             "type": art_type,
             "windowType": window_type,
             "title": title,
-            "content": new_content,
+            "content": sug.wire_content(new_content, pending),
             "update": "update",
         }
 
@@ -434,6 +484,51 @@ class UpdateArtifactTool:
             )
 
         return ToolResult(output=output, artifact=payload)
+
+
+    async def _suggest(self, artifact_id: str, proposed: Any, ctx: ToolContext) -> ToolResult:
+        store = ctx.session_store
+        if store is None:
+            return ToolResult(error="No session store available.")
+        existing = await store.get_artifact(ctx.session_id, artifact_id)
+        if existing is None:
+            return ToolResult(error=f"Artifact '{artifact_id}' not found in this session.")
+        art_type = existing.get("type", "")
+        window_type = existing.get("window_type", "")
+        if not sug.can_suggest(art_type, window_type):
+            return ToolResult(
+                error=(
+                    "Suggestion mode is only for documents. Use patch or "
+                    "full mode for this artifact."
+                )
+            )
+        content = existing.get("content", "") or ""
+        pending, err = sug.add(content, sug.load(existing.get("suggestions")), proposed)
+        if err:
+            return ToolResult(error=err)
+        await store.set_artifact_suggestions(ctx.session_id, artifact_id, sug.dump(pending))
+        logger.info(
+            "[update_artifact] id=%s mode=suggest pending=%d (%s)",
+            artifact_id, len(pending), ctx.session_id[:8],
+        )
+        payload = {
+            "event": "artifact",
+            "id": artifact_id,
+            "type": art_type,
+            "windowType": window_type,
+            "title": existing.get("title", ""),
+            "content": sug.wire_content(content, pending),
+            "update": "update",
+        }
+        return ToolResult(
+            output={
+                "artifact_id": artifact_id,
+                "mode": "suggest",
+                "pending_suggestions": len(pending),
+                "hint": "The user decides each suggestion in the document; you will see the result in the text.",
+            },
+            artifact=payload,
+        )
 
 
 def _build_patch_diff(

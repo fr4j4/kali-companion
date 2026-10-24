@@ -348,6 +348,8 @@ export interface MemoryEvent {
   action: "recall" | "save";
   /** Short human text of what was recalled or saved. */
   text?: string;
+  /** Recall of a conversation: how many of its messages came back into context. */
+  count?: number;
 }
 
 export interface ConsentRequestEvent {

@@ -1308,5 +1308,7 @@
   "jobs.status.done": "Done",
   "jobs.status.error": "Failed",
   "jobs.status.cancelled": "Cancelled",
-  "jobs.status.pending": "Queued"
+  "jobs.status.pending": "Queued",
+  "v2.motive.memory_recall_count_one": "Picked up one message of this conversation",
+  "v2.motive.memory_recall_count_other": "Picked up {{count}} messages of this conversation"
 }

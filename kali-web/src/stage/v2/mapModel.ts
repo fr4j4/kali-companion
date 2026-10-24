@@ -118,7 +118,7 @@ const ARTIFACT_VERB: Partial<Record<NodeId, string>> = {
   web: "updating",
 };
 
-export interface Motive { key: string; params?: Record<string, string> }
+export interface Motive { key: string; params?: Record<string, string | number> }
 export interface DataPoint { label: string; detail?: string }
 
 export interface NodeStatus {
@@ -139,7 +139,7 @@ export const FAILED_MS = 30000;
 export const RECALL_MS = 8000;
 
 export interface TimedToolEvent extends ToolEvent { receivedAt?: number }
-export interface MemoryEvent { action: "recall" | "save"; text?: string; receivedAt: number }
+export interface MemoryEvent { action: "recall" | "save"; text?: string; count?: number; receivedAt: number }
 export interface ArtifactActivity { node: NodeId; title: string; writing: boolean; at: number }
 
 export interface MapInputs {
@@ -288,7 +288,9 @@ export function nodeStatuses(inputs: MapInputs): Record<string, NodeStatus> {
       ...out.memory,
       state: "recalling",
       verb: mem.action === "save" ? "saving" : "recalling",
-      motive: mem.text ? { key: "memory_text", params: { text: short(mem.text, 64) } } : { key: mem.action === "save" ? "memory_save" : "memory_recall" },
+      motive: mem.text ? { key: "memory_text", params: { text: short(mem.text, 64) } }
+        : mem.count ? { key: "memory_recall_count", params: { count: mem.count } }
+        : { key: mem.action === "save" ? "memory_save" : "memory_recall" },
       since: mem.receivedAt,
     };
   }
