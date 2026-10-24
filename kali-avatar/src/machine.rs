@@ -212,7 +212,9 @@ fn kill_tree(child: &mut std::process::Child) {
     #[cfg(unix)]
     {
         // The child leads its own process group (see below), so `-pid` reaches its descendants.
-        let _ = Command::new("kill").args(["-KILL", &format!("-{}", child.id())]).stderr(Stdio::null()).status();
+        // `-s KILL -- -pid` is deliberate: procps 4.0.4 reads `kill -KILL -pid` as `kill(-1, SIGKILL)`,
+        // which kills every process of the user.
+        let _ = Command::new("kill").args(["-s", "KILL", "--", &format!("-{}", child.id())]).stderr(Stdio::null()).status();
     }
     let _ = child.kill();
     let _ = child.wait();
