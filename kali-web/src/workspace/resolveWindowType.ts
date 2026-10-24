@@ -6,6 +6,7 @@ const VALID_TYPES = new Set<WindowType>([
   "terminal", "checklist", "quiz", "diff", "table", "controls",
   "html", "widget", "entity", "resource", "place", "media",
   "document", "image",
+  "sources", "slides", "tasks", "notes", "calendar", "pdf",
 ]);
 
 /**
@@ -26,6 +27,12 @@ const LEGACY_MAP: Record<string, WindowType> = {
   text: "document",
   longtext: "document",
   img: "image",
+  research: "sources",
+  presentation: "slides",
+  deck: "slides",
+  board: "tasks",
+  kanban: "tasks",
+  agenda: "calendar",
   game_resource: "entity",
   dota_hero_card: "entity",
   dota_item_card: "resource",

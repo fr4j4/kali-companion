@@ -49,6 +49,12 @@ const LazyQr = React.lazy(() => import("./QrWidget").then((m) => ({ default: m.Q
 const LazyPlaceholder = React.lazy(() => import("./PlaceholderWidget").then((m) => ({ default: m.PlaceholderWidget })));
 const LazyHtml = React.lazy(() => import("./HtmlWidget").then((m) => ({ default: m.HtmlWidget })));
 const LazyReasoning = React.lazy(() => import("./ReasoningWidget").then((m) => ({ default: m.ReasoningWidget })));
+const LazySources = React.lazy(() => import("./SourcesWidget").then((m) => ({ default: m.SourcesWidget })));
+const LazySlides = React.lazy(() => import("./SlidesWidget").then((m) => ({ default: m.SlidesWidget })));
+const LazyTasks = React.lazy(() => import("./TasksWidget").then((m) => ({ default: m.TasksWidget })));
+const LazyNotes = React.lazy(() => import("./NotesWidget").then((m) => ({ default: m.NotesWidget })));
+const LazyCalendar = React.lazy(() => import("./CalendarWidget").then((m) => ({ default: m.CalendarWidget })));
+const LazyPdf = React.lazy(() => import("./PdfWidget").then((m) => ({ default: m.PdfWidget })));
 const LazyGame = React.lazy(() => import("./GameWidget").then((m) => ({ default: m.GameWidget })));
 
 function sz(type: WindowType) {
@@ -281,5 +287,59 @@ export const widgetRegistry: Partial<Record<WindowType, WidgetEntry>> = {
       minHeight: 100,
       toggleIcon: <Terminal size={14} />,
     },
+  },
+  sources: {
+    component: LazySources,
+    width: sz("sources").width,
+    height: sz("sources").height,
+    icon: WINDOW_ICONS.sources,
+    resizable: true,
+    minW: 420,
+    minH: 320,
+  },
+  slides: {
+    component: LazySlides,
+    width: sz("slides").width,
+    height: sz("slides").height,
+    icon: WINDOW_ICONS.slides,
+    resizable: true,
+    minW: 420,
+    minH: 300,
+  },
+  tasks: {
+    component: LazyTasks,
+    width: sz("tasks").width,
+    height: sz("tasks").height,
+    icon: WINDOW_ICONS.tasks,
+    resizable: true,
+    minW: 420,
+    minH: 300,
+  },
+  notes: {
+    component: LazyNotes,
+    width: sz("notes").width,
+    height: sz("notes").height,
+    icon: WINDOW_ICONS.notes,
+    resizable: true,
+    minW: 360,
+    minH: 280,
+  },
+  calendar: {
+    component: LazyCalendar,
+    width: sz("calendar").width,
+    height: sz("calendar").height,
+    icon: WINDOW_ICONS.calendar,
+    resizable: true,
+    minW: 440,
+    minH: 320,
+  },
+  pdf: {
+    component: LazyPdf,
+    width: sz("pdf").width,
+    height: sz("pdf").height,
+    icon: WINDOW_ICONS.pdf,
+    resizable: true,
+    minW: 380,
+    minH: 320,
   },
 };

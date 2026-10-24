@@ -59,11 +59,11 @@ _SHAPES: dict[str, str] = {
     "checklist": '{"items": [{"text": str, "done": bool}]}',
     "chart": '{"labels": [str], "series": [{"name": str, "values": [num]}], "kind": "line"|"bar", "unit"?, "target"?: {"label", "value"}, "kpis"?: [{"label", "value", "note"?}], "breakdown"?: {"title", "items": [{"label", "value"}]}, "source"?}',
     "sources": '{"question": str, "sources": [{"title": str, "site": str, "year"?: str, "claim": str, "url"?: str}], "synthesis": str, "conflict"?: str, "answer"?: str}',
-    "slides": '{"slides": [{"title": str, "kicker"?: str, "body"?: str, "points"?: [{"title", "text"}], "source"?: str, "notes"?: str}]}',
+    "slides": '{"slides": [{"title": str, "kicker"?: str, "body"?: str, "points"?: [{"title", "text"}], "source"?: str, "notes"?: str}], "proposal"?: str (a change you offer on the current deck, one line)}',
     "tasks": '{"tasks": [{"title": str, "status": "todo"|"doing"|"done", "owner": "you"|"kali", "due"?: str, "progress"?: 0..1}]}',
-    "notes": '{"notes": [{"title": str, "text"?: str, "kind"?: "note"|"reminder"|"list"|"link", "items"?: [str], "when"?: str, "pinned"?: bool, "author"?: "you"|"kali", "source"?: str}]}',
+    "notes": '{"notes": [{"title": str, "text"?: str, "kind"?: "note"|"reminder"|"list"|"link"|"voice", "items"?: [str], "when"?: str, "pinned"?: bool, "author"?: "you"|"kali", "source"?: str}]}',
     "calendar": '{"week_of": "YYYY-MM-DD", "events": [{"title": str, "day": "YYYY-MM-DD", "start": "HH:MM", "end": "HH:MM", "proposed"?: bool}], "note"?: str, "timezone"?: str} (a view: nothing is booked)',
-    "pdf": '{"url" or "path": str, "pages"?: int, "marks"?: [{"page": int, "text": str, "note"?: str}]}',
+    "pdf": '{"url" or "path": str, "name"?: str, "pages"?: int, "size"?: str, "marks"?: [{"page": int, "text": str, "note"?: str}]}',
 }
 
 # Limits for a multi-file code artifact.

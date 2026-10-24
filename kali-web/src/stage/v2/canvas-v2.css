@@ -107,7 +107,7 @@
 .v2-window-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
 .v2-shell {
   position: absolute; display: flex; flex-direction: column; pointer-events: auto; overflow: clip;
-  background: var(--v2-panel); border: 1px solid var(--v2-line); border-radius: var(--v2-radius);
+  background: var(--bg-elev); border: 1px solid var(--v2-line); border-radius: var(--v2-radius);
   box-shadow: 0 18px 50px rgba(0,0,0,.42);
 }
 .v2-shell.is-focused { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent), 0 18px 50px rgba(0,0,0,.42); }
