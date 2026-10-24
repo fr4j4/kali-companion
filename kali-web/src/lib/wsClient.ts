@@ -6,6 +6,7 @@
 import type { OutgoingEvent, EventName } from "./protocol";
 import { getApiToken, getDesktopConfig } from "./desktop";
 import { presenceStore } from "../avatar/presence";
+import { decodeTtsFrame } from "./ttsFrame";
 
 const DEFAULT_SEND_TIMEOUT_MS = 10_000;
 const HEARTBEAT_INTERVAL_MS = 25_000;
@@ -73,6 +74,14 @@ export class WSClient {
     };
 
     this.ws.onmessage = (ev) => {
+      if (ev.data instanceof ArrayBuffer) {
+        const chunk = decodeTtsFrame(ev.data);
+        if (!chunk) return;
+        // Same accounting as a whole tts_audio, with the chunk's real duration.
+        if (chunk.pcm.length > 0) presenceStore.ingest({ event: "tts_audio", segment: chunk.segment, duration: chunk.duration } as never);
+        this.dispatch("tts_audio_chunk", chunk);
+        return;
+      }
       if (typeof ev.data !== "string") return;
       try {
         const payload = JSON.parse(ev.data) as OutgoingEvent;

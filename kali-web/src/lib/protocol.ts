@@ -273,6 +273,33 @@ export interface TtsAudioEvent {
   duration: number;
 }
 
+/** Streamed PCM chunk (binary frame, decoded in wsClient). */
+export interface TtsAudioChunkEvent {
+  event: "tts_audio_chunk";
+  block_id: number;
+  segment: number;
+  seq: number;
+  final: boolean;
+  sample_rate: number;
+  pcm: Int16Array; // s16le mono
+  duration: number; // real seconds of this chunk
+}
+
+/** An emotion block starts; its emotion shows when its first audio sounds. */
+export interface TtsBlockStartEvent {
+  event: "tts_block_start";
+  session_id?: string;
+  block_id: number;
+  emotion: { id: string; intensity: number | null } | null;
+}
+
+export interface TtsBlockEndEvent {
+  event: "tts_block_end";
+  session_id?: string;
+  block_id: number;
+  status: "done" | "cancelled" | "empty";
+}
+
 export interface TtsFilteredEvent {
   event: "tts_filtered";
   raw_length: number;
@@ -944,6 +971,9 @@ export type OutgoingEvent =
   | VadStateEvent
   | WakeWordEvent
   | TtsAudioEvent
+  | TtsAudioChunkEvent
+  | TtsBlockStartEvent
+  | TtsBlockEndEvent
   | TtsFilteredEvent
   | ArtifactEvent
   | TurnStartEvent

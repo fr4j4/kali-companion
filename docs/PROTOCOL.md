@@ -398,6 +398,32 @@ A synthesized audio segment, base64-encoded WAV.
 }
 ```
 
+### Streamed TTS: `tts_block_start`, binary PCM frames, `tts_block_end`
+
+With a streaming provider (Qwen3) and `KALI_TTS_STREAM` on (default), each emotion
+block is spoken as PCM while the engine generates it, instead of whole `tts_audio`
+WAV segments:
+
+```json
+{ "event": "tts_block_start", "block_id": 0, "emotion": { "id": "alegre", "intensity": 0.8 } }
+{ "event": "tts_block_end", "block_id": 0, "status": "done" }
+```
+
+`status` is `done`, `cancelled` (turn cancelled; the engine stream is closed) or `empty`
+(no audio; the block's emotion still goes out as `emotion_event`). Between them the
+audio arrives as **binary WebSocket frames**: a 16-byte little-endian header
+`u8 kind (1) · u8 flags (bit0 final) · u16 seq · u32 block_id · u32 segment · u32 sample_rate`
+followed by s16le mono PCM (`kali-web/src/lib/ttsFrame.ts`, `kali_core/voice/streaming.py`).
+Each segment ends with one `final` frame. Chunks are whole multiples of the envelope
+window (1/`envHz` s), so their mouth envelopes join without seams.
+
+The block's emotion follows the same rule as for `tts_audio`: it rides on the first
+audio of the block. The core feeds its presence engine one compact `tts_audio` per
+chunk with the chunk's real `duration` and `env` (`continues: true` after the first),
+and the client sends `speech_started` when a segment's first chunk starts to sound
+and `speech_ended` when its last one ends. If the stream fails before any audio, that
+segment falls back to a normal `tts_audio`.
+
 ### `tts_filtered`
 
 Notifies the UI about TTS filtering (raw vs. spoken text length).

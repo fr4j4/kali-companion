@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from pathlib import Path
 
 from kali_core.voice.filter import filter_for_tts, segment_for_tts
 
@@ -57,18 +59,18 @@ class TTSPipeline:
         filtered = filter_for_tts(raw_text)
         return filtered, raw_text
 
-    async def synthesize_stream(self, raw_text: str) -> AsyncIterator[TTSResult]:
-        """Filter, segment, and synthesize. Yields TTSResult per segment."""
+    def _prepare(self, raw_text: str) -> tuple[list[str], str] | None:
+        """Filter and segment *raw_text*; returns (segments, voice) or None when nothing to say."""
         if not self.auto_tts:
-            return
+            return None
 
         filtered, raw = self.filter_text(raw_text)
         if not filtered.strip():
-            return
+            return None
 
         segments = segment_for_tts(filtered, max_chunk=self.max_chunk)
         if not segments:
-            return
+            return None
 
         # Defensive voice validation: if the current voice is not valid for
         # this provider (e.g. after switching providers), try to fall back
@@ -103,6 +105,14 @@ class TTSPipeline:
             self.language,
             len(segments),
         )
+        return segments, effective_voice
+
+    async def synthesize_stream(self, raw_text: str) -> AsyncIterator[TTSResult]:
+        """Filter, segment, and synthesize. Yields TTSResult per segment."""
+        prepared = self._prepare(raw_text)
+        if prepared is None:
+            return
+        segments, effective_voice = prepared
 
         for i, segment in enumerate(segments):
             try:
@@ -133,3 +143,53 @@ class TTSPipeline:
                     exc,
                     exc_info=True,
                 )
+
+    @property
+    def can_stream_pcm(self) -> bool:
+        return self.auto_tts and bool(getattr(self.provider, "supports_streaming", False))
+
+    async def synthesize_pcm_stream(self, raw_text: str) -> AsyncIterator[PcmPiece | TTSResult]:
+        """Like synthesize_stream, but yields the provider's PCM as it is generated.
+
+        Per segment: PcmPiece chunks, then one empty PcmPiece with final=True. If the
+        stream fails before any audio, that segment falls back to a whole TTSResult
+        (WAV), so the caller can keep the old path for it.
+        """
+        prepared = self._prepare(raw_text)
+        if prepared is None:
+            return
+        segments, effective_voice = prepared
+        for i, segment in enumerate(segments):
+            got_audio = False
+            try:
+                async for data in self.provider.synthesize_pcm(  # type: ignore[attr-defined]
+                    segment, voice=effective_voice, mode=self.mode, language=self.language,
+                ):
+                    got_audio = True
+                    yield PcmPiece(i, data)
+                yield PcmPiece(i, b"", final=True)
+                continue
+            except Exception as exc:
+                if got_audio:
+                    # Part of the segment already sounded: close it rather than repeat it.
+                    logger.error("PCM stream broke mid-segment %d: %s", i, exc)
+                    yield PcmPiece(i, b"", final=True)
+                    continue
+                logger.warning("PCM stream failed for segment %d (%s); falling back to WAV", i, exc)
+            try:
+                result = await self.provider.synthesize(
+                    segment, voice=effective_voice, mode=self.mode, language=self.language,
+                )
+                result.segment = i
+                yield result
+            except Exception as exc:
+                logger.error("TTS synthesis failed for segment %d: %s", i, exc, exc_info=True)
+
+
+@dataclass
+class PcmPiece:
+    """Raw s16le PCM from a streaming provider; segment is the index within the text."""
+
+    segment: int
+    pcm: bytes
+    final: bool = False
