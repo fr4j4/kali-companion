@@ -51,7 +51,14 @@ export function useCanvasKeys(actions: CanvasKeyActions, windows: WindowData[], 
       if (ctrl && !e.shiftKey && !e.altKey && /^Digit[1-4]$/.test(code)) { e.preventDefault(); a.mode(MODE_KEYS[Number(code.slice(5)) - 1]); return; }
       if (e.altKey && !ctrl && !e.shiftKey && /^Digit[1-9]$/.test(code)) { e.preventDefault(); a.windowAt(Number(code.slice(5)) - 1); return; }
       if (e.key === "Escape" && !e.defaultPrevented) {
-        if (isTextTarget(e.target)) return;
+        // A text field keeps Esc for itself, except that an open overlay (Espacio, a zone
+        // panel, the palette) closes from anywhere: the composer below it, or its own empty
+        // search field.
+        if (isTextTarget(e.target)) {
+          const overlay = document.querySelector(".v2-space, .v2-zone-panel, .v2-palette");
+          const field = e.target as HTMLInputElement;
+          if (!overlay || (overlay.contains(field) && field.value)) return;
+        }
         if (winRef.current.some((w) => w.type === "game" && w.focused && !w.minimized && !w.closed)) return;
         if (document.querySelector('[role="dialog"][aria-modal="true"]:not(.v2-space):not(.v2-palette)')) return;
         if (a.back()) e.preventDefault();

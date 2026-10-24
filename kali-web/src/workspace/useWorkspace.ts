@@ -136,13 +136,13 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   // Close a window — hide it and release its content from memory.
   const closeWindow = useCallback((id: number) => {
     undoRedo.push({ type: "close", windowId: id });
-    let releasedArtifactId: string | undefined;
+    // Read it now: the updater below may run later (batched).
+    const releasedArtifactId = windowsRef.current.find((w) => w.id === id)?.artifactId;
     setWindows((prev) => {
       const next = closeInArray(prev, id);
       const closed = next.find((w) => w.id === id);
       if (closed) {
         persistence.saveWindowState(closed);
-        releasedArtifactId = closed.artifactId;
         // Drop the heavy content payload from memory; a metadata-only entry
         // (id, type, title, preview) is kept in chat.artifacts so the library
         // list still shows the artifact. Content is re-fetched on reopen.
@@ -155,17 +155,16 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
 
   // Restore a previously-closed window. If its content was released, fetch it.
   const restoreWindow = useCallback((id: number) => {
-    let needFetch = false;
-    let artifactId: string | undefined;
+    // Decide from the current windows: the updater below runs later (batched), so flags set
+    // inside it are not visible here yet.
+    const current = windowsRef.current.find((w) => w.id === id);
+    const ev = current?.content as ArtifactEvent | null | undefined;
+    const artifactId = current?.artifactId;
+    const needFetch = artifactId != null && (ev == null || ev.content == null);
     setWindows((prev) => {
       const next = restoreInArray(prev, id);
       const restored = next.find((w) => w.id === id);
-      if (restored) {
-        persistence.saveWindowState(restored);
-        artifactId = restored.artifactId;
-        const ev = restored.content as ArtifactEvent | null;
-        needFetch = restored.artifactId != null && (ev == null || ev.content == null);
-      }
+      if (restored) persistence.saveWindowState(restored);
       return next;
     });
     if (needFetch && artifactId) loadArtifactContent(artifactId);

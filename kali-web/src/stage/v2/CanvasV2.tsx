@@ -180,6 +180,7 @@ export function CanvasV2(p: Props) {
   }, api.windows);
 
   const runningJobs = Array.from(chat.jobs.values()).filter((j) => j.status === "running").length;
+  const hiddenArtifacts = api.windows.filter((w) => w.artifactId && (w.closed || w.minimized)).length;
   const menu = {
     mode: artifactMode,
     hasWindows: !!active && canvas.tabIds.length > 0,
@@ -198,6 +199,8 @@ export function CanvasV2(p: Props) {
     onAudio: api.toggleAudio,
     onDebug: import.meta.env.DEV ? p.onToggleDebug : undefined,
     onPalette: () => setPaletteOpen(true),
+    onLibrary: p.onOpenLibrary,
+    hiddenArtifacts,
     runningJobs,
   };
 
@@ -293,7 +296,7 @@ export function CanvasV2(p: Props) {
       )}
 
       {/* Zone panels */}
-      {panel === "tray" && layout.artifact && <Tray canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} />}
+      {panel === "tray" && layout.artifact && <Tray canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
       {panel === "overview" && layout.artifact && <Overview canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
 
       {/* Kali's column (focus, mosaic) */}
@@ -337,7 +340,7 @@ export function CanvasV2(p: Props) {
 
       {/* Corners */}
       {layout.statusPill && <StatusPill style={anchorStyle(layout.statusPill, stage, "tl")} />}
-      {layout.windowsPill && openCount > 0 && (
+      {layout.windowsPill && (openCount > 0 || hiddenArtifacts > 0) && (
         <WindowsPill count={openCount} open={panel === "tray"} onToggle={() => canvas.setPanel(panel === "tray" ? null : "tray")} style={anchorStyle(layout.windowsPill, stage, "tr")} />
       )}
       <NoticesPill

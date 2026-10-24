@@ -10,12 +10,11 @@
  * the status pill and the layout button instead (the same components, positioned statically).
  */
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bell, Bug, Columns2, Cpu, Gamepad2, Grid2x2, History, Layers, LayoutGrid, Maximize, MessageSquare, Network, Palette, Plus,
-  RectangleHorizontal, Search, Settings, Undo2, Volume2, X,
-} from "lucide-react";
+  RectangleHorizontal, Search, Settings, Undo2, Volume2, X, Library } from "lucide-react";
 import { useStage } from "../StageProvider";
 import { ModelStatsPanel } from "../HUD";
 import type { ArtifactMode, KaliView, Point } from "../../workspace/layout";
@@ -170,6 +169,9 @@ export interface LayoutMenuProps {
   onAudio: () => void;
   onDebug?: () => void;
   onPalette: () => void;
+  onLibrary: () => void;
+  /** Artifacts of this conversation that are not on screen (closed or in the tray). */
+  hiddenArtifacts: number;
   runningJobs: number;
 }
 
@@ -181,17 +183,25 @@ export const MODE_ICONS: Record<ArtifactMode, typeof Columns2> = {
 };
 export const MODES: ArtifactMode[] = ["split", "focus", "mosaic", "fullscreen"];
 
+interface MenuItemProps { icon: ReactNode; label: string; kbd?: string; onClick: () => void; checked?: boolean; disabled?: boolean; onClose: () => void }
+
+/** One entry of the layout menu. Declared at module level: a component created inside the menu's
+ * render would be a new type on every render, so any re-render between press and release (the
+ * canvas re-renders on pointer down) would remount the button and swallow the click. */
+function MenuItem({ icon, label, kbd, onClick, checked, disabled, onClose }: MenuItemProps) {
+  return (
+    <button type="button" role={checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={checked} className="v2-menu-item" onClick={() => { onClose(); onClick(); }} disabled={disabled}>
+      {icon}<span>{label}</span>{kbd && <span className="v2-kbd">{kbd}</span>}
+    </button>
+  );
+}
+
 export function LayoutButton({ style, ...p }: LayoutMenuProps & { style?: CSSProperties }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
-  const run = (fn: () => void) => () => { setOpen(false); fn(); };
-  const Item = ({ icon, label, kbd, onClick, checked, disabled }: { icon: ReactNode; label: string; kbd?: string; onClick: () => void; checked?: boolean; disabled?: boolean }) => (
-    <button type="button" role={checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={checked} className="v2-menu-item" onClick={run(onClick)} disabled={disabled}>
-      {icon}<span>{label}</span>{kbd && <span className="v2-kbd">{kbd}</span>}
-    </button>
-  );
+  const close = useCallback(() => setOpen(false), []);
   return (
     <div ref={ref} className="absolute z-40" style={style}>
       {open && (
@@ -199,26 +209,27 @@ export function LayoutButton({ style, ...p }: LayoutMenuProps & { style?: CSSPro
           <div className="v2-pop-title">{t("v2.menu.layout")}</div>
           {MODES.map((m, i) => {
             const Icon = MODE_ICONS[m];
-            return <Item key={m} icon={<Icon size={15} />} label={t(`v2.mode.${m}`)} kbd={`Ctrl ${i + 1}`} onClick={() => p.onMode(m)} checked={p.hasWindows && p.mode === m} disabled={!p.hasWindows} />;
+            return <MenuItem onClose={close} key={m} icon={<Icon size={15} />} label={t(`v2.mode.${m}`)} kbd={`Ctrl ${i + 1}`} onClick={() => p.onMode(m)} checked={p.hasWindows && p.mode === m} disabled={!p.hasWindows} />;
           })}
-          <Item icon={<LayoutGrid size={15} />} label={t("v2.menu.overview")} onClick={p.onOverview} />
-          <Item icon={<Layers size={15} />} label={t("v2.menu.space")} kbd="Ctrl ⇧ E" onClick={p.onSpace} />
+          <MenuItem onClose={close} icon={<LayoutGrid size={15} />} label={t("v2.menu.overview")} onClick={p.onOverview} />
+          <MenuItem onClose={close} icon={<Layers size={15} />} label={t("v2.menu.space")} kbd="Ctrl ⇧ E" onClick={p.onSpace} />
+          <MenuItem onClose={close} icon={<Library size={15} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
           <div className="v2-menu-sep" />
           <div className="v2-pop-title">{t("v2.menu.kali_zone")}</div>
-          <Item icon={<Network size={15} />} label={t("v2.view.map")} onClick={() => p.onKaliView("map")} checked={p.kaliView === "map"} />
-          <Item icon={<MessageSquare size={15} />} label={t("v2.view.conversation")} onClick={() => p.onKaliView("conversation")} checked={p.kaliView === "conversation"} />
+          <MenuItem onClose={close} icon={<Network size={15} />} label={t("v2.view.map")} onClick={() => p.onKaliView("map")} checked={p.kaliView === "map"} />
+          <MenuItem onClose={close} icon={<MessageSquare size={15} />} label={t("v2.view.conversation")} onClick={() => p.onKaliView("conversation")} checked={p.kaliView === "conversation"} />
           <div className="v2-menu-sep" />
-          <Item icon={<History size={15} />} label={t("stage.history")} onClick={p.onHistory} />
-          <Item icon={<Palette size={15} />} label={t("dock.customizer")} onClick={p.onCustomize} />
-          <Item icon={<Cpu size={15} />} label={p.runningJobs ? `${t("stage.jobs")} · ${p.runningJobs}` : t("stage.jobs")} onClick={p.onJobs} />
-          <Item icon={<Gamepad2 size={15} />} label={t("dock.toys")} onClick={p.onGames} />
-          <Item icon={<Volume2 size={15} />} label={t("dock.audio")} onClick={p.onAudio} />
-          <Item icon={<Undo2 size={15} />} label={t("dock.undo")} onClick={p.onUndo} />
+          <MenuItem onClose={close} icon={<History size={15} />} label={t("stage.history")} onClick={p.onHistory} />
+          <MenuItem onClose={close} icon={<Palette size={15} />} label={t("dock.customizer")} onClick={p.onCustomize} />
+          <MenuItem onClose={close} icon={<Cpu size={15} />} label={p.runningJobs ? `${t("stage.jobs")} · ${p.runningJobs}` : t("stage.jobs")} onClick={p.onJobs} />
+          <MenuItem onClose={close} icon={<Gamepad2 size={15} />} label={t("dock.toys")} onClick={p.onGames} />
+          <MenuItem onClose={close} icon={<Volume2 size={15} />} label={t("dock.audio")} onClick={p.onAudio} />
+          <MenuItem onClose={close} icon={<Undo2 size={15} />} label={t("dock.undo")} onClick={p.onUndo} />
           <div className="v2-menu-sep" />
-          <Item icon={<Plus size={15} />} label={t("stage.new_chat")} onClick={p.onNewChat} />
-          <Item icon={<Settings size={15} />} label={t("stage.settings")} onClick={p.onSettings} />
-          <Item icon={<Search size={15} />} label={t("v2.menu.palette")} kbd="Ctrl K" onClick={p.onPalette} />
-          {p.onDebug && <Item icon={<Bug size={15} />} label={t("dock.debug")} onClick={p.onDebug} />}
+          <MenuItem onClose={close} icon={<Plus size={15} />} label={t("stage.new_chat")} onClick={p.onNewChat} />
+          <MenuItem onClose={close} icon={<Settings size={15} />} label={t("stage.settings")} onClick={p.onSettings} />
+          <MenuItem onClose={close} icon={<Search size={15} />} label={t("v2.menu.palette")} kbd="Ctrl K" onClick={p.onPalette} />
+          {p.onDebug && <MenuItem onClose={close} icon={<Bug size={15} />} label={t("dock.debug")} onClick={p.onDebug} />}
         </div>
       )}
       <button type="button" className="v2-square-btn" style={{ position: "relative" }} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu" aria-label={t("v2.menu.label") as string} title={t("v2.menu.label") as string}>

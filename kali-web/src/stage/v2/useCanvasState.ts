@@ -212,6 +212,22 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts
     touch(id);
   }, [winById, touch]);
 
+  // A window focused from outside the canvas (the library, "back to canvas" from a native
+  // window, a link) comes onto the screen: out of the tray, its group active, its tab chosen.
+  const lastFocusRef = useRef<number | null>(null);
+  useEffect(() => {
+    const f = api.windows.find((w) => w.focused && !w.closed);
+    const id = f?.id ?? null;
+    if (id === lastFocusRef.current) return;
+    lastFocusRef.current = id;
+    if (!f) return;
+    const g = groupOf(stateRef.current, f.id);
+    const offScreen = f.minimized || (g != null && g.id !== stateRef.current.activeGroupId);
+    if (!offScreen) return;
+    if (g && g.id !== stateRef.current.activeGroupId) openGroupRef.current?.(g.id);
+    focusWindow(f.id);
+  }, [api.windows, focusWindow]);
+
   const setMode = useCallback((m: ArtifactMode, groupId?: string) => {
     const gid = groupId ?? stateRef.current.activeGroupId;
     if (!gid) return;
@@ -253,6 +269,9 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts
     setPanel(null);
     setSpace(false);
   }, [winById, lastUsed]);
+
+  const openGroupRef = useRef(openGroup);
+  openGroupRef.current = openGroup;
 
   const minimize = useCallback((id: number) => {
     const w = winById(id);
@@ -303,6 +322,9 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle }: Opts
       apiRef.current.reopenArtifact(entry.artifactId);
     }
     setState((s) => forgetClosed(s, entry.windowId));
+    // Reopened from the tray or Espacio: the window comes back on screen, not under them.
+    setPanel(null);
+    setSpace(false);
   }, [winById]);
 
   const moveToGroup = useCallback((ids: number[], groupId: string | "new", title?: string) => {

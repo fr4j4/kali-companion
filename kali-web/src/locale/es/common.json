@@ -11,7 +11,7 @@
   "stage.expand": "Expandir",
   "stage.collapse": "Contraer",
   "stage.history": "Historial",
-  "stage.jobs": "Tareas",
+  "stage.jobs": "Trabajos en segundo plano",
   "stage.settings": "Ajustes",
   "stage.new_chat": "Nueva conversación",
   "stage.windows": "Ventanas",
@@ -636,7 +636,7 @@
   "dock.toys": "Juegos",
   "dock.debug": "Debug",
   "dock.text_input": "Escribir un mensaje",
-  "jobs.title": "Tareas",
+  "jobs.title": "Trabajos en segundo plano",
   "jobs.active": "{{count}} activas",
   "window.streaming.code": "Generando código…",
   "window.streaming.document": "Generando documento…",
@@ -1428,5 +1428,6 @@
   "v2.pdf.marks_other": "{{count}} pasajes marcados por Kali",
   "v2.pdf.no_file": "No se encontró el archivo",
   "v2.pdf.sample": "Visor de PDF",
-  "v2.pdf.sample_hint": "Kali abre aquí los PDF que lee y marca los pasajes que usó."
+  "v2.pdf.sample_hint": "Kali abre aquí los PDF que lee y marca los pasajes que usó.",
+  "v2.menu.library": "Todos los artefactos"
 }

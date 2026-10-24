@@ -81,7 +81,7 @@ const winsOf = (g: Group, windows: WindowData[]) => g.windowIds.map((id) => wind
 
 // ── Tray ────────────────────────────────────────────────
 
-export function Tray({ canvas, windows, rect, onClose }: { canvas: CanvasStateApi; windows: WindowData[]; rect: Rect; onClose: () => void }) {
+export function Tray({ canvas, windows, rect, onClose, onLibrary }: { canvas: CanvasStateApi; windows: WindowData[]; rect: Rect; onClose: () => void; onLibrary: () => void }) {
   const { t } = useTranslation();
   const [offerDismissed, setOfferDismissed] = useState(false);
   const activeId = canvas.groups.activeGroupId;
@@ -95,6 +95,7 @@ export function Tray({ canvas, windows, rect, onClose }: { canvas: CanvasStateAp
         <h2>{t("v2.tray.title")}</h2>
         <span className="v2-chip">{t("v2.hud.windows", { count: total })}</span>
         <span className="flex-1" />
+        <button type="button" className="v2-btn" onClick={() => { onClose(); onLibrary(); }}><Library size={14} aria-hidden="true" />{t("v2.menu.library")}</button>
         <button type="button" className="v2-icon-btn" onClick={onClose} aria-label={t("common.close") as string}><X size={16} /></button>
       </div>
       {stale.length > 0 && !offerDismissed && (

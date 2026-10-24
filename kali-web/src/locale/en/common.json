@@ -11,7 +11,7 @@
   "stage.expand": "Expand",
   "stage.collapse": "Collapse",
   "stage.history": "History",
-  "stage.jobs": "Jobs",
+  "stage.jobs": "Background jobs",
   "stage.settings": "Settings",
   "stage.new_chat": "New conversation",
   "stage.windows": "Windows",
@@ -636,7 +636,7 @@
   "dock.toys": "Toys",
   "dock.debug": "Debug",
   "dock.text_input": "Type a message",
-  "jobs.title": "Jobs",
+  "jobs.title": "Background jobs",
   "jobs.active": "{{count}} active",
   "window.streaming.code": "Generating code…",
   "window.streaming.document": "Generating document…",
@@ -1428,5 +1428,6 @@
   "v2.pdf.marks_other": "{{count}} passages marked by Kali",
   "v2.pdf.no_file": "The file was not found",
   "v2.pdf.sample": "PDF viewer",
-  "v2.pdf.sample_hint": "Kali opens here the PDFs she reads and marks the passages she used."
+  "v2.pdf.sample_hint": "Kali opens here the PDFs she reads and marks the passages she used.",
+  "v2.menu.library": "All artifacts"
 }
