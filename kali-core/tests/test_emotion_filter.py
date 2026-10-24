@@ -125,3 +125,12 @@ def test_prompt_fragment_lists_all_emotions_and_is_switchable(monkeypatch):
     assert emotion_tag_enabled() is False
     monkeypatch.delenv("KALI_AVATAR_EMOTION_TAG")
     assert emotion_tag_enabled() is True
+
+
+def test_marks_report_where_each_tag_stood_in_the_returned_text():
+    f = EmotionStreamFilter()
+    text = f.feed("Hola. [EMOTION: alegre] Qué bien. [EMOTION: triste 0.5]Adiós")
+    marks = f.drain_marks()
+    assert [(m[0], m[1]) for m in marks] == [("alegre", None), ("triste", 0.5)]
+    assert text[: marks[0][2]] == "Hola. " and text[marks[0][2]: marks[1][2]].strip() == "Qué bien."
+    assert f.drain_marks() == [] and f.drain() == []

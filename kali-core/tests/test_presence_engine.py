@@ -402,3 +402,48 @@ def test_tts_envelope_follows_energy():
 def test_tts_envelope_handles_garbage():
     assert tts_envelope({"audio": "not-base64!!"}) == ""
     assert tts_envelope({}) == ""
+
+
+def _audio(emotion=None, seg=0, dur=2.0):
+    ev = {"event": "tts_audio", "duration": dur, "segment": seg, "env": ""}
+    if emotion:
+        ev["emotion"] = {"id": emotion, "intensity": 0.9}
+    return ev
+
+
+def test_emotion_rides_on_the_audio_and_appears_when_it_sounds(rig):
+    e, c = rig
+    e.apply("s", {"event": "turn_start"})
+    e.apply("s", _audio("alegre", 0))
+    e.apply("s", _audio("preocupado", 1))
+    e.tick()
+    assert emo(e) == "alegre"
+    c.advance(1900)
+    e.tick()
+    assert emo(e) == "alegre"
+    c.advance(300)
+    e.tick()
+    assert emo(e) == "preocupado"
+    assert e.next_deadline() is not None
+
+
+def test_pending_audio_emotion_is_dropped_when_speech_is_cancelled(rig):
+    e, c = rig
+    e.apply("s", _audio("alegre", 0))
+    e.apply("s", _audio("triste", 1))
+    e.tick()
+    e.signal("s", {"kind": "speech_started", "segment": 0})
+    e.signal("s", {"kind": "speech_cancelled"})
+    c.advance(5000)
+    e.tick()
+    assert emo(e) != "triste"
+
+
+def test_audio_emotion_beats_the_end_of_turn_heuristic(rig):
+    e, c = rig
+    e.apply("s", {"event": "turn_start"})
+    e.apply("s", _audio("orgulloso", 0))
+    e.apply("s", {"event": "message", "role": "assistant", "text": "Lo siento mucho, falló."})
+    e.apply("s", {"event": "turn_end"})
+    assert e.frame("s")["emotion"]["id"] in ("orgulloso", "neutral")
+    assert e.frame("s")["emotion"]["id"] != "triste"

@@ -15,6 +15,12 @@ One brain, many views. The core decides what the avatar does; every client only 
   x fade + gesture), smooths them with critically damped springs and paints through `SvgRenderer`.
   Blinks, breathing, whiskers, gaze and view-only idle gestures (yawn, look around, ear flick) are local.
 
+## Emotion and voice
+
+`[EMOTION]` tags are block boundaries for the TTS: each stretch of text is spoken with its own emotion, shown when
+its audio begins (`server.py` `_synthesize_tts`, `PresenceEngine` segment `emotion`). Tags should open a sentence;
+the prompt asks for at most one per paragraph. Without TTS the emotions apply as the text streams.
+
 ## Adding an expression
 
 Add the emotion or gesture to the catalog (deltas are over the channels listed there), run `npm run gen:avatar`,

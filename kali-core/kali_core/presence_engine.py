@@ -74,6 +74,8 @@ class _Segment:
     started_at: float
     duration_ms: float
     env: str
+    emotion: tuple[str, float] | None = None  # shown when this segment starts to sound
+    fired: bool = False
 
 
 @dataclass
@@ -259,7 +261,13 @@ class PresenceEngine:
         start = max(now, s.speech[-1].started_at + s.speech[-1].duration_ms if s.speech else now)
         env = ev.get("env") if isinstance(ev.get("env"), str) else ""
         seg = ev.get("segment")
-        s.speech.append(_Segment(int(seg) if isinstance(seg, int) else len(s.speech), start, dur_ms, env))
+        emo = ev.get("emotion")
+        cue = None
+        if isinstance(emo, dict) and emo.get("id") in self.emotions:
+            inten = emo.get("intensity")
+            cue = (emo["id"], float(inten) if isinstance(inten, (int, float)) else 0.7)
+            s.turn_had_emotion = True
+        s.speech.append(_Segment(int(seg) if isinstance(seg, int) else len(s.speech), start, dur_ms, env, cue))
         s.speech_pending += 1
         s.speech_end = start + dur_ms
 
@@ -324,6 +332,11 @@ class PresenceEngine:
             s.emotion["until"] += dt
         if s.emotion["until"] and now >= s.emotion["until"]:
             s.emotion = {"id": "neutral", "intensity": 0.0, "since": now, "until": 0, "source": "system"}
+        for item in s.speech:
+            if not item.fired and now >= item.started_at:
+                item.fired = True
+                if item.emotion:
+                    self._set_emotion(s, item.emotion[0], item.emotion[1], "llm", now)
         while s.speech and now >= s.speech[0].started_at + s.speech[0].duration_ms:
             s.speech.popleft()
         if s.speech_pending and not s.speech and now >= s.speech_end + self.cfg["speechTailMs"]:
@@ -473,6 +486,7 @@ class PresenceEngine:
         if s.speech:
             out.append(s.speech[0].started_at)
             out.append(s.speech[0].started_at + s.speech[0].duration_ms)
+            out.extend(item.started_at for item in s.speech if not item.fired)
         if s.speech_pending and not s.speech:
             out.append(s.speech_end + self.cfg["speechTailMs"])
         if s.listening_until:

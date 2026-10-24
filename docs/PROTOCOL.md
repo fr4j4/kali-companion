@@ -312,6 +312,11 @@ Activities (priority): `offline` 100, `esperando` 90, `escuchando` 80, `hablando
 The LLM sets emotions with a leading `[EMOTION: id 0.7]` tag (on by default, `KALI_AVATAR_EMOTION_TAG=0` disables it);
 the core strips it from the text, history and TTS and emits an `emotion` stream event. See `docs/AVATAR.md`.
 
+With TTS on, the reply is split at its emotion tags into blocks and each block is synthesized on its own. The first
+`tts_audio` of a block carries `emotion: {id, intensity}`, and the presence engine applies it when that audio starts
+to sound (the opening emotion is still sent as `emotion_event` right away so the face matches the streaming text). A
+block with no audio falls back to `emotion_event`. Blocks under 20 characters fold into the next one and at most 8 are kept.
+
 ## Events: core → web
 
 ### `ready`
