@@ -75,3 +75,17 @@ async def test_apply_settings_tts_provider_switch_rolls_back_on_failure():
         assert any(e.get("event") == "error" for e in sent)
         assert server.tts_provider.provider_name == "piper"
     reset_registry()
+
+
+@pytest.mark.asyncio
+async def test_voice_after_model_load_handles_qwen_and_piper_voice_keys():
+    from kali_core.server import _voice_after_model_load
+    qwen = MagicMock()
+    qwen.list_voices = AsyncMock(return_value=[{"id": "serena", "name": "Serena"}, {"id": "vivian", "name": "Vivian"}])
+    assert await _voice_after_model_load(qwen, "glados-es") == "serena"
+    assert await _voice_after_model_load(qwen, "vivian") is None
+
+    piper = MagicMock()
+    piper.list_voices = AsyncMock(return_value=[{"voice_id": "glados-es"}, {"voice_id": "other"}])
+    assert await _voice_after_model_load(piper, "serena") == "glados-es"
+    assert await _voice_after_model_load(piper, "other") is None

@@ -173,6 +173,21 @@ def _validate_voice_for_provider(voice: str, provider) -> str:
     return voice
 
 
+def _voice_ids(voices: list[dict[str, Any]]) -> list[str]:
+    """Voice ids from a provider's list_voices(); Piper keys them 'voice_id', Qwen 'id'."""
+    return [v.get("voice_id") or v["id"] for v in voices]
+
+
+async def _voice_after_model_load(provider, current_voice: str) -> str | None:
+    """First voice of the freshly loaded model when current_voice is not valid for it, else None."""
+    if not hasattr(provider, "list_voices"):
+        return None
+    ids = _voice_ids(await provider.list_voices())
+    if ids and current_voice not in ids:
+        return ids[0]
+    return None
+
+
 def _first_available_voice(provider) -> str | None:
     """Return the first available voice id for *provider*, or None."""
     name = getattr(provider, "provider_name", "")
@@ -1476,14 +1491,11 @@ class Server:
                 self.tts_error = getattr(target, "last_error", None)
 
                 # Auto-select first voice if current one is invalid for the new model
-                if target == self.tts_provider and hasattr(target, "list_voices"):
-                    voices = await target.list_voices()
-                    if voices:
-                        current_voice = self.tts_pipeline.voice
-                        if not any(v["voice_id"] == current_voice for v in voices):
-                            new_voice = voices[0]["voice_id"]
-                            self.tts_pipeline.set_voice(voice=new_voice)
-                            logger.info("Switched voice to '%s' after loading model '%s'", new_voice, model_id)
+                if target == self.tts_provider:
+                    new_voice = await _voice_after_model_load(target, self.tts_pipeline.voice)
+                    if new_voice:
+                        self.tts_pipeline.set_voice(voice=new_voice)
+                        logger.info("Switched voice to '%s' after loading model '%s'", new_voice, model_id)
 
                 await self.broadcast_status()
                 return {"status": "ready", "model": model_id, "device": device}
