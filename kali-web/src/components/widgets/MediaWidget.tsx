@@ -1,113 +1,123 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+/**
+ * MediaWidget — audio or video Kali found or made.
+ *
+ * With a real source (`url` / `src`) it plays it: video with the browser's own controls inside a
+ * dark frame, audio as a card with cover, title, artist, play, a seek bar and the times. Without
+ * one it shows the card as a sample, without pretending to play.
+ */
+
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Music, Play, Pause, Film } from "lucide-react";
 import { BaseWidget } from "./base/BaseWidget";
 import { parseContent } from "./base/DataWidget";
+import { WidgetFooter } from "./base/WidgetChrome";
+import { useShellSample, useShellSubtitle } from "../../stage/v2/shell";
 
 interface Props {
   content?: unknown;
   variant?: "audio" | "video";
 }
 
+export function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export function MediaWidget({ content, variant = "audio" }: Props) {
   const { t } = useTranslation();
-  const { data } = useMemo(() => parseContent(content), [content]);
+  const { data, isReal } = useMemo(() => parseContent(content), [content]);
   const d = (data ?? {}) as Record<string, unknown>;
+  const src = (typeof d.url === "string" && d.url) || (typeof d.src === "string" && d.src) || "";
+  const kind: "audio" | "video" = d.kind === "video" || d.type === "video" || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(src) ? "video" : d.kind === "audio" ? "audio" : variant;
+  const title = (d.title as string) || (kind === "audio" ? t("widget.media.sample_track") : t("widget.media.sample_video"));
+  const artist = typeof d.artist === "string" ? d.artist : typeof d.author === "string" ? d.author : "";
+  const cover = typeof d.cover === "string" ? d.cover : typeof d.image === "string" ? d.image : "";
+
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState(typeof d.duration === "number" ? d.duration : 0);
 
-  useEffect(() => {
-    if (!playing) return;
-    const interval = setInterval(() => {
-      setProgress((p) => Math.min(100, p + 1));
-    }, 200);
-    return () => clearInterval(interval);
-  }, [playing]);
+  useEffect(() => { setPlaying(false); setTime(0); }, [src]);
 
-  const togglePlay = useCallback(() => setPlaying((p) => !p), []);
+  const toggle = useCallback(() => {
+    const a = audioRef.current;
+    if (!a || !src) return;
+    if (a.paused) void a.play(); else a.pause();
+  }, [src]);
+
+  const seek = (e: React.PointerEvent<HTMLDivElement>) => {
+    const a = audioRef.current;
+    if (!a || !duration) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    a.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration;
+  };
+
+  useShellSubtitle(artist || (src ? src.split("/").pop()?.split("?")[0] ?? null : null));
+  useShellSample(!isReal || !src);
 
   return (
     <BaseWidget>
-      <div className="p-3 space-y-3">
-        {variant === "audio" ? (
-          /* Audio: Vinyl + EQ bars */
-          <div className="flex items-center gap-4">
-            <div className="relative w-20 h-20 shrink-0">
-              <div className={`w-full h-full rounded-full border-2 border-fg/10 ${playing ? "spin-active" : ""}`}>
-                <div className="w-full h-full rounded-full bg-gradient-to-br from-accent/30 to-accent/5 flex items-center justify-center">
-                  <span className="text-2xl">{'\u266B'}</span>
-                </div>
-              </div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-4 h-4 rounded-full bg-elevated border border-fg/20" />
-              </div>
+      {kind === "video" ? (
+        <div className="kw-video">
+          {src ? (
+            <video src={src} controls preload="metadata" poster={cover || undefined} onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)} />
+          ) : (
+            <div className="kw-empty-state"><span className="kw-empty-icon"><Film size={22} aria-hidden="true" /></span><p>{title}</p></div>
+          )}
+        </div>
+      ) : (
+        <div className="kw-audio">
+          <span className="kw-audio-cover">{cover ? <img src={cover} alt="" /> : <Music size={28} aria-hidden="true" />}</span>
+          <div className="kw-audio-main">
+            <div className="kw-audio-title">{title}</div>
+            {artist && <div className="kw-audio-artist">{artist}</div>}
+            <div
+              className="kw-audio-seek"
+              role="slider"
+              aria-label={t("v2.media.position") as string}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(duration)}
+              aria-valuenow={Math.round(time)}
+              tabIndex={src ? 0 : -1}
+              onPointerDown={seek}
+              onKeyDown={(e) => {
+                const a = audioRef.current;
+                if (!a) return;
+                if (e.key === "ArrowRight") a.currentTime = Math.min(duration, a.currentTime + 5);
+                if (e.key === "ArrowLeft") a.currentTime = Math.max(0, a.currentTime - 5);
+              }}
+            >
+              <div style={{ width: `${duration ? (time / duration) * 100 : 0}%` }} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm text-fg truncate">{(d.title as string) || t("widget.media.sample_track")}</div>
-              <div className="flex items-end gap-0.5 h-8 mt-2">
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="eq-bar flex-1 rounded-full bg-accent/60"
-                    style={{
-                      height: playing ? `${Math.random() * 15 + 3}px` : "3px",
-                      animationDelay: `${i * 0.05}s`,
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted mt-2">
-                <span>{formatTime(Math.floor(progress * (d.duration as number || 180) / 100))}</span>
-                <span>{formatTime((d.duration as number) || 180)}</span>
-              </div>
-              {/* Seek bar */}
-              <div className="relative h-1 bg-fg/10 rounded-full mt-1 cursor-pointer" onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setProgress(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
-              }}>
-                <div className="absolute left-0 top-0 h-full bg-accent rounded-full" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-            <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-accent text-on-accent flex items-center justify-center shrink-0 hover:brightness-110 transition">
-              {playing ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              )}
-            </button>
+            <div className="kw-audio-times kw-mono"><span>{formatTime(time)}</span><span>{formatTime(duration)}</span></div>
           </div>
-        ) : (
-          /* Video: Player */
-          <div className="video-container relative rounded-lg overflow-hidden bg-black/40 aspect-video flex items-center justify-center border border-fg/5">
-            <div className="text-center">
-              <span className="text-4xl text-muted">{'\u{1F3AC}'}</span>
-              <div className="text-xs text-muted mt-1">{(d.title as string) || t("widget.media.sample_video")}</div>
-            </div>
-            {/* Controls overlay */}
-            <div className="video-controls absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-center gap-3">
-              <button onClick={togglePlay} className="text-white hover:text-accent transition">
-                {playing ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                )}
-              </button>
-              <div className="flex-1 h-1 bg-fg/20 rounded-full relative cursor-pointer" onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setProgress(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
-              }}>
-                <div className="absolute left-0 top-0 h-full bg-accent rounded-full" style={{ width: `${progress}%` }} />
-              </div>
-              <span className="text-xs text-fg/70">{formatTime(Math.floor(progress * 120 / 100))}</span>
-            </div>
-          </div>
-        )}
-      </div>
+          <button type="button" className="kw-play" onClick={toggle} disabled={!src} aria-label={(playing ? t("v2.media.pause") : t("v2.media.play")) as string}>
+            {playing ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
+          </button>
+          {src && (
+            <audio
+              ref={audioRef}
+              src={src}
+              preload="metadata"
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onEnded={() => setPlaying(false)}
+              onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+              onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            />
+          )}
+        </div>
+      )}
+      <WidgetFooter>
+        <span className="v2-foot-item">{kind === "video" ? t("v2.media.video") : t("v2.media.audio")}</span>
+        {duration > 0 && <span className="v2-foot-item kw-mono">{formatTime(duration)}</span>}
+        {!src && <span className="v2-foot-item">{t("v2.media.no_source")}</span>}
+      </WidgetFooter>
     </BaseWidget>
   );
-}
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }

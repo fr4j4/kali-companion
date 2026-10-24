@@ -71,7 +71,7 @@ export function ModelsModal({ conn, onClose }: Props) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("provider.search_models") as string}
-                className="w-full bg-surface text-foreground border border-border rounded-md pl-7 pr-2.5 py-1.5 text-xs outline-none focus:border-accent-dim"
+                className="w-full bg-surface text-foreground border border-border rounded-lg pl-7 pr-2.5 py-1.5 text-xs outline-none focus:border-accent-dim"
               />
             </div>
           )}
@@ -102,7 +102,7 @@ export function ModelsModal({ conn, onClose }: Props) {
               {filtered.map((m) => (
                 <div
                   key={m}
-                  className="px-2.5 py-1.5 rounded-md bg-surface border border-border text-[11px] font-mono text-foreground"
+                  className="px-2.5 py-1.5 rounded-lg bg-surface border border-border text-[11px] font-mono text-foreground"
                 >
                   {m}
                 </div>

@@ -71,7 +71,7 @@ export function ScanPanel({ onPick }: Props) {
                 type="text"
                 value={host}
                 onChange={(e) => setHost(e.target.value)}
-                className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none focus:border-accent-dim"
+                className="bg-elevated text-foreground border border-border rounded-lg px-2 py-1.5 text-xs outline-none focus:border-accent-dim"
               />
             </div>
             <div className="flex flex-col gap-1 w-20">
@@ -80,7 +80,7 @@ export function ScanPanel({ onPick }: Props) {
                 type="number"
                 value={fromPort}
                 onChange={(e) => setFromPort(parseInt(e.target.value, 10) || DEFAULT_FROM)}
-                className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none focus:border-accent-dim"
+                className="bg-elevated text-foreground border border-border rounded-lg px-2 py-1.5 text-xs outline-none focus:border-accent-dim"
               />
             </div>
             <div className="flex flex-col gap-1 w-20">
@@ -89,7 +89,7 @@ export function ScanPanel({ onPick }: Props) {
                 type="number"
                 value={toPort}
                 onChange={(e) => setToPort(parseInt(e.target.value, 10) || DEFAULT_TO)}
-                className="bg-elevated text-foreground border border-border rounded-md px-2 py-1.5 text-xs outline-none focus:border-accent-dim"
+                className="bg-elevated text-foreground border border-border rounded-lg px-2 py-1.5 text-xs outline-none focus:border-accent-dim"
               />
             </div>
           </div>
@@ -98,7 +98,7 @@ export function ScanPanel({ onPick }: Props) {
               <button
                 onClick={handleScan}
                 disabled={!host || fromPort > toPort}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 text-accent text-xs font-medium hover:bg-accent/10 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/40 text-accent text-xs font-medium hover:bg-accent/10 transition-colors disabled:opacity-50"
               >
                 <ScanSearch size={12} />
                 {t("connections.scan")}
@@ -106,7 +106,7 @@ export function ScanPanel({ onPick }: Props) {
             ) : (
               <button
                 onClick={handleCancel}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-muted text-xs font-medium hover:bg-fg/5 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted text-xs font-medium hover:bg-fg/5 transition-colors"
               >
                 <X size={12} />
                 {t("provider.scan_cancel")}
@@ -138,7 +138,7 @@ export function ScanPanel({ onPick }: Props) {
                   <div key={`${r.port}-${r.url}`} className="flex flex-col">
                     <button
                       onClick={() => toggleExpand(idx)}
-                      className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md bg-elevated border border-border hover:border-accent/40 transition-colors text-left"
+                      className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-elevated border border-border hover:border-accent/40 transition-colors text-left"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <ChevronRight
@@ -166,7 +166,7 @@ export function ScanPanel({ onPick }: Props) {
                       </div>
                     </button>
                     {isExpanded && (
-                      <div className="ml-4 mt-1 px-2 py-2 rounded-md bg-surface/40 border border-border/50 max-h-[220px] overflow-y-auto scrollbar-thin flex flex-col gap-1">
+                      <div className="ml-4 mt-1 px-2 py-2 rounded-lg bg-surface/40 border border-border/50 max-h-[220px] overflow-y-auto scrollbar-thin flex flex-col gap-1">
                         {r.models.length > 10 && (
                           <input
                             type="text"
@@ -175,7 +175,7 @@ export function ScanPanel({ onPick }: Props) {
                             placeholder={t("connections.search_models", {
                               defaultValue: "Search models…",
                             })}
-                            className="bg-elevated text-foreground border border-border rounded-md px-2 py-1 text-[10px] outline-none focus:border-accent-dim"
+                            className="bg-elevated text-foreground border border-border rounded-lg px-2 py-1 text-[10px] outline-none focus:border-accent-dim"
                           />
                         )}
                         {filtered.length > 0 ? (

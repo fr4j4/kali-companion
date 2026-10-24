@@ -66,7 +66,7 @@ export function GenerationSection({ systemStatus, onUpdate }: Props) {
               <span className="text-xs text-muted">{t("settings.max_tokens")}</span>
               <span className="text-[11px] text-muted/60">{t("settings.max_tokens_hint")}</span>
             </div>
-            <span className="text-xs font-mono text-ai-signal bg-ai-signal/10 border border-ai-signal/30 rounded px-2 py-1">
+            <span className="text-xs font-mono text-accent bg-accent/10 border border-accent/30 rounded-full px-2.5 py-0.5">
               {formatTokens(value)}
             </span>
           </div>
@@ -79,7 +79,7 @@ export function GenerationSection({ systemStatus, onUpdate }: Props) {
               step={STEP}
               value={value}
               onChange={(e) => handleChange(parseInt(e.target.value, 10))}
-              className="flex-1 accent-ai-signal"
+              className="flex-1 accent-accent"
             />
             <input
               type="number"
@@ -88,7 +88,7 @@ export function GenerationSection({ systemStatus, onUpdate }: Props) {
               step={STEP}
               value={value}
               onChange={(e) => handleChange(Number(e.target.value))}
-              className="w-24 bg-ai-panel border border-ai-rail rounded-lg px-2.5 py-2 text-sm font-mono text-ai-readout outline-none focus:border-ai-signal/60 transition-colors text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-24 bg-surface border border-border rounded-lg px-2.5 py-2 text-sm font-mono text-fg outline-none focus:border-accent-dim transition-colors text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
 
@@ -98,7 +98,7 @@ export function GenerationSection({ systemStatus, onUpdate }: Props) {
           </div>
         </section>
 
-        <p className="text-[10px] font-mono text-ai-label/60 italic">{t("ai.change_next_turn")}</p>
+        <p className="text-[11px] text-muted">{t("ai.change_next_turn")}</p>
       </SettingsCard>
     </div>
   );

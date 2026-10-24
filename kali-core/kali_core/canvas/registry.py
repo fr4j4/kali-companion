@@ -32,6 +32,7 @@ STREAMABLE_TYPES: frozenset[str] = frozenset({
 
 NON_STREAMABLE_TYPES: frozenset[str] = frozenset({
     "json", "table", "checklist", "chart", "quiz",
+    "sources", "slides", "tasks", "notes", "calendar", "pdf",
 })
 
 
@@ -76,6 +77,12 @@ _DOMAIN_TO_WINDOW: dict[str, str] = {
     "text": "document",
     "longtext": "document",
     "img": "image",
+    "research": "sources",
+    "presentation": "slides",
+    "deck": "slides",
+    "board": "tasks",
+    "kanban": "tasks",
+    "agenda": "calendar",
     # ── non-widget artifact types ──
     "html": "html",
     "diff": "diff",
@@ -89,6 +96,8 @@ _VALID_WINDOW_TYPES: frozenset[str] = frozenset({
     "terminal", "checklist", "quiz", "diff", "table", "controls",
     "html", "widget", "entity", "resource", "place", "media",
     "document", "image",
+    # canvas v2 types
+    "sources", "slides", "tasks", "notes", "calendar", "pdf",
 })
 
 # Default fallback when nothing matches.
@@ -146,6 +155,11 @@ class ArtifactEnvelope:
     # Side-effect artifact (e.g. a screen capture): kept in the library, but the frontend must not
     # open a window for it.
     silent: bool = False
+    # Task the artifact belongs to: artifacts of one task open together as a group on the canvas.
+    group: str = ""
+    group_title: str = ""
+    # Real progress of the work on this artifact (0–1), when the tool knows it.
+    progress: float | None = None
 
     def to_payload(self) -> dict[str, Any]:
         """Convert to the WS wire-format dict (``event: "artifact"``)."""
@@ -162,6 +176,12 @@ class ArtifactEnvelope:
         }
         if self.silent:
             payload["silent"] = True
+        if self.group:
+            payload["group"] = self.group
+            if self.group_title:
+                payload["group_title"] = self.group_title
+        if self.progress is not None:
+            payload["progress"] = max(0.0, min(1.0, float(self.progress)))
         return payload
 
 

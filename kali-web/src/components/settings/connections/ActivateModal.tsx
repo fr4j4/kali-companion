@@ -148,7 +148,7 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
         {health === "online" && models.length > 0 && (
           <>
             <div className="flex flex-col gap-2">
-              <div className="text-[10px] text-muted uppercase tracking-wide">
+              <div className="text-[10px] text-muted">
                 {t("settings.game_ai_select_model")}
               </div>
 
@@ -229,14 +229,14 @@ export function ActivateModal({ conn, onClose, onActivate }: Props) {
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/30 shrink-0">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           >
             {t("connections.cancel")}
           </button>
           <button
             onClick={handleSubmit}
             disabled={!model.trim() || submitting || health === "checking" || health === "offline"}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isChangeModel ? <Pencil size={12} /> : <Star size={12} />}
             {isChangeModel ? t("connections.change_model_btn") : t("connections.set_active")}

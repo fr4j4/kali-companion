@@ -1,4 +1,13 @@
+/**
+ * JsonTreeWidget — structured data as a tree you can fold: keys, types in colour, item counts on
+ * folded branches, and the path of the chosen value in the footer (click a row to pick it, copy
+ * the path from there).
+ */
+
 import { useMemo, useState, useCallback } from "react";
+import { ChevronRight } from "lucide-react";
+import { WidgetFooter, WidgetToolbar } from "./base/WidgetChrome";
+import { useShellSample, useShellSubtitle } from "../../stage/v2/shell";
 import { useTranslation } from "react-i18next";
 import { ScrollableWidget } from "./base/ScrollableWidget";
 import { StreamingSpinner, isStreaming as isStreamingContent } from "./base/StreamingSpinner";
@@ -12,7 +21,7 @@ interface Props {
 
 export function JsonTreeWidget({ content }: Props) {
   const { t } = useTranslation();
-  const { data } = useMemo(() => parseContent(content), [content]);
+  const { data, isReal } = useMemo(() => parseContent(content), [content]);
   const d = (data ?? {}) as unknown;
   const jsonStr = useMemo(() => {
     if (typeof d === "string") return d;
@@ -31,6 +40,15 @@ export function JsonTreeWidget({ content }: Props) {
     try { return JSON.parse(jsonStr); }
     catch { return { error: "Invalid JSON" }; }
   }, [jsonStr]);
+  const [picked, setPicked] = useState<string>("");
+  const keyCount = useMemo(() => {
+    let n = 0;
+    const walk = (v: unknown) => { if (v && typeof v === "object") for (const k of Object.keys(v as object)) { n++; walk((v as Record<string, unknown>)[k]); } };
+    walk(parsed);
+    return n;
+  }, [parsed]);
+  useShellSubtitle(Array.isArray(parsed) ? t("v2.json.items", { count: parsed.length }) : t("v2.json.keys", { count: keyCount }));
+  useShellSample(!isReal);
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(["root"]));
 
@@ -65,87 +83,61 @@ export function JsonTreeWidget({ content }: Props) {
     { type: "copy", getContent: () => jsonStr, tip: t("widget.json.copy") },
     { type: "custom", icon: '\u2191', onClick: expandAll, tip: t("widget.json.expand_all") },
     { type: "custom", icon: '\u2193', onClick: collapseAll, tip: t("widget.json.collapse_all") },
-  ], [jsonStr, expandAll, collapseAll]);
+  ], [jsonStr, expandAll, collapseAll, t]);
 
   const { rendered: headerActions } = useHeaderActions(actions);
 
   return (
     <ScrollableWidget searchable={false} content={content}>
-      {headerActions.length > 0 && (
-        <div className="flex items-center justify-end gap-0.5 px-2 py-1 border-b border-fg/5 shrink-0">
-          {headerActions}
-        </div>
-      )}
+      <WidgetToolbar>{headerActions}</WidgetToolbar>
       {isStreamingContent(content) ? (
         <StreamingSpinner content={content} windowType="json" />
       ) : (
-        <div className="p-3 text-xs font-mono leading-5">
-          {renderValue(parsed, "root", 0, expandedPaths, togglePath)}
+        <div className="kw-json" role="tree">
+          <JsonNode name={null} val={parsed} path="root" depth={0} expanded={expandedPaths} onToggle={togglePath} picked={picked} onPick={setPicked} />
         </div>
       )}
+      <WidgetFooter>
+        <span className="v2-foot-item kw-mono">{picked ? jsonPath(picked) : t("v2.json.keys", { count: keyCount })}</span>
+      </WidgetFooter>
     </ScrollableWidget>
   );
 }
 
-function renderValue(
-  val: unknown,
-  path: string,
-  depth: number,
-  expanded: Set<string>,
-  onToggle: (path: string) => void,
-): JSX.Element {
-  const indent = { paddingLeft: `${depth * 16}px` };
+/** "root.a[0].b" → "$.a[0].b" */
+export const jsonPath = (p: string) => p.replace(/^root/, "$");
 
-  if (val === null) {
-    return <div style={indent}><span className="json-null">null</span></div>;
-  }
-  if (typeof val === "boolean") {
-    return <div style={indent}><span className="json-bool">{String(val)}</span></div>;
-  }
-  if (typeof val === "number") {
-    return <div style={indent}><span className="json-num">{val}</span></div>;
-  }
-  if (typeof val === "string") {
-    return <div style={indent}><span className="json-string">"{val}"</span></div>;
-  }
-  if (Array.isArray(val)) {
-    const isOpen = expanded.has(path);
-    return (
-      <div>
-        <div style={indent}>
-          <span className={`json-toggle ${isOpen ? "open" : ""}`} onClick={() => onToggle(path)} />
-          <span className="json-key">Array[{val.length}]</span>
-        </div>
-        {isOpen && val.map((item, i) => (
-          <div key={i}>
-            {renderValue(item, `${path}[${i}]`, depth + 1, expanded, onToggle)}
-          </div>
-        ))}
-        {isOpen && <div style={indent}><span className="text-muted">]</span></div>}
+function Scalar({ val }: { val: unknown }) {
+  if (val === null) return <span className="kw-json-null">null</span>;
+  if (typeof val === "boolean") return <span className="kw-json-bool">{String(val)}</span>;
+  if (typeof val === "number") return <span className="kw-json-num">{val}</span>;
+  return <span className="kw-json-str">"{String(val)}"</span>;
+}
+
+function JsonNode({ name, val, path, depth, expanded, onToggle, picked, onPick }: {
+  name: string | null; val: unknown; path: string; depth: number; expanded: Set<string>;
+  onToggle: (path: string) => void; picked: string; onPick: (path: string) => void;
+}) {
+  const branch = val !== null && typeof val === "object";
+  const open = expanded.has(path);
+  const entries = branch ? (Array.isArray(val) ? val.map((v, i) => [String(i), v] as const) : Object.entries(val as Record<string, unknown>)) : [];
+  const childPath = (k: string) => (Array.isArray(val) ? `${path}[${k}]` : `${path}.${k}`);
+  return (
+    <div role="treeitem" aria-expanded={branch ? open : undefined} aria-selected={picked === path}>
+      <div
+        className={`kw-json-row ${picked === path ? "is-picked" : ""}`}
+        style={{ paddingLeft: 8 + depth * 16 }}
+        onClick={() => { onPick(path); if (branch) onToggle(path); }}
+      >
+        {branch ? <ChevronRight size={12} className={`kw-json-chev ${open ? "is-open" : ""}`} aria-hidden="true" /> : <span className="kw-json-chev" />}
+        {name != null && <><span className="kw-json-key">{name}</span><span className="kw-json-colon">:</span></>}
+        {branch
+          ? <span className="kw-json-meta">{Array.isArray(val) ? `[${entries.length}]` : `{${entries.length}}`}</span>
+          : <Scalar val={val} />}
       </div>
-    );
-  }
-  if (typeof val === "object") {
-    const entries = Object.entries(val as Record<string, unknown>);
-    const isOpen = expanded.has(path);
-    return (
-      <div>
-        <div style={indent}>
-          <span className={`json-toggle ${isOpen ? "open" : ""}`} onClick={() => onToggle(path)} />
-          {depth === 0 ? null : <span className="json-key">{'{...}'}</span>}
-        </div>
-        {isOpen && entries.map(([key, value]) => (
-          <div key={key} style={{ paddingLeft: `${(depth + 1) * 16}px` }}>
-            <span className="json-key">{key}</span>
-            <span className="text-muted">: </span>
-            {typeof value === "object" && value !== null
-              ? renderValue(value, `${path}.${key}`, depth + 1, expanded, onToggle)
-              : <span>{String(value)}</span>
-            }
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return <div style={indent}>{String(val)}</div>;
+      {branch && open && entries.map(([k, v]) => (
+        <JsonNode key={k} name={Array.isArray(val) ? null : k} val={v} path={childPath(k)} depth={depth + 1} expanded={expanded} onToggle={onToggle} picked={picked} onPick={onPick} />
+      ))}
+    </div>
+  );
 }

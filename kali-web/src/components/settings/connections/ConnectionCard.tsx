@@ -43,17 +43,17 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
             {conn.name}
           </span>
           {isActive && (
-            <span className="text-[10px] font-mono bg-ok/20 text-ok rounded px-1.5 py-0.5 shrink-0">
+            <span className="text-[10px] font-mono bg-ok/20 text-ok rounded-full px-1.5 py-0.5 shrink-0">
               {t("connections.active_badge")}
             </span>
           )}
           {isGame && (
-            <span className="text-[10px] font-mono bg-accent/20 text-accent rounded px-1.5 py-0.5 shrink-0">
+            <span className="text-[10px] font-mono bg-accent/20 text-accent rounded-full px-1.5 py-0.5 shrink-0">
               {t("connections.games_badge")}
             </span>
           )}
           {healthColor && healthBg && (
-            <span className={`text-[10px] font-mono ${healthBg} ${healthColor} rounded px-1.5 py-0.5 shrink-0`}>
+            <span className={`text-[10px] font-mono ${healthBg} ${healthColor} rounded-full px-1.5 py-0.5 shrink-0`}>
               {health === "checking"
                 ? t("settings.game_ai_checking")
                 : health === "online"
@@ -91,7 +91,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
       <div className="flex items-center gap-1 shrink-0 mt-0.5">
         <button
           onClick={() => onEdit(conn.id)}
-          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
+          className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           title={t("connections.edit")}
           aria-label={t("connections.edit")}
         >
@@ -99,7 +99,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
         </button>
         <button
           onClick={() => onModels(conn.id)}
-          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
+          className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           title={t("connections.models")}
           aria-label={t("connections.models")}
         >
@@ -107,7 +107,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
         </button>
         <button
           onClick={() => onDelete(conn.id)}
-          className="p-1.5 rounded-md text-muted hover:text-err hover:bg-err/10 transition-colors"
+          className="p-1.5 rounded-lg text-muted hover:text-err hover:bg-err/10 transition-colors"
           title={t("connections.delete")}
           aria-label={t("connections.delete")}
         >
@@ -116,7 +116,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
         {conn.is_active ? (
           <button
             onClick={() => onDisconnect?.(conn.id)}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium text-err hover:bg-err/10 transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium text-err hover:bg-err/10 transition-colors"
           >
             <X size={12} />
             {t("connections.disconnect")}
@@ -124,7 +124,7 @@ export function ConnectionCard({ conn, gameConnectionId, health, onEdit, onModel
         ) : (
           <button
             onClick={() => onActivate(conn.id)}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors"
           >
             <Star size={12} />
             {t("connections.set_active")}

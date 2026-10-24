@@ -1,86 +1,89 @@
-import { useState, useMemo } from "react";
+/**
+ * QrWidget — a real, scannable QR code (lib/qr.ts) for a link or a text.
+ *
+ * Dark modules on a white tile with the quiet zone the standard asks for, so a phone reads it in
+ * either theme. The text can be edited; copy and download (SVG) live in the window header, and
+ * the footer says the version, the error correction and the length.
+ */
+
+import { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseWidget } from "./base/BaseWidget";
 import { parseContent } from "./base/DataWidget";
+import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
+import { WidgetFooter, WidgetToolbar } from "./base/WidgetChrome";
+import { useShellSample, useShellSubtitle } from "../../stage/v2/shell";
+import { encodeQr, type Ecc, type QrCode } from "../../lib/qr";
 
 interface Props {
   content?: unknown;
 }
 
-function generateQRMatrix(text: string): boolean[][] {
-  const size = 11;
-  const matrix: boolean[][] = Array.from({ length: size }, () => Array(size).fill(false));
+const QUIET = 4;
 
-  // Position markers (fixed blocks)
-  for (let i = 0; i < 5; i++) {
-    for (let j = 0; j < 5; j++) {
-      matrix[i][j] = true;
-      matrix[i][size - 1 - j] = true;
-      matrix[size - 1 - i][j] = true;
-    }
-  }
-
-  // Inner position marker cleanup
-  for (let i = 1; i < 4; i++) {
-    for (let j = 1; j < 4; j++) {
-      matrix[i][j] = false;
-      matrix[i][size - 1 - j] = false;
-      matrix[size - 1 - i][j] = false;
-    }
-  }
-  matrix[2][2] = true;
-  matrix[2][size - 3] = true;
-  matrix[size - 3][2] = true;
-
-  // Data blocks based on text hash
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    hash = ((hash << 5) - hash) + text.charCodeAt(i);
-    hash |= 0;
-  }
-
-  let seed = Math.abs(hash);
-  for (let i = 0; i < size; i++) {
-    for (let j = 0; j < size; j++) {
-      if (matrix[i][j]) continue;
-      seed = (seed * 16807) % 2147483647;
-      matrix[i][j] = seed % 3 !== 0;
-    }
-  }
-
-  return matrix;
+/** SVG markup of a QR code: one path for every dark module. */
+export function qrSvg(qr: QrCode, scale = 8): string {
+  const n = qr.size + QUIET * 2;
+  let d = "";
+  qr.modules.forEach((row, y) => row.forEach((on, x) => { if (on) d += `M${x + QUIET},${y + QUIET}h1v1h-1z`; }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" width="${n * scale}" height="${n * scale}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
 
 export function QrWidget({ content }: Props) {
   const { t } = useTranslation();
-  const { data } = useMemo(() => parseContent(content), [content]);
-  const d = (data ?? {}) as Record<string, unknown>;
-  const [text, setText] = useState((d.text as string) || (d.url as string) || "Hello World");
+  const { data, isReal } = useMemo(() => parseContent(content), [content]);
+  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const given = typeof data === "string" ? data : (d.text as string) || (d.url as string) || (d.data as string) || "";
+  const ecc: Ecc = d.ecc === "L" || d.ecc === "Q" || d.ecc === "H" ? d.ecc : "M";
+  const [text, setText] = useState(given || "https://example.com");
+  useEffect(() => { if (given) setText(given); }, [given]);
 
-  const matrix = useMemo(() => generateQRMatrix(text), [text]);
+  const result = useMemo(() => {
+    try { return { qr: encodeQr(text, ecc), error: null }; } catch { return { qr: null, error: true }; }
+  }, [text, ecc]);
+  const svg = useMemo(() => (result.qr ? qrSvg(result.qr) : ""), [result.qr]);
+  const isUrl = /^https?:\/\//i.test(text);
 
-  const size = matrix.length;
-  const cellSize = 14;
+  const actions: HeaderAction[] = useMemo(() => [
+    { type: "copy", getContent: () => text, tip: t("v2.qr.copy_text") },
+    { type: "download", content: svg, filename: "qr.svg", tip: t("v2.qr.download") },
+  ], [text, svg, t]);
+  const { rendered: headerActions } = useHeaderActions(actions);
+
+  useShellSubtitle(isUrl ? text.replace(/^https?:\/\//i, "") : t("v2.qr.text"));
+  useShellSample(!isReal || !given);
+
+  const n = result.qr ? result.qr.size + QUIET * 2 : 1;
 
   return (
     <BaseWidget>
-      <div className="p-3 space-y-3">
-        <svg viewBox={`0 0 ${size * cellSize} ${size * cellSize}`} className="w-full max-w-[200px] mx-auto">
-          <rect width={size * cellSize} height={size * cellSize} fill="white" rx="4" />
-          {matrix.map((row, y) =>
-            row.map((cell, x) =>
-              cell ? <rect key={`${x}-${y}`} x={x * cellSize} y={y * cellSize} width={cellSize} height={cellSize} fill="black" /> : null
-            )
-          )}
-        </svg>
+      <WidgetToolbar>{headerActions}</WidgetToolbar>
+      <div className="kw-qr">
+        {result.qr ? (
+          <svg className="kw-qr-code" viewBox={`0 0 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label={t("v2.qr.label", { text }) as string}>
+            <rect width={n} height={n} fill="#fff" />
+            <path d={result.qr.modules.flatMap((row, y) => row.map((on, x) => (on ? `M${x + QUIET},${y + QUIET}h1v1h-1z` : ""))).join("")} fill="#000" />
+          </svg>
+        ) : (
+          <p className="kw-empty">{t("v2.qr.too_long")}</p>
+        )}
+        {isUrl && (
+          <a className="kw-qr-link" href={text} target="_blank" rel="noopener noreferrer">{text}</a>
+        )}
         <input
+          className="kw-input"
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={t("widget.qr.placeholder")}
-          className="w-full bg-fg/[0.04] border border-fg/10 rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-muted outline-none focus:border-accent/40 transition text-center"
+          placeholder={t("widget.qr.placeholder") as string}
+          aria-label={t("v2.qr.text") as string}
         />
       </div>
+      <WidgetFooter>
+        {result.qr && <span className="v2-foot-item">{t("v2.qr.version", { version: result.qr.version, size: result.qr.size })}</span>}
+        <span className="v2-foot-item">{t("v2.qr.ecc", { level: ecc })}</span>
+        <span className="v2-foot-item">{t("v2.qr.chars", { count: text.length })}</span>
+      </WidgetFooter>
     </BaseWidget>
   );
 }

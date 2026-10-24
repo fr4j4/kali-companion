@@ -3,10 +3,11 @@
  *
  * Microphone, "look at my screen", the message field and send in one glass pill, as in the design.
  * Everything else the old dock carried (games, layouts, audio, undo, debug, clear) lives in the
- * overflow menu. Narrow screens keep `NeuralDock`.
+ * overflow menu; the neural canvas v2 gives it its own entries (`more`). Narrow screens keep
+ * `NeuralDock`.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUp, Bug, Gamepad2, House, LayoutGrid, Mic, MoreHorizontal, Monitor, Square, Trash2, Undo2, Volume2, X } from "lucide-react";
 import { useStage } from "./StageProvider";
@@ -18,9 +19,17 @@ interface Props {
   /** The docked conversation panel has its own composer; leave "type anywhere" to it. */
   yieldTyping: boolean;
   onTypingChange: (typing: boolean) => void;
+  /** No overflow menu at all. */
+  minimal?: boolean;
+  /** The overflow menu's entries, instead of the default ones (the neural canvas v2's «More»). */
+  more?: DockMoreItem[];
+  /** Narrow composer (Kali's column, the bubble): no "look at my screen" button. */
+  compact?: boolean;
 }
 
-export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: Props) {
+export interface DockMoreItem { id: string; icon: ReactNode; label: string; kbd?: string; onClick: () => void; separatorBefore?: boolean }
+
+export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange, minimal = false, compact = false, more }: Props) {
   const { t } = useTranslation();
   const { chat, ptt } = useStage();
   const [value, setValue] = useState("");
@@ -98,7 +107,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
             <X size={18} aria-hidden="true" />
           </button>
         )}
-        <button
+        {!compact && <button
           type="button"
           className="sd-btn"
           onClick={() => chat.send(t("dock.look_screen_prompt") as string)}
@@ -107,7 +116,7 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
           title={t("dock.look_screen") as string}
         >
           <Monitor size={18} aria-hidden="true" />
-        </button>
+        </button>}
         <textarea
           ref={taRef}
           rows={1}
@@ -119,11 +128,23 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
           aria-label={t("dock.placeholder") as string}
           className="sd-input"
         />
-        <div className="relative" ref={menuRef}>
+        {(!minimal || more) && <div className="relative" ref={menuRef}>
           <button type="button" className="sd-btn" onClick={() => setMenuOpen((v) => !v)} aria-label={t("dock.overflow") as string} title={t("dock.overflow") as string} aria-expanded={menuOpen} aria-haspopup="menu">
             <MoreHorizontal size={18} aria-hidden="true" />
           </button>
-          {menuOpen && (
+          {menuOpen && more && (
+            <div className="ctx-menu absolute bottom-12 right-0 min-w-[220px] max-h-[70vh] overflow-y-auto whitespace-nowrap" style={{ position: "absolute" }} role="menu">
+              {more.map((item) => (
+                <div key={item.id} className="contents">
+                  {item.separatorBefore && <div className="ctx-sep" />}
+                  <button role="menuitem" className="ctx-item w-full" onClick={run(item.onClick)}>
+                    {item.icon}<span className="flex-1 text-left">{item.label}</span>{item.kbd && <span className="text-muted text-[11px]">{item.kbd}</span>}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {menuOpen && !more && (
             <div className="ctx-menu absolute bottom-12 right-0 min-w-[180px]" role="menu">
               <button role="menuitem" className="ctx-item w-full" onClick={run(openToys)}><Gamepad2 size={14} />{t("dock.toys")}</button>
               <button role="menuitem" className="ctx-item w-full" onClick={run(api.toggleGrid)}><LayoutGrid size={14} />{t("dock.grid")}</button>
@@ -140,10 +161,10 @@ export function StageDock({ api, onToggleDebug, yieldTyping, onTypingChange }: P
               <button role="menuitem" className="ctx-item danger w-full" onClick={run(api.clearAll)}><Trash2 size={14} />{t("dock.clear")}</button>
             </div>
           )}
-        </div>
+        </div>}
         {busy ? (
           <button type="button" className="sd-send is-stop" onClick={chat.stop} aria-label={t("chat.stop") as string} title={t("chat.stop") as string}>
-            <Square size={14} fill="currentColor" aria-hidden="true" />
+            <Square size={12} fill="currentColor" aria-hidden="true" />
           </button>
         ) : (
           <button type="button" className="sd-send" onClick={submit} disabled={!value.trim()} aria-label={t("chat.send") as string} title={t("chat.send") as string}>

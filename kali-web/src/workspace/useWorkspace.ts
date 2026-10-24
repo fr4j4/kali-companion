@@ -78,6 +78,12 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   const [returnTick, setReturnTick] = useState(0);
   const pendingReturnRef = useRef<string[]>([]);
   const nativeIdsRef = useRef(new Set<string>());
+  // The same set as state, for the ghosts the canvas paints; and the last update of each one.
+  const [nativeIds, setNativeIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [nativeFlash, setNativeFlash] = useState<Record<string, number>>({});
+  const syncNative = useCallback(() => setNativeIds(new Set(nativeIdsRef.current)), []);
+  /** Native artifacts Kali changed while they were out: their canvas copy is refreshed when they come back. */
+  const staleNativeRef = useRef(new Set<string>());
   // In-flight content fetches, keyed by artifactId, so we don't double-fetch.
   const fetchingRef = useRef<Set<string>>(new Set());
 
@@ -87,7 +93,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
    *  - reopening a closed artifact from the library list, or
    *  - reattaching to a session where the artifact was left open.
    */
-  const loadArtifactContent = useCallback((artifactId: string) => {
+  const loadArtifactContent = useCallback((artifactId: string, opts?: { keepOnError?: boolean }) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
     if (fetchingRef.current.has(artifactId)) return;
@@ -112,7 +118,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
         onContentLoadedRef.current?.(artifactId, ev);
       })
       .catch((err) => {
-        if (err?.name === "AbortError") return;
+        if (err?.name === "AbortError" || opts?.keepOnError) return;
         // Revert to closed on failure.
         setWindows((prev) => prev.map((w) =>
           w.artifactId === artifactId ? { ...w, closed: true } : w
@@ -136,13 +142,13 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   // Close a window — hide it and release its content from memory.
   const closeWindow = useCallback((id: number) => {
     undoRedo.push({ type: "close", windowId: id });
-    let releasedArtifactId: string | undefined;
+    // Read it now: the updater below may run later (batched).
+    const releasedArtifactId = windowsRef.current.find((w) => w.id === id)?.artifactId;
     setWindows((prev) => {
       const next = closeInArray(prev, id);
       const closed = next.find((w) => w.id === id);
       if (closed) {
         persistence.saveWindowState(closed);
-        releasedArtifactId = closed.artifactId;
         // Drop the heavy content payload from memory; a metadata-only entry
         // (id, type, title, preview) is kept in chat.artifacts so the library
         // list still shows the artifact. Content is re-fetched on reopen.
@@ -155,17 +161,16 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
 
   // Restore a previously-closed window. If its content was released, fetch it.
   const restoreWindow = useCallback((id: number) => {
-    let needFetch = false;
-    let artifactId: string | undefined;
+    // Decide from the current windows: the updater below runs later (batched), so flags set
+    // inside it are not visible here yet.
+    const current = windowsRef.current.find((w) => w.id === id);
+    const ev = current?.content as ArtifactEvent | null | undefined;
+    const artifactId = current?.artifactId;
+    const needFetch = artifactId != null && (ev == null || ev.content == null);
     setWindows((prev) => {
       const next = restoreInArray(prev, id);
       const restored = next.find((w) => w.id === id);
-      if (restored) {
-        persistence.saveWindowState(restored);
-        artifactId = restored.artifactId;
-        const ev = restored.content as ArtifactEvent | null;
-        needFetch = restored.artifactId != null && (ev == null || ev.content == null);
-      }
+      if (restored) persistence.saveWindowState(restored);
       return next;
     });
     if (needFetch && artifactId) loadArtifactContent(artifactId);
@@ -221,7 +226,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
         next = moveInArray(next, id, pos);
       }
       for (const w of next) {
-        if (w.artifactId) persistence.saveWindowState(w);
+        if (w.artifactId && !nativeIdsRef.current.has(w.artifactId)) persistence.saveWindowState(w);
       }
       return next;
     });
@@ -384,7 +389,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
   // Save all windows to localStorage
   const saveWorkspace = useCallback(() => {
     for (const w of windows) {
-      if (w.artifactId) persistence.saveWindowState(w);
+      if (w.artifactId && !nativeIdsRef.current.has(w.artifactId)) persistence.saveWindowState(w);
     }
   }, [windows, persistence]);
 
@@ -403,14 +408,21 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     // Native-window mode: a live `create` goes straight to an OS window and never touches the canvas;
     // later updates are ignored here because the native window follows the session over its own WS.
     // Hollow replays (reconnect) are not opened again; the library still lists the artifact.
-    if (nativeIdsRef.current.has(event.id)) return;
+    if (nativeIdsRef.current.has(event.id)) {
+      if (!isHollow && event.update !== "close") {
+        staleNativeRef.current.add(event.id);
+        setNativeFlash((prev) => ({ ...prev, [event.id]: Date.now() }));
+      }
+      return;
+    }
     // Silent artifacts (screen captures) are filed in the library without opening anything.
     const silent = event.silent === true && event.update === "create" && !isHollow;
     if (!silent && artifactsNativeEnabled() && event.update === "create" && !isHollow && !windowsRef.current.some((w) => w.artifactId === event.id)) {
       const sid = localStorage.getItem("kali.sessionId");
       if (sid) {
         nativeIdsRef.current.add(event.id);
-        void window.kaliDesktop?.openArtifact(sid, event.id).catch(() => nativeIdsRef.current.delete(event.id));
+        syncNative();
+        void window.kaliDesktop?.openArtifact(sid, event.id, resolveWindowType(event)).catch(() => { nativeIdsRef.current.delete(event.id); syncNative(); });
         return;
       }
     }
@@ -459,7 +471,7 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
       setWindows((prev) => prev.map((w) => w.id === id ? { ...w, closed: true } : w));
     }
     if (shouldFetch) loadArtifactContent(event.id);
-  }, [createWindow, persistence, loadArtifactContent]);
+  }, [createWindow, persistence, loadArtifactContent, syncNative]);
 
   // Desktop only: an artifact is shown in one place at a time. While it lives in a native window it is
   // hidden from the canvas; "back to canvas" restores it, closing the window with X leaves it in the library.
@@ -468,26 +480,37 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     if (!bridge?.onArtifactNative) return;
     const hide = (id: string) => {
       nativeIdsRef.current.add(id);
-      setWindows((prev) => prev.map((w) => w.artifactId === id ? { ...w, closed: true, focused: false, content: null } : w));
+      syncNative();
+      // Closed here (every other view skips it) but not saved: if the app quits meanwhile, the saved
+      // layout still has it open and it comes back to its tab. Its content stays, so it comes back
+      // at once (and offline); a change made while it was out is fetched then.
+      setWindows((prev) => prev.map((w) => w.artifactId === id ? { ...w, closed: true, focused: false } : w));
     };
     const giveBack = (id: string) => { pendingReturnRef.current.push(id); setReturnTick((n) => n + 1); };
     const unsubscribe = bridge.onArtifactNative((state) => {
       if (state.open) { hide(state.id); return; }
       nativeIdsRef.current.delete(state.id);
+      // A returned one stays a ghost until it is reopened, so the canvas never sees it simply closed.
       if (state.returned) giveBack(state.id);
+      else syncNative();
     });
     void bridge.getNativeArtifacts().then((native) => {
       native.open.forEach((ref) => hide(ref.id));
       native.returned.forEach((ref) => giveBack(ref.id));
     }).catch(() => undefined);
     return unsubscribe;
-  }, []);
+  }, [syncNative]);
 
   useEffect(() => {
     if (!opts.sessionId || pendingReturnRef.current.length === 0) return;
     const ids = pendingReturnRef.current.splice(0);
-    ids.forEach((id) => { nativeIdsRef.current.delete(id); reopenArtifact(id); });
-  }, [returnTick, opts.sessionId, reopenArtifact]);
+    ids.forEach((id) => {
+      nativeIdsRef.current.delete(id);
+      reopenArtifact(id);
+      if (staleNativeRef.current.delete(id)) loadArtifactContent(id, { keepOnError: true });
+    });
+    syncNative();
+  }, [returnTick, opts.sessionId, reopenArtifact, syncNative, loadArtifactContent]);
 
   return useMemo(() => ({
     windows,
@@ -519,6 +542,8 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     toggleMinimize,
     toggleMaximize,
     reopenArtifact,
+    nativeIds,
+    nativeFlash,
   }), [
     windows, gridMode, selection.selectedIds, audioEnabled,
     createWindow, closeWindow, restoreWindow, duplicateWindow,
@@ -526,6 +551,6 @@ export function useWorkspace(opts: UseWorkspaceOpts = {}): import("./types").Wor
     networkPulse, toggleAudio, undo, redo, saveWorkspace, resetWorkspace,
     moveWindow, resizeWindow, persistWindow,
     selection.toggleSelect, selection.clearSelection,
-    syncArtifact, toggleMinimize, toggleMaximize, reopenArtifact,
+    syncArtifact, toggleMinimize, toggleMaximize, reopenArtifact, nativeIds, nativeFlash,
   ]);
 }

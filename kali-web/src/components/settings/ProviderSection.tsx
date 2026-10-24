@@ -192,13 +192,13 @@ function ConfirmDelete({ onCancel, onConfirm }: { onCancel: () => void; onConfir
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={onCancel}
-            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           >
             {t("connections.cancel")}
           </button>
           <button
             onClick={onConfirm}
-            className="px-3 py-1.5 rounded-md border border-err bg-err/15 text-err text-xs font-medium hover:bg-err/25 transition-colors"
+            className="px-3 py-1.5 rounded-lg border border-err bg-err/15 text-err text-xs font-medium hover:bg-err/25 transition-colors"
           >
             {t("connections.delete")}
           </button>

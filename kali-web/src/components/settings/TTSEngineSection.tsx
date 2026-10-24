@@ -273,7 +273,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
           <button
             key={p}
             onClick={() => { setTab(p); setSubTab("installed"); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               tab === p
                 ? "bg-accent-dim text-foreground"
                 : "text-muted hover:text-foreground"
@@ -281,7 +281,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
           >
             {t(`tts.engine.${p}`)}
             {activeProvider === p && (
-              <span className="text-[9px] font-mono bg-ok/20 text-ok rounded px-1 py-0.5">
+              <span className="text-[9px] font-mono bg-ok/20 text-ok rounded-full px-1 py-0.5">
                 {t("settings.tts_active")}
               </span>
             )}
@@ -290,7 +290,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
       </div>
 
       {systemStatus?.tts_error && (
-        <div className="text-xs text-err bg-err/10 rounded-md p-2">
+        <div className="text-xs text-err bg-err/10 rounded-lg p-2">
           {systemStatus.tts_error}
         </div>
       )}
@@ -326,7 +326,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
           </div>
         )}
         {!loadingModels && subTab === "installed" && models.filter(m => m.available).map((m) => (
-          <div key={m.id} className="flex items-center justify-between gap-2 p-2 bg-elevated rounded-md border border-border">
+          <div key={m.id} className="flex items-center justify-between gap-2 p-2 bg-elevated rounded-lg border border-border">
             <div className="flex flex-col min-w-0">
               <span className="text-sm text-foreground truncate">{m.display_name}</span>
               <span className="text-[11px] text-muted">
@@ -339,7 +339,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                 <button
                   onClick={() => handleUnloadModel(m.id)}
                   disabled={loadingAction}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-border text-muted hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Unplug size={13} />
                   {t("tts.unload")}
@@ -349,7 +349,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                   <button
                     onClick={() => handleLoadModel(m.id)}
                     disabled={loadingAction}
-                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-accent-dim text-foreground hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-accent-dim text-foreground hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Plug size={13} />
                     {t("tts.load")}
@@ -397,7 +397,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
             <div className="flex gap-2">
               <input
                 type="text"
-                className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                className="flex-1 bg-elevated text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
                 value={modelsDir}
                 onChange={(e) => setModelsDir(e.target.value)}
                 placeholder={t("tts.models_dir_placeholder")}
@@ -405,7 +405,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
               <button
                 onClick={handleApplyModelsDir}
                 disabled={modelsDir === savedModelsDir}
-                className="shrink-0 text-xs px-3 py-2 rounded-md border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="shrink-0 text-xs px-3 py-2 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {t("common.apply")}
               </button>
@@ -418,7 +418,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
       {/* Qwen voice download catalog */}
       {tab === TTS_PROVIDERS.QWEN3 && subTab === "catalog" && (
         <SettingsCard title={t("models.catalog")}>
-          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
+          <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-lg border border-border">
             {loadingQwenCatalog && (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                 <Loader2 size={12} className="animate-spin" />
@@ -443,7 +443,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                   ) : (
                     <button
                       onClick={() => handleDownloadModel(m.id)}
-                      className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
+                      className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
                     >
                       <Download size={10} />
                       {t("models.download")}
@@ -466,7 +466,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
             <div className="flex gap-2">
               <input
                 type="text"
-                className="flex-1 bg-elevated text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
+                className="flex-1 bg-elevated text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none focus:border-accent-dim"
                 placeholder={t("models.search_placeholder")}
                 value={piperSearch}
                 onChange={(e) => setPiperSearch(e.target.value)}
@@ -479,11 +479,11 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                     { value: "", label: t("models.filter_all") },
                     ...piperCatalogLangs.map((l) => ({ value: l, label: l })),
                   ]}
-                  buttonClassName="bg-elevated border-border rounded-md px-2 py-1.5 text-xs"
+                  buttonClassName="bg-elevated border-border rounded-lg px-2 py-1.5 text-xs"
                 />
               )}
             </div>
-            <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-md border border-border">
+            <div className="max-h-64 overflow-y-auto scrollbar-thin flex flex-col gap-1 rounded-lg border border-border">
               {loadingPiperCatalog && (
                 <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                   <Loader2 size={12} className="animate-spin" />
@@ -516,7 +516,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
                       ) : (
                         <button
                           onClick={() => handleDownloadModel(m.id)}
-                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
+                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors shrink-0"
                         >
                           <Download size={10} />
                           {t("models.download")}
@@ -537,7 +537,7 @@ export function TTSEngineSection({ systemStatus, onUpdate, downloadTtsModel, dow
         <button
           onClick={() => onUpdate({ tts_provider: tab })}
           disabled={tab === TTS_PROVIDERS.QWEN3 && !models.some((m) => m.loaded)}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-accent-dim text-foreground text-sm font-medium hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-accent-dim text-foreground text-sm font-medium hover:bg-accent-dim/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t(`settings.tts_use_${tab}`)}
         </button>

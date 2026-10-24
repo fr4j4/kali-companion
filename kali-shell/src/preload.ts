@@ -23,7 +23,8 @@ contextBridge.exposeInMainWorld("kaliDesktop", {
     ipcRenderer.on("desktop:artifact-native", handler);
     return () => ipcRenderer.removeListener("desktop:artifact-native", handler);
   },
-  openArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:open-artifact", sessionId, artifactId),
+  openArtifact: (sessionId: string, artifactId: string, type?: string) => ipcRenderer.invoke("desktop:open-artifact", sessionId, artifactId, type),
+  bringArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:bring-artifact", sessionId, artifactId),
   performAction: (action: string, params: Record<string, unknown>) => ipcRenderer.invoke("desktop:action", action, params),
   setPresence: (state: unknown) => ipcRenderer.send("desktop:presence", state),
   onPresence: (callback: (state: unknown) => void) => {

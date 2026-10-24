@@ -7,8 +7,8 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const sizeClass = {
   sm: "w-8 h-8 rounded-lg",
-  md: "w-10 h-10 rounded-[12px]",
-  lg: "w-12 h-12 rounded-[14px]",
+  md: "w-10 h-10 rounded-lg",
+  lg: "w-12 h-12 rounded-xl",
 };
 
 export const IconButton = forwardRef<HTMLButtonElement, Props>(

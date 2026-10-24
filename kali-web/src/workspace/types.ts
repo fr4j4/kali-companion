@@ -31,7 +31,13 @@ export type WindowType =
   | "document"
   | "image"
   | "reasoning"
-  | "game";
+  | "game"
+  | "sources"
+  | "slides"
+  | "tasks"
+  | "notes"
+  | "calendar"
+  | "pdf";
 
 /** Position on the canvas (px). */
 export interface Position {
@@ -133,6 +139,10 @@ export interface WorkspaceAPI {
    * the user clicks a closed artifact.
    */
   reopenArtifact: (artifactId: string) => void;
+  /** Desktop: artifacts that live in their own window right now (the canvas keeps a ghost of them). */
+  nativeIds: ReadonlySet<string>;
+  /** Desktop: when Kali last updated each artifact that is outside (the ghost flashes once). */
+  nativeFlash: Readonly<Record<string, number>>;
 }
 
 /** Options for creating a window. */
@@ -199,6 +209,12 @@ export const DEFAULT_SIZES: Record<WindowType, { width: number; height: number |
   image: { width: 260, height: null },
   reasoning: { width: 420, height: 350 },
   game: { width: 440, height: 440 },
+  sources: { width: 720, height: 520 },
+  slides: { width: 720, height: 540 },
+  tasks: { width: 760, height: 500 },
+  notes: { width: 720, height: 460 },
+  calendar: { width: 760, height: 520 },
+  pdf: { width: 720, height: 560 },
 };
 
 /** Icons (emoji) by window type. */
@@ -225,4 +241,10 @@ export const WINDOW_ICONS: Record<WindowType, string> = {
   image: "\u{1F5BC}\uFE0F",
   reasoning: "\u{1F9E0}",
   game: "\u{1F3AE}",
+  sources: "\u{1F4DA}",
+  slides: "\u{1F4FD}\uFE0F",
+  tasks: "\u{1F5C2}\uFE0F",
+  notes: "\u{1F4CC}",
+  calendar: "\u{1F4C5}",
+  pdf: "\u{1F4C4}",
 };

@@ -18,7 +18,7 @@ interface SelectProps {
 }
 
 const DEFAULT_BUTTON_CLASSES =
-  "w-full bg-surface text-foreground border border-border rounded-md px-2.5 py-2 text-sm outline-none transition flex items-center justify-between gap-2 cursor-pointer focus:border-accent-dim";
+  "w-full bg-surface text-foreground border border-border rounded-lg px-2.5 py-2 text-sm outline-none transition flex items-center justify-between gap-2 cursor-pointer focus:border-accent-dim";
 
 export function Select({
   value,

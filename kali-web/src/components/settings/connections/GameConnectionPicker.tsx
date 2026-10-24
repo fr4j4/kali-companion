@@ -185,7 +185,7 @@ export function GameConnectionPicker({
       <div className="flex items-center justify-between pt-4 mt-3 border-t border-border/30">
         <button
           onClick={checkAllConnections}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           title={t("connections.test")}
         >
           <Circle
@@ -205,7 +205,7 @@ export function GameConnectionPicker({
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs text-muted hover:text-foreground hover:bg-fg/5 transition-colors"
           >
             {t("connections.cancel")}
           </button>
@@ -218,7 +218,7 @@ export function GameConnectionPicker({
                 (filteredModels.length === 0 && health[selectedConnId]?.status === "online")
               )
             }
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <CheckCircle size={12} />
             {t("settings.game_ai_confirm")}
@@ -269,7 +269,7 @@ function ActiveConnectionCard({
             {t("settings.game_ai_using_active")}
           </span>
           {gameConnectionId === "active" && (
-            <span className="text-[10px] font-mono bg-accent/20 text-accent rounded px-1.5 py-0.5">
+            <span className="text-[10px] font-mono bg-accent/20 text-accent rounded-full px-1.5 py-0.5">
               {t("connections.games_badge")}
             </span>
           )}
@@ -381,7 +381,7 @@ function ConnectionCard({
             <Icon size={13} className="text-muted shrink-0" />
             <span className="text-sm font-medium text-foreground truncate">{conn.name}</span>
             {gameConnectionId === conn.id && (
-              <span className="text-[10px] font-mono bg-accent/20 text-accent rounded px-1.5 py-0.5 shrink-0">
+              <span className="text-[10px] font-mono bg-accent/20 text-accent rounded-full px-1.5 py-0.5 shrink-0">
                 {t("connections.games_badge")}
               </span>
             )}
@@ -424,7 +424,7 @@ function ConnectionCard({
         {expanded && canExpand && health && (
         <div className="flex flex-col gap-2 px-3 pb-3 border-t border-border/30">
           <div className="pt-2">
-            <div className="text-[10px] text-muted uppercase tracking-wide mb-1.5">
+            <div className="text-[10px] text-muted mb-1.5">
               {t("settings.game_ai_select_model")}
             </div>
 

@@ -9,6 +9,7 @@ import { SectionHeader } from "./SectionHeader";
 import { SettingsCard } from "./SettingsCard";
 import type { PerformanceProfile } from "../../App";
 import { loadMotionPref, saveMotionPref, type MotionPref } from "../../avatar/avatarPrefs";
+import { useCanvasV2Pref, useStartModePref, useSuggestStudioPref } from "../../lib/canvasV2Pref";
 
 interface Props {
   theme: string;
@@ -54,6 +55,9 @@ export function AppearanceSection({
 }: Props) {
   const [motion, setMotion] = useState<MotionPref>(() => loadMotionPref());
   const { t } = useTranslation();
+  const [canvasV2, setCanvasV2] = useCanvasV2Pref();
+  const [startMode, setStartMode] = useStartModePref();
+  const [suggestStudio, setSuggestStudio] = useSuggestStudioPref();
   const [font, setFont] = useState<FontChoice>(loadFont);
 
   return (
@@ -176,6 +180,29 @@ export function AppearanceSection({
       </SettingsCard>
 
       <SettingsCard title={t("settings.appearance.canvas_group")}>
+        <ToggleField
+          label={t("settings.canvas_v2")}
+          helperText={t("settings.canvas_v2_hint")}
+          checked={canvasV2}
+          onChange={setCanvasV2}
+        />
+        {canvasV2 && (
+          <>
+            <SelectField
+              label={t("settings.start_mode")}
+              value={startMode}
+              onChange={(value) => setStartMode(value as "hub" | "studio")}
+              helperText={t("settings.start_mode_hint")}
+              options={(["hub", "studio"] as const).map((m) => ({ value: m, label: t(`settings.start_mode.${m}`) }))}
+            />
+            <ToggleField
+              label={t("settings.suggest_studio")}
+              helperText={t("settings.suggest_studio_hint")}
+              checked={suggestStudio}
+              onChange={setSuggestStudio}
+            />
+          </>
+        )}
         <ToggleField
           label={t("settings.canvas_auto_expand")}
           checked={canvasAutoExpand}

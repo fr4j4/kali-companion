@@ -85,7 +85,7 @@ export function CloudFormFields({ value, onChange, providers, testState, onTest 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("connections.search_provider") as string}
-            className="w-full bg-surface text-foreground border border-border rounded-md pl-7 pr-2.5 py-1.5 text-xs outline-none focus:border-accent-dim"
+            className="w-full bg-surface text-foreground border border-border rounded-lg pl-7 pr-2.5 py-1.5 text-xs outline-none focus:border-accent-dim"
           />
         </div>
         <div className="flex flex-col gap-1 max-h-44 overflow-y-auto stage-scroll">
@@ -95,7 +95,7 @@ export function CloudFormFields({ value, onChange, providers, testState, onTest 
               <button
                 key={p.id}
                 onClick={() => handleSelect(p)}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border transition-colors text-left ${
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors text-left ${
                   selected
                     ? "border-accent/40 bg-accent/10"
                     : "border-border bg-surface hover:border-accent/30"
@@ -147,7 +147,7 @@ export function CloudFormFields({ value, onChange, providers, testState, onTest 
               value={value.api_key}
               onChange={(e) => onChange({ ...value, api_key: e.target.value })}
               placeholder="sk-…"
-              className="w-full bg-surface text-foreground border border-border rounded-md pl-2.5 pr-8 py-2 text-sm outline-none transition-colors focus:border-accent-dim"
+              className="w-full bg-surface text-foreground border border-border rounded-lg pl-2.5 pr-8 py-2 text-sm outline-none transition-colors focus:border-accent-dim"
             />
             <button
               type="button"
@@ -161,7 +161,7 @@ export function CloudFormFields({ value, onChange, providers, testState, onTest 
           <button
             onClick={handleValidateKey}
             disabled={keyState.running || !value.api_url || !value.api_key}
-            className="flex items-center gap-1 px-2.5 py-2 rounded-md border border-accent/40 text-accent text-[11px] font-medium hover:bg-accent/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+            className="flex items-center gap-1 px-2.5 py-2 rounded-lg border border-accent/40 text-accent text-[11px] font-medium hover:bg-accent/10 transition-colors disabled:opacity-50 whitespace-nowrap"
           >
             {keyState.running ? (
               <Loader2 size={11} className="animate-spin" />

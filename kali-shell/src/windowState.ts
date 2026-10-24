@@ -35,3 +35,8 @@ export function loadBounds(file: string, displays: Rect[]): Bounds {
 export function saveBounds(file: string, bounds: Bounds): void {
   try { writeFileSync(file, JSON.stringify(bounds)); } catch { /* cosmetic: ignore read-only dirs */ }
 }
+
+/** The file for one kind of artifact (`artifact-window.code.json`); anything odd falls back to the shared one. */
+export function boundsFileName(type?: string): string {
+  return type && /^[a-z][a-z0-9-]{0,31}$/.test(type) ? `artifact-window.${type}.json` : "artifact-window.json";
+}

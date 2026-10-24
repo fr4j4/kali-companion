@@ -47,6 +47,24 @@ describe("artifact in a single place (desktop)", () => {
     expect(api.windows.find((w) => w.artifactId === "a1")?.closed).toBe(true);
   });
 
+  it("exposes the artifact as native while it is outside, for the canvas's ghost", () => {
+    act(() => api.syncArtifact(html));
+    expect(api.nativeIds.has("a1")).toBe(false);
+    act(() => emit({ sessionId: "s1", id: "a1", open: true, returned: false }));
+    expect(api.nativeIds.has("a1")).toBe(true);
+    act(() => emit({ sessionId: "s1", id: "a1", open: false, returned: false }));
+    expect(api.nativeIds.has("a1")).toBe(false);
+  });
+
+  it("flashes the ghost when Kali updates the artifact outside, but not on a hollow replay", () => {
+    act(() => api.syncArtifact(html));
+    act(() => emit({ sessionId: "s1", id: "a1", open: true, returned: false }));
+    act(() => api.syncArtifact({ ...html, content: null }));
+    expect(api.nativeFlash.a1).toBeUndefined();
+    act(() => api.syncArtifact({ ...html, update: "update", content: "<p>2</p>" }));
+    expect(typeof api.nativeFlash.a1).toBe("number");
+  });
+
   it("restores it in the canvas when the native window returns it", () => {
     act(() => api.syncArtifact(html));
     act(() => emit({ sessionId: "s1", id: "a1", open: true, returned: false }));
@@ -77,7 +95,8 @@ describe("silent captures with native windows enabled", () => {
 
   it("opens an ordinary artifact in a native window", () => {
     act(() => api.syncArtifact({ ...html, id: "a2" }));
-    expect(openArtifact).toHaveBeenCalledWith("s1", "a2");
+    expect(openArtifact).toHaveBeenCalledWith("s1", "a2", "html");
+    expect(api.nativeIds.has("a2")).toBe(true);
   });
 
   it("files a capture in the library without opening a native window or a canvas window", () => {

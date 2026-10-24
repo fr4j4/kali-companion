@@ -65,6 +65,12 @@ class SessionStore:
             except Exception as e:
                 if "duplicate column" not in str(e).lower():
                     raise
+            # Migration: pending suggested changes on documents (JSON list).
+            try:
+                await db.execute("ALTER TABLE artifacts ADD COLUMN suggestions TEXT NOT NULL DEFAULT '[]'")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS game_images (
                     key TEXT PRIMARY KEY,
@@ -230,7 +236,7 @@ class SessionStore:
         async with aiosqlite.connect(self._db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                """SELECT id, session_id, type, title, content, window_type, language, created
+                """SELECT id, session_id, type, title, content, window_type, language, created, suggestions
                    FROM artifacts WHERE session_id = ? ORDER BY created""",
                 (session_id,),
             )
@@ -243,7 +249,7 @@ class SessionStore:
         async with aiosqlite.connect(self._db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                """SELECT id, session_id, type, title, content, window_type, language, created
+                """SELECT id, session_id, type, title, content, window_type, language, created, suggestions
                    FROM artifacts WHERE id = ? AND session_id = ?""",
                 (artifact_id, session_id),
             )
@@ -283,6 +289,19 @@ class SessionStore:
             if cursor.rowcount == 0:
                 return None
         return await self.get_artifact(session_id, artifact_id)
+
+    async def set_artifact_suggestions(
+        self, session_id: str, artifact_id: str, suggestions_json: str,
+    ) -> bool:
+        """Store the pending suggested changes of an artifact (a JSON list)."""
+        await self._ensure_db()
+        async with aiosqlite.connect(self._db_path) as db:
+            cursor = await db.execute(
+                "UPDATE artifacts SET suggestions = ? WHERE id = ? AND session_id = ?",
+                (suggestions_json, artifact_id, session_id),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
     # ── Game image cache ───────────────────────────────────
 
