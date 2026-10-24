@@ -25,7 +25,7 @@ export function CodeViewer({ code, language, isStreaming, scrollRef }: Props) {
   }, [code, language]);
 
   return (
-    <div className="flex bg-[#0d0d0d] min-h-0" ref={scrollRef}>
+    <div className="flex bg-[var(--code-bg)] min-h-0" ref={scrollRef}>
       <div className="shrink-0 text-right text-fg/20 border-r border-fg/5 select-none min-w-[3.5ch] px-3 py-3 text-xs font-mono leading-[1.5]">
         {lines.map((_, i) => (
           <div key={i}>{i + 1}</div>
