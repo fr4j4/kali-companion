@@ -361,3 +361,28 @@ def test_device_property_returns_ui_format(fake_models_dir, fake_binaries):
         assert provider.device == "cpu"
         provider._backend = "CUDA0"
         assert provider.device == "cuda0"
+
+def test_resolve_binary_prefers_override_then_package(tmp_path, monkeypatch):
+    vulkan = tmp_path / "vulkan" / "tts-server"
+    cuda = tmp_path / "cuda" / "tts-server"
+    monkeypatch.setattr(qwen_mod, "_QWEN_BINARY_CPU", vulkan)
+    monkeypatch.setattr(qwen_mod, "_QWEN_BINARY_GPU", cuda)
+    monkeypatch.delenv("KALI_QWEN_BINARY", raising=False)
+
+    assert qwen_mod._resolve_binary("CUDA0") == cuda
+    assert qwen_mod._resolve_binary("CPU") == vulkan
+
+    # Only the cuda package installed: it also carries the CPU backend.
+    cuda.parent.mkdir()
+    cuda.write_bytes(b"")
+    assert qwen_mod._resolve_binary("CPU") == cuda
+
+    # The vulkan package wins for CPU once present.
+    vulkan.parent.mkdir()
+    vulkan.write_bytes(b"")
+    assert qwen_mod._resolve_binary("CPU") == vulkan
+
+    own = tmp_path / "own" / "tts-server"
+    monkeypatch.setenv("KALI_QWEN_BINARY", str(own))
+    assert qwen_mod._resolve_binary("CUDA0") == own
+    assert qwen_mod._resolve_binary("CPU") == own

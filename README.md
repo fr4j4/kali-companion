@@ -141,7 +141,7 @@ NVIDIA GPU + `nvidia-container-toolkit` only for Qwen3-TTS on GPU.
 |---|---|
 | Try Kali / hack on the frontend & brain | **Native** (`scripts/dev.sh`) — no Docker, no compile |
 | Run it always-on (second monitor appliance) | **Docker** (`docker compose`) |
-| Work on TTS/voice with GPU | **Docker dev GPU** stack or native + `build-qwen-cpp.sh gpu` |
+| Work on TTS/voice with GPU | **Docker dev GPU** stack or native + `fetch-qwen-cpp.sh cuda` |
 | Run the independent desktop client (Electron, avatar, tray) | **Native** (`scripts/prod.sh`) |
 
 ---
@@ -165,7 +165,7 @@ capture is not available in dev mode.
 **With Qwen3-TTS (optional, higher quality voice):**
 
 ```bash
-./scripts/build-qwen-cpp.sh cpu          # or: gpu (CUDA), gpu-vulkan
+./scripts/fetch-qwen-cpp.sh              # prebuilt engine: cuda if an NVIDIA GPU is found, else vulkan/CPU
 ./scripts/download-qwen-models.sh        # download GGUF voice models
 ./scripts/dev.sh                         # start (set KALI_TTS_PROVIDER=qwen3)
 ```
@@ -182,7 +182,10 @@ Qwen3-TTS uses two GGUF models with different capabilities:
 
 Both share a common 12 kHz audio codec tokenizer
 (`qwen-tokenizer-12hz-Q4_K_M.gguf`, ~255 MB). GPU acceleration:
-`cpu`, `cuda0`, `cuda1` (pass to `build-qwen-cpp.sh`).
+`cpu`, `cuda0`, `cuda1` (set `KALI_QWEN_BACKEND`). The engine is the prebuilt
+release of [qwen-tts-cpp-server](https://github.com/fr4j4/qwen-tts-cpp-server)
+(`fetch-qwen-cpp.sh` downloads and verifies it; nothing is compiled). To use
+your own build of that repo, point `KALI_QWEN_BINARY` at its `tts-server`.
 
 VoiceDesign mode: set `KALI_TTS_PROVIDER=qwen3-voicedesign` (GPU strongly
 recommended for the 1.7B model).

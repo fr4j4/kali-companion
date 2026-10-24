@@ -115,11 +115,11 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 `tts-server` GPU binary baked in) with device reservations and
 `KALI_TTS_PROVIDER=qwen3`, `KALI_QWEN_BACKEND=CUDA0`.
 
-> **Note (GPU + dev):** in dev the TTS binaries run from the **bind-mounted
-> source tree** (`kali_core/voice/qwen_cpp/{build,build-gpu}/tts-server`),
-> not from the image. Those folders are gitignored — populating them from
-> the image happens automatically at startup (see below); only if the image
-> is too old to carry them, extract from the **builder stage**.
+> **Note (GPU + dev):** in dev the TTS engine runs from the **bind-mounted
+> source tree** (`kali_core/voice/qwen_cpp/cuda/tts-server`), not from the
+> image. That folder is gitignored; the dev launcher copies it from the image
+> (which downloads the prebuilt release package at build time, nothing is
+> compiled) on first `up`.
 >
 > ⚠️ **Two different images, two tags.** The image that RUNS the dev stack
 > must always be built **without** `--target`:
@@ -134,17 +134,11 @@ Same dev stack as (2) but on `Dockerfile.gpu.dev` (CUDA base + Node +
 > # extraction-only image (does NOT run the dev stack):
 > docker build --target builder -f docker/Dockerfile.gpu.dev -t kali:gpu-dev-builder .
 > ```
-> From it you can manually copy binaries+libs if ever needed:
-> ```bash
-> CID=$(docker create kali:gpu-dev-builder)
-> docker cp "$CID:/build/qwen-cpp/build-gpu/." kali-core/kali_core/voice/qwen_cpp/build-gpu/
-> docker cp "$CID:/build/qwen-cpp/build/."     kali-core/kali_core/voice/qwen_cpp/build/
-> docker rm "$CID"
-> ```
-> Alternatively run `scripts/build-qwen-cpp.sh cuda|cpu` inside a GPU-dev
-> container (it has the CUDA dev toolchain in its builder stage).
-> `providers/qwen.py` sets `LD_LIBRARY_PATH` to the binary's folder
-> automatically (the `libggml*.so` live next to it).
+> `providers/qwen.py` resolves the engine under `qwen_cpp/{cuda,vulkan}/`; the
+> `lib*.so` live next to the binary. To use your own build of
+> [qwen-tts-cpp-server](https://github.com/fr4j4/qwen-tts-cpp-server), set
+> `KALI_QWEN_BINARY` to its `tts-server`. The engine version is the
+> `QWEN_CPP_VERSION` build arg (default `0.1.0`).
 > On a fresh clone none of this is manual: the dev launcher copies the
 > binaries from the image on first `up`.
 

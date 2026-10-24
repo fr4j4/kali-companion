@@ -25,16 +25,11 @@ FROM nvidia/cuda:12.6.0-devel-ubuntu24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Build deps: cmake, g++, git, OpenBLAS, Python, Node
+# Tools: curl for the Qwen3 engine release, node for kali-web, Python for venv
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
-    g++ \
-    git \
-    make \
-    pkg-config \
+    curl \
     nodejs \
     npm \
-    libopenblas-dev \
     python3 \
     python3-venv \
     python3-pip \
@@ -43,35 +38,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Clone and build Qwen3 C++ server (CUDA)
-ARG QWEN_REPO=https://github.com/fr4j4/qwen-tts-cpp-server.git
-ARG QWEN_BRANCH=voicedesign
-RUN git clone --branch ${QWEN_BRANCH} --depth 1 ${QWEN_REPO} qwen-cpp \
-    && cd qwen-cpp \
-    && git submodule update --init --recursive
+# Qwen3 engine: prebuilt release package (CPU + CUDA 12, cudart/cuBLAS included),
+# nothing is compiled. The real driver comes from nvidia-container-toolkit.
+ARG QWEN_CPP_VERSION=0.1.0
+RUN QN="qwen-tts-${QWEN_CPP_VERSION}-linux-x64-cuda" \
+    && QU="https://github.com/fr4j4/qwen-tts-cpp-server/releases/download/v${QWEN_CPP_VERSION}" \
+    && curl -fL --retry 3 -o "/tmp/$QN.tar.gz" "$QU/$QN.tar.gz" \
+    && curl -fsSL --retry 3 -o "/tmp/$QN.tar.gz.sha256" "$QU/$QN.tar.gz.sha256" \
+    && (cd /tmp && sha256sum -c "$QN.tar.gz.sha256") \
+    && mkdir -p /build/qwen-cpp/cuda \
+    && tar -xzf "/tmp/$QN.tar.gz" -C /build/qwen-cpp/cuda --strip-components=1 \
+    && rm -f /tmp/qwen-tts-*
 
-WORKDIR /build/qwen-cpp
-
-# libcuda.so.1 stub for linking (real driver comes from nvidia-container-toolkit at runtime)
-RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/lib/x86_64-linux-gnu/libcuda.so.1
-
-# Build GPU version — common architectures (75=Turing, 86=Ampere, 89=Ada)
-ARG GPU_ARCHS="75;86;89"
-RUN mkdir build-gpu && cd build-gpu \
-    && cmake .. \
-        -DGGML_CUDA=ON \
-        -DCMAKE_CUDA_ARCHITECTURES="${GPU_ARCHS}" \
-    && cmake --build . --config Release -j "$(nproc)"
-
-# Remove stub symlink
-RUN rm -f /usr/lib/x86_64-linux-gnu/libcuda.so.1
-
-# Also build CPU as fallback
-RUN mkdir build && cd build \
-    && cmake .. -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS \
-    && cmake --build . --config Release -j "$(nproc)"
-
-# Build kali-web frontend (production bundle, served as fallback)
 WORKDIR /build/kali-web
 COPY kali-web/package.json kali-web/package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -122,14 +100,11 @@ ENV HOME=/home/kali
 
 WORKDIR /app
 
-# Copy Qwen3 C++ binaries from builder (GPU + CPU fallback)
-# Copy Qwen3 C++ artifacts from builder (GPU + CPU fallback) — BINARIES AND
-# their shared libs together. The dev launcher copies these into the
-# bind-mounted source tree when missing (dev mode runs the binary from the
-# repo); without the libggml*.so the binary alone fails at load time
-# ("error while loading shared libraries: libggml.so.0").
-COPY --from=builder --chown=kali:kali /build/qwen-cpp/build-gpu/ /app/qwen-cpp/build-gpu/
-COPY --from=builder --chown=kali:kali /build/qwen-cpp/build/ /app/qwen-cpp/build/
+# Copy Qwen3 engine (binary + libs; includes the CPU backend as fallback).
+# The dev launcher copies it into the bind-mounted source tree when missing
+# (dev mode runs the binary from the repo); without the lib*.so next to it the
+# binary alone fails at load time.
+COPY --from=builder --chown=kali:kali /build/qwen-cpp/cuda/ /app/qwen-cpp/cuda/
 
 # Copy kali-web dist from builder (production fallback if dev launcher isn't used)
 COPY --from=builder --chown=kali:kali /build/kali-web/dist /app/kali-web/dist

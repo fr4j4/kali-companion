@@ -168,7 +168,13 @@ setup_model_symlinks() {
 QWEN_PID=""
 
 start_qwen_server() {
-    local binary="${KALI_QWEN_BINARY:-/app/qwen-cpp/build/tts-server}"
+    # Release package: vulkan (CPU image) or cuda (GPU image); both include the CPU backend.
+    local binary="${KALI_QWEN_BINARY:-}"
+    if [ -z "$binary" ]; then
+        for cand in "${QWEN_CPP_DIR}/vulkan/tts-server" "${QWEN_CPP_DIR}/cuda/tts-server"; do
+            if [ -x "$cand" ]; then binary="$cand"; break; fi
+        done
+    fi
     local port="${KALI_QWEN_PORT:-8870}"
     local backend="${KALI_QWEN_BACKEND:-CPU}"
 
@@ -183,6 +189,8 @@ start_qwen_server() {
     # Discover codec/tokenizer.
     local codec
     codec="$(ls "$MODELS_DIR"/qwen-tokenizer-12hz-*.gguf 2>/dev/null | head -1)"
+
+    export GGML_BACKEND="$backend"
 
     if [ ! -x "$binary" ]; then
         err "Qwen3 binary not found: $binary"
@@ -205,13 +213,13 @@ start_qwen_server() {
     local log_file="/tmp/qwen-tts-${port}.log"
 
     if [ "$backend" = "CUDA0" ] || [ "$backend" = "CUDA1" ]; then
-        # Use GPU binary if available
-        local gpu_binary="${QWEN_CPP_DIR}/build-gpu/tts-server"
-        if [ -x "$gpu_binary" ]; then
+        # Use the CUDA package if available (unless KALI_QWEN_BINARY was set)
+        local gpu_binary="${QWEN_CPP_DIR}/cuda/tts-server"
+        if [ -z "${KALI_QWEN_BINARY:-}" ] && [ -x "$gpu_binary" ]; then
             binary="$gpu_binary"
             log "Using GPU binary: $gpu_binary"
-        else
-            warn "GPU binary not found, falling back to CPU binary"
+        elif [ ! -x "$gpu_binary" ] && [ -z "${KALI_QWEN_BINARY:-}" ]; then
+            warn "CUDA package not found, GPU backend may be unavailable"
         fi
 
         export LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"

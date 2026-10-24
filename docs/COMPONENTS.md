@@ -345,7 +345,7 @@ not blocking. Documented as a future improvement.
 The `qwen_cpp/` directory contains a C++ server that provides high-quality
 neural TTS using Qwen3 models:
 
-- Build: `scripts/build-qwen-cpp.sh`
+- Engine: `scripts/fetch-qwen-cpp.sh` (downloads the prebuilt release of qwen-tts-cpp-server; no compiling)
 - Download models: `scripts/download-qwen-models.sh`
 - Dev: `scripts/dev-qwen.sh`
 - Prod: `scripts/prod-qwen.sh`

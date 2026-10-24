@@ -26,14 +26,17 @@ from kali_core.voice.providers.base import StartupError, TTSProvider, TTSResult
 
 logger = logging.getLogger("kali_core.voice.qwen")
 
-# ── Fixed binary locations ──────────────────────────────────────────────
-# Binaries are NOT configurable via env vars. The C++ build scripts emit
-# them under voice/qwen_cpp/{build => CPU, build-gpu => CUDA}. If the
-# requested backend's binary is missing, Qwen falls back to CPU; if the
-# CPU binary is also missing, loading is cancelled with a clear error.
+# ── Binary locations ────────────────────────────────────────────────────
+# scripts/fetch-qwen-cpp.sh installs the prebuilt release packages under
+# voice/qwen_cpp/{cuda,vulkan}/. Both include the CPU backend; the backend
+# is picked at runtime with GGML_BACKEND. CUDA* needs the cuda package; CPU
+# uses vulkan (small) or, failing that, cuda. KALI_QWEN_BINARY points at a
+# self-built tts-server and overrides everything. If no binary is found,
+# loading is cancelled with a clear error.
 _QWEN_CPP_DIR = Path(__file__).resolve().parent.parent / "qwen_cpp"
-_QWEN_BINARY_CPU = _QWEN_CPP_DIR / "build" / "tts-server"
-_QWEN_BINARY_GPU = _QWEN_CPP_DIR / "build-gpu" / "tts-server"
+_QWEN_BINARY_CPU = _QWEN_CPP_DIR / "vulkan" / "tts-server"
+_QWEN_BINARY_GPU = _QWEN_CPP_DIR / "cuda" / "tts-server"
+_FETCH_HINT = "scripts/fetch-qwen-cpp.sh"
 
 
 def _normalize_backend(device: str) -> str:
@@ -72,8 +75,15 @@ def _backend_to_ui(backend: str) -> str:
 
 
 def _resolve_binary(backend: str) -> Path:
-    """Return the fixed tts-server path for a normalized backend name."""
-    return _QWEN_BINARY_GPU if backend.startswith("CUDA") else _QWEN_BINARY_CPU
+    """Return the tts-server path for a normalized backend name."""
+    override = os.environ.get("KALI_QWEN_BINARY", "").strip()
+    if override:
+        return Path(override).expanduser()
+    if backend.startswith("CUDA"):
+        return _QWEN_BINARY_GPU
+    if not _QWEN_BINARY_CPU.exists() and _QWEN_BINARY_GPU.exists():
+        return _QWEN_BINARY_GPU  # the cuda package also ships the CPU backend
+    return _QWEN_BINARY_CPU
 
 
 def _nvidia_smi_available() -> bool:
@@ -322,7 +332,7 @@ class QwenTTSProvider:
         if self._backend != "CPU":
             logger.warning(
                 "Qwen3-TTS: %s backend requested but binary not found at %s; "
-                "falling back to CPU binary. Run: scripts/build-qwen-cpp.sh cuda",
+                "falling back to CPU binary. Run: scripts/fetch-qwen-cpp.sh cuda",
                 self._backend, wanted,
             )
             self._backend = "CPU"
@@ -330,7 +340,7 @@ class QwenTTSProvider:
         if cpu.exists():
             return cpu
         logger.error(
-            "Qwen3-TTS: no CPU binary found at %s. Run: scripts/build-qwen-cpp.sh cpu",
+            "Qwen3-TTS: no CPU binary found at %s. Run: scripts/fetch-qwen-cpp.sh",
             cpu,
         )
         return cpu  # let _validate_and_spawn report the missing file
@@ -633,7 +643,7 @@ class QwenTTSProvider:
             if not effective_binary.exists() or not _nvidia_smi_available():
                 logger.warning(
                     "Qwen3-TTS: GPU backend '%s' requested but %s; "
-                    "falling back to CPU. Run: scripts/build-qwen-cpp.sh cuda",
+                    "falling back to CPU. Run: scripts/fetch-qwen-cpp.sh cuda",
                     new_backend,
                     "binary not found" if not effective_binary.exists()
                     else "nvidia-smi not available",
@@ -698,10 +708,10 @@ class QwenTTSProvider:
         errors: list[str] = []
 
         if not self._binary.exists():
-            build_target = "cuda" if self._backend.startswith("CUDA") else "cpu"
+            build_target = "cuda" if self._backend.startswith("CUDA") else "vulkan"
             errors.append(
                 f"Qwen3-TTS binary not found at: {self._binary}\n"
-                f"  Run: scripts/build-qwen-cpp.sh {build_target}"
+                f"  Run: {_FETCH_HINT} {build_target}  (or set KALI_QWEN_BINARY)"
             )
         elif not os.access(self._binary, os.X_OK):
             errors.append(f"Qwen3-TTS binary is not executable: {self._binary}")

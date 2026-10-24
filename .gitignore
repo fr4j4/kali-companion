@@ -45,8 +45,6 @@ kali-core/kali_core/ear/models/*
 
 # Qwen3-TTS — modelos GGUF y binarios (generados por scripts/download/build)
 kali-core/kali_core/voice/qwen_models/
-kali-core/kali_core/voice/qwen_cpp/build/
-kali-core/kali_core/voice/qwen_cpp/build-gpu/
 
 # =============================================================================
 # Local config / data

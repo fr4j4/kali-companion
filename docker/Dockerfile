@@ -32,32 +32,26 @@ FROM python:3.12-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Build deps for Qwen3 C++ server
+# Tools: node for kali-web, curl for the Qwen3 engine release
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
-    g++ \
-    git \
-    make \
-    pkg-config \
+    curl \
     nodejs \
     npm \
-    libopenblas-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Clone and build Qwen3 C++ server (CPU)
-ARG QWEN_REPO=https://github.com/fr4j4/qwen-tts-cpp-server.git
-ARG QWEN_BRANCH=voicedesign
-RUN git clone --branch ${QWEN_BRANCH} --depth 1 ${QWEN_REPO} qwen-cpp \
-    && cd qwen-cpp \
-    && git submodule update --init --recursive
-
-WORKDIR /build/qwen-cpp
-RUN mkdir build && cd build \
-    && cmake .. -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS \
-    && cmake --build . --config Release -j "$(nproc)"
+# Qwen3 engine: prebuilt release package (CPU + Vulkan), nothing is compiled
+ARG QWEN_CPP_VERSION=0.1.0
+RUN QN="qwen-tts-${QWEN_CPP_VERSION}-linux-x64-vulkan" \
+    && QU="https://github.com/fr4j4/qwen-tts-cpp-server/releases/download/v${QWEN_CPP_VERSION}" \
+    && curl -fL --retry 3 -o "/tmp/$QN.tar.gz" "$QU/$QN.tar.gz" \
+    && curl -fsSL --retry 3 -o "/tmp/$QN.tar.gz.sha256" "$QU/$QN.tar.gz.sha256" \
+    && (cd /tmp && sha256sum -c "$QN.tar.gz.sha256") \
+    && mkdir -p /build/qwen-cpp/vulkan \
+    && tar -xzf "/tmp/$QN.tar.gz" -C /build/qwen-cpp/vulkan --strip-components=1 \
+    && rm -f /tmp/qwen-tts-*
 
 # Build kali-web frontend
 WORKDIR /build/kali-web
@@ -105,8 +99,8 @@ ENV HOME=/home/kali
 
 WORKDIR /app
 
-# Copy Qwen3 C++ binary from builder
-COPY --from=builder --chown=kali:kali /build/qwen-cpp/build/tts-server /app/qwen-cpp/build/tts-server
+# Copy Qwen3 engine (binary + its libraries) from builder
+COPY --from=builder --chown=kali:kali /build/qwen-cpp/vulkan/ /app/qwen-cpp/vulkan/
 
 # Copy kali-web dist from builder
 COPY --from=builder --chown=kali:kali /build/kali-web/dist /app/kali-web/dist

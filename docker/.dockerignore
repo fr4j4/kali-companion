@@ -22,8 +22,7 @@ kali-core/kali_core/voice/voices/*.onnx
 kali-core/kali_core/voice/voices/*.onnx.json
 kali-core/kali_core/ear/models/*
 kali-core/kali_core/voice/qwen_models/*
-kali-core/kali_core/voice/qwen_cpp/build/
-kali-core/kali_core/voice/qwen_cpp/build-gpu/
+kali-core/kali_core/voice/qwen_cpp/
 
 # Config / data
 .env

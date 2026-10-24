@@ -416,7 +416,7 @@ ai-voice-companion/
     ├── download-voices.sh
     ├── download-stt-models.sh
     ├── download-qwen-models.sh
-    ├── build-qwen-cpp.sh
+    ├── fetch-qwen-cpp.sh
     ├── dev-qwen.sh / prod-qwen.sh
     └── dev-qwen-vd.sh / prod-qwen-vd.sh
 ```

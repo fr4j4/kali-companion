@@ -40,11 +40,11 @@ if [ -f "$CORE_DIR/.env" ]; then
 fi
 
 # ── Check Qwen3-TTS binary ──────────────────────────────────
-QWEN_BUILD_DIR="$CORE_DIR/kali_core/voice/qwen_cpp/build"
+QWEN_CPP_DIR="$CORE_DIR/kali_core/voice/qwen_cpp"
 if [ "${KALI_TTS_PROVIDER:-inproc}" = "qwen3" ] || [ "${KALI_TTS_PROVIDER:-inproc}" = "qwen3-voicedesign" ]; then
-  if [ ! -f "$QWEN_BUILD_DIR/tts-server" ]; then
-    echo "WARNING: Qwen3-TTS binary not found at $QWEN_BUILD_DIR/tts-server"
-    echo "  To compile:  ./scripts/build-qwen-cpp.sh cpu"
+  if [ ! -x "${KALI_QWEN_BINARY:-}" ] && [ ! -x "$QWEN_CPP_DIR/vulkan/tts-server" ] && [ ! -x "$QWEN_CPP_DIR/cuda/tts-server" ]; then
+    echo "WARNING: Qwen3-TTS binary not found under $QWEN_CPP_DIR"
+    echo "  To install:  ./scripts/fetch-qwen-cpp.sh   # prebuilt release, no compiling"
     echo "  To download: ./scripts/download-qwen-models.sh"
     echo "  Falling back to Piper (inproc). Set KALI_TTS_PROVIDER=inproc in .env to silence this warning."
     export KALI_TTS_PROVIDER=inproc
