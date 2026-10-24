@@ -299,6 +299,60 @@
 .v2-column .stage-dock { position: static; transform: none; width: 100%; }
 .v2-column .stage-dock-pill { min-height: calc(44px * var(--k)); padding: calc(4px * var(--k)); }
 
+/* Kali's panel (KaliPanel): the Studio's right panel and the Hub's column in Lámina. */
+.v2-kpanel {
+  position: absolute; z-index: 30; display: flex; flex-direction: column; gap: calc(12px * var(--k));
+  padding: calc(18px * var(--k)) calc(18px * var(--k)) calc(16px * var(--k));
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+.v2-kpanel.side-right { border-left: 1px solid var(--v2-line); }
+.v2-kpanel.side-left { border: 1px solid var(--v2-line-strong); border-radius: var(--v2-r-window); background: color-mix(in srgb, var(--bg-elev) 72%, var(--bg)); }
+.v2-kpanel-head { display: flex; align-items: flex-start; gap: calc(14px * var(--k)); padding-bottom: calc(12px * var(--k)); border-bottom: 1px solid var(--v2-line); flex-shrink: 0; }
+.v2-kpanel-slot { flex-shrink: 0; }
+.v2-kpanel-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; padding-top: calc(4px * var(--k)); }
+.v2-kpanel-who b { font-weight: 600; font-size: max(12px, calc(15px * var(--kt))); }
+.v2-kpanel-who small { font-size: max(11px, calc(12px * var(--kt))); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.v2-kpanel-who small.is-working { color: var(--fg); }
+.v2-kpanel-who small.is-error { color: var(--err); }
+.v2-kpanel-who .v2-seg { align-self: flex-start; margin-top: calc(6px * var(--k)); }
+.v2-kpanel-extra { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.v2-kpanel-extra .v2-square-btn { position: static; width: calc(32px * var(--k)); height: calc(32px * var(--k)); border-color: transparent; background: transparent; color: var(--muted); }
+.v2-kpanel-extra .v2-square-btn:hover, .v2-kpanel-extra .v2-square-btn[aria-expanded="true"] { background: var(--v2-hover); color: var(--fg); }
+.v2-kpanel-extra .v2-square-btn svg { width: 16px; height: 16px; }
+.v2-kpanel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 calc(-8px * var(--k)); }
+.v2-kpanel-body > .v2-column-voice { padding: 0 calc(8px * var(--k)); }
+.v2-kpanel-body [role="log"] { padding-left: calc(8px * var(--k)); padding-right: calc(8px * var(--k)); }
+.v2-kpanel-dock { flex-shrink: 0; }
+.v2-kpanel .stage-dock { position: static; transform: none; width: 100%; }
+.v2-kpanel .stage-dock-pill { min-height: calc(48px * var(--k)); padding: calc(4px * var(--k)); -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); box-shadow: none; }
+.v2-seg.sm button { height: calc(24px * var(--k)); padding: 0 calc(10px * var(--k)); }
+.v2-seg button:disabled { cursor: default; }
+.v2-seg button:disabled:not([aria-pressed="true"]) { opacity: .55; }
+.v2-label { margin: 0 0 calc(4px * var(--k)); font-size: max(10px, calc(11px * var(--kt))); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.v2-notice-btn { position: relative; }
+.v2-notice-btn.is-alert { color: var(--err); }
+.v2-notice-btn.is-flash { color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
+.v2-notice-badge { position: absolute; right: 0; top: 0; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 9999px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Orbs as a list (OrbList) */
+.v2-orbs { flex-shrink: 0; }
+.v2-orbs ul { list-style: none; margin: 0; padding: 0; }
+.v2-orb-row { display: flex; align-items: center; gap: calc(10px * var(--k)); width: 100%; height: calc(30px * var(--k)); font-size: max(11px, calc(13px * var(--kt))); text-align: left; color: var(--fg); border-radius: var(--v2-r-control); }
+button.v2-orb-row:hover { background: var(--v2-hover); }
+.v2-orb-row small { margin-left: auto; min-width: 0; color: var(--muted); font-size: max(11px, calc(12px * var(--kt))); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.v2-orb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
+.v2-orb-dot { width: calc(9px * var(--k)); height: calc(9px * var(--k)); min-width: 7px; min-height: 7px; border-radius: 9999px; flex-shrink: 0; background: var(--muted); }
+.v2-orb-row.is-working .v2-orb-dot, .v2-orb-row.is-permission .v2-orb-dot { background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+.v2-orb-row.is-recalling .v2-orb-dot { background: var(--accent2); box-shadow: 0 0 8px color-mix(in srgb, var(--accent2) 50%, transparent); }
+.v2-orb-row.is-done .v2-orb-dot { background: var(--ok); }
+.v2-orb-row.is-failed .v2-orb-dot { background: var(--err); }
+.v2-orb-row.is-permission small { color: var(--accent); }
+.v2-orb-row.is-failed small { color: var(--err); }
+.v2-orb-row.is-resting { color: var(--muted); }
+.v2-orb-row.is-resting small { flex-shrink: 0; }
+.v2-orb-row.is-resting .v2-orb-dot { background: transparent; border: 1.5px solid var(--muted); }
+
 /* In Focus and Mosaic the map and the avatar sit inside Kali's column, above its background. */
 .v2-root.is-column .v2-map { z-index: 31; }
 .v2-root.is-column .v2-avatar:not(.is-bubble) { z-index: 32; }

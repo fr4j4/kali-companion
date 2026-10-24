@@ -43,16 +43,16 @@ export function anchorStyle(p: Point, stage: { w: number; h: number }, corner: "
 
 // ── Status pill ─────────────────────────────────────────
 
-export function StatusPill({ style, inline = false }: { style?: CSSProperties; inline?: boolean }) {
+export type KaliStatusKind = "error" | "listening" | "working" | "ready" | "idle";
+
+/** What Kali is doing now, in one word, and the model she runs on: the status pill and the panel. */
+export function useKaliStatus(): { kind: KaliStatusKind; word: string; model: string } {
   const { t } = useTranslation();
   const { chat, ptt, tts } = useStage();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(open, () => setOpen(false), ref);
   const s = chat.systemStatus;
   const hasProvider = s?.llm_active ?? false;
   const listening = ptt.state === "recording";
-  const kind = !hasProvider || chat.status === "error" || chat.status === "disconnected"
+  const kind: KaliStatusKind = !hasProvider || chat.status === "error" || chat.status === "disconnected"
     ? "error"
     : listening ? "listening" : chat.isTurnActive || tts.playing ? "working" : chat.status === "ready" ? "ready" : "idle";
   const word = kind === "error"
@@ -61,6 +61,17 @@ export function StatusPill({ style, inline = false }: { style?: CSSProperties; i
     : kind === "working" ? (tts.playing && !chat.isTurnActive ? t("v2.hud.speaking") : t("hud.working"))
     : t(`status.${chat.status}`);
   const model = hasProvider && s ? (s.llm_connection_name || s.llm_model || s.llm_vendor_detected || s.llm_provider) : "—";
+  return { kind, word, model };
+}
+
+export function StatusPill({ style, inline = false }: { style?: CSSProperties; inline?: boolean }) {
+  const { t } = useTranslation();
+  const { chat } = useStage();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(open, () => setOpen(false), ref);
+  const s = chat.systemStatus;
+  const { kind, word, model } = useKaliStatus();
 
   return (
     <div ref={ref} className={inline ? "relative" : "absolute z-40"} style={style}>
@@ -99,21 +110,25 @@ export function WindowsPill({ count, open, onToggle, style }: { count: number; o
 
 // ── Notices pill ────────────────────────────────────────
 
-export function NoticesPill({ notices, flash, onClear, onDismiss, style }: {
+export function NoticesPill({ notices, flash, onClear, onDismiss, style, drop = "up", compact = false }: {
   notices: Notice[];
   flash: Notice | null;
   onClear: () => void;
   onDismiss: (id: number) => void;
   style?: CSSProperties;
+  /** Where the list opens: above (corners) or below (a panel header). */
+  drop?: "up" | "down";
+  /** Icon only (a panel header), the count as a badge. */
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
   return (
-    <div ref={ref} className="absolute z-40" style={style}>
+    <div ref={ref} className={compact ? "relative" : "absolute z-40"} style={style}>
       {open && notices.length > 0 && (
-        <div className="v2-pop" style={{ bottom: "calc(100% + 8px)", left: 0 }} role="dialog" aria-label={t("v2.notices.title") as string}>
+        <div className="v2-pop" style={drop === "up" ? { bottom: "calc(100% + 8px)", left: 0 } : { top: "calc(100% + 8px)", right: 0 }} role="dialog" aria-label={t("v2.notices.title") as string}>
           <div className="flex items-center justify-between">
             <div className="v2-pop-title">{t("v2.notices.title")}</div>
             <button type="button" className="v2-btn is-quiet" onClick={() => { onClear(); setOpen(false); }}>{t("v2.notices.clear")}</button>
@@ -132,7 +147,20 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style }: {
           </div>
         </div>
       )}
-      <button
+      {compact ? (
+        <button
+          type="button"
+          className={`v2-icon-btn v2-notice-btn ${notices.some((n) => n.kind === "error") ? "is-alert" : ""} ${flash ? "is-flash" : ""}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={(flash?.text ?? t("v2.notices.count", { count: notices.length })) as string}
+          title={(flash?.text ?? t("v2.notices.count", { count: notices.length })) as string}
+        >
+          <Bell size={16} aria-hidden="true" />
+          {notices.length > 0 && <span className="v2-notice-badge" aria-hidden="true">{notices.length}</span>}
+          {flash && <span className="sr-only" role="alert">{flash.text}</span>}
+        </button>
+      ) : <button
         type="button"
         className={`v2-pill ${notices.some((n) => n.kind === "error") ? "is-alert" : ""} ${flash ? "is-flash" : ""}`}
         style={{ position: "relative" }}
@@ -141,7 +169,7 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style }: {
       >
         {notices.length ? <span className={`v2-dot ${notices.some((n) => n.kind === "error") ? "is-error" : "is-working"}`} aria-hidden="true" /> : <Bell size={16} aria-hidden="true" />}
         {flash ? <span className="v2-flash-text" role="alert">{flash.text}</span> : t("v2.notices.count", { count: notices.length })}
-      </button>
+      </button>}
     </div>
   );
 }
@@ -193,7 +221,7 @@ function MenuItem({ icon, label, kbd, onClick, checked, disabled, onClose }: Men
   );
 }
 
-export function LayoutButton({ style, ...p }: LayoutMenuProps & { style?: CSSProperties }) {
+export function LayoutButton({ style, drop = "up", ...p }: LayoutMenuProps & { style?: CSSProperties; drop?: "up" | "down" }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -202,7 +230,7 @@ export function LayoutButton({ style, ...p }: LayoutMenuProps & { style?: CSSPro
   return (
     <div ref={ref} className="absolute z-40" style={style}>
       {open && (
-        <div className="v2-pop" style={{ bottom: "calc(100% + 8px)", right: 0 }} role="menu" aria-label={t("v2.menu.label") as string}>
+        <div className="v2-pop" style={drop === "up" ? { bottom: "calc(100% + 8px)", right: 0 } : { top: "calc(100% + 8px)", right: 0, maxHeight: "calc(100vh - 80px)", overflowY: "auto" }} role="menu" aria-label={t("v2.menu.label") as string}>
           {/* Two groups (kit): how the artifacts are laid out, and everything else. The rest of
               the old list also lives in Ctrl+K. */}
           <div className="v2-pop-title">{t("v2.menu.layout")}</div>

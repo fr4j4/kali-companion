@@ -52,8 +52,9 @@ export interface CanvasLayout {
   artifact: Rect | null;
   /** Kali's zone: the map, or the conversation view. Null when Kali is only a bubble. */
   kali: Rect | null;
-  /** The map itself (inside `kali`). */
+  /** The map itself (inside `kali`); null when Kali is a panel or a bubble. */
   map: Rect | null;
+  /** Centre of the avatar: the map's centre, the panel's slot or the bubble. */
   mapCenter: Point | null;
   mapDensity: MapDensity;
   /** Diameter of the avatar in px. */
@@ -92,8 +93,11 @@ const scaleRect = (rect: Rect | null, k: number): Rect | null =>
 const scalePoint = (p: Point | null, k: number): Point | null => p && { x: Math.round(p.x * k), y: Math.round(p.y * k) };
 const centerOf = (rect: Rect): Point => ({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
 
-/** Width of Kali's column in Focus and Mosaic (design units). */
-export const COLUMN_W = 300;
+/** Width of Kali's panel (Focus, Mosaic, later the Studio and the Hub's Lámina), design units. */
+export const PANEL_W = 380;
+/** The avatar's slot in Kali's panel: its size and the panel's padding before it. */
+export const PANEL_AVATAR = 72;
+export const PANEL_PAD = 18;
 export const RAIL_W = 56;
 /** Avatar on the stage map (design units): the centre of the screen, with its halo. */
 export const STAGE_AVATAR = 160;
@@ -155,7 +159,7 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
     out.dock = dock;
     pills();
   } else if (mode === "focus" || mode === "mosaic") {
-    const columnW = compact ? 0 : COLUMN_W;
+    const columnW = compact ? 0 : PANEL_W;
     out.rail = r(0, 0, RAIL_W, H);
     out.tabs = r(RAIL_W + 14, 6, W - columnW - RAIL_W - 28, 44);
     out.artifact = r(RAIL_W + 14, 52, W - columnW - RAIL_W - 28, H - 52 - 14);
@@ -165,13 +169,13 @@ export function computeLayout(input: LayoutInput): CanvasLayout {
       out.avatar = 56;
       out.mapDensity = "mini";
     } else {
-      const column = r(W - COLUMN_W, 0, COLUMN_W, H);
+      // Kali's panel: no mini map; the avatar sits in the panel's header slot.
+      const column = r(W - PANEL_W, 0, PANEL_W, H);
       out.column = column;
       out.kali = column;
-      out.map = r(column.x, 52, column.w, MINIMAP_H);
-      out.mapCenter = centerOf(out.map);
+      out.mapCenter = { x: column.x + PANEL_PAD + PANEL_AVATAR / 2, y: column.y + PANEL_PAD + PANEL_AVATAR / 2 };
       out.mapDensity = "mini";
-      out.avatar = 52;
+      out.avatar = PANEL_AVATAR;
     }
   } else {
     // fullscreen

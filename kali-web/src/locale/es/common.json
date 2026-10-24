@@ -1462,5 +1462,11 @@
   "toolname.memory_save": "Recuerdo",
   "toolname.memory_search": "Memoria",
   "toolname.recall": "Memoria",
-  "v2.menu.more": "Más"
+  "v2.menu.more": "Más",
+  "v2.panel.mode": "Modo",
+  "v2.panel.mode_hub": "Hub",
+  "v2.panel.mode_studio": "Estudio",
+  "v2.panel.orbs": "Orbes",
+  "v2.panel.resting": "en reposo",
+  "v2.panel.previous": "Anteriores"
 }

@@ -34,6 +34,7 @@ import { NeuralMapV2 } from "./NeuralMapV2";
 import { ARTIFACT_NODE, type NodeId, type NodeStatus } from "./mapModel";
 import { LayoutButton, NoticesPill, StatusPill, WindowsPill, anchorStyle } from "./Hud";
 import { ConsentCard, ConversationPanel, Inspector, NowList, VoiceLine, VoiceText, useVoice } from "./KaliZone";
+import { KaliPanel } from "./KaliPanel";
 import { FullscreenChrome, GroupRail, MosaicControls, TabBar } from "./GroupChrome";
 import { Overview, Tray } from "./ZonePanels";
 import { SpaceView } from "./SpaceView";
@@ -304,19 +305,25 @@ export function CanvasV2(p: Props) {
       {panel === "tray" && layout.artifact && <Tray canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
       {panel === "overview" && layout.artifact && <Overview canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
 
-      {/* Kali's column (focus, mosaic) */}
+      {/* Kali's panel (focus, mosaic) */}
       {isColumn && layout.column && (
-        <aside className="v2-column" style={box(layout.column)} aria-label={t("v2.column.label") as string}>
-          <div className="v2-column-head">
-            <StatusPill inline />
-            <LayoutButton {...menu} style={{ position: "relative" }} />
-          </div>
-          <div className="v2-column-spacer" aria-hidden="true" />
-          <NowList statuses={statuses} groupTitle={active?.title} onPick={(id) => setPicked(id)} />
-          {consentCard}
-          <ColumnVoice />
-          {dock(true)}
-        </aside>
+        <KaliPanel
+          side="right"
+          rect={layout.column}
+          k={layout.k}
+          taskTitle={active?.title}
+          nodes={nodes}
+          statuses={statuses}
+          onPickOrb={onDetail}
+          consent={consentCard}
+          dock={dock(true)}
+          headerExtra={(
+            <>
+              <NoticesPill compact drop="down" notices={notices.notices} flash={notices.flash} onClear={notices.clear} onDismiss={notices.dismiss} />
+              <LayoutButton {...menu} drop="down" style={{ position: "relative" }} />
+            </>
+          )}
+        />
       )}
 
       {/* Map and the avatar (always at its centre) */}
@@ -342,13 +349,15 @@ export function CanvasV2(p: Props) {
       {layout.windowsPill && (openCount > 0 || hiddenArtifacts > 0) && (
         <WindowsPill count={openCount} open={panel === "tray"} onToggle={() => canvas.setPanel(panel === "tray" ? null : "tray")} style={anchorStyle(layout.windowsPill, stage, "tr")} />
       )}
-      <NoticesPill
-        notices={notices.notices}
-        flash={notices.flash}
-        onClear={notices.clear}
-        onDismiss={notices.dismiss}
-        style={layout.noticesPill ? anchorStyle(layout.noticesPill, stage, "bl") : { left: (layout.rail?.w ?? 0) + 16, bottom: 16 }}
-      />
+      {!isColumn && (
+        <NoticesPill
+          notices={notices.notices}
+          flash={notices.flash}
+          onClear={notices.clear}
+          onDismiss={notices.dismiss}
+          style={layout.noticesPill ? anchorStyle(layout.noticesPill, stage, "bl") : { left: (layout.rail?.w ?? 0) + 16, bottom: 16 }}
+        />
+      )}
       {layout.layoutButton && <LayoutButton {...menu} style={anchorStyle(layout.layoutButton, stage, "br")} />}
 
       {/* Bubble popover (fullscreen, compact) */}
@@ -367,18 +376,6 @@ export function CanvasV2(p: Props) {
       {/* Overlays */}
       {space && <SpaceView canvas={canvas} windows={api.windows} onClose={() => canvas.setSpace(false)} />}
       {paletteOpen && <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />}
-    </div>
-  );
-}
-
-function ColumnVoice() {
-  const { echo, answer, streaming } = useVoice();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { const el = ref.current; if (el && streaming) el.scrollTop = el.scrollHeight; }, [answer, streaming]);
-  return (
-    <div className="v2-column-voice" ref={ref} aria-live="polite">
-      {echo && <div className="v2-echo">“{echo}”</div>}
-      {answer && <VoiceText answer={answer} streaming={streaming} />}
     </div>
   );
 }

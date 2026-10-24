@@ -35,13 +35,15 @@ describe("computeLayout", () => {
     expect(l.mapDensity).toBe("compact");
   });
 
-  it("puts Kali in a 300 px column in focus and mosaic", () => {
+  it("puts Kali in her 380 px panel in focus and mosaic, avatar in the header slot, no mini map", () => {
     for (const mode of ["focus", "mosaic"] as const) {
       const l = computeLayout({ mode, stage: base, visibleWindows: 1 });
-      expect(l.column).toEqual({ x: 1140, y: 0, w: 300, h: 900 });
+      expect(l.column).toEqual({ x: 1060, y: 0, w: 380, h: 900 });
       expect(l.rail?.w).toBe(56);
-      expect(l.artifact).toEqual({ x: 70, y: 52, w: 1056, h: 834 });
-      expect(l.mapCenter?.x).toBe(1290);
+      expect(l.artifact).toEqual({ x: 70, y: 52, w: 976, h: 834 });
+      expect(l.map).toBeNull();
+      expect(l.mapCenter).toEqual({ x: 1060 + 18 + 36, y: 18 + 36 });
+      expect(l.avatar).toBe(72);
       expect(l.mapDensity).toBe("mini");
     }
   });
