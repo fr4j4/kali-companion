@@ -590,6 +590,23 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
 }
 .v2-explore-exit:hover, .v2-explore-exit:focus-visible { opacity: 1; }
 
+/* ── Own windows (desktop): ghost tabs, «Traer», the drop on Kali's panel ── */
+.v2-tab.is-ghost { cursor: default; color: var(--muted); opacity: .8; gap: calc(6px * var(--k)); }
+.v2-tab.is-ghost small { color: var(--muted); font-size: max(10px, calc(11px * var(--kt))); white-space: nowrap; }
+.v2-ghost-flash { position: absolute; inset: 2px 0 0; border-radius: inherit; background: color-mix(in srgb, var(--accent) 28%, transparent); pointer-events: none; animation: v2-ghost-flash .6s ease-out both; }
+@keyframes v2-ghost-flash { from { opacity: 1; } to { opacity: 0; } }
+.v2-bring {
+  display: inline-flex; align-items: center; gap: 4px; height: calc(22px * var(--k)); padding: 0 calc(8px * var(--k));
+  border-radius: 9999px; border: 1px solid var(--v2-line-strong); color: var(--fg); font-size: max(11px, calc(12px * var(--kt))); white-space: nowrap;
+}
+.v2-bring:hover, .v2-bring:focus-visible { border-color: var(--accent); color: var(--accent); }
+.v2-pane-out { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: var(--muted); font-size: max(12px, calc(14px * var(--kt))); }
+.v2-kpanel.is-drop-out { outline: 2px dashed var(--accent); outline-offset: -6px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.v2-tab-ghost.is-out { border-style: dashed; }
+.v2-ficha.is-out .v2-ficha-main { color: var(--muted); }
+.v2-ficha-out { flex-shrink: 0; color: var(--accent); }
+.v2-bcard.is-out { opacity: .72; border-style: dashed; }
+
 /* ── Performance and reduced motion: one switch for every canvas animation and blur. ── */
 :root[data-perf-profile="performance"] .v2-root *,
 html.kali-perf-low .v2-root * {

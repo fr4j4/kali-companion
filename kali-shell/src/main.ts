@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { randomBytes, X509Certificate } from "node:crypto";
 import { homedir } from "node:os";
 import { AVATAR_SIZES, defaultConfig, loadSharedConfig, nativeAgentRunning, saveSharedConfig, type SharedConfig } from "./config.js";
-import { loadBounds, saveBounds } from "./windowState.js";
+import { boundsFileName, loadBounds, saveBounds } from "./windowState.js";
 import { sidecarPort, superviseSidecar, waitForPort } from "./sidecar.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -149,6 +149,9 @@ function openMain(hash = "/", show = true): void {
     mainWindow.webContents.on("will-navigate", (event, url) => { if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault(); });
     mainWindow.on("close", (event) => {
       if (quitting) return;
+      // Closing the main window closes the artifacts' own windows too; each one goes back to its tab
+      // the next time the canvas loads. Minimizing or hiding it leaves them alone.
+      closeArtifactWindows();
       // With the native agent keeping the avatar and tray, this process only lives while a
       // window is open (lightweight); voice features can ask to stay resident via keepAlive.
       if (nativeAgentRunning() && !keepAlive && artifactWindows.size === 0) { quitting = true; return; }
@@ -216,18 +219,34 @@ function notifyArtifactNative(sessionId: string, id: string, open: boolean, retu
   return true;
 }
 
-function openArtifact(sessionId: string, artifactId: string): void {
+/** Close every artifact window, marking each to go back to its tab. */
+function closeArtifactWindows(): void {
+  for (const [key, win] of artifactWindows) {
+    if (win.isDestroyed()) continue;
+    const [sessionId, id] = key.split(":");
+    pendingReturns.set(key, { sessionId, id });
+    win.close();
+  }
+}
+
+function openArtifact(sessionId: string, artifactId: string, type?: string): void {
   if (!/^[\w-]{1,128}$/.test(sessionId) || !/^[\w-]{1,128}$/.test(artifactId)) throw new Error("Invalid artifact reference");
   const key = `${sessionId}:${artifactId}`;
   const existing = artifactWindows.get(key);
   if (existing && !existing.isDestroyed()) { existing.show(); existing.focus(); return; }
-  const boundsFile = join(app.getPath("userData"), "artifact-window.json");
-  const bounds = loadBounds(boundsFile, screen.getAllDisplays().map((d) => d.workArea));
+  // Size and monitor are remembered per kind of artifact; a kind seen for the first time starts from the shared file.
+  const displays = screen.getAllDisplays().map((d) => d.workArea);
+  const boundsFile = join(app.getPath("userData"), boundsFileName(type));
+  const bounds = loadBounds(existsSync(boundsFile) ? boundsFile : join(app.getPath("userData"), boundsFileName()), displays);
   const win = new BrowserWindow({ title: `kali-artifact · ${artifactId}`, ...bounds, minWidth: 400, minHeight: 300,
     webPreferences: { preload: join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   artifactWindows.set(key, win);
   // Remember the last size/position the user left an artifact window at (position is ignored under Wayland).
-  win.on("close", () => { if (!win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) saveBounds(boundsFile, win.getBounds()); });
+  win.on("close", () => {
+    if (!win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) saveBounds(boundsFile, win.getBounds());
+    // Closed with its ✕ (or Esc): it goes back to its tab, never silently away.
+    if (!quitting) pendingReturns.set(key, { sessionId, id: artifactId });
+  });
   win.on("closed", updateTray);
   updateTray();
   notifyArtifactNative(sessionId, artifactId, true, false);
@@ -420,7 +439,16 @@ app.whenReady().then(() => {
     openMain("/");
     win.close();
   });
-  ipcMain.handle("desktop:open-artifact", (_event, sid: string, id: string) => openArtifact(sid, id));
+  ipcMain.handle("desktop:open-artifact", (_event, sid: string, id: string, type?: unknown) => openArtifact(sid, id, typeof type === "string" ? type : undefined));
+  // "Bring back" from the main window's ghost tab.
+  ipcMain.handle("desktop:bring-artifact", (event, sid: string, id: string) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error("Only the main window may bring an artifact back");
+    const key = `${sid}:${id}`;
+    const win = artifactWindows.get(key);
+    if (!win || win.isDestroyed()) return;
+    pendingReturns.set(key, { sessionId: sid, id });
+    win.close();
+  });
   ipcMain.handle("desktop:action", (event, action: string, params: Record<string, unknown>) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Only main window may execute desktop actions");
     return runDesktopAction(action, params);

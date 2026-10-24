@@ -39,7 +39,10 @@ export interface DesktopBridge {
   /** From a native artifact window: close it and restore the artifact in the canvas. */
   returnArtifact(sessionId: string, artifactId: string): Promise<void>;
   onArtifactNative(callback: (state: NativeArtifactRef & { open: boolean; returned: boolean }) => void): () => void;
-  openArtifact(sessionId: string, artifactId: string): Promise<void>;
+  /** Open an artifact in its own window; `type` picks the remembered size and monitor for that kind. */
+  openArtifact(sessionId: string, artifactId: string, type?: string): Promise<void>;
+  /** From the main window: close an artifact's own window and bring it back to its tab. */
+  bringArtifact?(sessionId: string, artifactId: string): Promise<void>;
   performAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
   /** Latest presence frame (core `presence_state` v2) plus the clock offset and the assistant text tail. */
   setPresence(state: DesktopPresence): void;
@@ -69,6 +72,11 @@ export async function setArtifactsNative(value: boolean): Promise<void> {
 export function artifactsNativeEnabled(): boolean { return isDesktop() && desktopConfig?.artifactsNative === true; }
 
 export function isDesktop(): boolean { return !!window.kaliDesktop; }
+
+/** The loose-artifact page (the same one a desktop window shows), for a browser tab. */
+export function artifactPageUrl(sessionId: string, artifactId: string): string {
+  return `${window.location.origin}${window.location.pathname}#/desktop/artifact/${encodeURIComponent(sessionId)}/${encodeURIComponent(artifactId)}`;
+}
 export function getDesktopConfig(): DesktopConnectionConfig | null { return desktopConfig; }
 export function getApiToken(): string {
   return desktopConfig?.token || (!isDesktop() ? localStorage.getItem("kali.apiToken") || "" : "");

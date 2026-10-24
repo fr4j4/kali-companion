@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, FolderPlus, Maximize, Minus, Pin, Plus, RotateCcw } from "lucide-react";
+import { AppWindow, Archive, FolderPlus, Maximize, Minus, Pin, Plus, RotateCcw } from "lucide-react";
 import type { WindowData, WindowType } from "../../workspace/types";
 import type { ClosedEntry, Group } from "../../workspace/groups";
 import { WindowTypeIcon } from "../windowIcons";
@@ -76,13 +76,14 @@ export function Board({ canvas, windows, onOpen, onClose }: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
   useDismiss(!!menu, () => setMenu(null), menuRef);
 
-  const open = (w: WindowData | undefined): w is WindowData => !!w && !w.closed;
+  // Ghosts (in their own window) are on the board too: opening one brings it back.
+  const open = (w: WindowData | undefined): w is WindowData => !!w && (!w.closed || canvas.ghosts.has(w.id));
   const byId = useCallback((id: number) => windows.find((w) => w.id === id), [windows]);
   const groups = canvas.groups.groups;
   const layout = useMemo(
     // Zones wrap at the viewport's width, so at 100 % the board reads top to bottom.
     () => boardLayout(groups.map((g) => ({ id: g.id, cardIds: g.windowIds.filter((id) => open(byId(id))) })), Math.max(1100, vp.w - 80)),
-    [groups, byId, vp.w],
+    [groups, byId, vp.w, canvas.ghosts],
   );
 
   useLayoutEffect(() => {
@@ -231,13 +232,14 @@ export function Board({ canvas, windows, onOpen, onClose }: Props) {
                 {z.cards.map((c) => {
                   const w = byId(c.id)!;
                   const pinned = g?.pinnedIds.includes(w.id);
+                  const out = canvas.ghosts.has(w.id);
                   return (
                     <div
                       key={c.id}
                       role="button"
                       tabIndex={0}
                       aria-pressed={selected === w.id}
-                      className={`v2-bcard ${selected === w.id ? "is-selected" : ""} ${drag?.id === w.id ? "is-dragged" : ""}`}
+                      className={`v2-bcard ${out ? "is-out" : ""} ${selected === w.id ? "is-selected" : ""} ${drag?.id === w.id ? "is-dragged" : ""}`}
                       style={box({ x: c.rect.x - z.rect.x, y: c.rect.y - z.rect.y, w: c.rect.w, h: c.rect.h })}
                       onPointerDown={onCardDown(w.id)}
                       onDoubleClick={() => openCard(w.id)}
@@ -255,7 +257,8 @@ export function Board({ canvas, windows, onOpen, onClose }: Props) {
                           <strong>{w.title}</strong>
                           <small>
                             {pinned && <Pin size={11} aria-label={t("v2.space.pinned") as string} />}
-                            {t(`v2.type.${w.type}`, { defaultValue: w.type })} · {formatAgo(Date.now() - (canvas.lastUsed(w.id) || Date.now()))}
+                            {out && <AppWindow size={11} aria-hidden="true" />}
+                            {out ? `${t("v2.native.outside")} · ` : ""}{t(`v2.type.${w.type}`, { defaultValue: w.type })} · {formatAgo(Date.now() - (canvas.lastUsed(w.id) || Date.now()))}
                           </small>
                         </span>
                       </div>

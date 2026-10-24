@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Maximize2 } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 import type { ArtifactEvent } from "../../lib/protocol";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { isCompactPanel, type CanvasLayout, type Rect } from "../../workspace/layout";
@@ -19,6 +19,7 @@ import { WindowContentRouter } from "../WindowContentRouter";
 import type { CanvasStateApi } from "./useCanvasState";
 import type { WindowStatusApi } from "./useWindowStatus";
 import { paneBody, type StudioLeaf } from "./Pane";
+import { DetachButton } from "./Detach";
 
 interface Props {
   api: WorkspaceAPI;
@@ -51,12 +52,7 @@ export function WindowLayer({ api, canvas, layout, status, hub, studio }: Props)
     return map;
   }, [studio, hub, layout.lamina, layout.k, board]);
 
-  const detach = (artifactId?: string) => window.kaliDesktop && artifactId ? (
-    <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
-      onClick={(e) => { e.stopPropagation(); const sid = localStorage.getItem("kali.sessionId"); if (sid) void window.kaliDesktop?.openArtifact(sid, artifactId); }}>
-      <ExternalLink size={16} aria-hidden="true" />
-    </button>
-  ) : undefined;
+  const detach = (id: number, artifactId?: string) => (artifactId ? <DetachButton canvas={canvas} id={id} /> : undefined);
 
   const open = api.windows.filter((w) => !w.closed);
   return (
@@ -94,9 +90,9 @@ export function WindowLayer({ api, canvas, layout, status, hub, studio }: Props)
                   onClick={(e) => { e.stopPropagation(); hub!.onExplore(); }}>
                   <Maximize2 size={16} aria-hidden="true" />
                 </button>
-                {detach(w.artifactId)}
+                {detach(w.id, w.artifactId)}
               </>
-            ) : place?.leaf ? undefined : detach(w.artifactId)}
+            ) : place?.leaf ? undefined : detach(w.id, w.artifactId)}
           >
             <WindowContentRouter window={w} api={api} />
           </ArtifactShell>

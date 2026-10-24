@@ -85,6 +85,12 @@ export function forget(h: HubModel, id: number): HubModel {
   return { ...h, previousIds: without(h.previousIds, id) };
 }
 
+/** The lámina went to its own window (desktop): the Hub goes back to listening and it heads the cards. */
+export function sendOut(h: HubModel, id: number): HubModel {
+  if (h.currentId !== id) return h;
+  return { ...h, state: h.state === "hilo" ? "hilo" : "escucha", currentId: null, previousIds: front(h.previousIds, id), before: h.state === "hilo" ? "escucha" : h.before };
+}
+
 /** Coming back from the Studio: the active tab is the lámina, the rest of its group the first cards. */
 export function fromStudio(h: HubModel, activeId: number | null, groupIds: number[]): HubModel {
   if (activeId == null) return { ...h, state: h.currentId != null ? "lamina" : "escucha" };
@@ -204,11 +210,14 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
         if (!known.includes(w)) next = arrive(next, w.id);
       }
     }
-    const alive = new Set(open.map((w) => w.id));
+    // A ghost (in its own window) is still here: it leaves the lámina but keeps its card.
+    const ghosts = canvasRef.current.ghosts;
+    if (next.currentId != null && ghosts.has(next.currentId)) next = sendOut(next, next.currentId);
+    const alive = new Set([...open.map((w) => w.id), ...ghosts]);
     for (const id of [next.currentId, ...next.previousIds]) if (id != null && !alive.has(id)) next = forget(next, id);
     for (const id of [...seen.current]) if (!alive.has(id)) seen.current.delete(id);
     if (next !== hubRef.current) setHub(next);
-  }, [api.windows]);
+  }, [api.windows, canvas.ghosts]);
 
   // A window focused from outside the Hub (the library, a link, "back to canvas") is brought back.
   const lastFocus = useRef<number | null>(null);
@@ -235,6 +244,8 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
 
   /** Show a window on the lámina (a card, the palette, "show me…"). */
   const show = useCallback((id: number) => {
+    // A card in its own window: bring it back; it takes the lámina when it reopens focused.
+    if (canvasRef.current.ghosts.has(id)) { canvasRef.current.bring(id); return; }
     setHub((h) => bringBack(h, id));
     canvasRef.current.focusWindow(id);
   }, []);

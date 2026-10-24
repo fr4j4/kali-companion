@@ -21,7 +21,7 @@
 import "./canvas-v2.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeftRight, Bug, Columns2, Cpu, ExternalLink, Eye, Gamepad2, History, LayoutDashboard, LayoutGrid, Maximize2, MessageSquare, Network, Palette, Plus, Settings, Undo2, Volume2 } from "lucide-react";
+import { ArrowLeftRight, Bug, Columns2, Cpu, Eye, Gamepad2, History, LayoutDashboard, LayoutGrid, Maximize2, MessageSquare, Network, Palette, Plus, Settings, Undo2, Volume2 } from "lucide-react";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { computeLayout, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { useStage } from "../StageProvider";
@@ -46,6 +46,7 @@ import { ExploreExit, ThreadView } from "./HubViews";
 import { GroupRail } from "./GroupChrome";
 import { AreaHead, PresetGlyph } from "./AreaHead";
 import { StudioPanes, studioView } from "./Pane";
+import { DetachButton } from "./Detach";
 import { leafOf, leaves, splitAt } from "../../workspace/panes";
 import { CommandPalette, type PaletteCommand } from "./CommandPalette";
 
@@ -123,8 +124,8 @@ export function CanvasV2(p: Props) {
   const mode = layout.mode;
   // The Studio's panes for the active group (null in the Hub or with nothing open).
   const view = useMemo(
-    () => (mode === "studio" && active && layout.area && canvas.tabIds.length ? studioView(active, canvas.tabIds, layout.area, layout.k, stage.w) : null),
-    [mode, active, layout.area, layout.k, canvas.tabIds, stage.w],
+    () => (mode === "studio" && active && layout.area && canvas.paneIds.length ? studioView(active, canvas.paneIds, layout.area, layout.k, stage.w, canvas.ghosts) : null),
+    [mode, active, layout.area, layout.k, canvas.paneIds, canvas.ghosts, stage.w],
   );
   const paneCount = view ? (view.zoomed ? 1 : leaves(view.tree).length) : 1;
   const [hosts, setHosts] = useState<Record<string, HTMLElement | null>>({});
@@ -181,9 +182,10 @@ export function CanvasV2(p: Props) {
 
   const cycleTab = useCallback((dir: 1 | -1) => {
     const leaf = view?.leaves.find((l) => l.id === view.activeLeaf);
-    if (!leaf || leaf.tabIds.length < 2 || leaf.activeId == null) return;
-    const i = leaf.tabIds.indexOf(leaf.activeId);
-    canvas.focusWindow(leaf.tabIds[(i + dir + leaf.tabIds.length) % leaf.tabIds.length]);
+    const ids = leaf ? leaf.tabIds.filter((id) => !canvas.ghosts.has(id)) : [];
+    if (!leaf || ids.length < 2 || leaf.activeId == null) return;
+    const i = ids.indexOf(leaf.activeId);
+    canvas.focusWindow(ids[(i + dir + ids.length) % ids.length]);
   }, [view, canvas]);
 
   const splitRight = useCallback(() => {
@@ -233,18 +235,11 @@ export function CanvasV2(p: Props) {
     back,
   }, api.windows);
 
-  // Desktop only: the active tab of a pane opens in its own window.
+  // The active tab of a pane goes to its own window (desktop) or a browser tab.
   const detachButton = useCallback((id: number) => {
     const w = api.windows.find((x) => x.id === id);
-    if (!window.kaliDesktop || !w?.artifactId) return null;
-    const artifactId = w.artifactId;
-    return (
-      <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
-        onClick={() => { const sid = localStorage.getItem("kali.sessionId"); if (sid) void window.kaliDesktop?.openArtifact(sid, artifactId); }}>
-        <ExternalLink size={16} aria-hidden="true" />
-      </button>
-    );
-  }, [api.windows, t]);
+    return w?.artifactId ? <DetachButton canvas={canvas} id={id} /> : null;
+  }, [api.windows, canvas]);
 
   const runningJobs = Array.from(chat.jobs.values()).filter((j) => j.status === "running").length;
   const hiddenArtifacts = api.windows.filter((w) => w.artifactId && (w.closed || w.minimized)).length;
@@ -383,7 +378,7 @@ export function CanvasV2(p: Props) {
       {mode === "studio" && layout.rail && <GroupRail canvas={canvas} rect={layout.rail} windows={api.windows} onBoard={() => canvas.setBoard(true)} />}
       {view && layout.areaHead && <AreaHead canvas={canvas} rect={layout.areaHead} view={view} onBoard={() => canvas.setBoard(true)} />}
       {view && !board && (
-        <StudioPanes canvas={canvas} view={view} windows={api.windows} status={winStatus.status} k={layout.k} onHost={onHost} extra={detachButton} />
+        <StudioPanes canvas={canvas} view={view} windows={api.windows} status={winStatus.status} k={layout.k} onHost={onHost} extra={detachButton} flash={api.nativeFlash} />
       )}
 
       {/* Zone panels */}
@@ -411,7 +406,7 @@ export function CanvasV2(p: Props) {
             </>
           )}
         >
-          {inHub && <Fichas ids={hub.previousIds} windows={api.windows} layout="column" onShow={cmode.show} onClose={canvas.close} onAll={() => canvas.setBoard(true)} />}
+          {inHub && <Fichas ids={hub.previousIds} windows={api.windows} layout="column" onShow={cmode.show} onClose={canvas.close} onAll={() => canvas.setBoard(true)} ghosts={canvas.ghosts} />}
         </KaliPanel>
       )}
 
@@ -427,7 +422,7 @@ export function CanvasV2(p: Props) {
           dock={dock(true)}
         />
       )}
-      {layout.fichas && <Fichas ids={hub.previousIds} windows={api.windows} layout="row" onShow={cmode.show} onClose={canvas.close} onAll={() => canvas.setBoard(true)} style={box(layout.fichas)} />}
+      {layout.fichas && <Fichas ids={hub.previousIds} windows={api.windows} layout="row" onShow={cmode.show} onClose={canvas.close} onAll={() => canvas.setBoard(true)} ghosts={canvas.ghosts} style={box(layout.fichas)} />}
       {inHub && hub.state === "explorar" && <ExploreExit onExit={cmode.back} style={{ right: 16, top: 16 }} />}
 
       {/* Map and the avatar (always at its centre) */}

@@ -7,11 +7,14 @@
  *  - each group splits into the Studio's panes (workspace/panes.ts); a saved tree comes back with
  *    the windows it held, and a layout saved before the panes is migrated (fromMosaic);
  *  - closing records the window under "Recently closed" so it can be reopened or undone;
+ *  - on the desktop, a window that went to its own OS window stays in its group as a ghost
+ *    (`ghosts`): its tab keeps its place, greyed, with "Bring back";
  *  - groups, their mode and mosaic are saved per session (by artifact id).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ArtifactEvent } from "../../lib/protocol";
+import { artifactPageUrl, isDesktop } from "../../lib/desktop";
 import type { WindowData, WorkspaceAPI } from "../../workspace/types";
 import type { ArtifactMode, KaliView, MosaicPreset, MosaicRatios } from "../../workspace/layout";
 import { fromMosaic, mapTabs, reconcile, toPreset as treeToPreset, type PaneNode } from "../../workspace/panes";
@@ -99,6 +102,13 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     if (persistedRef.current?.closed) setState((s) => ({ ...s, closed: persistedRef.current?.closed ?? [] }));
   }, [sessionId]);
 
+  /** Windows in their own OS window: closed here, but they keep their group and their tab. */
+  const ghosts = useMemo(() => {
+    const out = new Set<number>();
+    for (const w of api.windows) if (w.closed && w.artifactId && api.nativeIds.has(w.artifactId)) out.add(w.id);
+    return out as ReadonlySet<number>;
+  }, [api.windows, api.nativeIds]);
+
   // Assign new windows to a group, record closes, and drop windows that are gone.
   useEffect(() => {
     const windows = api.windows;
@@ -110,7 +120,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     for (const w of windows) {
       const inGroup = known.has(w.id);
       if (w.closed) {
-        if (inGroup) {
+        if (inGroup && !ghosts.has(w.id)) {
           const g = groupOf(next, w.id);
           next = recordClosed(next, { windowId: w.id, artifactId: w.artifactId, title: w.title, type: w.type, groupId: g?.id ?? null, closedAt: Date.now(), saved: false });
           next = detach(next, w.id);
@@ -159,7 +169,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     }
     for (const g of next.groups) for (const id of g.windowIds) if (!alive.has(id)) next = detach(next, id);
     if (next !== stateRef.current) setState(next);
-  }, [api.windows, isTurnActive]);
+  }, [api.windows, isTurnActive, ghosts]);
 
   // Saved layout restores the active group once its windows are back.
   useEffect(() => {
@@ -203,19 +213,43 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const visibleIds = useMemo(() => openIds(active).filter((id) => !winById(id)?.minimized), [active, openIds, winById, api.windows]);
   /** Tabs of the active group (focus, mosaic, fullscreen). */
   const tabIds = useMemo(() => openIds(active), [active, openIds, api.windows]);
+  /** The active group's tabs as the panes keep them: the open ones and the ghosts, in group order. */
+  const paneIds = useMemo(
+    () => (active ? active.windowIds.filter((id) => { const w = winById(id); return !!w && (isOpen(w) || ghosts.has(id)); }) : []),
+    [active, winById, ghosts, api.windows],
+  );
+
+  /** Desktop: close a window's OS window and bring it back to its tab. */
+  const bring = useCallback((id: number) => {
+    const w = winById(id);
+    const sid = localStorage.getItem("kali.sessionId");
+    if (w?.artifactId && sid) void window.kaliDesktop?.bringArtifact?.(sid, w.artifactId);
+  }, [winById]);
+  /** Its own window on the desktop (it stays here as a ghost); a browser tab on the web. */
+  const detachWindow = useCallback((id: number) => {
+    const w = winById(id);
+    const sid = localStorage.getItem("kali.sessionId");
+    if (!w?.artifactId || !sid) return;
+    if (isDesktop()) void window.kaliDesktop?.openArtifact(sid, w.artifactId, w.type);
+    else window.open(artifactPageUrl(sid, w.artifactId), "_blank", "noopener");
+  }, [winById]);
+  const ghostsRef = useRef(ghosts);
+  ghostsRef.current = ghosts;
 
   // ── Actions ─────────────────────────────────────────────
 
   const focusWindow = useCallback((id: number) => {
     const w = winById(id);
     if (!w) return;
+    // A ghost lives in its own window: choosing it brings it back (it reopens focused).
+    if (ghostsRef.current.has(id)) { bring(id); return; }
     if (w.closed) { apiRef.current.restoreWindow(id); }
     else if (w.minimized) apiRef.current.toggleMinimize(id);
     apiRef.current.focusWindow(id);
     setState((s) => setActiveTab(s, id));
     setBoard(false);
     touch(id);
-  }, [winById, touch]);
+  }, [winById, touch, bring]);
 
   // A window focused from outside the canvas (the library, "back to canvas" from a native
   // window, a link) comes onto the screen: out of the tray, its group active, its tab chosen.
@@ -227,7 +261,8 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     lastFocusRef.current = id;
     if (!f) return;
     const g = groupOf(stateRef.current, f.id);
-    const offScreen = f.minimized || (g != null && g.id !== stateRef.current.activeGroupId);
+    // Off screen: in the tray, in another group, or not its group's chosen tab (one back from its own window).
+    const offScreen = f.minimized || (g != null && (g.id !== stateRef.current.activeGroupId || g.activeId !== f.id));
     if (!offScreen) return;
     if (g && g.id !== stateRef.current.activeGroupId) openGroupRef.current?.(g.id);
     focusWindow(f.id);
@@ -381,6 +416,10 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     mode,
     visibleIds,
     tabIds,
+    paneIds,
+    ghosts,
+    bring,
+    detachWindow,
     board, setBoard,
     kaliView, setKaliView,
     lastUsed,

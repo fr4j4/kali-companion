@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_HUB, arrive, back, bringBack, closeLamina, explore, forget, fromStudio, matchShowRequest, restoreHub, toPersistedHub,
+  EMPTY_HUB, arrive, back, bringBack, closeLamina, explore, forget, fromStudio, matchShowRequest, restoreHub, sendOut, toPersistedHub,
   toggleThread, type HubModel,
 } from "../useCanvasMode";
 
@@ -95,5 +95,17 @@ describe("«muéstrame el plan»", () => {
     expect(matchShowRequest("abre styles.css otra vez", cards)).toBe(2);
     expect(matchShowRequest("enseñame el presupuesto mensual por favor", cards)).toBe(3);
     expect(matchShowRequest("show me the budget", cards)).toBeNull();
+  });
+});
+
+describe("own window (desktop)", () => {
+  it("the lámina going out leaves the Hub listening and heads the cards", () => {
+    const h = sendOut(hub({ state: "lamina", currentId: 3, previousIds: [1, 2] }), 3);
+    expect(h).toMatchObject({ state: "escucha", currentId: null, previousIds: [3, 1, 2] });
+  });
+  it("keeps the thread open and ignores a card that goes out", () => {
+    expect(sendOut(hub({ state: "hilo", currentId: 3, before: "lamina" }), 3)).toMatchObject({ state: "hilo", currentId: null, before: "escucha" });
+    const h = hub({ state: "lamina", currentId: 3, previousIds: [1] });
+    expect(sendOut(h, 1)).toBe(h);
   });
 });

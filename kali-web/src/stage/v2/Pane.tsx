@@ -12,7 +12,9 @@
  * its row (studioView), so a window never unmounts when it moves between panes. Tabs drag with
  * Pointer Events (HTML5 drag fails in Electron under Wayland): a press that moves 6 px picks the
  * tab up, the pane under the pointer shows where it would land (its middle, an edge, or a place
- * in its row) and letting go moves it there.
+ * in its row) and letting go moves it there; on the desktop, letting go over Kali's panel opens it
+ * in its own window. A tab whose artifact is in its own window stays as a ghost: greyed, «En
+ * ventana propia», and «Traer»; it flashes once when Kali updates it out there.
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -26,6 +28,8 @@ import {
   type DropSide, type PaneDivider, type PaneNode,
 } from "../../workspace/panes";
 import { WindowTypeIcon } from "../windowIcons";
+import { isDesktop } from "../../lib/desktop";
+import { BringButton } from "./Detach";
 import type { CanvasStateApi } from "./useCanvasState";
 import type { ShellStatus } from "./shell";
 
@@ -41,16 +45,24 @@ export interface StudioView {
   activeLeaf: string | null;
 }
 
-/** What the Studio paints for a group in `area`: the tree reconciled with its open tabs. */
-export function studioView(g: Group, tabIds: number[], area: Rect, k: number, stageW: number): StudioView {
-  const active = g.activeId != null && tabIds.includes(g.activeId) ? g.activeId : tabIds[0] ?? null;
+/**
+ * What the Studio paints for a group in `area`: the tree reconciled with its tabs. Ghosts (tabs whose
+ * artifact is in its own window) keep their place in the tree but are never a pane's active tab: the
+ * pane shows its next tab, or nothing when all of its tabs are out.
+ */
+export function studioView(g: Group, tabIds: number[], area: Rect, k: number, stageW: number, ghosts: ReadonlySet<number> = new Set()): StudioView {
+  const shown = (id: number | null | undefined): id is number => id != null && tabIds.includes(id) && !ghosts.has(id);
+  const active = shown(g.activeId) ? g.activeId : tabIds.find((id) => !ghosts.has(id)) ?? null;
   const narrow = stageW < PANES_MIN_STAGE_W;
   const full = reconcile(g.panes, tabIds, active);
   const zoomedLeaf = !narrow && g.zoomed ? leaves(full).find((l) => l.id === g.zoomed) : undefined;
   const tree: PaneNode = narrow ? singleLeaf(tabIds, active) : zoomedLeaf ?? full;
   const pl = paneLayout(area, tree, k);
   const byId = new Map(leaves(tree).map((l) => [l.id, l]));
-  const ls = pl.leaves.map((x) => ({ id: x.id, rect: x.rect, tabIds: byId.get(x.id)!.tabIds, activeId: byId.get(x.id)!.activeId }));
+  const ls = pl.leaves.map((x) => {
+    const leaf = byId.get(x.id)!;
+    return { id: x.id, rect: x.rect, tabIds: leaf.tabIds, activeId: shown(leaf.activeId) ? leaf.activeId : leaf.tabIds.find((id) => !ghosts.has(id)) ?? null };
+  });
   return {
     tree: full,
     leaves: ls,
@@ -68,9 +80,12 @@ const DOT: Record<string, string> = { permission: "is-permission", writing: "is-
 const box = (r: Rect): CSSProperties => ({ left: r.x, top: r.y, width: r.w, height: r.h });
 
 type Over = { leafId: string; zone: "center" | DropSide } | { leafId: string; index: number; before: number | null };
-interface Drag { tabId: number; x: number; y: number; over: Over | null }
+interface Drag { tabId: number; x: number; y: number; over: Over | null; /** Over Kali's panel (desktop): out to its own window. */ out: boolean }
 
-export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }: {
+/** Desktop: the pointer is over Kali's panel, where a tab is dropped to go to its own window. */
+const overKali = (cx: number, cy: number) => isDesktop() && !!document.elementFromPoint(cx, cy)?.closest(".v2-kpanel");
+
+export function StudioPanes({ canvas, view, windows, status, k, onHost, extra, flash = {} }: {
   canvas: CanvasStateApi;
   view: StudioView;
   windows: WindowData[];
@@ -80,6 +95,8 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
   onHost: (leafId: string, el: HTMLElement | null) => void;
   /** More buttons for a pane's active tab (its own window, on the desktop). */
   extra?: (activeId: number) => ReactNode;
+  /** When Kali last updated each artifact that is in its own window (by artifact id). */
+  flash?: Readonly<Record<string, number>>;
 }) {
   const { t } = useTranslation();
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -127,7 +144,8 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
       const o = rootRect();
       const x = ev.clientX - o.left;
       const y = ev.clientY - o.top;
-      setDrag({ tabId, x, y, over: overAt(x, y) });
+      const out = overKali(ev.clientX, ev.clientY);
+      setDrag({ tabId, x, y, over: out ? null : overAt(x, y), out });
     };
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
@@ -135,8 +153,9 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
       window.removeEventListener("pointercancel", cancel);
       if (!started) return;
       const o = rootRect();
-      const over = overAt(ev.clientX - o.left, ev.clientY - o.top);
       setDrag(null);
+      if (overKali(ev.clientX, ev.clientY)) { canvas.detachWindow(tabId); return; }
+      const over = overAt(ev.clientX - o.left, ev.clientY - o.top);
       if (!over) return;
       if ("index" in over) canvas.setPanes((tree) => moveTab(tree, tabId, over.leafId, over.index));
       else if (over.zone === "center") canvas.setPanes((tree) => moveTab(tree, tabId, over.leafId));
@@ -148,6 +167,14 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
   };
+
+  // Kali's panel lights up while a tab over it would go out to its own window.
+  const out = !!drag?.out;
+  useEffect(() => {
+    const panel = document.querySelector(".v2-kpanel");
+    panel?.classList.toggle("is-drop-out", out);
+    return () => panel?.classList.remove("is-drop-out");
+  }, [out]);
 
   // Esc drops a drag where it started.
   useEffect(() => {
@@ -178,12 +205,26 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
     <>
       {view.leaves.map((leaf) => {
         const focused = leaf.id === view.activeLeaf;
-        const tabs = leaf.tabIds.map((id) => windows.find((w) => w.id === id && !w.closed)).filter((w): w is WindowData => !!w);
+        const tabs = leaf.tabIds.map((id) => windows.find((w) => w.id === id && (!w.closed || canvas.ghosts.has(id)))).filter((w): w is WindowData => !!w);
+        const live = tabs.filter((w) => !canvas.ghosts.has(w.id));
         return (
           <section key={leaf.id} className={`v2-pane ${focused ? "is-focused" : ""}`} style={box(leaf.rect)} data-pane={leaf.id}>
             <div className="v2-pane-tabs" style={{ height: PANE_TABS_H * k }}>
               <div className="v2-tablist" role="tablist" aria-label={t("v2.pane.tabs") as string}>
-                {tabs.map((w, i) => {
+                {tabs.map((w) => {
+                  if (canvas.ghosts.has(w.id)) {
+                    const at = w.artifactId ? flash[w.artifactId] : undefined;
+                    return (
+                      <div key={w.id} data-tab-id={w.id} className="v2-tab is-ghost" title={`${w.title} · ${t("v2.native.outside")}`}>
+                        {at != null && <span key={at} className="v2-ghost-flash" aria-hidden="true" />}
+                        <WindowTypeIcon type={w.type} size={14} />
+                        <span className="truncate" style={{ maxWidth: "calc(140px * var(--k))" }}>{w.title}</span>
+                        <small>{t("v2.native.outside")}</small>
+                        <BringButton canvas={canvas} id={w.id} title={w.title} />
+                      </div>
+                    );
+                  }
+                  const i = live.indexOf(w);
                   const st = status.get(w.id);
                   const selected = w.id === leaf.activeId;
                   const dropBefore = drag?.over && "index" in drag.over && drag.over.leafId === leaf.id && drag.over.before === w.id;
@@ -201,7 +242,7 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
                       onKeyDown={(e) => {
                         if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
                         e.preventDefault();
-                        const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+                        const next = live[(i + (e.key === "ArrowRight" ? 1 : live.length - 1)) % live.length];
                         if (next) { canvas.focusWindow(next.id); document.getElementById(`v2-tab-${next.id}`)?.focus(); }
                       }}
                       onAuxClick={(e) => { if (e.button === 1) canvas.close(w.id); }}
@@ -218,6 +259,7 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
                 })}
               </div>
               <span className="v2-pane-actions" ref={hostRef(leaf.id)} />
+              {leaf.activeId == null && <p className="v2-pane-out" style={{ top: PANE_TABS_H * k }}>{t("v2.native.all_out")}</p>}
               {leaf.activeId != null && extra?.(leaf.activeId)}
               {(view.leaves.length > 1 || view.zoomed) && (
                 <button
@@ -262,9 +304,9 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra }:
         <div className="v2-drop-zone" style={box(dropRect(paneBody(overLeaf.rect, k), drag.over.zone))} />
       )}
       {drag && dragged && (
-        <div className="v2-tab-ghost" style={{ left: drag.x + 12, top: drag.y + 10 }} aria-hidden="true">
+        <div className={`v2-tab-ghost ${drag.out ? "is-out" : ""}`} style={{ left: drag.x + 12, top: drag.y + 10 }} aria-hidden="true">
           <WindowTypeIcon type={dragged.type} size={14} />
-          <span className="truncate">{dragged.title}</span>
+          <span className="truncate">{drag.out ? t("v2.native.drop") : dragged.title}</span>
         </div>
       )}
     </>

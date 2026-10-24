@@ -139,6 +139,10 @@ export interface WorkspaceAPI {
    * the user clicks a closed artifact.
    */
   reopenArtifact: (artifactId: string) => void;
+  /** Desktop: artifacts that live in their own window right now (the canvas keeps a ghost of them). */
+  nativeIds: ReadonlySet<string>;
+  /** Desktop: when Kali last updated each artifact that is outside (the ghost flashes once). */
+  nativeFlash: Readonly<Record<string, number>>;
 }
 
 /** Options for creating a window. */
