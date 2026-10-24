@@ -60,6 +60,8 @@ import { Overlay } from "../components/ui/Overlay";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import type { PerformanceProfile } from "../App";
 import { usePerfMetrics } from "../hooks/usePerfMetrics";
+import { useCanvasV2Pref } from "../lib/canvasV2Pref";
+import { CanvasV2 } from "./v2/CanvasV2";
 
 interface Props {
   theme: string;
@@ -94,7 +96,10 @@ export function NeuralCanvas({
   const [typing, setTyping] = useState(false);
   const [composerTyping, setComposerTyping] = useState(false);
   const dock = useChatDock();
-  const chatDocked = dock.docked && !isMobile;
+  const [canvasV2Pref] = useCanvasV2Pref();
+  // The neural canvas v2 is the desktop canvas; phones and tablets keep the previous stage.
+  const v2 = canvasV2Pref && !isMobile;
+  const chatDocked = dock.docked && !isMobile && !v2;
   const [settingsOpen, setSettingsOpen] = useState(() => window.location.hash.includes("panel=settings"));
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -333,6 +338,22 @@ export function NeuralCanvas({
     return () => chat.setSelectedArtifactsProvider(null);
   }, [chat, api.selectedIds, api.windows]);
 
+  const openReasoning = useCallback(() => {
+    const existing = reasoningWindowIdRef.current !== null
+      ? api.windows.find(w => w.id === reasoningWindowIdRef.current && !w.closed)
+      : null;
+    if (existing) {
+      api.focusWindow(existing.id);
+    } else {
+      const id = api.createWindow("reasoning", {
+        title: t("reasoning.title"),
+        width: 420,
+        height: 350,
+      });
+      reasoningWindowIdRef.current = id;
+    }
+  }, [api, t]);
+
   // Avatar click → pet → ronroneando for 3s
   const onAvatarClick = useCallback(() => {
     sendSignal({ kind: "pet" });
@@ -379,6 +400,23 @@ export function NeuralCanvas({
 
   return (
     <div ref={canvasRef} className="relative h-full w-full overflow-hidden stage-surface stage-grain">
+      {v2 ? (
+        <CanvasV2
+          api={api}
+          manualScale={uiScale.global}
+          avatar={<AvatarSVG presence={presence} analyser={tts.analyser} config={avatarConfig} onClick={onAvatarClick} className="avatar-mount" />}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenJobs={() => { chat.listJobs(); setJobsOpen(true); }}
+          onOpenHistory={() => setHistoryOpen(true)}
+          onOpenCustomizer={() => setCustomizerOpen(true)}
+          onOpenLibrary={() => setArtifactsOpen(true)}
+          onOpenReasoning={openReasoning}
+          onNewSession={newSession}
+          onToggleDebug={() => setDebugOpen((d) => !d)}
+          onTypingChange={setComposerTyping}
+        />
+      ) : (
+      <>
       {/* Avatar zone — centered, moves up when typing or customizer opens */}
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500"
@@ -473,27 +511,16 @@ export function NeuralCanvas({
       />
 
       {/* Presence layer — tool pills + reasoning snippets */}
-      <PresenceLayer onExpand={() => {
-        const existing = reasoningWindowIdRef.current !== null
-          ? api.windows.find(w => w.id === reasoningWindowIdRef.current && !w.closed)
-          : null;
-        if (existing) {
-          api.focusWindow(existing.id);
-        } else {
-          const id = api.createWindow("reasoning", {
-            title: t("reasoning.title"),
-            width: 420,
-            height: 350,
-          });
-          reasoningWindowIdRef.current = id;
-        }
-      }} />
+      <PresenceLayer onExpand={openReasoning} />
+
+      </>
+      )}
 
       {/* Spotlight input overlay (phones and tablets; desktop types into the dock) */}
       <SpotlightInput open={typing} onClose={() => setTyping(false)} firstCharRef={firstCharRef} />
 
-      {/* Voice bar — TTS playback indicator */}
-      <VoiceBar />
+      {/* Voice bar — TTS playback indicator (the v2 canvas shows Kali's voice in place) */}
+      {!v2 && <VoiceBar />}
 
       {/* Transcription bar — live STT text */}
       <TranscriptionBar />
@@ -504,7 +531,7 @@ export function NeuralCanvas({
       )}
 
       {/* Minimize dock — minimized windows */}
-      <MinimizeDock windows={api.windows} onRestore={api.toggleMinimize} />
+      {!v2 && <MinimizeDock windows={api.windows} onRestore={api.toggleMinimize} />}
 
       {/* Dock — bottom pill (desktop) or compact bar (phones and tablets) */}
       {isMobile ? (
@@ -516,7 +543,7 @@ export function NeuralCanvas({
           onReturnHome={minimizeFocusedWindow}
           isMobile={isMobile}
         />
-      ) : (
+      ) : !v2 && (
         <StageDock api={api} onToggleDebug={() => setDebugOpen((d) => !d)} yieldTyping={chatDocked && dock.open} onTypingChange={setComposerTyping} />
       )}
 
@@ -528,9 +555,9 @@ export function NeuralCanvas({
         </div>
       )}
 
-      {/* Stopped toast */}
+      {/* Stopped toast (the v2 canvas collects notices in its pill) */}
       <AnimatePresence>
-        {chat.stopped && (
+        {chat.stopped && !v2 && (
           <motion.div
             className="fixed top-16 left-1/2 -translate-x-1/2 bg-muted text-fg px-4 py-2 rounded-md text-sm z-50 max-w-[90vw] border border-border"
             initial={{ opacity: 0, y: -10 }}
@@ -544,7 +571,7 @@ export function NeuralCanvas({
 
       {/* Error toasts */}
       <AnimatePresence>
-        {chat.error && (
+        {chat.error && !v2 && (
           <motion.div
             role="alert" className="fixed top-16 left-1/2 -translate-x-1/2 bg-err text-white px-4 py-2 rounded-md text-sm z-50 max-w-[90vw]"
             initial={{ opacity: 0, y: -10 }}
@@ -554,7 +581,7 @@ export function NeuralCanvas({
             {chat.error}
           </motion.div>
         )}
-        {ptt.error && (
+        {ptt.error && !v2 && (
           <motion.div
             role="alert" className="fixed top-16 left-1/2 -translate-x-1/2 bg-err text-white px-4 py-2 rounded-md text-sm z-50 max-w-[90vw]"
             initial={{ opacity: 0, y: -10 }}
@@ -736,7 +763,8 @@ export function NeuralCanvas({
         downloadError={chat.downloadError}
       />
 
-      <ConsentModal request={chat.consentRequest} onRespond={chat.respondConsent} />
+      {/* The v2 canvas asks in Kali's zone (or her bubble) instead of a modal. */}
+      {!v2 && <ConsentModal request={chat.consentRequest} onRespond={chat.respondConsent} />}
       <AttachedCapture capture={chat.attachedCapture} onDiscard={chat.discardCapture} />
       <SuggestionChips suggestion={chat.suggestion} onChoose={chat.answerSuggestion} />
 

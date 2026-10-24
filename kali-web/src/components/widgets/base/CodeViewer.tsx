@@ -7,10 +7,13 @@ interface Props {
   language?: string;
   isStreaming?: boolean;
   scrollRef?: RefObject<HTMLDivElement>;
+  /** 1-based lines Kali changed: a bar at the edge of the gutter marks them. */
+  changed?: number[];
 }
 
-export function CodeViewer({ code, language, isStreaming, scrollRef }: Props) {
+export function CodeViewer({ code, language, isStreaming, scrollRef, changed }: Props) {
   const lines = useMemo(() => code.split("\n"), [code]);
+  const marks = useMemo(() => new Set(changed ?? []), [changed]);
 
   const highlighted = useMemo(() => {
     try {
@@ -25,15 +28,15 @@ export function CodeViewer({ code, language, isStreaming, scrollRef }: Props) {
   }, [code, language]);
 
   return (
-    <div className="flex bg-[var(--code-bg)] min-h-0" ref={scrollRef}>
-      <div className="shrink-0 text-right text-fg/20 border-r border-fg/5 select-none min-w-[3.5ch] px-3 py-3 text-xs font-mono leading-[1.5]">
+    <div className="kw-codeview flex bg-[var(--code-bg)] min-h-0" ref={scrollRef}>
+      <div className="kw-gutter shrink-0 text-right text-fg/20 border-r border-fg/5 select-none min-w-[3.5ch] px-3 py-3 text-xs font-mono leading-[1.5]" aria-hidden="true">
         {lines.map((_, i) => (
-          <div key={i}>{i + 1}</div>
+          <div key={i} className={marks.has(i + 1) ? "is-changed" : undefined}>{i + 1}</div>
         ))}
       </div>
       <pre className="flex-1 m-0 p-3 text-xs font-mono leading-[1.5] hljs overflow-hidden whitespace-pre">
         <code dangerouslySetInnerHTML={{ __html: highlighted }} />
-        {isStreaming && <span className="inline-block w-2 h-3.5 bg-accent animate-pulse ml-0.5 align-middle" />}
+        {isStreaming && <span className="kw-kali-cursor" aria-hidden="true">Kali</span>}
       </pre>
     </div>
   );

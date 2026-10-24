@@ -150,6 +150,7 @@ class Executor:
                 reason_params = dict(decision.reason_params or {"tool": tool_name})
                 if route is not None:
                     reason_params["where"] = route.label
+                artifact_id, terminal_session_id = await self._consent_origin(tool_name, params, session_id)
                 consent_decision = await self.consent.request(
                     session_id=session_id,
                     tool=tool_name,
@@ -157,6 +158,8 @@ class Executor:
                     reason_params=reason_params,
                     summary_key=f"consent.summary.{tool_name}",
                     risk=tool.risk_level,
+                    artifact_id=artifact_id,
+                    terminal_session_id=terminal_session_id,
                 )
 
                 if consent_decision not in ("allow", "allow_session"):
@@ -281,8 +284,10 @@ class Executor:
             # tool already emitted via ctx.emit; we persist but skip WS.
             is_streamed = result.streamed
 
-            # Persist to session store ALWAYS (for replay on refresh).
-            if self.session_store is not None:
+            # Persist to session store (for replay on refresh). An update of an existing
+            # artifact was already saved by its tool, and its payload may carry what only the
+            # window needs (pending suggestions), so it is not written again here.
+            if self.session_store is not None and artifact_payload.get("update") != "update":
                 try:
                     await self.session_store.add_artifact(
                         session_id,
@@ -291,6 +296,7 @@ class Executor:
                         artifact_payload.get("title", ""),
                         artifact_payload.get("content", ""),
                         artifact_payload.get("windowType", ""),
+                        artifact_payload.get("language", "") or "",
                     )
                 except Exception:
                     logger.warning("Failed to persist artifact", exc_info=True)
@@ -312,6 +318,25 @@ class Executor:
                 self._game_resource_returned[session_id] = True
 
         return result
+
+    async def _consent_origin(self, tool_name: str, params: dict, session_id: str) -> tuple[str, str]:
+        """The window a permission question belongs to: the artifact the tool works on, or
+        the terminal session a command will run in.
+
+        A command without a session runs in the conversation's default one; it is resolved
+        now (and passed on to the tool) so the question and the command land in the same
+        terminal.
+        """
+        artifact_id = params.get("artifact_id") if isinstance(params.get("artifact_id"), str) else ""
+        terminal_session_id = params.get("terminal_session_id") if isinstance(params.get("terminal_session_id"), str) else ""
+        if tool_name == "run_command" and not terminal_session_id and self.session_store is not None:
+            try:
+                ts = await self.session_store.get_or_create_active_untitled_session(session_id)
+                terminal_session_id = ts["id"]
+                params["terminal_session_id"] = terminal_session_id
+            except Exception:
+                logger.debug("No terminal session for the consent question", exc_info=True)
+        return artifact_id or "", terminal_session_id or ""
 
     def _is_game_resource_artifact(self, payload: dict) -> bool:
         """Check if an artifact payload is a game_resource widget."""

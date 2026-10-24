@@ -1,7 +1,7 @@
 import {
   Brain, Code2, FileText, Gamepad2, GitCompare, Globe, Image as ImageIcon, Link2,
   ListChecks, MapPin, Music2, Package, PieChart, QrCode, Share2, SlidersHorizontal, Table2, Terminal,
-  Braces, Shield, Zap, CircleHelp, type LucideIcon,
+  Braces, Shield, Zap, CircleHelp, BookOpen, Presentation, SquareKanban, StickyNote, CalendarDays, FileType2, type LucideIcon,
 } from "lucide-react";
 import type { WindowType } from "../workspace/types";
 
@@ -29,6 +29,12 @@ const ICONS: Record<WindowType, LucideIcon> = {
   image: ImageIcon,
   reasoning: Brain,
   game: Gamepad2,
+  sources: BookOpen,
+  slides: Presentation,
+  tasks: SquareKanban,
+  notes: StickyNote,
+  calendar: CalendarDays,
+  pdf: FileType2,
 };
 
 export function WindowTypeIcon({ type, size = 14, className }: { type: WindowType; size?: number; className?: string }) {
