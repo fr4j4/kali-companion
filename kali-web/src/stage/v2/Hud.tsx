@@ -2,23 +2,20 @@
  * stage/v2/Hud.tsx — The four corners of the canvas.
  *
  *   top-left     status pill: dot, what Kali is doing, the model (opens the model stats)
- *   top-right    windows pill: how many windows are open (opens the tray)
+ *   top-right    windows pill: how many windows are open (opens the board)
  *   bottom-left  notices pill: a new error flashes here, then the pill counts them (opens the list)
- *   bottom-right layout button: modes, views and everything the old HUD carried
  *
- * Pills are placed at the points the zone model gives; in Focus and Mosaic Kali's column carries
- * the status pill and the layout button instead (the same components, positioned statically).
+ * Pills are placed at the points the zone model gives; where Kali's panel is on screen it carries
+ * the status and the notices instead. Everything the old layout menu held is in the Ctrl+K
+ * palette and the dock's «More» menu.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Bell, Bug, Cpu, Gamepad2, History, LayoutDashboard, LayoutGrid, MessageSquare, Network, Palette, Plus,
-  Search, Settings, Undo2, Volume2, X, Library, ArrowLeftRight } from "lucide-react";
+import { Bell, LayoutDashboard, X } from "lucide-react";
 import { useStage } from "../StageProvider";
 import { ModelStatsPanel } from "../HUD";
-import type { KaliView, Point } from "../../workspace/layout";
-import { PresetGlyph } from "./AreaHead";
+import type { Point } from "../../workspace/layout";
 import type { Notice } from "./useNotices";
 
 // ── Shared: dismiss a popover on outside click or Escape ─────────
@@ -171,90 +168,6 @@ export function NoticesPill({ notices, flash, onClear, onDismiss, style, drop = 
         {notices.length ? <span className={`v2-dot ${notices.some((n) => n.kind === "error") ? "is-error" : "is-working"}`} aria-hidden="true" /> : <Bell size={16} aria-hidden="true" />}
         {flash ? <span className="v2-flash-text" role="alert">{flash.text}</span> : t("v2.notices.count", { count: notices.length })}
       </button>}
-    </div>
-  );
-}
-
-// ── Layout button and menu ──────────────────────────────
-
-export interface LayoutMenuProps {
-  /** Panes of the active group (Ctrl+1…4). */
-  panes: number;
-  hasWindows: boolean;
-  kaliView: KaliView;
-  onPreset: (n: 1 | 2 | 3 | 4) => void;
-  onBoard: () => void;
-  onKaliView: (v: KaliView) => void;
-  onHistory: () => void;
-  onCustomize: () => void;
-  onJobs: () => void;
-  onGames: () => void;
-  onNewChat: () => void;
-  onSettings: () => void;
-  onUndo: () => void;
-  onAudio: () => void;
-  onDebug?: () => void;
-  onPalette: () => void;
-  onLibrary: () => void;
-  /** Artifacts of this conversation that are not on screen (closed or in the tray). */
-  hiddenArtifacts: number;
-  runningJobs: number;
-  /** "Ir al Estudio" / "Ir al Hub". */
-  switchMode?: { label: string; onClick: () => void };
-}
-
-interface MenuItemProps { icon: ReactNode; label: string; kbd?: string; onClick: () => void; checked?: boolean; disabled?: boolean; onClose: () => void }
-
-/** One entry of the layout menu. Declared at module level: a component created inside the menu's
- * render would be a new type on every render, so any re-render between press and release (the
- * canvas re-renders on pointer down) would remount the button and swallow the click. */
-function MenuItem({ icon, label, kbd, onClick, checked, disabled, onClose }: MenuItemProps) {
-  return (
-    <button type="button" role={checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={checked} className="v2-menu-item" onClick={() => { onClose(); onClick(); }} disabled={disabled}>
-      {icon}<span>{label}</span>{kbd && <span className="v2-kbd">{kbd}</span>}
-    </button>
-  );
-}
-
-export function LayoutButton({ style, drop = "up", ...p }: LayoutMenuProps & { style?: CSSProperties; drop?: "up" | "down" }) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(open, () => setOpen(false), ref);
-  const close = useCallback(() => setOpen(false), []);
-  return (
-    <div ref={ref} className="absolute z-40" style={style}>
-      {open && (
-        <div className="v2-pop" style={drop === "up" ? { bottom: "calc(100% + 8px)", right: 0 } : { top: "calc(100% + 8px)", right: 0, maxHeight: "calc(100vh - 80px)", overflowY: "auto" }} role="menu" aria-label={t("v2.menu.label") as string}>
-          {/* Two groups (kit): how the artifacts are laid out, and everything else. The rest of
-              the old list also lives in Ctrl+K. */}
-          <div className="v2-pop-title">{t("v2.menu.layout")}</div>
-          {([1, 2, 3, 4] as const).map((n) => (
-            <MenuItem onClose={close} key={n} icon={<PresetGlyph n={n} />} label={t("v2.area.preset", { count: n })} kbd={`Ctrl ${n}`} onClick={() => p.onPreset(n)} checked={p.hasWindows && p.panes === n} disabled={!p.hasWindows} />
-          ))}
-          <MenuItem onClose={close} icon={<LayoutDashboard size={16} />} label={t("v2.board.title")} kbd="Ctrl ⇧ E" onClick={p.onBoard} />
-          <MenuItem onClose={close} icon={<Library size={16} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
-          <div className="v2-menu-sep" />
-          <div className="v2-pop-title">{t("v2.menu.more")}</div>
-          {p.switchMode && <MenuItem onClose={close} icon={<ArrowLeftRight size={16} />} label={p.switchMode.label} kbd="Ctrl ⇧ T" onClick={p.switchMode.onClick} />}
-          {p.kaliView === "map"
-            ? <MenuItem onClose={close} icon={<MessageSquare size={16} />} label={t("v2.view.conversation")} onClick={() => p.onKaliView("conversation")} />
-            : <MenuItem onClose={close} icon={<Network size={16} />} label={t("v2.view.map")} onClick={() => p.onKaliView("map")} />}
-          <MenuItem onClose={close} icon={<History size={16} />} label={t("stage.history")} onClick={p.onHistory} />
-          <MenuItem onClose={close} icon={<Palette size={16} />} label={t("dock.customizer")} onClick={p.onCustomize} />
-          <MenuItem onClose={close} icon={<Cpu size={16} />} label={p.runningJobs ? `${t("stage.jobs")} · ${p.runningJobs}` : t("stage.jobs")} onClick={p.onJobs} />
-          <MenuItem onClose={close} icon={<Gamepad2 size={16} />} label={t("dock.toys")} onClick={p.onGames} />
-          <MenuItem onClose={close} icon={<Volume2 size={16} />} label={t("dock.audio")} onClick={p.onAudio} />
-          <MenuItem onClose={close} icon={<Undo2 size={16} />} label={t("dock.undo")} onClick={p.onUndo} />
-          <MenuItem onClose={close} icon={<Plus size={16} />} label={t("stage.new_chat")} onClick={p.onNewChat} />
-          <MenuItem onClose={close} icon={<Settings size={16} />} label={t("stage.settings")} onClick={p.onSettings} />
-          <MenuItem onClose={close} icon={<Search size={16} />} label={t("v2.menu.palette")} kbd="Ctrl K" onClick={p.onPalette} />
-          {p.onDebug && <MenuItem onClose={close} icon={<Bug size={16} />} label={t("dock.debug")} onClick={p.onDebug} />}
-        </div>
-      )}
-      <button type="button" className="v2-square-btn" style={{ position: "relative" }} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu" aria-label={t("v2.menu.label") as string} title={t("v2.menu.label") as string}>
-        {p.hasWindows ? <PresetGlyph n={Math.max(1, Math.min(4, p.panes)) as 1 | 2 | 3 | 4} /> : <LayoutGrid size={18} aria-hidden="true" />}
-      </button>
     </div>
   );
 }

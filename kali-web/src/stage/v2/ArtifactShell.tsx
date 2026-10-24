@@ -10,9 +10,9 @@
  *   │ footer facts · Updated 2 s ago                             │  30 px footer
  *   └────────────────────────────────────────────────────────────┘
  *
- * No maximize: Focus and Fullscreen replace it. The frame is placed by the canvas (a rectangle
+ * No maximize: Explorar (Hub) and a single pane (Studio) replace it. The frame is placed by the canvas (a rectangle
  * from the zone model); it never unmounts when hidden, so a window keeps its scroll and state
- * across modes, and moving between rectangles is a FLIP transform (instant in performance).
+ * across modes and panes, and moving between rectangles is a FLIP transform (instant in performance).
  */
 
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -36,7 +36,7 @@ interface Props {
   rect: Rect | null;
   z: number;
   focused: boolean;
-  /** Small mosaic panel: result only. */
+  /** Small pane: result only. */
   compact?: boolean;
   chrome?: ShellChrome;
   /** Status from the canvas (consent, terminal running…); the widget may override it. */

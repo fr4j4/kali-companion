@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_GROUPS, activate, assign, createGroup, detach, groupOf, overflowing, prune, recordClosed,
-  rename, reorder, setActiveTab, setMode, setPanes, toPersisted, togglePin, zoomPane,
+  EMPTY_GROUPS, activate, assign, createGroup, detach, groupOf, prune, recordClosed,
+  rename, reorder, setActiveTab, setPanes, toPersisted, togglePin, zoomPane,
 } from "../groups";
 import { allTabs, leafOf, leaves, splitAt } from "../panes";
 
@@ -25,14 +25,6 @@ describe("groups", () => {
     expect(new Set(state.groups.map((g) => g.color)).size).toBe(3);
   });
 
-  it("remembers the mode per group", () => {
-    let { state, id } = createGroup(EMPTY_GROUPS, "x", [1]);
-    state = setMode(state, id, "mosaic");
-    const other = createGroup(state, "y", [2]);
-    expect(other.state.groups.find((g) => g.id === id)?.mode).toBe("mosaic");
-    expect(other.state.groups.find((g) => g.id === other.id)?.mode).toBe("split");
-  });
-
   it("moves the active group when the active one empties", () => {
     let { state, id: a } = createGroup(EMPTY_GROUPS, "a", [1]);
     const b = createGroup(state, "b", [2]);
@@ -50,14 +42,6 @@ describe("groups", () => {
     expect(state.groups[0].pinnedIds).toEqual([2]);
     state = reorder(state, 3, 0);
     expect(state.groups[0].windowIds).toEqual([3, 1, 2]);
-  });
-
-  it("sends the least recently used windows beyond three to the tray, pinned ones last", () => {
-    const { state } = createGroup(EMPTY_GROUPS, "x", [1, 2, 3, 4, 5]);
-    const g = togglePin(state, 1).groups[0];
-    const used: Record<number, number> = { 1: 1, 2: 50, 3: 40, 4: 30, 5: 20 };
-    expect(overflowing(g, () => true, (id) => used[id])).toEqual([4, 5]);
-    expect(overflowing(g, (id) => id < 4, (id) => used[id])).toEqual([]);
   });
 
   it("keeps recently closed windows for reopening", () => {

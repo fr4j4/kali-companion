@@ -13,11 +13,15 @@
  * window focused from elsewhere (the library, a link) is brought back. Nothing here closes or
  * minimizes a window: the Hub only decides which one is seen. Mode and lámina are saved per
  * session, by artifact id, and reconciled when the windows come back after a reload.
+ *
+ * With «Proponer el Estudio» on (Settings, off by default), a second artifact arriving within a
+ * minute of the first offers the Studio for 8 s (`suggest`); the mode never changes by itself.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WindowData, WorkspaceAPI } from "../../workspace/types";
 import { groupOf } from "../../workspace/groups";
+import { readStartMode, readSuggestStudio } from "../../lib/canvasV2Pref";
 import type { CanvasStateApi } from "./useCanvasState";
 
 export type CanvasModeName = "hub" | "studio";
@@ -151,15 +155,17 @@ export function matchShowRequest(text: string, candidates: { id: number; title: 
   return best?.id ?? null;
 }
 
+/** A second artifact arrived within a minute of the one before: the Studio may be worth offering. */
+export const SUGGEST_WINDOW_MS = 60_000;
+export const SUGGEST_SHOW_MS = 8_000;
+export function shouldSuggest(arrivals: number[], now: number): boolean {
+  return arrivals.filter((t) => now - t <= SUGGEST_WINDOW_MS).length >= 2;
+}
+
 // ── Hook ────────────────────────────────────────────────
 
 const MODE_PREFIX = "kali.v2.mode.";
 const HUB_PREFIX = "kali.v2.hub.";
-export const START_MODE_KEY = "kali.v2.startMode";
-
-export function readStartMode(): CanvasModeName {
-  try { return localStorage.getItem(START_MODE_KEY) === "studio" ? "studio" : "hub"; } catch { return "hub"; }
-}
 function loadJSON<T>(key: string): T | null {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : null; } catch { return null; }
 }
@@ -177,6 +183,11 @@ interface Opts {
 
 export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
   const [mode, setModeState] = useState<CanvasModeName>(() => readStartMode());
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  /** «Dos artefactos · Abrir en el Estudio» is on screen. */
+  const [suggest, setSuggest] = useState(false);
+  const arrivals = useRef<number[]>([]);
   const [hub, setHub] = useState<HubModel>(EMPTY_HUB);
   const hubRef = useRef(hub);
   hubRef.current = hub;
@@ -190,6 +201,7 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
   // Session change: the saved mode (or the start preference) and an empty Hub to restore into.
   useEffect(() => {
     seen.current = new Set();
+    arrivals.current = [];
     setHub(EMPTY_HUB);
     saved.current = sessionId ? loadJSON<PersistedHub>(HUB_PREFIX + sessionId) : null;
     const m = sessionId ? (() => { try { return localStorage.getItem(MODE_PREFIX + sessionId); } catch { return null; } })() : null;
@@ -207,8 +219,9 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
       if (s && known.length) next = restoreHub(next, s, known);
       for (const w of fresh) {
         seen.current.add(w.id);
-        if (!known.includes(w)) next = arrive(next, w.id);
+        if (!known.includes(w)) { next = arrive(next, w.id); arrivals.current = [...arrivals.current.slice(-4), Date.now()]; }
       }
+      if (modeRef.current === "hub" && readSuggestStudio() && shouldSuggest(arrivals.current, Date.now())) setSuggest(true);
     }
     // A ghost (in its own window) is still here: it leaves the lámina but keeps its card.
     const ghosts = canvasRef.current.ghosts;
@@ -270,6 +283,14 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
 
   const toggleMode = useCallback(() => (mode === "hub" ? enterStudio() : enterHub()), [mode, enterStudio, enterHub]);
 
+  // The offer goes away after 8 s, or as soon as the mode changes.
+  useEffect(() => {
+    if (!suggest) return;
+    if (mode !== "hub") { setSuggest(false); return; }
+    const id = window.setTimeout(() => setSuggest(false), SUGGEST_SHOW_MS);
+    return () => window.clearTimeout(id);
+  }, [suggest, mode]);
+
   // «Muéstrame el plan»: a card named in your message comes back to the lámina.
   const lastText = useRef<string | null | undefined>(lastUserText);
   useEffect(() => {
@@ -294,7 +315,7 @@ export function useCanvasMode({ api, canvas, sessionId, lastUserText }: Opts) {
     },
   }), [show]);
 
-  return { mode, hub, setMode, enterStudio, enterHub, toggleMode, ...actions };
+  return { mode, hub, setMode, enterStudio, enterHub, toggleMode, suggest, dismissSuggest: () => setSuggest(false), ...actions };
 }
 
 export type CanvasModeApi = ReturnType<typeof useCanvasMode>;

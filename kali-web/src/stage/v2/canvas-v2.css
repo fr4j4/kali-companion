@@ -78,12 +78,7 @@
 .v2-icon-btn.is-close:hover { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
 .v2-icon-btn.is-active { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .v2-sep { width: 1px; height: calc(18px * var(--k)); background: var(--v2-line-strong); margin: 0 calc(4px * var(--k)); flex-shrink: 0; }
-.v2-square-btn {
-  position: absolute; z-index: 40; display: inline-flex; align-items: center; justify-content: center;
-  width: calc(44px * var(--k)); height: calc(44px * var(--k)); border-radius: var(--v2-r-control);
-  border: 1px solid var(--v2-line); background: var(--v2-glass); color: var(--fg); cursor: pointer;
-}
-.v2-square-btn:hover, .v2-square-btn[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
 .v2-kbd { font-family: var(--font-mono); font-size: max(10px, calc(11px * var(--kt))); color: var(--muted); }
 
 /* Popovers and menus */
@@ -118,8 +113,8 @@
 }
 .v2-shell.is-focused { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent), var(--v2-shadow); }
 /* Tabs and panes lie flat: no shadow outside the floating (split) layout. */
-.v2-root:not(.is-split) .v2-shell { box-shadow: none; }
-.v2-root:not(.is-split) .v2-shell.is-focused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
+.v2-root .v2-shell { box-shadow: none; }
+.v2-root .v2-shell.is-focused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
 .v2-shell.is-bare { border-radius: 0; border: 0; box-shadow: none; }
 .v2-shell.is-hidden { visibility: hidden; content-visibility: hidden; pointer-events: none; left: 0; top: 0; width: 1px; height: 1px; }
 .v2-shell-head {
@@ -238,21 +233,6 @@
 .v2-bubble-hit { position: absolute; inset: 0; border-radius: 9999px; cursor: pointer; }
 .v2-bubble-count { position: absolute; right: -2px; top: -2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 
-/* Inspector */
-.v2-inspector {
-  position: absolute; z-index: 30; display: flex; align-items: center; gap: calc(12px * var(--k));
-  padding: 0 calc(14px * var(--k)); border-radius: var(--v2-r-card); border: 1px solid var(--v2-line);
-  background: var(--v2-glass);
-}
-.v2-inspector.is-active { border-color: color-mix(in srgb, var(--c, var(--accent)) 70%, transparent); }
-.v2-inspector-tile {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(34px * var(--k)); height: calc(34px * var(--k));
-  border-radius: var(--v2-r-control); color: var(--c, var(--muted)); background: color-mix(in srgb, var(--c, var(--muted)) 14%, transparent);
-}
-.v2-inspector-title { line-height: 1.3; overflow: hidden; text-overflow: ellipsis; font-size: max(11px, calc(14px * var(--kt))); font-weight: 600; white-space: nowrap; }
-.v2-inspector-title .v2-word { color: var(--c, var(--muted)); font-weight: 500; }
-.v2-inspector-motive { line-height: 1.3; font-size: max(11px, calc(13px * var(--kt))); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
 /* Voice */
 .v2-voice { position: absolute; z-index: 15; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; overflow: hidden; pointer-events: none; }
 .v2-voice-scroll { pointer-events: auto; width: 100%; max-height: 100%; overflow-y: auto; scrollbar-width: none; padding: calc(4px * var(--k)) 0; }
@@ -284,20 +264,9 @@
 .v2-consent-actions { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k)); margin-top: calc(10px * var(--k)); align-items: center; }
 .v2-consent-actions .v2-kbd { margin-left: auto; }
 
-/* Kali column (focus, mosaic) */
-.v2-column { position: absolute; z-index: 30; display: flex; flex-direction: column; border-left: 1px solid var(--v2-line); background: color-mix(in srgb, var(--bg) 70%, transparent); padding: calc(12px * var(--k)) calc(14px * var(--k)); gap: calc(10px * var(--k)); }
-.v2-column-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.v2-column .v2-pill { position: static; }
-.v2-column-spacer { height: calc(180px * var(--k)); flex-shrink: 0; }
-.v2-now-title { font-size: max(10px, calc(11px * var(--kt))); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.v2-now-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(6px * var(--k)); }
-.v2-now-list li { display: flex; align-items: center; gap: calc(8px * var(--k)); font-size: max(11px, calc(13px * var(--kt))); }
-.v2-now-list li button { display: inline-flex; align-items: center; gap: calc(8px * var(--k)); text-align: left; }
-.v2-now-list .v2-word { color: var(--c); }
+/* Kali's voice column */
 .v2-column-voice { font-family: var(--font-prose); font-size: max(12px, calc(15px * var(--kt))); line-height: 1.6; overflow-y: auto; min-height: 0; flex: 1; }
 .v2-column-voice .v2-echo { text-align: left; }
-.v2-column .stage-dock { position: static; transform: none; width: 100%; }
-.v2-column .stage-dock-pill { min-height: calc(44px * var(--k)); padding: calc(4px * var(--k)); }
 
 /* Kali's panel (KaliPanel): the Studio's right panel and the Hub's column in Lámina. */
 .v2-kpanel {
@@ -316,9 +285,7 @@
 .v2-kpanel-who small.is-error { color: var(--err); }
 .v2-kpanel-who .v2-seg { align-self: flex-start; margin-top: calc(6px * var(--k)); }
 .v2-kpanel-extra { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.v2-kpanel-extra .v2-square-btn { position: static; width: calc(32px * var(--k)); height: calc(32px * var(--k)); border-color: transparent; background: transparent; color: var(--muted); }
-.v2-kpanel-extra .v2-square-btn:hover, .v2-kpanel-extra .v2-square-btn[aria-expanded="true"] { background: var(--v2-hover); color: var(--fg); }
-.v2-kpanel-extra .v2-square-btn svg { width: 16px; height: 16px; }
+
 .v2-kpanel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 calc(-8px * var(--k)); }
 .v2-kpanel-body > .v2-column-voice { padding: 0 calc(8px * var(--k)); }
 .v2-kpanel-body [role="log"] { padding-left: calc(8px * var(--k)); padding-right: calc(8px * var(--k)); }
@@ -353,11 +320,11 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
 .v2-orb-row.is-resting small { flex-shrink: 0; }
 .v2-orb-row.is-resting .v2-orb-dot { background: transparent; border: 1.5px solid var(--muted); }
 
-/* In Focus and Mosaic the map and the avatar sit inside Kali's column, above its background. */
+/* With Kali's panel (Studio, Lámina) the map and the avatar sit inside it, above its background. */
 .v2-root.is-column .v2-map { z-index: 31; }
 .v2-root.is-column .v2-avatar:not(.is-bubble) { z-index: 32; }
-/* Blur budget: only the main dock blurs; the column and bubble composers are opaque. */
-.v2-column .stage-dock-pill, .v2-bubble-pop .stage-dock-pill { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); box-shadow: none; }
+/* Blur budget: only the main dock blurs; the panel and bubble composers are opaque. */
+.v2-bubble-pop .stage-dock-pill { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-elev); box-shadow: none; }
 .v2-bubble-pop .stage-dock { position: static; transform: none; width: 100%; }
 .v2-bubble-pop .stage-dock-pill { min-height: calc(44px * var(--k)); padding: calc(4px * var(--k)); border: 0; }
 .v2-seg.absolute { position: absolute; }
@@ -400,7 +367,7 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
 .v2-layout-switch { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; padding-left: calc(10px * var(--k)); }
 .v2-layout-switch > span { color: var(--muted); font-size: max(11px, calc(12px * var(--kt))); margin-right: calc(6px * var(--k)); }
 
-/* Mosaic dividers */
+/* Pane dividers */
 .v2-divider { position: absolute; z-index: 26; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
 .v2-divider.is-vertical { cursor: col-resize; }
 .v2-divider.is-horizontal { cursor: row-resize; }
@@ -481,15 +448,11 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
 .v2-palette .v2-pop-title { padding-left: 12px; }
 
 /* Notices */
-.v2-notices { bottom: 0; left: 0; }
+
 .v2-notice { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: var(--v2-r-control); font-size: max(11px, calc(13px * var(--kt))); }
 .v2-notice + .v2-notice { border-top: 1px solid var(--v2-line); }
 .v2-notice .v2-dot { margin-top: 6px; }
 .v2-notice small { display: block; color: var(--muted); font-size: max(11px, calc(11.5px * var(--kt))); }
-
-/* Conversation view in Kali's zone */
-.v2-convo { position: absolute; z-index: 15; display: flex; flex-direction: column; min-height: 0; border-radius: var(--v2-r-card); }
-.v2-convo > * { min-height: 0; }
 
 /* Entry of windows and cards */
 .v2-enter { animation: v2-in .16s ease-out both; }
@@ -589,6 +552,14 @@ button.v2-orb-row .v2-orb-name { flex-shrink: 0; max-width: 55%; }
   background: var(--bg-elev); color: var(--fg); font-size: 12px; box-shadow: var(--v2-shadow); opacity: .72;
 }
 .v2-explore-exit:hover, .v2-explore-exit:focus-visible { opacity: 1; }
+
+/* «Dos artefactos · Abrir en el Estudio»: a quiet pill under the mode switch */
+.v2-suggest {
+  position: absolute; z-index: 56; display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 6px 6px 14px; border-radius: 9999px; border: 1px solid var(--v2-line-strong);
+  background: var(--bg-elev); color: var(--fg); font-size: 12px; box-shadow: var(--v2-shadow); white-space: nowrap;
+}
+.v2-suggest .v2-btn { height: 26px; padding: 0 10px; font-size: 12px; }
 
 /* ── Own windows (desktop): ghost tabs, «Traer», the drop on Kali's panel ── */
 .v2-tab.is-ghost { cursor: default; color: var(--muted); opacity: .8; gap: calc(6px * var(--k)); }

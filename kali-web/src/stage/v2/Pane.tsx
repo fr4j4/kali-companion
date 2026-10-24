@@ -287,7 +287,7 @@ export function StudioPanes({ canvas, view, windows, status, k, onHost, extra, f
           aria-valuemin={Math.round(d.min * 100)}
           aria-valuemax={Math.round(d.max * 100)}
           aria-valuenow={Math.round(d.ratio * 100)}
-          aria-label={t("v2.mosaic.divider") as string}
+          aria-label={t("v2.pane.divider") as string}
           tabIndex={0}
           onPointerDown={startResize(d)}
           onDoubleClick={() => canvas.setPanes((tree) => setRatio(tree, d.id, 0.5))}

@@ -11,10 +11,14 @@
  * pane or to a pane's edge (which splits it); an emptied pane goes away and its sibling takes its
  * place. Everything here is pure and generic over the tab id: numbers are window ids on screen,
  * strings are artifact ids in the saved layout. paneLayout turns a tree into rectangles and
- * dividers the same way mosaicLayout did, with the same 320 × 240 minimum per pane.
+ * dividers, with a 320 × 240 minimum per pane.
  */
 
-import type { MosaicPreset, MosaicRatios, Rect } from "./layout";
+import type { Rect } from "./layout";
+
+/** How a group was laid out before the panes (saved layouts of format 1); read once to migrate. */
+export type MosaicPreset = "1" | "2c" | "2r" | "1+2" | "2x2";
+export interface MosaicRatios { a: number; b: number }
 
 export interface PaneLeaf<T = number> { kind: "leaf"; id: string; tabIds: T[]; activeId: T | null }
 export interface PaneSplit<T = number> { kind: "split"; id: string; dir: "row" | "col"; ratio: number; a: PaneNode<T>; b: PaneNode<T> }
@@ -210,7 +214,7 @@ function presetShape<T>(count: number, leaf: (i: number) => PaneLeaf<T>, ratios:
  * Foco and Pantalla completa are one pane, Mosaico its preset with the panels in their order,
  * Dividido its visible windows side by side (up to three).
  */
-export function fromMosaic<T>(g: { mode: string; preset: MosaicPreset | null; ratios: MosaicRatios; tabIds: T[]; panelIds?: T[]; activeId?: T | null }): PaneNode<T> {
+export function fromMosaic<T>(g: { mode?: string; preset?: MosaicPreset | null; ratios?: MosaicRatios; tabIds: T[]; panelIds?: T[]; activeId?: T | null }): PaneNode<T> {
   const tabs = g.tabIds;
   const active = g.activeId ?? null;
   if (g.mode === "focus" || g.mode === "fullscreen" || tabs.length <= 1) return singleLeaf(tabs, active);
@@ -224,7 +228,7 @@ export function fromMosaic<T>(g: { mode: string; preset: MosaicPreset | null; ra
     const ids = i === 0 ? [chosen[0], ...rest] : [chosen[i]];
     return { kind: "leaf", id: `p${i + 1}`, tabIds: ids, activeId: ids[0] };
   };
-  return presetShape(count, leaf, g.ratios, preset === "2r");
+  return presetShape(count, leaf, g.ratios ?? { a: 0.5, b: 0.5 }, preset === "2r");
 }
 const auto = (n: number): MosaicPreset => (n <= 1 ? "1" : n === 2 ? "2c" : n === 3 ? "1+2" : "2x2");
 

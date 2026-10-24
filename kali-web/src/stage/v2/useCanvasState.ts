@@ -9,25 +9,24 @@
  *  - closing records the window under "Recently closed" so it can be reopened or undone;
  *  - on the desktop, a window that went to its own OS window stays in its group as a ghost
  *    (`ghosts`): its tab keeps its place, greyed, with "Bring back";
- *  - groups, their mode and mosaic are saved per session (by artifact id).
+ *  - groups and their panes are saved per session (by artifact id); the old `kali.v2.kaliView`
+ *    preference is dropped.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ArtifactEvent } from "../../lib/protocol";
 import { artifactPageUrl, isDesktop } from "../../lib/desktop";
 import type { WindowData, WorkspaceAPI } from "../../workspace/types";
-import type { ArtifactMode, KaliView, MosaicPreset, MosaicRatios } from "../../workspace/layout";
 import { fromMosaic, mapTabs, reconcile, toPreset as treeToPreset, type PaneNode } from "../../workspace/panes";
 import {
-  EMPTY_GROUPS, MAX_VISIBLE, activate, activeGroup as pickActive, assign, createGroup, detach, forgetClosed, groupOf,
-  recordClosed, setPanes as setGroupPanes, zoomPane as zoomGroupPane, rename as renameGroup, reorder as reorderGroup, setActiveTab, setMode as setGroupMode,
-  setMosaic as setGroupMosaic, togglePin as toggleGroupPin, toPersisted,
+  EMPTY_GROUPS, activate, activeGroup as pickActive, assign, createGroup, detach, forgetClosed, groupOf,
+  recordClosed, setPanes as setGroupPanes, zoomPane as zoomGroupPane, rename as renameGroup, reorder as reorderGroup, setActiveTab,
+  togglePin as toggleGroupPin, toPersisted,
   type ClosedEntry, type Group, type GroupsState, type PersistedGroups,
 } from "../../workspace/groups";
 
 
 const STORE_PREFIX = "kali.v2.groups.";
-const VIEW_KEY = "kali.v2.kaliView";
 
 function load(sid: string): (PersistedGroups & { closed?: ClosedEntry[] }) | null {
   try {
@@ -47,8 +46,8 @@ interface Opts {
   isTurnActive: boolean;
   /** What you asked for in this turn: the name a new group takes (the window title otherwise). */
   taskTitle?: string | null;
-  /** True while the Hub is on screen: it decides which window is seen, so the split limit and
-   * the content-update focus stand down (read through a ref: the Hub's hook needs this one). */
+  /** True while the Hub is on screen: it decides which window is seen, so the content-update
+   * focus stands down (read through a ref: the Hub's hook needs this one). */
   hubActive?: { current: boolean };
 }
 
@@ -58,7 +57,6 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   stateRef.current = state;
   /** The board (stage/v2/Board.tsx) is open over the canvas. */
   const [board, setBoard] = useState(false);
-  const [kaliView, setKaliViewState] = useState<KaliView>(() => (localStorage.getItem(VIEW_KEY) === "conversation" ? "conversation" : "map"));
   const lastUsedRef = useRef(new Map<number, number>());
   const [, setUsedTick] = useState(0);
   const turnRef = useRef(0);
@@ -76,10 +74,8 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const taskTitleRef = useRef(taskTitle);
   taskTitleRef.current = taskTitle;
 
-  const setKaliView = useCallback((v: KaliView) => {
-    setKaliViewState(v);
-    try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ }
-  }, []);
+  // The Map / Conversation switch is gone (the Hub's Hilo replaced it): forget its preference.
+  useEffect(() => { try { localStorage.removeItem("kali.v2.kaliView"); } catch { /* ignore */ } }, []);
 
   const touch = useCallback((id: number) => {
     lastUsedRef.current.set(id, Date.now());
@@ -146,7 +142,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
         if (rememberedId && next.groups.some((g) => g.id === rememberedId)) {
           next = assign(next, w.id, rememberedId, now);
         } else if (rememberedId && typeof remembered !== "string" && remembered) {
-          next = createGroup(next, remembered.title, [w.id], { id: remembered.id, color: remembered.color, mode: remembered.mode, mosaic: { preset: remembered.preset, ratios: remembered.ratios, panelIds: [] } }, now).state;
+          next = createGroup(next, remembered.title, [w.id], { id: remembered.id, color: remembered.color }, now).state;
         } else if (sameTurn) {
           next = assign(next, w.id, groupOf(next, sameTurn[0])!.id, now);
         } else if (current && currentVisible) {
@@ -204,14 +200,11 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   }, [state, sessionId]);
 
   const active = useMemo(() => pickActive(state), [state]);
-  const mode: ArtifactMode = active?.mode ?? "split";
 
   const winById = useCallback((id: number) => windowsRef.current.find((w) => w.id === id), []);
   const openIds = useCallback((g: Group | undefined) => (g ? g.windowIds.filter((id) => { const w = winById(id); return !!w && isOpen(w); }) : []), [winById]);
 
-  /** Windows the active group shows in split mode (not in the tray), in slot order. */
-  const visibleIds = useMemo(() => openIds(active).filter((id) => !winById(id)?.minimized), [active, openIds, winById, api.windows]);
-  /** Tabs of the active group (focus, mosaic, fullscreen). */
+  /** Tabs of the active group that are open here. */
   const tabIds = useMemo(() => openIds(active), [active, openIds, api.windows]);
   /** The active group's tabs as the panes keep them: the open ones and the ghosts, in group order. */
   const paneIds = useMemo(
@@ -268,31 +261,12 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     focusWindow(f.id);
   }, [api.windows, focusWindow]);
 
-  const setMode = useCallback((m: ArtifactMode, groupId?: string) => {
-    const gid = groupId ?? stateRef.current.activeGroupId;
-    if (!gid) return;
-    setState((s) => {
-      let next = activate(setGroupMode(s, gid, m), gid);
-      const g = next.groups.find((x) => x.id === gid);
-      if (g && g.activeId == null && g.windowIds.length) next = setActiveTab(next, g.windowIds[0]);
-      return next;
-    });
-    setBoard(false);
-    // Leaving split brings tray windows back as tabs; entering split re-applies the limit.
-    const g = stateRef.current.groups.find((x) => x.id === gid);
-    if (g && m !== "split") {
-      const front = g.activeId ?? g.windowIds[0];
-      const w = front != null ? winById(front) : undefined;
-      if (w?.minimized) apiRef.current.toggleMinimize(w.id);
-    }
-  }, [winById]);
-
-  /** Show a group: restore up to three of its windows and make it the active one. */
-  const openGroup = useCallback((groupId: string, m?: ArtifactMode) => {
+  /** Show a group: its tabs come back from the tray and it becomes the active one. */
+  const openGroup = useCallback((groupId: string) => {
     const g = stateRef.current.groups.find((x) => x.id === groupId);
     if (!g) return;
     const ids = g.windowIds.filter((id) => { const w = winById(id); return w && isOpen(w); });
-    const ranked = [...ids].sort((a, b) => lastUsed(b) - lastUsed(a)).slice(0, MAX_VISIBLE);
+    const ranked = [...ids].sort((a, b) => lastUsed(b) - lastUsed(a));
     for (const id of ranked) { const w = winById(id); if (w?.minimized) apiRef.current.toggleMinimize(id); }
     // Other groups' windows step back to the tray so only one task is on screen.
     for (const other of stateRef.current.groups) {
@@ -300,11 +274,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
       for (const id of other.windowIds) { const w = winById(id); if (w && isOpen(w) && !w.minimized && !other.pinnedIds.includes(id)) apiRef.current.toggleMinimize(id); }
     }
     if (ranked[0] != null) apiRef.current.focusWindow(ranked[0]);
-    setState((s) => {
-      let next = activate(s, groupId);
-      if (m) next = setGroupMode(next, groupId, m);
-      return next;
-    });
+    setState((s) => activate(s, groupId));
     setBoard(false);
   }, [winById, lastUsed]);
 
@@ -385,9 +355,6 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const rename = useCallback((groupId: string, title: string) => setState((s) => renameGroup(s, groupId, title)), []);
   const togglePin = useCallback((id: number) => setState((s) => toggleGroupPin(s, id)), []);
   const reorder = useCallback((id: number, index: number) => setState((s) => reorderGroup(s, id, index)), []);
-  const setMosaic = useCallback((groupId: string, patch: { preset?: MosaicPreset | null; ratios?: Partial<MosaicRatios>; panelIds?: number[] }) => {
-    setState((s) => setGroupMosaic(s, groupId, patch as Partial<Group["mosaic"]>));
-  }, []);
   /** Change the active group's panes (a drag, a divider, Ctrl+\); the saved tree is no longer waited for. */
   const setPanes = useCallback((fn: (tree: PaneNode) => PaneNode, groupId?: string) => {
     const gid = groupId ?? stateRef.current.activeGroupId;
@@ -401,7 +368,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     if (!g) return;
     templatesRef.current.delete(g.id);
     setState((s) => zoomGroupPane(setGroupPanes(s, g.id, (tree) => treeToPreset(tree, n)), g.id, null));
-    // Windows put in the tray by the old layout come back as tabs.
+    // Windows left in the tray come back as tabs.
     for (const id of g.windowIds) { const w = winById(id); if (w && isOpen(w) && w.minimized) apiRef.current.toggleMinimize(id); }
   }, [winById]);
   const zoomPane = useCallback((leafId: string | null) => {
@@ -413,18 +380,14 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   return {
     groups: state,
     active,
-    mode,
-    visibleIds,
     tabIds,
     paneIds,
     ghosts,
     bring,
     detachWindow,
     board, setBoard,
-    kaliView, setKaliView,
     lastUsed,
     focusWindow,
-    setMode,
     openGroup,
     activateGroup,
     minimize,
@@ -437,7 +400,6 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     rename,
     togglePin,
     reorder,
-    setMosaic,
     setPanes,
     toPreset,
     zoomPane,

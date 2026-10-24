@@ -48,7 +48,7 @@ describe("tool labels", () => {
 
 describe("stage avatar", () => {
   it("is 160 units on the stage", () => {
-    const l = computeLayout({ mode: "split", stage: { w: 1440, h: 900 }, visibleWindows: 0 });
+    const l = computeLayout({ stage: { w: 1440, h: 900 }, visibleWindows: 0 });
     expect(l.avatar).toBe(STAGE_AVATAR);
   });
 });

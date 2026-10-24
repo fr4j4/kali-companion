@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoScale, cascadeSlots, computeLayout, defaultPreset, isCompactPanel, mosaicLayout } from "../layout";
+import { autoScale, computeLayout, isCompactPanel } from "../layout";
 
 const base = { w: 1440, h: 900 };
 
@@ -16,116 +16,24 @@ describe("autoScale", () => {
 });
 
 describe("computeLayout", () => {
-  it("shows the stage when nothing is open, whatever the group mode", () => {
-    const l = computeLayout({ mode: "focus", stage: base, visibleWindows: 0 });
+  it("shows the stage when nothing is open", () => {
+    const l = computeLayout({ stage: base, visibleWindows: 0 });
     expect(l.mode).toBe("stage");
     expect(l.artifact).toBeNull();
     expect(l.mapCenter).toEqual({ x: 720, y: 360 });
     expect(l.dock).toEqual({ x: 400, y: 823, w: 640, h: 52 });
-  });
-
-  it("matches the design's split geometry at 1440 × 900", () => {
-    const l = computeLayout({ mode: "split", stage: base, visibleWindows: 2 });
-    expect(l.mode).toBe("split");
-    expect(l.artifact).toEqual({ x: 20, y: 56, w: 820, h: 610 });
-    expect(l.kali).toEqual({ x: 860, y: 56, w: 560, h: 548 });
-    expect(l.inspector).toEqual({ x: 860, y: 604, w: 560, h: 62 });
-    // The avatar is the centre of the map.
-    expect(l.mapCenter).toEqual({ x: 1140, y: 330 });
-    expect(l.mapDensity).toBe("compact");
-  });
-
-  it("puts Kali in her 380 px panel in focus and mosaic, avatar in the header slot, no mini map", () => {
-    for (const mode of ["focus", "mosaic"] as const) {
-      const l = computeLayout({ mode, stage: base, visibleWindows: 1 });
-      expect(l.column).toEqual({ x: 1060, y: 0, w: 380, h: 900 });
-      expect(l.rail?.w).toBe(56);
-      expect(l.artifact).toEqual({ x: 70, y: 52, w: 976, h: 834 });
-      expect(l.map).toBeNull();
-      expect(l.mapCenter).toEqual({ x: 1060 + 18 + 36, y: 18 + 36 });
-      expect(l.avatar).toBeCloseTo(72 * l.k, 0);
-      expect(l.mapDensity).toBe("mini");
-    }
-  });
-
-  it("reduces Kali to a bubble in fullscreen", () => {
-    const l = computeLayout({ mode: "fullscreen", stage: base, visibleWindows: 1 });
-    expect(l.artifact).toEqual({ x: 0, y: 0, w: 1440, h: 900 });
-    expect(l.bubble).toEqual({ x: 1352, y: 812, w: 64, h: 64 });
-    expect(l.kali).toBeNull();
-  });
-
-  it("goes to focus with a bubble below 1152 × 720 and never shows a mosaic", () => {
-    const small = { w: 1100, h: 700 };
-    for (const mode of ["split", "mosaic", "focus"] as const) {
-      const l = computeLayout({ mode, stage: small, visibleWindows: 3 });
-      expect(l.compact).toBe(true);
-      expect(l.mode).toBe("focus");
-      expect(l.column).toBeNull();
-      expect(l.bubble).not.toBeNull();
-    }
+    // The Hub · Studio switch top right, the windows pill under it.
+    expect(l.modeSwitch).toEqual({ x: 1420, y: 14 });
+    expect(l.windowsPill!.y).toBeGreaterThan(l.modeSwitch!.y);
   });
 
   it("scales every rectangle with the window", () => {
-    const l = computeLayout({ mode: "split", stage: { w: 1920, h: 1200 }, visibleWindows: 1 });
+    const l = computeLayout({ stage: { w: 1920, h: 1200 }, visibleWindows: 0 });
     expect(l.k).toBe(1.33);
     expect(l.dock?.w).toBe(Math.round(640 * 1.33));
   });
 
-  it("shows a zone panel (tray, overview) in the split layout", () => {
-    const l = computeLayout({ mode: "focus", stage: base, visibleWindows: 0, zonePanel: true });
-    expect(l.mode).toBe("split");
-    expect(l.artifact).not.toBeNull();
-  });
-
-  it("keeps a mini map with the avatar on top of the conversation view", () => {
-    const l = computeLayout({ mode: "split", stage: base, visibleWindows: 1, kaliView: "conversation" });
-    expect(l.map?.h).toBe(180);
-    expect(l.mapCenter).toEqual({ x: 1140, y: 146 });
-    expect(l.mapDensity).toBe("mini");
-  });
-});
-
-describe("cascadeSlots", () => {
-  const zone = { x: 20, y: 56, w: 820, h: 610 };
-  it("fills the zone with one window and cascades up to three", () => {
-    expect(cascadeSlots(zone, 1)).toEqual([zone]);
-    const three = cascadeSlots(zone, 3);
-    expect(three).toHaveLength(3);
-    for (const s of three) {
-      expect(s.x).toBeGreaterThanOrEqual(zone.x);
-      expect(s.y).toBeGreaterThanOrEqual(zone.y);
-      expect(s.x + s.w).toBeLessThanOrEqual(zone.x + zone.w + 1);
-      expect(s.y + s.h).toBeLessThanOrEqual(zone.y + zone.h + 1);
-    }
-  });
-  it("puts two windows side by side on wide screens", () => {
-    const [a, b] = cascadeSlots({ x: 0, y: 0, w: 1212, h: 800 }, 2, true);
-    expect(a.y).toBe(b.y);
-    expect(a.x + a.w).toBeLessThan(b.x);
-  });
-});
-
-describe("mosaicLayout", () => {
-  const area = { x: 70, y: 52, w: 1056, h: 834 };
-  it("picks a preset by window count", () => {
-    expect([1, 2, 3, 4, 7].map(defaultPreset)).toEqual(["1", "2c", "1+2", "2x2", "2x2"]);
-  });
-  it("splits the area without overlaps and leaves the gap for the divider", () => {
-    const m = mosaicLayout(area, "1+2", { a: 0.55, b: 0.5 });
-    expect(m.panels).toHaveLength(3);
-    expect(m.dividers.map((d) => d.orientation)).toEqual(["vertical", "horizontal"]);
-    const [left, top, bottom] = m.panels;
-    expect(left.x + left.w + 12).toBe(top.x);
-    expect(top.y + top.h + 12).toBe(bottom.y);
-  });
-  it("never lets a panel go under 320 × 240", () => {
-    const m = mosaicLayout(area, "2c", { a: 0.05, b: 0.5 });
-    expect(Math.min(...m.panels.map((p) => p.w))).toBeGreaterThanOrEqual(320);
-    const rows = mosaicLayout(area, "2x2", { a: 0.5, b: 0.99 });
-    expect(Math.min(...rows.panels.map((p) => p.h))).toBeGreaterThanOrEqual(240);
-  });
-  it("flags small panels for the compact view", () => {
+  it("flags small panes for the compact view", () => {
     expect(isCompactPanel({ x: 0, y: 0, w: 330, h: 260 })).toBe(true);
     expect(isCompactPanel({ x: 0, y: 0, w: 600, h: 400 })).toBe(false);
   });
@@ -133,7 +41,7 @@ describe("mosaicLayout", () => {
 
 describe("computeLayout · Hub", () => {
   const hub = (state: "escucha" | "lamina" | "explorar" | "hilo", w = 1440, h = 900, cards = 0, current = true) =>
-    computeLayout({ mode: "split", stage: { w, h }, visibleWindows: current ? 1 : 0, hub: state, hubCards: cards });
+    computeLayout({ stage: { w, h }, visibleWindows: current ? 1 : 0, hub: state, hubCards: cards });
   const inside = (r: { x: number; y: number; w: number; h: number }, w: number, h: number) =>
     r.x >= 0 && r.y >= 0 && r.x + r.w <= w + 0.5 && r.y + r.h <= h + 0.5;
 
@@ -198,7 +106,7 @@ describe("computeLayout · Hub", () => {
 });
 
 describe("computeLayout · Studio", () => {
-  const studio = (w: number, h: number, groups = 1) => computeLayout({ mode: "focus", stage: { w, h }, visibleWindows: 2, studio: true, groups });
+  const studio = (w: number, h: number, groups = 1) => computeLayout({ stage: { w, h }, visibleWindows: 2, groups });
   it("the area and its head beside Kali's panel; the rail only with two groups", () => {
     const l = studio(1440, 900);
     expect(l.mode).toBe("studio");
@@ -218,6 +126,6 @@ describe("computeLayout · Studio", () => {
     expect(l.area!.y + l.area!.h).toBeLessThanOrEqual(l.bubble!.y);
   });
   it("with nothing open it is the stage", () => {
-    expect(computeLayout({ mode: "focus", stage: { w: 1440, h: 900 }, visibleWindows: 0, studio: true }).mode).toBe("stage");
+    expect(computeLayout({ stage: { w: 1440, h: 900 }, visibleWindows: 0 }).mode).toBe("stage");
   });
 });

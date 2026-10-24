@@ -37,12 +37,12 @@ las etiquetas de sección del canvas; en Ajustes, ninguna.
 | Token | Valor | Para |
 | --- | --- | --- |
 | `--v2-r-control` | 8 | Botones, botones de icono, pestañas, campos, teselas |
-| `--v2-r-card` | 12 | Tarjetas, orbes en tarjeta, inspector, permiso, menús |
+| `--v2-r-card` | 12 | Tarjetas, orbes en tarjeta, fichas, permiso, menús |
 | `--v2-r-window` | 16 | Ventanas, láminas, hojas, paleta |
 | 999 | — | Píldoras, chips, dock, segmentados |
 
-Una sola sombra, `--v2-shadow` (0 18 50 negro 42 %), y solo para lo que flota: ventanas en
-Dividido, menús, permiso, burbuja. Láminas, paneles y pestañas van planos.
+Una sola sombra, `--v2-shadow` (0 18 50 negro 42 %), y solo para lo que flota: menús, permiso,
+burbuja, la propuesta del Estudio. Láminas, paneles y pestañas van planos.
 
 ## Iconos
 

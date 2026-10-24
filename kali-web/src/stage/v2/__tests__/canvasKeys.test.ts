@@ -10,7 +10,7 @@ function mount(back: () => boolean) {
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
-  const actions = { palette: vi.fn(), mode: vi.fn(), windowAt: vi.fn(), space: vi.fn(), fullscreen: vi.fn(), back };
+  const actions = { palette: vi.fn(), preset: vi.fn(), windowAt: vi.fn(), board: vi.fn(), zoom: vi.fn(), back };
   function Probe() { useCanvasKeys(actions, []); return null; }
   act(() => root.render(createElement(Probe)));
   return () => { act(() => root.unmount()); host.remove(); };

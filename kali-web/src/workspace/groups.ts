@@ -8,8 +8,7 @@
  * the workspace windows and persists them per session.
  */
 
-import type { ArtifactMode, MosaicPreset, MosaicRatios } from "./layout";
-import { addTab, closeTab, leafById, leafOf, leaves, mapTabs, reconcile, setActive, singleLeaf, type PaneNode } from "./panes";
+import { addTab, closeTab, leafById, leafOf, leaves, mapTabs, reconcile, setActive, singleLeaf, type MosaicPreset, type MosaicRatios, type PaneNode } from "./panes";
 
 /** Colour slot of a group; maps to a theme token so every theme stays legible. */
 export const GROUP_COLORS = ["accent", "accent2", "ok", "warn", "err", "muted"] as const;
@@ -21,8 +20,6 @@ export interface Group {
   color: GroupColor;
   /** Windows in the group, in tab order. */
   windowIds: number[];
-  mode: ArtifactMode;
-  mosaic: { preset: MosaicPreset | null; ratios: MosaicRatios; panelIds: number[] };
   /** The Studio's panes and their tabs (every window of the group is in exactly one pane). */
   panes: PaneNode;
   /** A pane shown alone (maximized); the tree is kept to come back to. */
@@ -56,8 +53,6 @@ export interface GroupsState {
 export const EMPTY_GROUPS: GroupsState = { groups: [], activeGroupId: null, closed: [] };
 /** Recently closed entries kept for "Reopen" (and undo). */
 export const MAX_CLOSED = 30;
-/** Full windows a group shows at once in split mode; the rest wait in the tray. */
-export const MAX_VISIBLE = 3;
 
 let seq = 0;
 export function newGroupId(): string {
@@ -76,8 +71,6 @@ export function makeGroup(state: GroupsState, title: string, opts: Partial<Group
     title: title.trim() || "…",
     color: opts.color ?? nextColor(state),
     windowIds: opts.windowIds ?? [],
-    mode: opts.mode ?? "split",
-    mosaic: opts.mosaic ?? { preset: null, ratios: { a: 0.5, b: 0.5 }, panelIds: [] },
     activeId: opts.activeId ?? opts.windowIds?.[0] ?? null,
     panes: opts.panes ?? singleLeaf(opts.windowIds ?? [], opts.activeId ?? null),
     zoomed: null,
@@ -116,7 +109,6 @@ export function detach(state: GroupsState, windowId: number): GroupsState {
         panes,
         zoomed: g.zoomed && panes.kind !== "leaf" ? g.zoomed : null,
         pinnedIds: g.pinnedIds.filter((id) => id !== windowId),
-        mosaic: { ...g.mosaic, panelIds: g.mosaic.panelIds.filter((id) => id !== windowId) },
         activeId: g.activeId === windowId ? (leafActive ?? windowIds[windowIds.length - 1] ?? null) : g.activeId,
       };
     })
@@ -151,10 +143,6 @@ export function activate(state: GroupsState, groupId: string | null, now = Date.
   if (groupId === null) return { ...state, activeGroupId: null };
   if (!state.groups.some((g) => g.id === groupId)) return state;
   return mapGroup({ ...state, activeGroupId: groupId }, groupId, (g) => ({ ...g, lastUsed: now }));
-}
-
-export function setMode(state: GroupsState, groupId: string, mode: ArtifactMode): GroupsState {
-  return mapGroup(state, groupId, (g) => ({ ...g, mode }));
 }
 
 export function setActiveTab(state: GroupsState, windowId: number, now = Date.now()): GroupsState {
@@ -197,10 +185,6 @@ export function togglePin(state: GroupsState, windowId: number): GroupsState {
   }));
 }
 
-export function setMosaic(state: GroupsState, groupId: string, patch: Partial<Group["mosaic"]>): GroupsState {
-  return mapGroup(state, groupId, (g) => ({ ...g, mosaic: { ...g.mosaic, ...patch, ratios: { ...g.mosaic.ratios, ...(patch.ratios ?? {}) } } }));
-}
-
 /** Move a tab within its group (drag to reorder). */
 export function reorder(state: GroupsState, windowId: number, toIndex: number): GroupsState {
   const g = groupOf(state, windowId);
@@ -222,22 +206,6 @@ export function forgetClosed(state: GroupsState, windowId: number): GroupsState 
   return { ...state, closed: state.closed.filter((c) => c.windowId !== windowId) };
 }
 
-/**
- * Windows of a group shown in split mode: the most recently used first, at most three; the rest
- * go to the tray. Pinned windows win over unpinned ones.
- */
-export function overflowing(group: Group, isVisible: (id: number) => boolean, lastUsed: (id: number) => number): number[] {
-  const visible = group.windowIds.filter(isVisible);
-  if (visible.length <= MAX_VISIBLE) return [];
-  const ranked = [...visible].sort((a, b) => {
-    const pa = group.pinnedIds.includes(a) ? 1 : 0;
-    const pb = group.pinnedIds.includes(b) ? 1 : 0;
-    if (pa !== pb) return pb - pa;
-    return lastUsed(b) - lastUsed(a);
-  });
-  return ranked.slice(MAX_VISIBLE);
-}
-
 /** Drop windows that no longer exist (closed elsewhere, session reset). */
 export function prune(state: GroupsState, alive: Set<number>): GroupsState {
   let next = state;
@@ -250,7 +218,11 @@ export interface PersistedGroups {
   /** 2 since the panes; version 1 (no `panes`) is migrated with fromMosaic when it loads. */
   v?: number;
   active: string | null;
-  groups: { id: string; title: string; color: GroupColor; mode: ArtifactMode; preset: MosaicPreset | null; ratios: MosaicRatios; artifacts: string[]; pinned: string[]; panes?: PaneNode<string> }[];
+  groups: {
+    id: string; title: string; color: GroupColor; artifacts: string[]; pinned: string[]; panes?: PaneNode<string>;
+    /** Format 1 only: how the group was laid out before the panes. */
+    mode?: string; preset?: MosaicPreset | null; ratios?: MosaicRatios;
+  }[];
 }
 
 export function toPersisted(state: GroupsState, artifactOf: (windowId: number) => string | undefined): PersistedGroups {
@@ -261,9 +233,6 @@ export function toPersisted(state: GroupsState, artifactOf: (windowId: number) =
       id: g.id,
       title: g.title,
       color: g.color,
-      mode: g.mode,
-      preset: g.mosaic.preset,
-      ratios: g.mosaic.ratios,
       artifacts: g.windowIds.map(artifactOf).filter((a): a is string => !!a),
       pinned: g.pinnedIds.map(artifactOf).filter((a): a is string => !!a),
       panes: mapTabs(reconcile(g.panes, g.windowIds, g.activeId), artifactOf),

@@ -8,7 +8,7 @@
  *   Ctrl+W           close the tab
  *   Alt+1…9          window 1…9 of the group
  *   Ctrl+Shift+E     the board
- *   Ctrl+Shift+F     full screen (the mode and the real window); Explorar in the Hub
+ *   Ctrl+Shift+F     maximize the pane (Studio); Explorar (Hub)
  *   Ctrl+Shift+T     Hub ⇄ Estudio
  *   Esc              back one level: palette, board, a maximized pane; in the
  *                    Hub Explorar → Lámina → Escucha, and Hilo back where it came from
@@ -18,27 +18,24 @@
  */
 
 import { useEffect, useRef } from "react";
-import type { ArtifactMode } from "../../workspace/layout";
 import type { WindowData } from "../../workspace/types";
 
 export interface CanvasKeyActions {
   palette: () => void;
-  mode: (m: ArtifactMode) => void;
-  /** Ctrl+1…4 in the Studio (instead of `mode`). */
-  preset?: (n: 1 | 2 | 3 | 4) => void;
+  /** Ctrl+1…4: one to four panes. */
+  preset: (n: 1 | 2 | 3 | 4) => void;
   cycleTab?: (dir: 1 | -1) => void;
   splitRight?: () => void;
   closeTab?: () => void;
   windowAt: (index: number) => void;
-  space: () => void;
-  fullscreen: () => void;
+  board: () => void;
+  /** Maximize the pane, or Explorar. */
+  zoom: () => void;
   /** Hub ⇄ Estudio. */
   toggleMode?: () => void;
   /** Returns true when it handled Escape. */
   back: () => boolean;
 }
-
-const MODE_KEYS: ArtifactMode[] = ["split", "focus", "mosaic", "fullscreen"];
 
 export function isTextTarget(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null;
@@ -58,13 +55,12 @@ export function useCanvasKeys(actions: CanvasKeyActions, windows: WindowData[], 
       const ctrl = e.ctrlKey || e.metaKey;
       const code = e.code;
       if (ctrl && !e.shiftKey && !e.altKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); a.palette(); return; }
-      if (ctrl && e.shiftKey && code === "KeyE") { e.preventDefault(); a.space(); return; }
-      if (ctrl && e.shiftKey && code === "KeyF") { e.preventDefault(); a.fullscreen(); return; }
+      if (ctrl && e.shiftKey && code === "KeyE") { e.preventDefault(); a.board(); return; }
+      if (ctrl && e.shiftKey && code === "KeyF") { e.preventDefault(); a.zoom(); return; }
       if (ctrl && e.shiftKey && code === "KeyT" && a.toggleMode) { e.preventDefault(); a.toggleMode(); return; }
       if (ctrl && !e.shiftKey && !e.altKey && /^Digit[1-4]$/.test(code)) {
         e.preventDefault();
-        const n = Number(code.slice(5)) as 1 | 2 | 3 | 4;
-        if (a.preset) a.preset(n); else a.mode(MODE_KEYS[n - 1]);
+        a.preset(Number(code.slice(5)) as 1 | 2 | 3 | 4);
         return;
       }
       if (ctrl && !e.altKey && code === "Tab" && a.cycleTab) { e.preventDefault(); a.cycleTab(e.shiftKey ? -1 : 1); return; }

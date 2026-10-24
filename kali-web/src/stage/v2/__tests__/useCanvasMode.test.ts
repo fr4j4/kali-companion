@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_HUB, arrive, back, bringBack, closeLamina, explore, forget, fromStudio, matchShowRequest, restoreHub, sendOut, toPersistedHub,
+  EMPTY_HUB, arrive, back, bringBack, closeLamina, explore, forget, fromStudio, matchShowRequest, restoreHub, sendOut, shouldSuggest, toPersistedHub,
   toggleThread, type HubModel,
 } from "../useCanvasMode";
 
@@ -107,5 +107,13 @@ describe("own window (desktop)", () => {
     expect(sendOut(hub({ state: "hilo", currentId: 3, before: "lamina" }), 3)).toMatchObject({ state: "hilo", currentId: null, before: "escucha" });
     const h = hub({ state: "lamina", currentId: 3, previousIds: [1] });
     expect(sendOut(h, 1)).toBe(h);
+  });
+});
+
+describe("offering the Studio", () => {
+  it("needs two arrivals within a minute", () => {
+    expect(shouldSuggest([1000], 1000)).toBe(false);
+    expect(shouldSuggest([1000, 30_000], 30_000)).toBe(true);
+    expect(shouldSuggest([1000, 70_000], 70_000)).toBe(false);
   });
 });

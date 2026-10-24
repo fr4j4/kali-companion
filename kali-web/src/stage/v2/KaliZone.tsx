@@ -3,11 +3,7 @@
  *
  *  - VoiceLine: the echo of what you said (italic) and her answer (serif) with a cursor while she
  *    writes; the welcome when the session is empty.
- *  - Inspector: one line under the map with the node that matters now (permission, error,
- *    working…, or the one you picked) and "See detail".
  *  - ConsentCard: the permission question, in Kali's zone instead of a modal over everything.
- *  - NowList: "Now · <group>", the nodes that are busy, for the column and the bubble.
- *  - ConversationPanel: the conversation view of Kali's zone.
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -17,14 +13,6 @@ import { renderMarkdown } from "../../lib/markdown";
 import { consentTexts } from "../../lib/consentText";
 import type { ConsentDecision, ConsentRequestEvent } from "../../lib/protocol";
 import { useStage } from "../StageProvider";
-import { ConversationLog } from "../ConversationLog";
-import { inspectorNode, type NodeId, type NodeStatus } from "./mapModel";
-import { NODE_ICONS } from "./nodeIcons";
-import { motiveText, stateWord } from "./NeuralMapV2";
-
-const STATE_VAR: Record<string, string> = {
-  idle: "var(--muted)", working: "var(--accent)", recalling: "var(--accent2)", permission: "var(--accent)", failed: "var(--err)", done: "var(--ok)",
-};
 
 // ── Voice ───────────────────────────────────────────────
 
@@ -93,67 +81,6 @@ export function VoiceLine({ style }: { style: CSSProperties }) {
   );
 }
 
-// ── Inspector ───────────────────────────────────────────
-
-export function Inspector({ statuses, picked, onDetail, style }: {
-  statuses: Record<string, NodeStatus>;
-  picked: NodeId | null;
-  onDetail: (st: NodeStatus) => void;
-  style: CSSProperties;
-}) {
-  const { t } = useTranslation();
-  const st = inspectorNode(statuses, picked);
-  if (!st) {
-    return (
-      <div className="v2-inspector" style={style}>
-        <span className="v2-inspector-motive">{t("v2.inspector.idle")}</span>
-      </div>
-    );
-  }
-  const Icon = NODE_ICONS[st.id];
-  const motive = motiveText(t as never, st);
-  return (
-    <div className={`v2-inspector ${st.state !== "idle" ? "is-active" : ""}`} style={{ ...style, ["--c" as string]: STATE_VAR[st.state] }} role="status">
-      <span className="v2-inspector-tile"><Icon size={18} aria-hidden="true" /></span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="v2-inspector-title">{t(`v2.node.${st.id}`)} · <span className="v2-word">{stateWord(t as never, st)}</span></span>
-        {motive && <span className="v2-inspector-motive" title={motive}>{motive}</span>}
-      </span>
-      <button type="button" className="v2-btn" onClick={() => onDetail(st)}>{t("v2.inspector.detail")}</button>
-    </div>
-  );
-}
-
-// ── Now list ────────────────────────────────────────────
-
-export function NowList({ statuses, groupTitle, onPick }: { statuses: Record<string, NodeStatus>; groupTitle?: string; onPick: (id: NodeId) => void }) {
-  const { t } = useTranslation();
-  const busy = Object.values(statuses).filter((s) => s.state !== "idle").sort((a, b) => b.since - a.since).slice(0, 5);
-  return (
-    <div>
-      <div className="v2-now-title">{groupTitle ? t("v2.now.title_group", { group: groupTitle }) : t("v2.now.title")}</div>
-      {busy.length === 0 ? (
-        <p className="v2-t12" style={{ color: "var(--muted)", margin: "6px 0 0" }}>{t("v2.inspector.idle")}</p>
-      ) : (
-        <ul className="v2-now-list" style={{ marginTop: 6 }}>
-          {busy.map((s) => {
-            const Icon = NODE_ICONS[s.id];
-            return (
-              <li key={s.id} style={{ ["--c" as string]: STATE_VAR[s.state] }}>
-                <button type="button" onClick={() => onPick(s.id)} className="min-w-0">
-                  <Icon size={14} aria-hidden="true" style={{ color: STATE_VAR[s.state] }} />
-                  <span className="truncate">{t(`v2.node.${s.id}`)}</span>
-                  <span className="v2-word truncate">{stateWord(t as never, s)}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 // ── Consent ─────────────────────────────────────────────
 
 export const CONSENT_SECONDS = 60;
@@ -203,16 +130,6 @@ export function ConsentCard({ request, onRespond, style }: {
         <button type="button" className="v2-btn is-quiet" onClick={() => onRespond(request.id, "deny")}>{t("consent.deny")}</button>
         <span className="v2-kbd">{t("v2.consent.keys")}</span>
       </div>
-    </div>
-  );
-}
-
-// ── Conversation view ───────────────────────────────────
-
-export function ConversationPanel({ style }: { style: CSSProperties }) {
-  return (
-    <div className="v2-convo" style={style}>
-      <ConversationLog />
     </div>
   );
 }

@@ -309,25 +309,11 @@ export function nodeStatuses(inputs: MapInputs): Record<string, NodeStatus> {
   return out;
 }
 
-const PRIORITY: Record<NodeState, number> = { permission: 5, failed: 4, working: 3, recalling: 2, done: 1, idle: 0 };
-
-/** The node the inspector shows: permission, then error, then working…, then the one picked. */
-export function inspectorNode(statuses: Record<string, NodeStatus>, picked?: NodeId | null): NodeStatus | null {
-  let best: NodeStatus | null = null;
-  for (const st of Object.values(statuses)) {
-    if (st.state === "idle") continue;
-    if (!best || PRIORITY[st.state] > PRIORITY[best.state] || (PRIORITY[st.state] === PRIORITY[best.state] && st.since > best.since)) best = st;
-  }
-  if (best && PRIORITY[best.state] >= PRIORITY.recalling) return best;
-  if (picked && statuses[picked]) return statuses[picked];
-  return best;
-}
-
 // ── Geometry ─────────────────────────────────────────────
 
 export interface RingSpec { r1: number; r2: number; /** vertical squash of the ellipse */ sy: number }
 
-/** Ring radii by density, in px for the scale `k` (design: split rings at 130 and 190). */
+/** Ring radii by density, in px for the scale `k` (design: compact rings at 130 and 190). */
 export function rings(density: MapDensity, map: Rect, k: number): RingSpec {
   if (density === "stage") {
     const fit = Math.min(1, (map.h / 2 - 72 * k) / (225 * k));
