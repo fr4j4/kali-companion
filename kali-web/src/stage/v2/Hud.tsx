@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bell, Bug, Cpu, Gamepad2, History, Layers, LayoutGrid, MessageSquare, Network, Palette, Plus,
+  Bell, Bug, Cpu, Gamepad2, History, LayoutDashboard, LayoutGrid, MessageSquare, Network, Palette, Plus,
   Search, Settings, Undo2, Volume2, X, Library, ArrowLeftRight } from "lucide-react";
 import { useStage } from "../StageProvider";
 import { ModelStatsPanel } from "../HUD";
@@ -103,7 +103,7 @@ export function WindowsPill({ count, open, onToggle, style }: { count: number; o
   const { t } = useTranslation();
   return (
     <button type="button" className="v2-pill" style={style} onClick={onToggle} aria-expanded={open} title={t("v2.hud.windows_hint") as string}>
-      <Layers size={16} aria-hidden="true" />
+      <LayoutDashboard size={16} aria-hidden="true" />
       {t("v2.hud.windows", { count })}
     </button>
   );
@@ -183,8 +183,7 @@ export interface LayoutMenuProps {
   hasWindows: boolean;
   kaliView: KaliView;
   onPreset: (n: 1 | 2 | 3 | 4) => void;
-  onOverview: () => void;
-  onSpace: () => void;
+  onBoard: () => void;
   onKaliView: (v: KaliView) => void;
   onHistory: () => void;
   onCustomize: () => void;
@@ -233,8 +232,7 @@ export function LayoutButton({ style, drop = "up", ...p }: LayoutMenuProps & { s
           {([1, 2, 3, 4] as const).map((n) => (
             <MenuItem onClose={close} key={n} icon={<PresetGlyph n={n} />} label={t("v2.area.preset", { count: n })} kbd={`Ctrl ${n}`} onClick={() => p.onPreset(n)} checked={p.hasWindows && p.panes === n} disabled={!p.hasWindows} />
           ))}
-          <MenuItem onClose={close} icon={<LayoutGrid size={16} />} label={t("v2.menu.overview")} onClick={p.onOverview} />
-          <MenuItem onClose={close} icon={<Layers size={16} />} label={t("v2.menu.space")} kbd="Ctrl ⇧ E" onClick={p.onSpace} />
+          <MenuItem onClose={close} icon={<LayoutDashboard size={16} />} label={t("v2.board.title")} kbd="Ctrl ⇧ E" onClick={p.onBoard} />
           <MenuItem onClose={close} icon={<Library size={16} />} label={p.hiddenArtifacts ? `${t("v2.menu.library")} · ${p.hiddenArtifacts}` : t("v2.menu.library")} onClick={p.onLibrary} />
           <div className="v2-menu-sep" />
           <div className="v2-pop-title">{t("v2.menu.more")}</div>

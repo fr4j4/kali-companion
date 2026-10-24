@@ -1488,5 +1488,11 @@
   "v2.area.put_away": "Guardar el grupo",
   "v2.area.panes": "Paneles",
   "v2.area.preset_one": "{{count}} panel",
-  "v2.area.preset_other": "{{count}} paneles"
+  "v2.area.preset_other": "{{count}} paneles",
+  "v2.board.title": "Tablero",
+  "v2.board.hint": "Doble clic abre · arrastra una tarjeta a otro grupo · rueda para acercar",
+  "v2.board.zoom": "Zoom del tablero",
+  "v2.board.zoom_in": "Acercar",
+  "v2.board.zoom_out": "Alejar",
+  "v2.board.fit": "Ver todo"
 }

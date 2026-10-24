@@ -4,13 +4,13 @@
  *   [● Portada de la web del reloj ▾]                     Paneles [▭] [◫] [◫▤] [⊞]  [▦]
  *
  * The group pill (its colour and title) opens a small menu: rename, put the group away, the
- * overview. The four buttons are Ctrl+1…4 (one, two, three or four panes, filled with the tabs
- * in order); the last one is the overview, until the board of phase E replaces it.
+ * board. The four buttons are Ctrl+1…4 (one, two, three or four panes, filled with the tabs
+ * in order); the last one opens the board (Ctrl+Shift+E).
  */
 
 import { useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, ChevronDown, LayoutGrid, Pencil } from "lucide-react";
+import { Archive, ChevronDown, LayoutDashboard, Pencil } from "lucide-react";
 import type { Rect } from "../../workspace/layout";
 import { leaves } from "../../workspace/panes";
 import type { CanvasStateApi } from "./useCanvasState";
@@ -33,11 +33,11 @@ export function PresetGlyph({ n }: { n: Preset }) {
   );
 }
 
-export function AreaHead({ canvas, rect, view, onOverview }: {
+export function AreaHead({ canvas, rect, view, onBoard }: {
   canvas: CanvasStateApi;
   rect: Rect;
   view: StudioView;
-  onOverview: () => void;
+  onBoard: () => void;
 }) {
   const { t } = useTranslation();
   const g = canvas.active;
@@ -82,7 +82,7 @@ export function AreaHead({ canvas, rect, view, onOverview }: {
         {menu && (
           <div className="v2-pop" style={{ top: "calc(100% + 6px)", left: 0, minWidth: 220 }} role="menu" onMouseLeave={() => setMenu(false)}>
             <button type="button" role="menuitem" className="v2-menu-item" onClick={() => { setMenu(false); setEditing(true); }}><Pencil size={16} /><span>{t("v2.area.rename")}</span></button>
-            <button type="button" role="menuitem" className="v2-menu-item" onClick={() => { setMenu(false); onOverview(); }}><LayoutGrid size={16} /><span>{t("v2.menu.overview")}</span></button>
+            <button type="button" role="menuitem" className="v2-menu-item" onClick={() => { setMenu(false); onBoard(); }}><LayoutDashboard size={16} /><span>{t("v2.board.title")}</span></button>
             <button type="button" role="menuitem" className="v2-menu-item" onClick={() => { setMenu(false); canvas.saveGroup(g.id); }}><Archive size={16} /><span>{t("v2.area.put_away")}</span></button>
           </div>
         )}
@@ -104,8 +104,8 @@ export function AreaHead({ canvas, rect, view, onOverview }: {
           </button>
         ))}
         <span className="v2-sep" aria-hidden="true" />
-        <button type="button" className="v2-icon-btn" onClick={onOverview} title={t("v2.menu.overview") as string} aria-label={t("v2.menu.overview") as string}>
-          <LayoutGrid size={16} aria-hidden="true" />
+        <button type="button" className="v2-icon-btn" onClick={onBoard} title={`${t("v2.board.title")} · Ctrl ⇧ E`} aria-label={t("v2.board.title") as string}>
+          <LayoutDashboard size={16} aria-hidden="true" />
         </button>
       </div>
     </div>

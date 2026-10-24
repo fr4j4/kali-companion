@@ -1488,5 +1488,11 @@
   "v2.area.put_away": "Put the group away",
   "v2.area.panes": "Panes",
   "v2.area.preset_one": "{{count}} pane",
-  "v2.area.preset_other": "{{count}} panes"
+  "v2.area.preset_other": "{{count}} panes",
+  "v2.board.title": "Board",
+  "v2.board.hint": "Double-click opens · drag a card to another group · scroll to zoom",
+  "v2.board.zoom": "Board zoom",
+  "v2.board.zoom_in": "Zoom in",
+  "v2.board.zoom_out": "Zoom out",
+  "v2.board.fit": "Fit all"
 }

@@ -35,9 +35,9 @@ describe("useCanvasKeys Escape", () => {
   it("closes an overlay from its own empty search field", () => {
     const back = vi.fn(() => true);
     const unmount = mount(back);
-    const space = document.body.appendChild(document.createElement("div"));
-    space.className = "v2-space";
-    const input = space.appendChild(document.createElement("input"));
+    const board = document.body.appendChild(document.createElement("div"));
+    board.className = "v2-board";
+    const input = board.appendChild(document.createElement("input"));
     escapeOn(input);
     expect(back).toHaveBeenCalledTimes(1);
     unmount();
@@ -47,7 +47,7 @@ describe("useCanvasKeys Escape", () => {
     const back = vi.fn(() => true);
     const unmount = mount(back);
     const panel = document.body.appendChild(document.createElement("div"));
-    panel.className = "v2-zone-panel";
+    panel.className = "v2-board";
     const input = panel.appendChild(document.createElement("input"));
     input.value = "ventas";
     escapeOn(input);

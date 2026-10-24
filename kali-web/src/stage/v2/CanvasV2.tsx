@@ -14,14 +14,14 @@
  * artifact alone with Kali as a bubble, and Hilo the conversation as a column.
  *
  * The avatar is the real AvatarSVG, mounted once and always at the centre of the map (or the
- * bubble, or the slot of Kali's panel). Espacio, the tray, the overview and the Ctrl+K palette sit on top. NeuralCanvas keeps
+ * bubble, or the slot of Kali's panel). The board and the Ctrl+K palette sit on top. NeuralCanvas keeps
  * the shared logic (artifact sync, sessions, modals) and mounts this on desktop.
  */
 
 import "./canvas-v2.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeftRight, Bug, Columns2, Cpu, ExternalLink, Eye, Gamepad2, History, Layers, LayoutGrid, Maximize2, MessageSquare, Network, Palette, Plus, Settings, Undo2, Volume2 } from "lucide-react";
+import { ArrowLeftRight, Bug, Columns2, Cpu, ExternalLink, Eye, Gamepad2, History, LayoutDashboard, LayoutGrid, Maximize2, MessageSquare, Network, Palette, Plus, Settings, Undo2, Volume2 } from "lucide-react";
 import type { WorkspaceAPI } from "../../workspace/types";
 import { computeLayout, type CanvasLayout, type Rect } from "../../workspace/layout";
 import { useStage } from "../StageProvider";
@@ -37,6 +37,7 @@ import { WindowLayer } from "./WindowLayer";
 import { NeuralMapV2 } from "./NeuralMapV2";
 import { ARTIFACT_NODE, type NodeId, type NodeStatus } from "./mapModel";
 import { LayoutButton, NoticesPill, StatusPill, WindowsPill, anchorStyle } from "./Hud";
+import { Board } from "./Board";
 import { ConsentCard, ConversationPanel, Inspector, NowList, VoiceLine, VoiceText, useVoice } from "./KaliZone";
 import { KaliPanel, ModeSeg } from "./KaliPanel";
 import { useCanvasMode } from "./useCanvasMode";
@@ -46,8 +47,6 @@ import { GroupRail } from "./GroupChrome";
 import { AreaHead, PresetGlyph } from "./AreaHead";
 import { StudioPanes, studioView } from "./Pane";
 import { leafOf, leaves, splitAt } from "../../workspace/panes";
-import { Overview, Tray } from "./ZonePanels";
-import { SpaceView } from "./SpaceView";
 import { CommandPalette, type PaletteCommand } from "./CommandPalette";
 
 interface Props {
@@ -97,9 +96,9 @@ export function CanvasV2(p: Props) {
   const inHub = cmode.mode === "hub";
   hubActive.current = inHub;
   const hub = cmode.hub;
-  const { active, space } = canvas;
+  const { active } = canvas;
+  const board = canvas.board;
   // The Hub has no tray or overview of its own, and Hilo replaces the conversation view.
-  const panel = inHub ? null : canvas.panel;
   const kaliView = inHub ? "map" : canvas.kaliView;
   const groupWindows = useMemo(() => (active ? active.windowIds.map((id) => api.windows.find((w) => w.id === id)).filter((w) => w && !w.closed) : []) as typeof api.windows, [active, api.windows]);
   const { nodes, statuses } = useMapStatuses(groupWindows);
@@ -116,12 +115,11 @@ export function CanvasV2(p: Props) {
     visibleWindows: inHub ? (hub.currentId != null ? 1 : 0) : canvas.tabIds.length,
     kaliView,
     manualScale: p.manualScale,
-    zonePanel: !!panel,
     hub: inHub ? hub.state : undefined,
     hubCards: inHub ? hub.previousIds.length : 0,
     studio: !inHub,
     groups: groupCount,
-  }), [panel, stage, canvas.tabIds.length, kaliView, p.manualScale, inHub, hub.state, hub.currentId, hub.previousIds.length, groupCount]);
+  }), [stage, canvas.tabIds.length, kaliView, p.manualScale, inHub, hub.state, hub.currentId, hub.previousIds.length, groupCount]);
   const mode = layout.mode;
   // The Studio's panes for the active group (null in the Hub or with nothing open).
   const view = useMemo(
@@ -136,12 +134,12 @@ export function CanvasV2(p: Props) {
   // A command's permission is asked inside the terminal when one is on screen; the Kali zone
   // then stays quiet so there is one question (and one countdown), not two.
   const terminalAsks = useMemo(() => {
-    if (!pending || (pending.tool !== "run_command" && pending.tool !== "run_tests") || space) return false;
+    if (!pending || (pending.tool !== "run_command" && pending.tool !== "run_tests") || board) return false;
     if (inHub) return hub.currentId != null && !!layout.lamina && api.windows.some((w) => w.id === hub.currentId && !w.closed && w.type === "terminal");
-    if (!view || panel) return false;
+    if (!view) return false;
     const shown = view.leaves.map((l) => l.activeId);
     return shown.some((id) => api.windows.find((w) => w.id === id && !w.closed && w.type === "terminal"));
-  }, [pending, space, panel, view, api.windows, inHub, hub.currentId, layout.lamina]);
+  }, [pending, board, view, api.windows, inHub, hub.currentId, layout.lamina]);
   const consent = terminalAsks ? null : pending;
 
   // The window title names the task on screen.
@@ -207,14 +205,13 @@ export function CanvasV2(p: Props) {
 
   const back = useCallback((): boolean => {
     if (paletteOpen) { setPaletteOpen(false); return true; }
-    if (space) { canvas.setSpace(false); return true; }
+    if (board) { canvas.setBoard(false); return true; }
     if (bubbleOpen) { setBubbleOpen(false); return true; }
-    if (panel) { canvas.setPanel(null); return true; }
     if (picked) { setPicked(null); return true; }
     if (inHub) return cmode.back();
     if (view?.zoomed) { canvas.zoomPane(null); return true; }
     return false;
-  }, [paletteOpen, space, bubbleOpen, panel, picked, canvas, inHub, cmode, view]);
+  }, [paletteOpen, board, bubbleOpen, picked, canvas, inHub, cmode, view]);
 
   const explore = useCallback(() => (hub.state === "explorar" ? cmode.back() : cmode.explore()), [hub.state, cmode]);
 
@@ -230,7 +227,7 @@ export function CanvasV2(p: Props) {
       if (inHub) { const id = hub.previousIds[i]; if (id != null) cmode.show(id); return; }
       const id = canvas.tabIds[i]; if (id != null) canvas.focusWindow(id);
     },
-    space: () => canvas.setSpace(!space),
+    space: () => canvas.setBoard(!board),
     fullscreen: inHub ? explore : toggleZoom,
     toggleMode: cmode.toggleMode,
     back,
@@ -256,8 +253,7 @@ export function CanvasV2(p: Props) {
     hasWindows: !!active && canvas.tabIds.length > 0,
     kaliView: inHub ? (hub.state === "hilo" ? "conversation" : "map") as typeof kaliView : kaliView,
     onPreset: toPreset,
-    onOverview: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("overview"); },
-    onSpace: () => canvas.setSpace(true),
+    onBoard: () => canvas.setBoard(true),
     onKaliView: inHub ? () => cmode.toggleThread() : canvas.setKaliView,
     switchMode: { label: t(inHub ? "v2.hub.to_studio" : "v2.hub.to_hub"), onClick: cmode.toggleMode },
     onHistory: p.onOpenHistory,
@@ -312,9 +308,7 @@ export function CanvasV2(p: Props) {
     const thread = inHub ? hub.state !== "hilo" : kaliView === "map";
     out.push(
       { id: "mode", section: sAct, label: t(inHub ? "v2.hub.to_studio" : "v2.hub.to_hub"), kbd: "Ctrl ⇧ T", icon: <ArrowLeftRight size={16} />, run: cmode.toggleMode },
-      { id: "overview", section: sAct, label: t("v2.menu.overview"), icon: <LayoutGrid size={16} />, run: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("overview"); } },
-      { id: "tray", section: sAct, label: t("v2.tray.title"), icon: <LayoutGrid size={16} />, run: () => { if (inHub) cmode.enterStudio(); canvas.setPanel("tray"); } },
-      { id: "space", section: sAct, label: t("v2.menu.space"), kbd: "Ctrl ⇧ E", icon: <Layers size={16} />, run: () => canvas.setSpace(true) },
+      { id: "board", section: sAct, label: t("v2.board.title"), kbd: "Ctrl ⇧ E", icon: <LayoutDashboard size={16} />, run: () => canvas.setBoard(true) },
       { id: "view", section: sAct, label: thread ? t("v2.view.conversation") : t("v2.view.map"), icon: thread ? <MessageSquare size={16} /> : <Network size={16} />, run: () => (inHub ? cmode.toggleThread() : canvas.setKaliView(kaliView === "map" ? "conversation" : "map")) },
       { id: "history", section: sAct, label: t("stage.history"), icon: <History size={16} />, run: p.onOpenHistory },
       { id: "library", section: sAct, label: t("v2.overview.library"), icon: <LayoutGrid size={16} />, run: p.onOpenLibrary },
@@ -386,15 +380,13 @@ export function CanvasV2(p: Props) {
       )}
 
       {/* Studio: the group rail, the head of the area, the panes' tabs and dividers */}
-      {mode === "studio" && layout.rail && <GroupRail canvas={canvas} rect={layout.rail} windows={api.windows} onSpace={() => canvas.setSpace(true)} />}
-      {view && layout.areaHead && <AreaHead canvas={canvas} rect={layout.areaHead} view={view} onOverview={() => canvas.setPanel("overview")} />}
-      {view && !panel && !space && (
+      {mode === "studio" && layout.rail && <GroupRail canvas={canvas} rect={layout.rail} windows={api.windows} onBoard={() => canvas.setBoard(true)} />}
+      {view && layout.areaHead && <AreaHead canvas={canvas} rect={layout.areaHead} view={view} onBoard={() => canvas.setBoard(true)} />}
+      {view && !board && (
         <StudioPanes canvas={canvas} view={view} windows={api.windows} status={winStatus.status} k={layout.k} onHost={onHost} extra={detachButton} />
       )}
 
       {/* Zone panels */}
-      {panel === "tray" && layout.artifact && <Tray canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
-      {panel === "overview" && layout.artifact && <Overview canvas={canvas} windows={api.windows} rect={layout.artifact} onClose={() => canvas.setPanel(null)} onLibrary={p.onOpenLibrary} />}
 
       {/* Kali's panel (Studio: right; the Hub's Lámina: left, with the cards) */}
       {isColumn && layout.column && (
@@ -419,7 +411,7 @@ export function CanvasV2(p: Props) {
             </>
           )}
         >
-          {inHub && <Fichas ids={hub.previousIds} windows={api.windows} layout="column" onShow={cmode.show} onClose={canvas.close} onLibrary={p.onOpenLibrary} />}
+          {inHub && <Fichas ids={hub.previousIds} windows={api.windows} layout="column" onShow={cmode.show} onClose={canvas.close} onAll={() => canvas.setBoard(true)} />}
         </KaliPanel>
       )}
 
@@ -435,7 +427,7 @@ export function CanvasV2(p: Props) {
           dock={dock(true)}
         />
       )}
-      {layout.fichas && <Fichas ids={hub.previousIds} windows={api.windows} layout="row" onShow={cmode.show} onClose={canvas.close} onLibrary={p.onOpenLibrary} style={box(layout.fichas)} />}
+      {layout.fichas && <Fichas ids={hub.previousIds} windows={api.windows} layout="row" onShow={cmode.show} onClose={canvas.close} onAll={() => canvas.setBoard(true)} style={box(layout.fichas)} />}
       {inHub && hub.state === "explorar" && <ExploreExit onExit={cmode.back} style={{ right: 16, top: 16 }} />}
 
       {/* Map and the avatar (always at its centre) */}
@@ -462,7 +454,7 @@ export function CanvasV2(p: Props) {
         <ModeSeg mode={cmode.mode} onSwitch={(m) => (m === "hub" ? cmode.enterHub() : cmode.enterStudio())} style={{ ...anchorStyle(layout.modeSwitch, stage, "tr"), zIndex: 40 }} />
       )}
       {layout.windowsPill && (openCount > 0 || hiddenArtifacts > 0) && (
-        <WindowsPill count={openCount} open={panel === "tray"} onToggle={() => canvas.setPanel(panel === "tray" ? null : "tray")} style={anchorStyle(layout.windowsPill, stage, "tr")} />
+        <WindowsPill count={openCount} open={board} onToggle={() => canvas.setBoard(!board)} style={anchorStyle(layout.windowsPill, stage, "tr")} />
       )}
       {!isColumn && !(inHub && hub.state === "explorar") && (
         <NoticesPill
@@ -489,7 +481,19 @@ export function CanvasV2(p: Props) {
       )}
 
       {/* Overlays */}
-      {space && <SpaceView canvas={canvas} windows={api.windows} onClose={() => canvas.setSpace(false)} />}
+      {board && (
+        <Board
+          canvas={canvas}
+          windows={api.windows}
+          onOpen={(id) => {
+            if (inHub) { cmode.show(id); return; }
+            const g = canvas.groups.groups.find((x) => x.windowIds.includes(id));
+            if (g && g.id !== canvas.groups.activeGroupId) canvas.openGroup(g.id);
+            canvas.focusWindow(id);
+          }}
+          onClose={() => canvas.setBoard(false)}
+        />
+      )}
       {paletteOpen && <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />}
     </div>
   );

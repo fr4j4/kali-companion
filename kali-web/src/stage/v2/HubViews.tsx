@@ -16,7 +16,7 @@ import { THREAD_AVATAR, type Rect } from "../../workspace/layout";
 import type { WindowData } from "../../workspace/types";
 import { ConversationLog } from "../ConversationLog";
 import { useKaliStatus } from "./Hud";
-import { Miniature } from "./ZonePanels";
+import { Miniature } from "./Board";
 
 export function ThreadView({ rect, k, current, onOpen, onClose, consent, dock }: {
   rect: Rect;

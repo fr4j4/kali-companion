@@ -1,5 +1,5 @@
 /**
- * stage/v2/useCanvasState.ts — Groups, modes and panels of the neural canvas.
+ * stage/v2/useCanvasState.ts — Groups, panes and the board of the neural canvas.
  *
  * Wires the pure group model (workspace/groups.ts) to the workspace windows:
  *  - every open window joins a group: the one the core names, the one it had last time, the group
@@ -22,12 +22,9 @@ import {
   type ClosedEntry, type Group, type GroupsState, type PersistedGroups,
 } from "../../workspace/groups";
 
-export type ZonePanel = "tray" | "overview" | null;
 
 const STORE_PREFIX = "kali.v2.groups.";
 const VIEW_KEY = "kali.v2.kaliView";
-/** Windows unused for this long are offered to be put away. */
-export const STALE_MS = 60 * 60 * 1000;
 
 function load(sid: string): (PersistedGroups & { closed?: ClosedEntry[] }) | null {
   try {
@@ -56,11 +53,11 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   const [state, setState] = useState<GroupsState>(EMPTY_GROUPS);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const [panel, setPanel] = useState<ZonePanel>(null);
-  const [space, setSpace] = useState(false);
+  /** The board (stage/v2/Board.tsx) is open over the canvas. */
+  const [board, setBoard] = useState(false);
   const [kaliView, setKaliViewState] = useState<KaliView>(() => (localStorage.getItem(VIEW_KEY) === "conversation" ? "conversation" : "map"));
   const lastUsedRef = useRef(new Map<number, number>());
-  const [usedTick, setUsedTick] = useState(0);
+  const [, setUsedTick] = useState(0);
   const turnRef = useRef(0);
   const windowTurn = useRef(new Map<number, number>());
   const persistedRef = useRef<ReturnType<typeof load>>(null);
@@ -93,8 +90,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   // Session change: start empty and remember the saved groups to re-assign restored windows.
   useEffect(() => {
     setState(EMPTY_GROUPS);
-    setPanel(null);
-    setSpace(false);
+    setBoard(false);
     lastUsedRef.current.clear();
     windowTurn.current.clear();
     pendingGroupRef.current.clear();
@@ -217,8 +213,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     else if (w.minimized) apiRef.current.toggleMinimize(id);
     apiRef.current.focusWindow(id);
     setState((s) => setActiveTab(s, id));
-    setPanel(null);
-    setSpace(false);
+    setBoard(false);
     touch(id);
   }, [winById, touch]);
 
@@ -247,8 +242,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
       if (g && g.activeId == null && g.windowIds.length) next = setActiveTab(next, g.windowIds[0]);
       return next;
     });
-    setPanel(null);
-    setSpace(false);
+    setBoard(false);
     // Leaving split brings tray windows back as tabs; entering split re-applies the limit.
     const g = stateRef.current.groups.find((x) => x.id === gid);
     if (g && m !== "split") {
@@ -276,8 +270,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
       if (m) next = setGroupMode(next, groupId, m);
       return next;
     });
-    setPanel(null);
-    setSpace(false);
+    setBoard(false);
   }, [winById, lastUsed]);
 
   const openGroupRef = useRef(openGroup);
@@ -333,8 +326,7 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
     }
     setState((s) => forgetClosed(s, entry.windowId));
     // Reopened from the tray or Espacio: the window comes back on screen, not under them.
-    setPanel(null);
-    setSpace(false);
+    setBoard(false);
   }, [winById]);
 
   const moveToGroup = useCallback((ids: number[], groupId: string | "new", title?: string) => {
@@ -383,34 +375,15 @@ export function useCanvasState({ api, sessionId, isTurnActive, taskTitle, hubAct
   }, []);
   const activateGroup = useCallback((groupId: string | null) => setState((s) => activate(s, groupId)), []);
 
-  /** Windows nobody used for an hour (not pinned, not on screen now). */
-  const staleIds = useMemo(() => {
-    const now = Date.now();
-    const out: number[] = [];
-    for (const g of state.groups) {
-      for (const id of g.windowIds) {
-        const w = winById(id);
-        if (!w || w.closed || g.pinnedIds.includes(id)) continue;
-        if (g.id === state.activeGroupId && !w.minimized) continue;
-        const used = lastUsedRef.current.get(id) ?? now;
-        if (now - used > STALE_MS) out.push(id);
-      }
-    }
-    return out;
-    // usedTick re-evaluates after use; windows change membership.
-  }, [state, winById, usedTick, api.windows]);
-
   return {
     groups: state,
     active,
     mode,
     visibleIds,
     tabIds,
-    panel, setPanel,
-    space, setSpace,
+    board, setBoard,
     kaliView, setKaliView,
     lastUsed,
-    staleIds,
     focusWindow,
     setMode,
     openGroup,

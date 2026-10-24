@@ -1,12 +1,12 @@
 /**
  * stage/v2/GroupChrome.tsx — The group rail of the Studio: one dot per group (its colour; the
- * initial on hover), the active one outlined, a new group and Espacio at the bottom. The tabs and
+ * initial on hover), the active one outlined, a new group and the board at the bottom. The tabs and
  * panes live in Pane.tsx, the head of the area in AreaHead.tsx.
  */
 
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { Layers, Plus } from "lucide-react";
+import { LayoutDashboard, Plus } from "lucide-react";
 import type { WindowData } from "../../workspace/types";
 import type { Rect } from "../../workspace/layout";
 import type { Group } from "../../workspace/groups";
@@ -19,11 +19,11 @@ const boxStyle = (r: Rect): CSSProperties => ({ left: r.x, top: r.y, width: r.w,
 
 // ── Group rail ──────────────────────────────────────────
 
-export function GroupRail({ canvas, rect, windows, onSpace, style }: {
+export function GroupRail({ canvas, rect, windows, onBoard, style }: {
   canvas: CanvasStateApi;
   rect: Rect | null;
   windows: WindowData[];
-  onSpace: () => void;
+  onBoard: () => void;
   style?: CSSProperties;
 }) {
   const { t } = useTranslation();
@@ -54,12 +54,12 @@ export function GroupRail({ canvas, rect, windows, onSpace, style }: {
           </button>
         );
       })}
-      <button type="button" className="v2-rail-btn is-new" onClick={onSpace} aria-label={t("v2.rail.new") as string} title={t("v2.rail.new") as string}>
+      <button type="button" className="v2-rail-btn is-new" onClick={onBoard} aria-label={t("v2.rail.new") as string} title={t("v2.rail.new") as string}>
         <Plus size={16} aria-hidden="true" />
       </button>
       <span className="flex-1" />
-      <button type="button" className="v2-icon-btn" onClick={onSpace} aria-label={t("v2.menu.space") as string} title={t("v2.menu.space") as string}>
-        <Layers size={16} aria-hidden="true" />
+      <button type="button" className="v2-icon-btn" onClick={onBoard} aria-label={t("v2.board.title") as string} title={t("v2.board.title") as string}>
+        <LayoutDashboard size={16} aria-hidden="true" />
       </button>
     </nav>
   );

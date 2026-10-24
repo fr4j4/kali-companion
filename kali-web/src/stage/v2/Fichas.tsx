@@ -8,7 +8,7 @@
  *
  * A card is 44 units tall: the type icon, the title and the type. A click brings it back to the
  * lámina; the × on hover closes the artifact (it stays in the library and in "Recently closed").
- * At most eight; the rest are one click away in the library.
+ * At most eight; the rest are one click away on the board.
  */
 
 import { useTranslation } from "react-i18next";
@@ -25,11 +25,12 @@ interface Props {
   layout: "row" | "column";
   onShow: (id: number) => void;
   onClose: (id: number) => void;
-  onLibrary: () => void;
+  /** «Ver todas»: the board. */
+  onAll: () => void;
   style?: CSSProperties;
 }
 
-export function Fichas({ ids, windows, layout, onShow, onClose, onLibrary, style }: Props) {
+export function Fichas({ ids, windows, layout, onShow, onClose, onAll, style }: Props) {
   const { t } = useTranslation();
   const cards = ids.map((id) => windows.find((w) => w.id === id && !w.closed)).filter((w): w is WindowData => !!w);
   if (!cards.length) return null;
@@ -52,7 +53,7 @@ export function Fichas({ ids, windows, layout, onShow, onClose, onLibrary, style
         ))}
       </ul>
       {cards.length > MAX_FICHAS && (
-        <button type="button" className="v2-ficha-all" onClick={onLibrary}>{t("v2.hub.see_all", { count: cards.length })}</button>
+        <button type="button" className="v2-ficha-all" onClick={onAll}>{t("v2.hub.see_all", { count: cards.length })}</button>
       )}
     </section>
   );

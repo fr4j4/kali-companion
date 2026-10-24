@@ -33,13 +33,13 @@ interface Props {
 
 export function WindowLayer({ api, canvas, layout, status, hub, studio }: Props) {
   const { t } = useTranslation();
-  const { panel, space } = canvas;
+  const { board } = canvas;
 
   // Rectangle (and compact flag) per window id for this frame.
   const placement = useMemo(() => {
     const map = new Map<number, { rect: Rect; compact: boolean; leaf?: string }>();
-    if (space) return map;
-    if (studio && !panel) {
+    if (board) return map;
+    if (studio) {
       for (const l of studio.leaves) {
         if (l.activeId == null) continue;
         const rect = paneBody(l.rect, layout.k);
@@ -49,7 +49,7 @@ export function WindowLayer({ api, canvas, layout, status, hub, studio }: Props)
       map.set(hub.currentId, { rect: layout.lamina, compact: false });
     }
     return map;
-  }, [studio, hub, layout.lamina, layout.k, space, panel]);
+  }, [studio, hub, layout.lamina, layout.k, board]);
 
   const detach = (artifactId?: string) => window.kaliDesktop && artifactId ? (
     <button type="button" className="v2-icon-btn" title={t("window.detach_hint") as string} aria-label={t("window.detach") as string}
