@@ -6,7 +6,12 @@ directories:
 files:
   - dist/**
   - package.json
+  - tray.png
+extraResources:
+  - from: ../kali-web/dist
+    to: web
 linux:
+  icon: icon.png
   target:
     - AppImage
     - deb

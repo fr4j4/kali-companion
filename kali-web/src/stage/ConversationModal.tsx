@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Brain } from "lucide-react";
-import { marked } from "marked";
+import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { Overlay } from "../components/ui/Overlay";
 import type { ChatMessage } from "../hooks/useChat";
@@ -52,11 +52,7 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
 
   const assistantHtml = useMemo(() => {
     if (isUser || !msg.content) return null;
-    try {
-      return marked.parse(msg.content, { async: false }) as string;
-    } catch {
-      return `<p>${msg.content}</p>`;
-    }
+    return renderMarkdown(msg.content);
   }, [msg.content, isUser]);
 
   if (msg.toolEvent && !msg.content) {

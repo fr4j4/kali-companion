@@ -9,6 +9,7 @@ import { useStage } from "../../stage/StageProvider";
 import { SectionHeader } from "./SectionHeader";
 import { SettingsCard } from "./SettingsCard";
 import { MicLevelMeter } from "./MicLevelMeter";
+import { authHeaders } from "../../lib/api/http";
 
 interface Props {
   systemStatus: StatusEvent | null;
@@ -51,26 +52,13 @@ async function fetchWithRetry(
   const baseDelay = opts.baseDelay ?? 400;
   for (let attempt = 1; attempt <= tries; attempt += 1) {
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { headers: authHeaders() });
       if (resp.ok || resp.status >= 400) return resp;
       return resp;
     } catch {
       if (attempt === tries) return null;
       await new Promise((r) => setTimeout(r, baseDelay * 2 ** (attempt - 1)));
     }
-  }
-  return null;
-}
-
-async function getSidecarPort(): Promise<number | null> {
-  try {
-    const resp = await fetch("/api/sidecar-port");
-    if (resp.ok) {
-      const data = await resp.json();
-      return data.port ?? null;
-    }
-  } catch {
-    // not running in Tauri shell
   }
   return null;
 }
@@ -134,9 +122,10 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
   }, []);
 
   const apiBase = useCallback(async () => {
-    const port = await getSidecarPort();
-    const host = window.location.hostname;
-    return `http://${host}:${port ?? 8900}`;
+    // Ruta relativa: el browser usa el scheme/origen de la página actual.
+    // Esto evita mixed active content (HTTPS → HTTP). El proxy de Vite
+    // y/o nginx dev se encargan de rutear /stt/* al kali-core.
+    return "";
   }, []);
 
   const fetchModels = useCallback(async (forProvider?: string) => {
@@ -182,7 +171,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
     try {
       const base = await apiBase();
       const provider = tab === "qwen3" ? "qwen3-asr" : tab;
-      const resp = await fetch(`${base}/models/catalog?provider=${provider}`);
+      const resp = await fetch(`${base}/models/catalog?provider=${provider}`, { headers: authHeaders() });
       if (resp && resp.ok) {
         const data = await resp.json();
         if (mountedRef.current) {
@@ -235,7 +224,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
     setError(null);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/stt/models/${encodeURIComponent(modelId)}/load?device=${encodeURIComponent(selectedDevice)}&provider=${tab}`, { method: "POST" });
+      const resp = await fetch(`${base}/stt/models/${encodeURIComponent(modelId)}/load?device=${encodeURIComponent(selectedDevice)}&provider=${tab}`, { method: "POST", headers: authHeaders() });
       if (!resp.ok) {
         const data = await resp.json();
         throw new Error(data.error ?? t("stt.failed_load_model"));
@@ -253,7 +242,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
     setError(null);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/stt/models/unload?provider=${tab}`, { method: "POST" });
+      const resp = await fetch(`${base}/stt/models/unload?provider=${tab}`, { method: "POST", headers: authHeaders() });
       if (!resp.ok) {
         const data = await resp.json();
         throw new Error(data.error ?? t("stt.failed_unload_model"));
@@ -276,7 +265,7 @@ export function STTSection({ systemStatus, onUpdate, downloadSttModel, downloadP
     setError(null);
     try {
       const base = await apiBase();
-      const resp = await fetch(`${base}/stt/models/${encodeURIComponent(modelId)}/delete?provider=${tab}`, { method: "POST" });
+      const resp = await fetch(`${base}/stt/models/${encodeURIComponent(modelId)}/delete?provider=${tab}`, { method: "POST", headers: authHeaders() });
       if (!resp.ok) {
         const data = await resp.json();
         throw new Error(data.error ?? "Failed to delete model");

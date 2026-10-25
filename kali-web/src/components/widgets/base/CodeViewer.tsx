@@ -1,5 +1,6 @@
 import { useMemo, type RefObject } from "react";
 import hljs from "highlight.js";
+import { sanitizeHtml } from "../../../lib/markdown";
 
 interface Props {
   code: string;
@@ -15,10 +16,9 @@ export function CodeViewer({ code, language, isStreaming, scrollRef }: Props) {
     try {
       const lang = language && hljs.getLanguage(language) ? language : undefined;
       if (lang) {
-        return hljs.highlight(code, { language: lang }).value;
+        return sanitizeHtml(hljs.highlight(code, { language: lang }).value);
       }
-      const auto = hljs.highlightAuto(code);
-      return auto.value;
+      return sanitizeHtml(hljs.highlightAuto(code).value);
     } catch {
       return code.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }

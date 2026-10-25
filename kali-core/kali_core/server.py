@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hmac
 import json
 import logging
 import os
@@ -65,9 +66,11 @@ from kali_core.claws.organize import OrganizeFolderTool
 from kali_core.claws.screenshot import ScreenshotTool
 from kali_core.claws.stt_corrector import SttCorrectorTool, correct_stt_text
 from kali_core.claws.games import GameStartTool, GameActionTool, GameEndTool
+from kali_core.claws.terminal_session import CreateTerminalSessionTool
 from kali_core.claws.tests import RunTestsTool
 from kali_core.claws.web import WebFetchTool, WebSearchTool
 from kali_core.collar.consent import ConsentManager as ConsentMgr
+from kali_core.desktop import DesktopBroker
 from kali_core.collar.gateway import PermissionGateway
 from kali_core.config import settings
 from kali_core.ear.manager import WakeWordDetector
@@ -340,6 +343,7 @@ def _register_tools() -> None:
     register(FsReadTool())
     register(FsListTool())
     register(RunCommandTool())
+    register(CreateTerminalSessionTool())
     register(WebSearchTool())
     register(WebFetchTool())
     # Phase 2 tools.
@@ -388,7 +392,11 @@ class Server:
     def __init__(self, host: str = "127.0.0.1", port: int = 8900) -> None:
         self.host = host
         self.port = port
+        self.api_token = os.environ.get("KALI_API_TOKEN", "").strip()
         self.app = FastAPI(title="Kali Core")
+        from .auth import install_auth
+
+        install_auth(self.app, self.api_token, open_paths={"/health"})
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -438,7 +446,9 @@ class Server:
         self.voice_configs = VoiceConfigManager(settings.voice_configs_dir)
         # Permissions + consent.
         self.gateway = PermissionGateway()
-        self.consent = ConsentMgr()
+        self.desktop_broker = DesktopBroker()
+        self.desktop_token = os.environ.get("KALI_DESKTOP_TOKEN", "").strip()
+        self.consent = ConsentMgr(send_callback=self._send_consent)
         # Register tools + set up executor.
         _register_tools()
         self.tool_defs = _build_tool_defs()
@@ -449,7 +459,7 @@ class Server:
         self.session_store = SessionStore(settings.db_path)
         # Job system (background tasks with progress, logs, cancellation).
         self.job_store = JobStore(settings.db_path)
-        self.job_mgr = JobManager(self.job_store)
+        self.job_mgr = JobManager(self.job_store, emit_callback=self._send_job_event)
         self.job_mgr.register_handler("game_image_download", download_game_images_handler)
         self.executor = Executor(
             gateway=self.gateway,
@@ -461,6 +471,7 @@ class Server:
             session_store=self.session_store,
             job_mgr=self.job_mgr,
             console_requester=self.console_requester,
+            desktop_broker=self.desktop_broker,
         )
         # Wire executor + tools into the agent.
         self.agent.set_executor(self.executor)
@@ -482,6 +493,28 @@ class Server:
                 await conn.send(payload)
             except Exception:
                 pass
+
+    async def broadcast_session(self, session_id: str, payload: dict[str, Any]) -> None:
+        for conn in list(self._connections):
+            if conn.session_id == session_id:
+                try:
+                    await conn.send(payload)
+                except Exception:
+                    pass
+
+    async def _send_consent(self, payload: dict[str, Any]) -> None:
+        conn = self.desktop_broker.current()
+        if conn and conn.session_id == payload.get("session_id"):
+            await conn.send(payload)
+        else:
+            await self.broadcast_session(payload.get("session_id", ""), payload)
+
+    async def _send_job_event(self, payload: dict[str, Any]) -> None:
+        sid = payload.get("session_id")
+        if sid:
+            await self.broadcast_session(sid, payload)
+        else:
+            await self.broadcast(payload)
 
     async def broadcast_status(self) -> None:
         """Send a full, per-connection status to all connected clients."""
@@ -640,8 +673,6 @@ class Server:
         _FILE_SERVE_ROOTS = [
             Path(settings.data_dir).resolve(),
             Path.home() / "Pictures",
-            Path.home() / "Downloads",
-            Path.cwd(),
         ]
 
         @self.app.get("/file")
@@ -697,6 +728,24 @@ class Server:
         @self.app.websocket("/ws")
         async def ws_endpoint(ws: WebSocket) -> None:
             await ws.accept()
+            # Auth challenge: with a token configured, the first message
+            # MUST be {"event": "auth", "token": ...} or the socket is closed.
+            if self.api_token:
+                from .auth import WS_AUTH_EVENT, ws_token_ok
+
+                first = await ws.receive()
+                authed = False
+                if first.get("type") != "websocket.disconnect":
+                    try:
+                        event = json.loads(first.get("text") or "{}")
+                        if event.get("event") == WS_AUTH_EVENT:
+                            authed = ws_token_ok(event.get("token"), self.api_token)
+                    except json.JSONDecodeError:
+                        authed = False
+                if not authed:
+                    await ws.send_json({"event": "auth_required"})
+                    await ws.close(code=4401)
+                    return
             conn = Connection(ws, self)
             self._connections.append(conn)
             try:
@@ -706,6 +755,7 @@ class Server:
             except Exception:
                 logger.exception("connection error")
             finally:
+                self.desktop_broker.disconnect(conn)
                 self._connections.remove(conn)
 
         @self.app.get("/health")
@@ -1577,6 +1627,7 @@ class Connection:
         self.ws = ws
         self.server = server
         self.session_id: str | None = None
+        self.is_desktop = False
         self._current_task: asyncio.Task | None = None
         self._send_lock = asyncio.Lock()
         self._stt_session_active: bool = False
@@ -1656,16 +1707,27 @@ class Connection:
     async def dispatch(self, event: dict[str, Any]) -> None:
         kind = event.get("event", "")
 
+        if kind == "desktop_register":
+            token = event.get("token", "")
+            self.is_desktop = bool(
+                self.server.api_token and self.server.desktop_token
+                and isinstance(token, str)
+                and hmac.compare_digest(token.encode("utf-8"), self.server.desktop_token.encode("utf-8"))
+            )
+            await self.send({"event": "desktop_registered", "ok": self.is_desktop})
+            return
+        if kind == "desktop_action_result":
+            if self.is_desktop:
+                self.server.desktop_broker.respond(self, event)
+            return
+
         if kind == "hello":
             requested_sid = event.get("session_id")
             if requested_sid:
                 exists = await self.server.session_store.session_exists(requested_sid)
                 if exists:
                     self.session_id = requested_sid
-                    if self.server.agent:
-                        self.server.agent.reset_history(requested_sid)
-                    self.server.consent.set_send_callback(self.send)
-                    self.server.job_mgr.set_emit_callback(self.send)
+                    load_history = self.server.agent and not self.server.agent._get_history(requested_sid)
                     await self.send(
                         {"event": "ready", "session_id": requested_sid, "version": "0.1.0"}
                     )
@@ -1674,10 +1736,10 @@ class Connection:
                         await self._start_wake_word()
                     msgs = await self.server.session_store.get_messages(requested_sid)
                     for msg in msgs:
-                        self.server.agent._get_history(requested_sid).append({
-                            "role": msg["role"],
-                            "content": msg["content"],
-                        })
+                        if load_history:
+                            self.server.agent._get_history(requested_sid).append({
+                                "role": msg["role"], "content": msg["content"],
+                            })
                         await self.send({
                             "event": "message",
                             "session_id": requested_sid,
@@ -1698,8 +1760,6 @@ class Connection:
                             "update": "create",
                         })
                     return
-            self.server.consent.set_send_callback(self.send)
-            self.server.job_mgr.set_emit_callback(self.send)
             await self.send(
                 {"event": "ready", "session_id": "", "version": "0.1.0"}
             )
@@ -1736,20 +1796,17 @@ class Connection:
             sid = event.get("session_id", "")
             if sid and await self.server.session_store.session_exists(sid):
                 self.session_id = sid
-                if self.server.agent:
-                    self.server.agent.reset_history(sid)
-                self.server.consent.set_send_callback(self.send)
-                self.server.job_mgr.set_emit_callback(self.send)
+                load_history = self.server.agent and not self.server.agent._get_history(sid)
                 await self.send({"event": "connected", "session_id": sid})
                 await self._emit_status()
                 if self._wake_word_enabled:
                     await self._start_wake_word()
                 msgs = await self.server.session_store.get_messages(sid)
                 for msg in msgs:
-                    self.server.agent._get_history(sid).append({
-                        "role": msg["role"],
-                        "content": msg["content"],
-                    })
+                    if load_history:
+                        self.server.agent._get_history(sid).append({
+                            "role": msg["role"], "content": msg["content"],
+                        })
                     await self.send({
                         "event": "message",
                         "session_id": sid,
@@ -1769,6 +1826,17 @@ class Connection:
                         "language": art.get("language", ""),
                         "update": "create",
                     })
+                # Replay terminal sessions (metadata only — detail loaded on demand).
+                try:
+                    ts_list = await self.server.session_store.list_terminal_sessions(sid)
+                    if ts_list:
+                        await self.send({
+                            "event": "terminal_session_list",
+                            "session_id": sid,
+                            "sessions": ts_list,
+                        })
+                except Exception:
+                    logger.warning("Failed to replay terminal sessions", exc_info=True)
             else:
                 await self.send({"event": "connected", "session_id": ""})
 
@@ -1786,6 +1854,32 @@ class Connection:
         elif kind == "clear_all_sessions":
             await self.server.session_store.delete_all_sessions()
             await self.send({"event": "session_list", "sessions": []})
+
+        elif kind == "get_terminal_session":
+            ts_id = event.get("terminal_session_id", "")
+            if ts_id:
+                full = await self.server.session_store.get_terminal_session_full(ts_id)
+                if full:
+                    await self.send({
+                        "event": "terminal_session_start",
+                        "session_id": self.session_id,
+                        "terminal_session_id": full["id"],
+                        "display_name": full["display_name"],
+                        "status": full["status"],
+                        "commands": [
+                            {
+                                "call_id": c["id"],
+                                "command": c["command"],
+                                "cwd": c["cwd"],
+                                "exit_code": c["exit_code"],
+                                "status": c["status"],
+                                "started": c["started"],
+                                "finished": c["finished"],
+                                "output_lines": c["output_lines"],
+                            }
+                            for c in full.get("commands", [])
+                        ],
+                    })
 
         elif kind == "settings":
             await self._apply_settings(event)
@@ -1862,7 +1956,9 @@ class Connection:
         elif kind == "consent_response":
             # Resolve a pending consent request.
             request_id = event.get("id", "")
-            decision = event.get("decision", "cancel")
+            decision = event.get("decision", "deny")
+            if decision not in ("allow", "allow_session", "deny"):
+                decision = "deny"
             self.server.consent.respond(request_id, decision)
 
         elif kind == "console_response":
@@ -2962,6 +3058,18 @@ class Connection:
         session_id: str,
         selected_artifacts: list[dict] | None = None,
     ) -> None:
+        token = self.server.desktop_broker.activate(self)
+        try:
+            await self._run_turn_impl(content, session_id, selected_artifacts)
+        finally:
+            self.server.desktop_broker.reset(token)
+
+    async def _run_turn_impl(
+        self,
+        content: str,
+        session_id: str,
+        selected_artifacts: list[dict] | None = None,
+    ) -> None:
         """Run one agent turn: stream deltas, execute tools, then synthesize TTS."""
         accumulated = ""
         turn_start_ts = time.monotonic()
@@ -3015,7 +3123,12 @@ class Connection:
 
         try:
             # Set the emit callback for tool events.
-            self.server.agent.set_emit_callback(self.send)
+            async def emit_event(payload: dict[str, Any]) -> None:
+                if payload.get("event") == "artifact":
+                    await self.server.broadcast_session(session_id, payload)
+                else:
+                    await self.send(payload)
+            self.server.agent.set_emit_callback(emit_event)
             first_token_ts: float | None = None
             tool_call_count = 0
             usage_stats: dict | None = None
@@ -3048,6 +3161,18 @@ class Connection:
         except asyncio.CancelledError:
             elapsed = time.monotonic() - turn_start_ts
             logger.info("[turn] cancelled (%s) after %.1fs", session_id[:8], elapsed)
+            try:
+                closed_ts_ids = (
+                    await self.server.session_store.close_terminal_sessions_for_chat(session_id)
+                )
+                for ts_id in closed_ts_ids:
+                    await self.send({
+                        "event": "terminal_session_end",
+                        "session_id": session_id,
+                        "terminal_session_id": ts_id,
+                    })
+            except Exception:
+                logger.warning("Failed to close terminal sessions on cancel", exc_info=True)
             await self.send({"event": "turn_end", "session_id": session_id, "cancelled": True})
             return
         except Exception as exc:
@@ -3090,6 +3215,20 @@ class Connection:
         if title_changed:
             sessions = await session_store.list_sessions()
             await self.send({"event": "session_list", "sessions": sessions})
+
+        # Auto-close any active terminal sessions for this chat session.
+        try:
+            closed_ts_ids = (
+                await self.server.session_store.close_terminal_sessions_for_chat(session_id)
+            )
+            for ts_id in closed_ts_ids:
+                await self.send({
+                    "event": "terminal_session_end",
+                    "session_id": session_id,
+                    "terminal_session_id": ts_id,
+                })
+        except Exception:
+            logger.warning("Failed to close terminal sessions for turn end", exc_info=True)
 
         await self.send({"event": "turn_end", "session_id": session_id})
 

@@ -3,6 +3,6 @@
   "name": "Files",
   "description": "Profile for organizing files. Whitelists folder reads and writes (with consent).",
   "allowed_tools": ["fs_read", "fs_list", "list_monitors", "organize_folder"],
-  "working_dirs": ["~/**"],
+  "working_dirs": ["~/projects/**", "/mnt/data2/projects/**", "/app/kali-core/**", "/app/kali-web/**"],
   "command_whitelist": []
 }

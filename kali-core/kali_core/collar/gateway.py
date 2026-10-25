@@ -11,6 +11,16 @@ Each profile declares:
   - allowed_tools: tools that run without consent (if risk != dangerous)
   - working_dirs: glob patterns for fs_* tools
   - command_whitelist: commands that run without consent in run_command
+
+Permission keys:
+A permission key is a normalized string used to remember a user's
+"allow for this session" decision. Matching is intentionally coarse:
+- run_command: by command base (first word) so e.g. any `pytest ...`
+  is covered by a single grant.
+- other tools: tool_name:param_value where param_value is the primary
+  identifying parameter (reason, path, monitor, etc.).
+- screenshot: whole tool (tool-level grant) because the action itself
+  is invariant regardless of the stated reason.
 """
 
 from __future__ import annotations
@@ -59,6 +69,40 @@ TOOL_REASON_KEYS: dict[str, tuple[str, str, Any]] = {
     ),
 }
 
+# Tools for which the session grant applies to the whole tool, regardless of
+# the parameter value. Invasive or single-purpose tools fit here.
+TOOL_LEVEL_GRANTS: frozenset[str] = frozenset({"screenshot", "list_monitors"})
+
+# Tools that always require explicit consent, even when the active profile
+# whitelists them. These are invasive actions (screen capture, etc.) that
+# should never run silently.
+ALWAYS_CONSENT_TOOLS: frozenset[str] = frozenset({"screenshot"})
+
+
+def _normalize_path(value: Any) -> str:
+    """Return a stable string for a path-like parameter."""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _command_base(command: str) -> str:
+    """Extract the executable/base command from a shell command string."""
+    if not command:
+        return ""
+    # Strip leading shell metacharacters / sudo prefixes.
+    cleaned = command.strip()
+    while cleaned.startswith(("!", " ", "\t")):
+        cleaned = cleaned[1:].strip()
+    # Drop common prefixes.
+    for prefix in ("sudo ", "nohup ", "env "):
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+    parts = cleaned.split()
+    if not parts:
+        return ""
+    return parts[0]
+
 
 class PermissionDecision:
     """Result of a permission check."""
@@ -69,11 +113,13 @@ class PermissionDecision:
         needs_consent: bool = False,
         reason_key: str | None = None,
         reason_params: dict | None = None,
+        permission_key: str | None = None,
     ) -> None:
         self.allow = allow
         self.needs_consent = needs_consent
         self.reason_key = reason_key
         self.reason_params = reason_params or {}
+        self.permission_key = permission_key
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -81,6 +127,7 @@ class PermissionDecision:
             "needs_consent": self.needs_consent,
             "reason_key": self.reason_key,
             "reason_params": self.reason_params,
+            "permission_key": self.permission_key,
         }
 
 
@@ -108,6 +155,29 @@ class PermissionGateway:
     def list_profiles(self) -> list[dict]:
         return list(self._profiles.values())
 
+    @staticmethod
+    def permission_key(tool_name: str, params: dict) -> str:
+        """Return a normalized permission key for session-scoped grants.
+
+        Coarse-grained by design so that approving "pytest tests/foo.py"
+        also covers "pytest tests/bar.py" within the same session.
+        """
+        if tool_name == "run_command":
+            base = _command_base(params.get("command", ""))
+            return f"run_command:{base}" if base else "run_command:*"
+
+        if tool_name in TOOL_LEVEL_GRANTS:
+            return f"{tool_name}:*"
+
+        if tool_name in TOOL_REASON_KEYS:
+            _, param_name, extractor = TOOL_REASON_KEYS[tool_name]
+            value = _normalize_path(extractor(params))
+            if value:
+                return f"{tool_name}:{value}"
+            return f"{tool_name}:*"
+
+        return f"{tool_name}:*"
+
     def check(
         self,
         tool_name: str,
@@ -125,7 +195,7 @@ class PermissionGateway:
 
         # Sensitive tools: allow if in the profile's allowed_tools.
         if risk_level == "sensitive":
-            if tool_name in allowed_tools:
+            if tool_name in allowed_tools and tool_name not in ALWAYS_CONSENT_TOOLS:
                 return PermissionDecision(allow=True)
             # Use tool-specific reason key if available, else generic.
             if tool_name in TOOL_REASON_KEYS:
@@ -139,6 +209,7 @@ class PermissionGateway:
                 needs_consent=True,
                 reason_key=reason_key,
                 reason_params=reason_params,
+                permission_key=self.permission_key(tool_name, params),
             )
 
         # Dangerous tools: always need consent.
@@ -157,6 +228,7 @@ class PermissionGateway:
                 needs_consent=True,
                 reason_key="consent.reason.run_command",
                 reason_params={"command": params.get("command", "")},
+                permission_key=self.permission_key(tool_name, params),
             )
 
         return PermissionDecision(allow=False, reason_key="consent.reason.unknown")

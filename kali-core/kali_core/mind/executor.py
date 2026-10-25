@@ -19,6 +19,7 @@ from kali_core.canvas import is_game_resource, resolve_window_type
 from kali_core.claws.base import ToolContext, ToolResult, get
 from kali_core.collar.consent import ConsentManager
 from kali_core.collar.gateway import PermissionGateway
+from kali_core.desktop import DesktopBroker, RemoteGazeClient
 
 logger = logging.getLogger("kali_core.mind.executor")
 
@@ -37,6 +38,7 @@ class Executor:
         session_store: Any = None,
         job_mgr: Any = None,
         console_requester: Any = None,
+        desktop_broker: DesktopBroker | None = None,
     ) -> None:
         self.gateway = gateway
         self.consent = consent
@@ -47,6 +49,7 @@ class Executor:
         self.session_store = session_store
         self.job_mgr = job_mgr
         self.console_requester = console_requester
+        self.desktop_broker = desktop_broker
         # Per-session flag: True once a game_resource artifact has been returned.
         self._game_resource_returned: dict[str, bool] = {}
 
@@ -75,25 +78,42 @@ class Executor:
         decision = self.gateway.check(tool_name, tool.risk_level, params, self.profile)
 
         if not decision.allow and decision.needs_consent:
-            # Request consent from the user.
-            reason_params = decision.reason_params or {"tool": tool_name}
-            consent_decision = await self.consent.request(
-                tool=tool_name,
-                reason_key=decision.reason_key or "consent.reason.sensitive",
-                reason_params=reason_params,
-                summary_key=f"consent.summary.{tool_name}",
-                risk=tool.risk_level,
-            )
-
-            if consent_decision != "allow":
+            # If the user already granted permission for this session, allow.
+            permission_key = decision.permission_key or self.gateway.permission_key(tool_name, params)
+            if decision.permission_key and self.consent.is_granted(session_id, permission_key):
                 logger.info(
-                    "[consent] %s for tool '%s' (%s)",
-                    consent_decision, tool_name, session_id[:8],
+                    "[consent] session grant for '%s' matches '%s' (%s)",
+                    tool_name, permission_key, session_id[:8],
                 )
-                return ToolResult(error=f"Tool execution denied by user ({consent_decision}).")
+            else:
+                # Request consent from the user.
+                reason_params = decision.reason_params or {"tool": tool_name}
+                consent_decision = await self.consent.request(
+                    session_id=session_id,
+                    tool=tool_name,
+                    reason_key=decision.reason_key or "consent.reason.sensitive",
+                    reason_params=reason_params,
+                    summary_key=f"consent.summary.{tool_name}",
+                    risk=tool.risk_level,
+                )
+
+                if consent_decision not in ("allow", "allow_session"):
+                    logger.info(
+                        "[consent] %s for tool '%s' (%s)",
+                        consent_decision, tool_name, session_id[:8],
+                    )
+                    return ToolResult(error=f"Tool execution denied by user ({consent_decision}).")
+
+                if consent_decision == "allow_session" and decision.permission_key:
+                    self.consent.grant(session_id, decision.permission_key)
+                    logger.info(
+                        "[consent] granted '%s' for session '%s'",
+                        decision.permission_key, session_id[:8],
+                    )
 
         # Emit tool_event (running).
         tool_start = time.monotonic()
+        call_id = f"cmd_{uuid.uuid4().hex[:8]}"
         logger.info("[tool] running: %s (%s) args=%s", tool_name, session_id[:8], json.dumps(params))
         if emit_event:
             await emit_event({
@@ -103,10 +123,13 @@ class Executor:
                 "status": "running",
                 "params": params,
                 "output": None,
+                "call_id": call_id,
             })
 
         # Build context and run.
         gaze = getattr(self, "gaze_client", None)
+        if self.desktop_broker and self.desktop_broker.has_desktop(session_id):
+            gaze = RemoteGazeClient(self.desktop_broker, session_id)
         llm = getattr(self, "llm_provider", None)
         ctx = ToolContext(
             session_id=session_id,
@@ -119,10 +142,15 @@ class Executor:
             console_requester=getattr(self, "console_requester", None),
             emit=emit_event,
             language=language,
+            call_id=call_id,
         )
 
         try:
-            result = await tool.run(params, ctx)
+            if tool_name == "launch_app" and self.desktop_broker and self.desktop_broker.has_desktop(session_id):
+                from kali_core.claws.base import ToolResult
+                result = ToolResult(output=await self.desktop_broker.request(session_id, "launch_app", {"name": params.get("name", "")}))
+            else:
+                result = await tool.run(params, ctx)
         except Exception as e:
             logger.exception("Tool %s failed", tool_name)
             result = ToolResult(error=str(e))
@@ -145,6 +173,7 @@ class Executor:
                 "status": status,
                 "params": params,
                 "output": output,
+                "call_id": call_id,
             })
 
         # Emit artifact event if the tool produced one.

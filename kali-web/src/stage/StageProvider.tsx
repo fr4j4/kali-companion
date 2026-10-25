@@ -8,7 +8,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useChat, getSidecarPort, type ChatState } from "../hooks/useChat";
+import { authHeaders } from "../lib/api/http";
+import { useChat, type ChatState } from "../hooks/useChat";
 import { useTTS, type TtsPlaybackState } from "../hooks/useTTS";
 import { usePTT, type PTTControls } from "../hooks/usePTT";
 import type {
@@ -20,6 +21,7 @@ import {
   listConnections,
   listCloudProviders,
 } from "../lib/api/connections";
+import { apiBase } from "../lib/api/http";
 
 interface StageContextValue {
   chat: ChatState;
@@ -55,7 +57,7 @@ async function fetchWithRetry(
   const baseDelay = opts.baseDelay ?? 400;
   for (let attempt = 1; attempt <= tries; attempt += 1) {
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { headers: authHeaders() });
       if (resp.ok || resp.status >= 400) return resp; // 4xx/5xx won't fix themselves
       return resp;
     } catch (err) {
@@ -66,8 +68,8 @@ async function fetchWithRetry(
   return null;
 }
 
-export function StageProvider({ children }: { children: ReactNode }) {
-  const chat = useChat();
+export function StageProvider({ children, detachedSessionId }: { children: ReactNode; detachedSessionId?: string }) {
+  const chat = useChat(detachedSessionId);
   const tts = useTTS(chat.subscribeTts, chat.onTtsEnded);
   const navigate = useNavigate();
   const { sid: urlSid } = useParams<{ sid?: string }>();
@@ -144,6 +146,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
   // URL -> state: attach to the session in the URL once ready.
   const lastAttachedRef = useRef<string | null>(null);
   useEffect(() => {
+    if (detachedSessionId) return;
     // While the user explicitly requested a new session, do not re-attach to the
     // previous session URL. The effect below will move the URL to root and then
     // to /session/<newId> once the backend responds.
@@ -156,6 +159,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
 
   // State -> URL: bookmark the active session, or clear URL if no session.
   useEffect(() => {
+    if (detachedSessionId) return;
     if (chat.isCreatingSession && urlSid) {
       // User pressed "new session"; move to the URL root immediately and record
       // the old URL session id so the attach effect above does not pull us back.
@@ -224,10 +228,9 @@ export function StageProvider({ children }: { children: ReactNode }) {
         setCustomVoices([]);
         return;
       }
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetchWithRetry(
-        `http://${host}:${port ?? 8900}/voices/custom?provider=qwen3`,
+        `${base}/voices/custom?provider=qwen3`,
       );
       if (!resp) return;
       try {

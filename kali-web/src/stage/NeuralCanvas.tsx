@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
-import { marked } from "marked";
+import { renderMarkdown } from "../lib/markdown";
 import { useStage } from "./StageProvider";
 import { useAvatarMoodEngine } from "../avatar/AvatarMoodEngine";
 import { AvatarSVG } from "../avatar/AvatarSVG";
@@ -83,10 +83,19 @@ export function NeuralCanvas({
   });
   const perfMetrics = usePerfMetrics(api.windows, performanceProfile);
   const [typing, setTyping] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => window.location.hash.includes("panel=settings"));
   const [jobsOpen, setJobsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [artifactsOpen, setArtifactsOpen] = useState(false);
+  const [artifactsOpen, setArtifactsOpen] = useState(() => window.location.hash.includes("panel=artifacts"));
+
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash.includes("panel=settings")) setSettingsOpen(true);
+      if (window.location.hash.includes("panel=artifacts")) setArtifactsOpen(true);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
@@ -94,6 +103,7 @@ export function NeuralCanvas({
   const [mobileSwitcherOpen, setMobileSwitcherOpen] = useState(false);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => loadAvatarConfig());
   const reasoningWindowIdRef = useRef<number | null>(null);
+  const terminalWindowIdRef = useRef<number | null>(null);
 
   // Click override — petting the avatar → brief "ronroneando"
   const [overrideEmotion, setOverrideEmotion] = useState<{ emotion: AvatarEmotion; until: number } | null>(null);
@@ -108,6 +118,12 @@ export function NeuralCanvas({
 
   // Mood engine — derives state + emotion from runtime context
   const { state: avatarState, emotion: avatarEmotion } = useAvatarMoodEngine(typing, overrideEmotion);
+
+  useEffect(() => {
+    if (!window.kaliDesktop) return;
+    const last = [...chat.messages].reverse().find((m) => m.role === "assistant" && m.content);
+    window.kaliDesktop.setPresence({ mood: avatarState, emotion: avatarEmotion, text: last?.content?.slice(-160) || "", connected: chat.status === "ready" });
+  }, [avatarState, avatarEmotion, chat.messages, chat.status]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("kali-mobile-stage", isMobile);
@@ -216,6 +232,7 @@ export function NeuralCanvas({
       prevSessionRef.current = chat.sessionId;
       api.resetWorkspace();
       processedRef.current.clear();
+      terminalWindowIdRef.current = null;
     }
   }, [chat.sessionId, api]);
 
@@ -248,6 +265,26 @@ export function NeuralCanvas({
       syncArtifactRef.current(event);
     }
   }, [chat.artifacts]);
+
+  // Auto-open a terminal window when terminal sessions exist and no
+  // terminal window is currently open. Follows the same pattern as the
+  // reasoning window (non-artifact window, tracked by ref).
+  useEffect(() => {
+    const hasTerminalSessions = chat.terminalSessions && chat.terminalSessions.size > 0;
+    if (!hasTerminalSessions) return;
+    const existing = terminalWindowIdRef.current !== null
+      ? api.windows.find(w => w.id === terminalWindowIdRef.current && !w.closed)
+      : null;
+    if (!existing) {
+      const id = api.createWindow("terminal", {
+        title: t("terminal.title"),
+        icon: "🖥️",
+        width: 520,
+        height: 400,
+      });
+      terminalWindowIdRef.current = id;
+    }
+  }, [chat.terminalSessions, api, t]);
 
   // Register a provider so useChat.send can include selected artifact
   // metadata (id, type, title) with each input event. The workspace owns
@@ -330,7 +367,7 @@ export function NeuralCanvas({
           <div className="relative flex items-center justify-center" style={{
             width: avPx,
             height: avPx,
-            transform: typing ? "translateY(-20vh)" : "translateY(0)",
+            transform: typing ? "translateY(-35vh)" : "translateY(-18vh)",
             transition: "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
           }}>
           <div className="absolute rounded-full border border-accent/10 transition-all duration-500" style={{
@@ -709,16 +746,13 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
 
   // Throttle the visible text during streaming to one update per frame.
   // During streaming, `text` changes every rAF flush (from useChat's
-  // batcher), which is already ~60fps. But marked.parse on every frame
-  // is still expensive. Instead:
-  //   - Streaming: render escaped raw text (no marked), updated per frame.
-  //   - Not streaming: parse markdown once via useMemo.
+  // batcher), which is already ~60fps. We parse markdown on each update
+  // — marked is fast enough for typical response lengths at 60fps.
   const [streamingText, setStreamingText] = useState("");
   const streamingRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isStreaming) {
-      // Ensure any pending rAF is cancelled when streaming stops.
       if (streamingRafRef.current !== null) {
         cancelAnimationFrame(streamingRafRef.current);
         streamingRafRef.current = null;
@@ -726,7 +760,6 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
       setStreamingText("");
       return;
     }
-    // Schedule a single rAF to update the visible streaming text.
     if (streamingRafRef.current === null) {
       streamingRafRef.current = requestAnimationFrame(() => {
         streamingRafRef.current = null;
@@ -741,25 +774,20 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     };
   }, [text, isStreaming]);
 
-  // Parse markdown only when NOT streaming (final render).
-  const html = useMemo(() => {
-    if (isStreaming || !text) return null;
-    try {
-      return marked.parse(text, { async: false }) as string;
-    } catch {
-      return `<p>${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
-    }
-  }, [text, isStreaming]);
+  // Parse markdown — runs on final text when not streaming, or on
+  // throttled streaming text during active streaming.
+  const displayText = isStreaming ? streamingText : text;
 
-  // Escaped raw text for streaming display (no markdown, just safe text).
-  const escapedStreaming = useMemo(() => {
-    if (!streamingText) return "";
-    return streamingText
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\n/g, "<br/>");
-  }, [streamingText]);
+  const html = useMemo(() => {
+    if (!displayText) return null;
+      // 1. Collapse 3+ consecutive newlines into 2.
+      // 2. Collapse double newlines before list items so bullet lists
+      //    don't get excessive paragraph spacing.
+      const normalized = displayText
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/\n\n(?=\s*[-*]\s|\s*\d+\.\s)/g, "\n");
+      return renderMarkdown(normalized);
+  }, [displayText]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -767,7 +795,7 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
     if (atBottom) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [html, isStreaming, escapedStreaming, atBottom]);
+  }, [html, atBottom]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -797,16 +825,9 @@ function FloatingTranscript({ messages }: { messages: import("../hooks/useChat")
         >
           {html && (
             <div
-              className="leading-relaxed text-sm"
-              style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          )}
-          {isStreaming && escapedStreaming && (
-            <div
               className="leading-relaxed text-sm whitespace-pre-wrap"
               style={{ fontFamily: "Fraunces, serif", fontVariationSettings: '"SOFT" 40' }}
-              dangerouslySetInnerHTML={{ __html: escapedStreaming }}
+              dangerouslySetInnerHTML={{ __html: html }}
             />
           )}
           {isStreaming && (

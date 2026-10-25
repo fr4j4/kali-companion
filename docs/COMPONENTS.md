@@ -48,9 +48,9 @@ you need to extract it later, the rename cost is zero.
             │  │            kali-web  (React)            │ │
             │  │   Stage · Workspace · Widgets          │ │
             │  └────────────────────────────────────────┘ │
-            │  System tray · window management · sidecar  │
+            │  System tray · windows · local capabilities │
             └──────────────────────┬──────────────────────┘
-                                    │  WS (kali-yarn)
+                                    │  HTTPS / WSS (kali-yarn)
             ┌──────────────────────▼──────────────────────┐
             │              kali-core  (Python)              │
             │                                              │
@@ -72,8 +72,8 @@ you need to extract it later, the rename cost is zero.
 ## kali-shell — The Shell (Electron / TypeScript)
 
 **Purpose.** The native application container. Opens a window on the user's
-OS, embeds a webview that renders `kali-web`, spawns and supervises the
-Python sidecar (`kali-core`), and provides system-level capabilities
+OS, embeds a packaged copy of `kali-web`, connects to an independently
+deployed `kali-core`, and provides system-level capabilities
 (system tray, window management, notifications).
 
 **Design rule:** kali-shell does not contain business logic. It is a thin

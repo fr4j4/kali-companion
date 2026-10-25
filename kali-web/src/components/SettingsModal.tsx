@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cpu, Volume2, Sliders, Palette, Mic, Info, Gamepad2 } from "lucide-react";
+import { Cpu, Volume2, Sliders, Palette, Mic, Info, Gamepad2, Lock } from "lucide-react";
 import type { StatusEvent, SettingsEvent } from "../lib/protocol";
 import { Modal } from "./ui/Modal";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -16,6 +16,7 @@ import { BehaviorSection } from "./settings/BehaviorSection";
 import { AppearanceSection } from "./settings/AppearanceSection";
 import { GenerationSection } from "./settings/GenerationSection";
 import { AboutSection } from "./settings/AboutSection";
+import { SecuritySection } from "./settings/SecuritySection";
 import { GamingSection } from "./settings/GamingSection";
 import type { PerformanceProfile } from "../App";
 
@@ -40,7 +41,7 @@ interface Props {
   downloadError: string | null;
 }
 
-type SectionId = "ai" | "voice" | "stt" | "behavior" | "gaming" | "appearance" | "about";
+type SectionId = "ai" | "voice" | "stt" | "behavior" | "gaming" | "appearance" | "about" | "security";
 
 interface SectionDef {
   id: SectionId;
@@ -54,6 +55,7 @@ const SECTIONS: SectionDef[] = [
   { id: "stt", icon: Mic, labelKey: "settings.section.stt" },
   { id: "behavior", icon: Sliders, labelKey: "settings.section.behavior" },
   { id: "gaming", icon: Gamepad2, labelKey: "settings.section.gaming" },
+  { id: "security", icon: Lock, labelKey: "settings.section.security" },
   { id: "appearance", icon: Palette, labelKey: "settings.section.appearance" },
   { id: "about", icon: Info, labelKey: "settings.section.about" },
 ];
@@ -179,6 +181,7 @@ export function SettingsModal({
     if (active === "stt") return <STTSection systemStatus={systemStatus} onUpdate={onUpdate} downloadSttModel={downloadSttModel} downloadProgress={downloadProgress} downloadError={downloadError} />;
     if (active === "behavior") return <BehaviorSection systemStatus={systemStatus} onUpdate={onUpdate} />;
     if (active === "gaming") return <GamingSection systemStatus={systemStatus} onUpdate={onUpdate} />;
+    if (active === "security") return <SecuritySection />;
     if (active === "about") return <AboutSection />;
     return (
       <AppearanceSection

@@ -100,13 +100,13 @@ between its layers, and the key technical decisions.
 │                                                              │
 │  Electron IPC → system capabilities:                         │
 │    - Window management, system tray                          │
-│    - Spawns and supervises the Python sidecar                │
+│    - Avatar, detached artifacts, desktop actions            │
 │                                                              │
-│  Sidecar launcher: spawns + supervises the Python process    │
+│  Packaged frontend; configured backend URL and tokens       │
 └───────────────────────┬─────────────────────────────────────┘
-                         │  Local WebSocket (JSON) + stdio
+                         │  HTTPS API + authenticated WSS
 ┌───────────────────────▼─────────────────────────────────────┐
-│                 kali-core  (Python sidecar)                    │
+│                 kali-core  (independent service)             │
 │                                                               │
 │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │
 │  │ kali-mind    │  │ kali-claws  │  │ kali-voice / kali-ear │  │
@@ -128,7 +128,7 @@ Kali is split into three layers, each in its own top-level directory:
 
 | Layer | Directory | Language | Responsibility |
 |---|---|---|---|
-| Shell | `kali-shell/` | TypeScript (Electron) | Native window, system tray, spawns the Python sidecar |
+| Shell | `kali-shell/` | TypeScript (Electron) | Native windows, system tray, local desktop actions |
 | Frontend | `kali-web/` | TypeScript (React + Vite) | UI rendered in the webview: dashboard, chat, widgets, canvas |
 | Core | `kali-core/` | Python 3.12 (asyncio) | Agent runtime, tools, voice, permissions, sessions |
 
@@ -137,11 +137,11 @@ Kali is split into three layers, each in its own top-level directory:
 - **Python carries the brain.** The user is learning AI and wants to iterate on
   agent logic, tools, and prompts. Python is the most readable surface for
   that work.
-- **Electron is minimal.** The shell only does what Python cannot:
-  open a native window, manage system tray, spawn and supervise the sidecar
-  process. The Electron shell is lightweight and cross-platform.
+- **Electron is minimal.** The shell opens native windows, manages the tray,
+  and executes explicitly authorized local desktop actions. The backend is
+  installed and operated independently.
 - **The frontend is framework-agnostic to the core.** It talks to the core
-  over a local WebSocket using a documented event protocol
+  over an authenticated WebSocket using a documented event protocol
   ([PROTOCOL.md](./PROTOCOL.md)). It does not import `kali_core` directly,
   which keeps the door open for swapping the frontend (or running it in a
   plain browser during development).
@@ -338,18 +338,18 @@ See [ARTIFACT_GENERATION.md](./ARTIFACT_GENERATION.md) for details.
 ## Process lifecycle
 
 ```
-user starts kali-shell (Electron app)
+operator starts kali-core as an independent service
+user starts kali-shell (Electron app on this or another computer)
     │
     ▼
 kali-shell/main.ts:
-    1. build Electron app
-    2. spawn sidecar: python -m kali_core  (env: KALI_WS_PORT=…)
-    3. wait for sidecar WS to be listening
-    4. load kali-web index.html in the webview
+    1. load packaged kali-web assets
+    2. read configured backend URL and tokens
+    3. open the main window, avatar and tray
     │
     ▼
 kali-web boots in webview:
-    - connects to ws://127.0.0.1:<port>
+    - connects to the configured wss:// backend
     - subscribes to events
     - sends "hello" → core replies "ready"
     │
@@ -357,11 +357,11 @@ kali-web boots in webview:
 steady state:
     - user interactions flow over WS to kali-core
     - kali-core streams back deltas, TTS, artifacts, consent prompts
-    - kali-shell supervises the sidecar process, restarts on crash
+    - the desktop client reconnects when the backend becomes available
 ```
 
-If the sidecar crashes, `kali-shell` detects the WS drop and restarts it,
-preserving the frontend session.
+If the backend goes offline, the desktop client stays open and reconnects.
+See [DESKTOP_CLIENT.md](./DESKTOP_CLIENT.md) for deployment and compositor notes.
 
 ## Repository layout
 

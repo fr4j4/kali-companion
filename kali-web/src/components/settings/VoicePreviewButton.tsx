@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getSidecarPort } from "../../hooks/useChat";
+import { apiBase, authHeaders } from "../../lib/api/http";
 
 export function VoicePreviewButton({
   voiceId,
@@ -38,13 +38,12 @@ export function VoicePreviewButton({
       return;
     }
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/api/tts/preview`,
+        `${base}/api/tts/preview`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ voice_id: voiceId, language: sttLanguage, mode, provider }),
         },
       );

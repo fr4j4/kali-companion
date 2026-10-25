@@ -23,30 +23,59 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
+    // Acepta Host: companion.local, 192.168.1.35, localhost, 127.0.0.1.
+    // Sin esto, Vite 5.x+ bloquea hosts no whitelisteados (CVE-2024-31207).
+    // En dev es seguro: el dev launcher corre solo en LAN privada.
+    allowedHosts: [
+      "companion.local",
+      "192.168.1.35",
+      "localhost",
+      "127.0.0.1",
+      ".localhost",
+      ".local",
+    ],
     proxy: {
       "/ws": {
         target: "ws://127.0.0.1:8900",
         ws: true,
       },
-      "/images": {
-        target: "http://127.0.0.1:8900",
-      },
-      "/snapshots": {
+      "/api": {
         target: "http://127.0.0.1:8900",
       },
       "/file": {
         target: "http://127.0.0.1:8900",
       },
-      "/voices": {
+      "/gsi": {
         target: "http://127.0.0.1:8900",
       },
-      "/profiles": {
+      "/health": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/images": {
         target: "http://127.0.0.1:8900",
       },
       "/llm": {
         target: "http://127.0.0.1:8900",
       },
+      "/models": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/profiles": {
+        target: "http://127.0.0.1:8900",
+      },
       "/sessions": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/snapshots": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/stt": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/tts": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/voices": {
         target: "http://127.0.0.1:8900",
       },
     },
@@ -60,25 +89,43 @@ export default defineConfig({
         target: "ws://127.0.0.1:8900",
         ws: true,
       },
-      "/images": {
-        target: "http://127.0.0.1:8900",
-      },
-      "/snapshots": {
+      "/api": {
         target: "http://127.0.0.1:8900",
       },
       "/file": {
         target: "http://127.0.0.1:8900",
       },
-      "/voices": {
+      "/gsi": {
         target: "http://127.0.0.1:8900",
       },
-      "/profiles": {
+      "/health": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/images": {
         target: "http://127.0.0.1:8900",
       },
       "/llm": {
         target: "http://127.0.0.1:8900",
       },
+      "/models": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/profiles": {
+        target: "http://127.0.0.1:8900",
+      },
       "/sessions": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/snapshots": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/stt": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/tts": {
+        target: "http://127.0.0.1:8900",
+      },
+      "/voices": {
         target: "http://127.0.0.1:8900",
       },
     },

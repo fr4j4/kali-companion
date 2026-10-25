@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { StageProvider } from "./stage/StageProvider";
+import { AuthGate, AUTH_REQUIRED_EVT } from "./components/AuthGate";
 import { NeuralCanvas } from "./stage/NeuralCanvas";
 import { useUIScale } from "./hooks/useUIScale";
 
@@ -96,8 +97,18 @@ export default function App() {
     }
   }, [theme]);
 
+  const [authLocked, setAuthLocked] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setAuthLocked(true);
+    window.addEventListener(AUTH_REQUIRED_EVT, handler);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVT, handler);
+  }, []);
+
   return (
     <StageProvider>
+      <AuthGate onLocked={setAuthLocked} />
+      {!authLocked && (
       <NeuralCanvas
         theme={theme}
         onThemeChange={setTheme}
@@ -111,6 +122,7 @@ export default function App() {
         uiScale={scale}
         onUIScaleChange={setScale}
       />
+      )}
     </StageProvider>
   );
 }

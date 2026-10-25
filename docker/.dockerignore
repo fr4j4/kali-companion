@@ -51,3 +51,7 @@ ui-brainstorm/
 .agents/
 .opencode/
 skills-lock.json
+
+# Docker dev-only files (entrypoint-dev, nginx-dev, dev launcher)
+#    We DO want these inside the image for `target: builder`.
+#    They're mounted at runtime anyway, so no harm in baking them in.

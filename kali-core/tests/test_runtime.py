@@ -71,6 +71,21 @@ class FakeGateway:
 class FakeConsent:
     """Permissive consent — always allows."""
 
+    def __init__(self) -> None:
+        self._grants: dict[str, set[str]] = {}
+
+    def is_granted(self, session_id: str, permission_key: str) -> bool:
+        return permission_key in self._grants.get(session_id, set())
+
+    def grant(self, session_id: str, permission_key: str) -> None:
+        self._grants.setdefault(session_id, set()).add(permission_key)
+
+    def revoke(self, session_id: str, permission_key: str) -> None:
+        self._grants.get(session_id, set()).discard(permission_key)
+
+    def clear_session(self, session_id: str) -> None:
+        self._grants.pop(session_id, None)
+
     async def request(self, **kwargs: object) -> str:
         return "allow"
 

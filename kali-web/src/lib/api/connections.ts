@@ -8,6 +8,7 @@
 // The base URL is discovered the same way as artifacts.ts — Electron sidecar
 // port via window.kali, or Vite proxy in browser dev.
 
+import { authHeaders } from "./http";
 import type {
   CloudProviderInfo,
   ConnectionKind,
@@ -61,7 +62,7 @@ interface UpdatePayload {
 
 export async function listConnections(): Promise<ConnectionSummary[]> {
   const base = await baseUrl();
-  const res = await fetch(`${base}/llm/connections`);
+  const res = await fetch(`${base}/llm/connections`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`listConnections ${res.status}`);
   const data = (await res.json()) as ListResponse;
   return data.connections ?? [];
@@ -71,7 +72,7 @@ export async function createConnection(payload: CreatePayload): Promise<Connecti
   const base = await baseUrl();
   const res = await fetch(`${base}/llm/connections`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -85,7 +86,7 @@ export async function updateConnection(id: string, patch: UpdatePayload): Promis
   const base = await baseUrl();
   const res = await fetch(`${base}/llm/connections/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(patch),
   });
   if (!res.ok) {
@@ -113,7 +114,7 @@ export async function verifyApiKey(
   const base = await baseUrl();
   const res = await fetch(`${base}/llm/connections/verify-key`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ api_url: apiUrl, api_key: apiKey }),
   });
   if (!res.ok) {
@@ -131,7 +132,7 @@ export async function testConnection(
   const base = await baseUrl();
   const res = await fetch(`${base}/llm/connections/test`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ api_url: apiUrl, api_key: apiKey, connection_id: connectionId }),
   });
   if (!res.ok) {
@@ -159,7 +160,7 @@ export async function scanLocal(
   url.searchParams.set("host", host);
   url.searchParams.set("from_port", String(fromPort));
   url.searchParams.set("to_port", String(toPort));
-  const res = await fetch(url.toString(), { signal });
+  const res = await fetch(url.toString(), { signal, headers: authHeaders() });
   if (!res.ok) throw new Error(`scanLocal ${res.status}`);
   const data = (await res.json()) as { endpoints: ScanResult[] };
   return data.endpoints ?? [];
@@ -167,7 +168,7 @@ export async function scanLocal(
 
 export async function listCloudProviders(): Promise<CloudProviderInfo[]> {
   const base = await baseUrl();
-  const res = await fetch(`${base}/llm/cloud-providers`);
+  const res = await fetch(`${base}/llm/cloud-providers`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`listCloudProviders ${res.status}`);
   const data = (await res.json()) as { providers: CloudProviderInfo[] };
   return data.providers ?? [];
@@ -178,7 +179,7 @@ export async function listModels(apiUrl: string, apiKey = ""): Promise<string[]>
   const url = buildUrl(base, "/llm/models");
   url.searchParams.set("api_url", apiUrl);
   if (apiKey) url.searchParams.set("api_key", apiKey);
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: authHeaders() });
   if (!res.ok) throw new Error(`listModels ${res.status}`);
   const data = (await res.json()) as { models: string[] };
   return data.models ?? [];

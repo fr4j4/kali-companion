@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { marked } from "marked";
+import { renderMarkdown } from "../../lib/markdown";
 import { ScrollableWidget } from "./base/ScrollableWidget";
 import { useHeaderActions, type HeaderAction } from "./hooks/useHeaderActions";
 import { SAMPLE_DOCUMENT, SAMPLE_LONGTEXT } from "./utils/sampleData";
@@ -25,11 +25,7 @@ export function DocumentWidget({ content, variant = "markdown" }: Props) {
 
   const html = useMemo(() => {
     if (variant !== "markdown") return null;
-    try {
-      return marked.parse(rawText, { async: false }) as string;
-    } catch {
-      return `<p>${rawText}</p>`;
-    }
+    return renderMarkdown(rawText);
   }, [rawText, variant]);
 
   const actions: HeaderAction[] = useMemo(() => {

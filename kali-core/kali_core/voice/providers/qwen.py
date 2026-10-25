@@ -744,10 +744,16 @@ class QwenTTSProvider:
         self._log_file = log_path
 
         env = os.environ.copy()
+        # El linker no busca librerías en el directorio del binario por sí solo:
+        # ggml compila libs compartidas junto a tts-server (build*/libggml*.so).
+        # Sin esto, el arranque muere con "libggml.so.0: cannot open shared
+        # object file" aunque las libs estén al lado del binario.
+        lib_dir = str(Path(self._binary).resolve().parent)
+        env["LD_LIBRARY_PATH"] = f"{lib_dir}:{env.get('LD_LIBRARY_PATH', '')}"
         if self._backend.startswith("CUDA"):
             for cuda_path in ("/opt/cuda/lib64", "/usr/local/cuda/lib64", "/usr/lib/cuda/lib64"):
                 if os.path.isdir(cuda_path):
-                    env["LD_LIBRARY_PATH"] = f"{cuda_path}:{env.get('LD_LIBRARY_PATH', '')}"
+                    env["LD_LIBRARY_PATH"] = f"{env['LD_LIBRARY_PATH']}{cuda_path}:"
                     break
         # Always export GGML_BACKEND so the C++ binary picks the right device
         # (CPU or CUDA0/CUDA1). Without this, the C++ auto-selects the best

@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { WSClient } from "./wsClient";
 import { getSidecarPort } from "../hooks/useChat";
+import { websocketUrl } from "./desktop";
 
 let client: WSClient | null = null;
 let connectPromise: Promise<WSClient> | null = null;
@@ -20,14 +21,16 @@ export async function getGameWSClient(): Promise<WSClient> {
 
   connectPromise = (async () => {
     const port = await getSidecarPort();
-    if (!port) {
+    if (!port && !window.kaliDesktop) {
       connectPromise = null;
       throw new Error("No sidecar port available");
     }
 
     const isElectron = !!(window as unknown as { kali?: unknown }).kali;
     let wsUrl: string;
-    if (isElectron) {
+    if (window.kaliDesktop) {
+      wsUrl = websocketUrl();
+    } else if (isElectron) {
       wsUrl = `ws://127.0.0.1:${port}/ws`;
     } else {
       const proto = window.location.protocol === "https:" ? "wss:" : "ws:";

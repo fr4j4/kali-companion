@@ -7,6 +7,7 @@
 // The base URL is discovered the same way as the WS connection (Electron
 // sidecar port via window.kali, or the Vite proxy in browser dev).
 
+import { authHeaders } from "./api/http";
 import type { ArtifactEvent } from "./protocol";
 
 /** Response shape of GET /sessions/{sid}/artifacts/{aid}. */
@@ -53,7 +54,7 @@ export async function fetchArtifact(
   const base = await baseUrl();
   const res = await fetch(`${base}/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...authHeaders() },
     signal,
   });
   if (!res.ok) {

@@ -19,7 +19,7 @@ export function ImageWidget({ content }: Props) {
     if (d.path && typeof d.path === "string") {
       // Absolute path → serve via the /file endpoint (reads from disk).
       if (d.path.startsWith("/")) {
-        return `http://127.0.0.1:8900/file?path=${encodeURIComponent(d.path)}`;
+        return `/file?path=${encodeURIComponent(d.path)}`;
       }
       // Relative path under a known static mount.
       if (d.path.startsWith("snapshots/")) return `/${d.path}`;

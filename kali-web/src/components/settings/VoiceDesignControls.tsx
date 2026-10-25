@@ -5,7 +5,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getSidecarPort } from "../../hooks/useChat";
+import { apiBase, authHeaders } from "../../lib/api/http";
 import type { CustomVoice, VoiceDesignPreset } from "../../lib/protocol";
 import { Select } from "../ui/Select";
 
@@ -60,13 +60,12 @@ export function VoiceDesignControls({
     setPreviewLoading(true);
     setPlaying(false);
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/api/tts/voice-design`,
+        `${base}/api/tts/voice-design`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             instructions: currentInstructions,
             seed: currentSeed,
@@ -155,8 +154,7 @@ export function VoiceDesignControls({
     if (!trimmedName || !instructions?.trim()) return;
     setSaving(true);
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
 
       let currentInstructions: string;
       let currentSeed: number;
@@ -171,10 +169,10 @@ export function VoiceDesignControls({
       }
 
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/voices/custom`,
+        `${base}/voices/custom`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             name: trimmedName,
             provider: ttsProvider,
@@ -199,11 +197,10 @@ export function VoiceDesignControls({
   const handleDeleteVoice = useCallback(async (id: string) => {
     setDeletingId(id);
     try {
-      const port = await getSidecarPort();
-      const host = window.location.hostname;
+      const base = await apiBase();
       const resp = await fetch(
-        `http://${host}:${port ?? 8900}/voices/custom/${id}`,
-        { method: "DELETE" },
+        `${base}/voices/custom/${id}`,
+        { method: "DELETE", headers: authHeaders() },
       );
       if (resp.ok) {
         onCustomVoicesChange();

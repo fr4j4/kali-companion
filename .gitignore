@@ -8,6 +8,8 @@ __pycache__/
 *.egg
 *.egg-info/
 .venv/
+.venv-cpu/
+.venv-gpu/
 venv/
 env/
 .virtualenvs/
@@ -24,6 +26,7 @@ pip-delete-this-directory.txt
 # =============================================================================
 node_modules/
 kali-web/dist/
+kali-shell/release/
 *.tsbuildinfo
 tsconfig.tsbuildinfo
 
@@ -74,3 +77,10 @@ Thumbs.db
 .agents/
 skills-lock.json
 .opencode/
+
+# Backup files (NUNCA commitear)
+*.bak
+*.bak.*
+
+# Clon embebido del server TTS C++ (repo propio, Docker lo clona aparte)
+kali-core/kali_core/voice/qwen_cpp/

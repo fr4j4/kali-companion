@@ -1,11 +1,22 @@
-// kali-shell/src/preload.ts
-//
-// Exposes a minimal API to the renderer via contextBridge. The frontend
-// uses window.kali.getSidecarPort() to learn which port the Python
-// sidecar is listening on (replaces window.__TAURI__.core.invoke).
-
 import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld("kali", {
-  getSidecarPort: (): Promise<number> => ipcRenderer.invoke("get-sidecar-port"),
+contextBridge.exposeInMainWorld("kaliDesktop", {
+  getConfig: () => ipcRenderer.invoke("desktop:get-config"),
+  saveConfig: (config: { backendUrl: string; token: string; capabilityToken: string }) => ipcRenderer.invoke("desktop:save-config", config),
+  openMain: (hash?: string) => ipcRenderer.invoke("desktop:open-main", hash),
+  showAvatar: (visible: boolean) => ipcRenderer.invoke("desktop:show-avatar", visible),
+  setAvatarSize: (size: number) => ipcRenderer.invoke("desktop:set-avatar-size", size),
+  openArtifact: (sessionId: string, artifactId: string) => ipcRenderer.invoke("desktop:open-artifact", sessionId, artifactId),
+  performAction: (action: string, params: Record<string, unknown>) => ipcRenderer.invoke("desktop:action", action, params),
+  setPresence: (state: { mood: string; emotion: string; text: string; connected: boolean }) => ipcRenderer.send("desktop:presence", state),
+  onPresence: (callback: (state: { mood: string; emotion: string; text: string; connected: boolean }) => void) => {
+    const handler = (_event: unknown, state: { mood: string; emotion: string; text: string; connected: boolean }) => callback(state);
+    ipcRenderer.on("desktop:presence", handler);
+    return () => ipcRenderer.removeListener("desktop:presence", handler);
+  },
+  onNavigate: (callback: (hash: string) => void) => {
+    const handler = (_event: unknown, hash: string) => callback(hash);
+    ipcRenderer.on("navigate", handler);
+    return () => ipcRenderer.removeListener("navigate", handler);
+  },
 });
